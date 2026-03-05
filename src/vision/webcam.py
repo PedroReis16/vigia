@@ -22,6 +22,17 @@ class WebcamPreviewService:
         self._thread.start()
         logger.info("Preview da webcam iniciado (camera_index=%s)", self._camera_index)
 
+    def run_blocking(self) -> None:
+        if self._running:
+            return
+
+        self._running = True
+        logger.info(
+            "Preview da webcam iniciado em modo bloqueante (camera_index=%s)",
+            self._camera_index,
+        )
+        self._run_loop()
+
     def stop(self) -> None:
         self._running = False
         if self._thread and self._thread.is_alive():
@@ -51,3 +62,4 @@ class WebcamPreviewService:
         finally:
             capture.release()
             cv2.destroyAllWindows()
+            self._running = False

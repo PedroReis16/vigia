@@ -46,6 +46,13 @@ No seu `.env`:
 WEBCAM_PREVIEW_ENABLED=true
 WEBCAM_INDEX=0
 WEBCAM_WINDOW_NAME=older-fall webcam
+WEBCAM_FLIP_HORIZONTAL=false
+```
+
+Se a imagem estiver espelhada, altere para:
+
+```env
+WEBCAM_FLIP_HORIZONTAL=true
 ```
 
 Ao subir o projeto (`python -m src.main`), a janela da webcam abre automaticamente.

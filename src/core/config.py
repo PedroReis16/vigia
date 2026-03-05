@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     webcam_preview_enabled: bool = Field(default=False)
     webcam_index: int = Field(default=0)
     webcam_window_name: str = Field(default="older-fall webcam")
+    webcam_flip_horizontal: bool = Field(default=False)
 
     # replication_enabled: bool = Field(default=False)
     # replication_url: str | None = Field(default=None)

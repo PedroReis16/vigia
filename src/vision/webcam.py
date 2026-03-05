@@ -7,9 +7,15 @@ logger = logging.getLogger(__name__)
 
 
 class WebcamPreviewService:
-    def __init__(self, camera_index: int = 0, window_name: str = "older-fall webcam") -> None:
+    def __init__(
+        self,
+        camera_index: int = 0,
+        window_name: str = "older-fall webcam",
+        flip_horizontal: bool = False,
+    ) -> None:
         self._camera_index = camera_index
         self._window_name = window_name
+        self._flip_horizontal = flip_horizontal
         self._running = False
         self._thread: threading.Thread | None = None
 
@@ -53,6 +59,9 @@ class WebcamPreviewService:
                 ok, frame = capture.read()
                 if not ok:
                     continue
+
+                if self._flip_horizontal:
+                    frame = cv2.flip(frame, 1)
 
                 cv2.imshow(self._window_name, frame)
                 key = cv2.waitKey(1) & 0xFF

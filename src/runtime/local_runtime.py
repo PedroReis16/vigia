@@ -11,6 +11,7 @@ class LocalRuntime:
         self._webcam_preview = WebcamPreviewService(
             camera_index=settings.webcam_index,
             window_name=settings.webcam_window_name,
+            flip_horizontal=settings.webcam_flip_horizontal,
         )
 
     def run(self) -> None:

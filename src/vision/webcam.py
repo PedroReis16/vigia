@@ -49,7 +49,7 @@ class WebcamPreviewService:
         logger.info("Preview da webcam finalizado")
 
     def _run_loop(self) -> None:
-        model = YOLO("yolov8n.pt")
+        model = YOLO("yolov8s.pt")
 
         capture = cv2.VideoCapture(self._camera_index)
         if not capture.isOpened():

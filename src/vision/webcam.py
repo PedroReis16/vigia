@@ -71,7 +71,7 @@ class WebcamPreviewService:
                 results = model.predict(
                     source=frame,
                     imgsz=640,
-                    conf=0.25,
+                    conf=0.7,
                     device="cpu",
                     verbose=False,
                 )

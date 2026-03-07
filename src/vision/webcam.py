@@ -77,27 +77,9 @@ class WebcamPreviewService:
                 )
 
                 result = results[0]
+                annotated_frame = result.plot()
 
-                for box in result.boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    conf = float(box.conf[0])
-                    cls = int(box.cls[0])
-                    class_name = model.names[cls]
-
-                    x1, y1, x2, y2 = map(int, [x1, y1, x2, y2])
-
-                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(
-                        frame,
-                        f"{class_name} {conf:.2f}",
-                        (x1, max(y1 - 10, 0)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2,
-                    )
-
-                cv2.imshow(self._window_name, frame)
+                cv2.imshow(self._window_name, annotated_frame)
 
                 key = cv2.waitKey(1) & 0xFF
                 if key in (27, ord("q")):

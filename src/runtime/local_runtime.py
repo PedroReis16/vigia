@@ -12,6 +12,7 @@ class LocalRuntime:
             camera_index=settings.webcam_index,
             window_name=settings.webcam_window_name,
             flip_horizontal=settings.webcam_flip_horizontal,
+            yolo_model_path=settings.yolo_model_path,
         )
 
     def run(self) -> None:

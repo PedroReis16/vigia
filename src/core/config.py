@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     webcam_window_name: str = Field(default="older-fall webcam")
     webcam_flip_horizontal: bool = Field(default=False)
 
+    yolo_model_path: str = Field(default="yolov8s.pt")
+
     # replication_enabled: bool = Field(default=False)
     # replication_url: str | None = Field(default=None)
     # replication_urls: list[str] = Field(default_factory=list)

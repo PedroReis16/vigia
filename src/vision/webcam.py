@@ -13,10 +13,12 @@ class WebcamPreviewService:
         camera_index: int = 0,
         window_name: str = "older-fall webcam",
         flip_horizontal: bool = False,
+        yolo_model_path: str = "yolov8s.pt",
     ) -> None:
         self._camera_index = camera_index
         self._window_name = window_name
         self._flip_horizontal = flip_horizontal
+        self._yolo_model_path = yolo_model_path
         self._running = False
         self._thread: threading.Thread | None = None
 
@@ -49,7 +51,7 @@ class WebcamPreviewService:
         logger.info("Preview da webcam finalizado")
 
     def _run_loop(self) -> None:
-        model = YOLO("yolov8s.pt")
+        model = YOLO(self._yolo_model_path)
 
         capture = cv2.VideoCapture(self._camera_index)
         if not capture.isOpened():

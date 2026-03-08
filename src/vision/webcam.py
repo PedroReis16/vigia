@@ -94,10 +94,19 @@ class WebcamPreviewService:
             self._running = False
             return
 
+        # Create resizable window
+        cv2.namedWindow(self._window_name, cv2.WINDOW_NORMAL)
+        # logger.info("Janela criada com suporte a redimensionamento")
         logger.info("Loop de detecção iniciado")
 
         try:
             while self._running:
+                # Check if window was closed by user (X button)
+                if cv2.getWindowProperty(self._window_name, cv2.WND_PROP_VISIBLE) < 1:
+                    logger.info("Janela foi fechada pelo usuário")
+                    self._running = False
+                    break
+
                 # Read frame
                 ret, frame = self._camera.read()
                 if not ret or frame is None:

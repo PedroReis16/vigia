@@ -1,181 +1,138 @@
+"""Webcam preview service with YOLO detection - optimized and modular."""
+
 import logging
-import pickle
 import threading
-from contextlib import contextmanager
-from pathlib import Path
 
 import cv2
-from ultralytics import YOLO
+
+from src.ml.yolo_detector import YOLODetector
+from src.vision.camera import CameraManager
+from src.vision.renderer import DetectionRenderer
 
 logger = logging.getLogger(__name__)
 
 
 class WebcamPreviewService:
+    """Service for displaying webcam feed with real-time YOLO detections."""
+
     def __init__(
         self,
         camera_index: int | list[int] = 0,
         window_name: str = "older-fall webcam",
         flip_horizontal: bool = False,
         yolo_model_path: str = "yolov8s.pt",
+        detection_conf: float = 0.7,
+        detection_imgsz: int = 640,
     ) -> None:
-        self._camera_indices = [camera_index] if isinstance(camera_index, int) else camera_index
-        self._active_camera_index: int | None = None
+        """Initialize webcam preview service.
+        
+        Args:
+            camera_index: Camera index or list of indices to try
+            window_name: Name for the display window
+            flip_horizontal: Whether to flip frames horizontally
+            yolo_model_path: Path to YOLO model
+            detection_conf: Confidence threshold for detections
+            detection_imgsz: Input image size for YOLO
+        """
+        camera_indices = [camera_index] if isinstance(camera_index, int) else camera_index
+        
         self._window_name = window_name
         self._flip_horizontal = flip_horizontal
-        self._yolo_model_path = yolo_model_path
+        self._detection_conf = detection_conf
+        self._detection_imgsz = detection_imgsz
         self._running = False
         self._thread: threading.Thread | None = None
+        
+        # Initialize components (lazy loading)
+        self._camera = CameraManager(camera_indices, timeout_ms=1000)
+        self._detector = YOLODetector(yolo_model_path)
+        self._renderer = DetectionRenderer(show_labels=False, show_conf=False)
 
     def start(self) -> None:
+        """Start webcam preview in background thread."""
         if self._running:
+            logger.warning("Preview já está em execução")
             return
 
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        logger.info("Preview da webcam iniciado (camera_indices=%s)", self._camera_indices)
+        logger.info("Preview da webcam iniciado em background")
 
     def run_blocking(self) -> None:
+        """Start webcam preview in blocking mode (current thread)."""
         if self._running:
+            logger.warning("Preview já está em execução")
             return
 
         self._running = True
-        logger.info(
-            "Preview da webcam iniciado em modo bloqueante (camera_indices=%s)",
-            self._camera_indices,
-        )
+        logger.info("Preview da webcam iniciado em modo bloqueante")
         self._run_loop()
 
     def stop(self) -> None:
+        """Stop webcam preview and release resources."""
         self._running = False
+        
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2)
 
+        self._camera.release()
         cv2.destroyAllWindows()
         logger.info("Preview da webcam finalizado")
 
-    def _load_model(self) -> YOLO | None:
-        configured_model = self._yolo_model_path.strip()
-        project_root = Path(__file__).resolve().parents[2]
-
-        model_source = configured_model
-        configured_path = Path(configured_model)
-
-        if configured_path.is_absolute():
-            model_source = str(configured_path)
-        elif any(separator in configured_model for separator in ("/", "\\")) or configured_model.startswith("."):
-            model_source = str((project_root / configured_path).resolve())
-
-        try:
-            return YOLO(model_source)
-        except pickle.UnpicklingError as error:
-            if "Weights only load failed" not in str(error):
-                logger.exception("Falha ao carregar o modelo YOLO: %s", self._yolo_model_path)
-                return None
-
-            logger.warning(
-                "Falha ao carregar pesos com torch padrão (weights_only=True). "
-                "Tentando modo compatível com weights_only=False para fonte confiável: %s",
-                self._yolo_model_path,
-            )
-
-            try:
-                with self._compat_torch_load_weights_only_false():
-                    return YOLO(model_source)
-            except FileNotFoundError:
-                logger.error(
-                    "Modelo YOLO não encontrado: %s. Ajuste YOLO_MODEL_PATH para um arquivo existente "
-                    "(ex.: models/yolo26s-pose.pt) ou para um modelo oficial (ex.: yolov8s-pose.pt).",
-                    self._yolo_model_path,
-                )
-                return None
-            except Exception:
-                logger.exception("Falha ao carregar o modelo YOLO em modo compatível: %s", self._yolo_model_path)
-                return None
-        except FileNotFoundError:
-            logger.error(
-                "Modelo YOLO não encontrado: %s. Ajuste YOLO_MODEL_PATH para um arquivo existente "
-                "(ex.: models/yolo26s-pose.pt) ou para um modelo oficial (ex.: yolov8s-pose.pt).",
-                self._yolo_model_path,
-            )
-            return None
-        except Exception:
-            logger.exception("Falha ao carregar o modelo YOLO: %s", self._yolo_model_path)
-            return None
-
-    @contextmanager
-    def _compat_torch_load_weights_only_false(self):
-        import torch
-
-        original_torch_load = torch.load
-
-        def _compat_torch_load(*args, **kwargs):
-            kwargs.setdefault("weights_only", False)
-            return original_torch_load(*args, **kwargs)
-
-        torch.load = _compat_torch_load
-        try:
-            yield
-        finally:
-            torch.load = original_torch_load
-
-    def _open_camera(self) -> cv2.VideoCapture | None:
-        """Tenta abrir a câmera usando os índices configurados, com fallback automático."""
-        for idx in self._camera_indices:
-            logger.info("Tentando abrir câmera no índice %s...", idx)
-            capture = cv2.VideoCapture(idx)
-            if capture.isOpened():
-                self._active_camera_index = idx
-                logger.info("Câmera aberta com sucesso no índice %s", idx)
-                return capture
-            capture.release()
-            logger.debug("Câmera no índice %s não está disponível", idx)
-        
-        logger.warning(
-            "Não foi possível abrir nenhuma câmera nos índices configurados: %s. "
-            "Verifique se há uma câmera disponível e ajuste WEBCAM_INDEX no .env.",
-            self._camera_indices,
-        )
-        return None
-
     def _run_loop(self) -> None:
-        model = self._load_model()
-        if model is None:
+        """Main processing loop - simplified and optimized."""
+        # Lazy load model (only once)
+        if self._detector.model is None:
+            logger.error("Falha ao carregar modelo YOLO")
             self._running = False
             return
 
-        capture = self._open_camera()
-        if capture is None:
+        # Open camera with fallback
+        if not self._camera.open():
+            logger.error("Falha ao abrir câmera")
             self._running = False
             return
+
+        logger.info("Loop de detecção iniciado")
 
         try:
             while self._running:
-                ret, frame = capture.read()
-                if not ret:
+                # Read frame
+                ret, frame = self._camera.read()
+                if not ret or frame is None:
                     continue
 
+                # Flip if needed
                 if self._flip_horizontal:
                     frame = cv2.flip(frame, 1)
 
-                results = model.predict(
+                # Run detection
+                results = self._detector.predict(
                     source=frame,
-                    imgsz=640,
-                    conf=0.7,
+                    imgsz=self._detection_imgsz,
+                    conf=self._detection_conf,
                     device="cpu",
                     verbose=False,
                 )
 
-                result = results[0]
-                annotated_frame = result.plot()
-
-                cv2.imshow(self._window_name, annotated_frame)
-
+                # Render results
+                if results:
+                    annotated_frame = self._renderer.render(results)
+                    if annotated_frame is not None:
+                        cv2.imshow(self._window_name, annotated_frame)
+                
+                # Check for quit key (ESC or 'q')
                 key = cv2.waitKey(1) & 0xFF
                 if key in (27, ord("q")):
+                    logger.info("Tecla de saída pressionada")
                     self._running = False
                     break
+
+        except Exception:
+            logger.exception("Erro no loop de detecção")
         finally:
-            capture.release()
+            self._camera.release()
             cv2.destroyAllWindows()
             self._running = False
+            logger.info("Loop de detecção finalizado")

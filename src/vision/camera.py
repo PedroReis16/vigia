@@ -1,6 +1,7 @@
 """Camera manager with optimized opening and fallback support."""
 
 import logging
+import platform
 from typing import Generator
 
 import cv2
@@ -44,29 +45,50 @@ class CameraManager:
             logger.warning("Câmera já está aberta")
             return True
 
+        system = platform.system()
+        if system == "Windows":
+            backends = [cv2.CAP_DSHOW, cv2.CAP_ANY]
+        elif system == "Darwin":
+            backends = [cv2.CAP_AVFOUNDATION, cv2.CAP_ANY]
+        else:
+            backends = [cv2.CAP_ANY]
+
         for idx in self._camera_indices:
             logger.info("Tentando abrir câmera no índice %s...", idx)
-            
-            # Use DirectShow backend on Windows for faster opening
-            capture = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-            
-            # Set timeout properties for faster failure detection
-            capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self._timeout_ms)
-            
-            if capture.isOpened():
-                # Verify we can actually read a frame
-                ret, _ = capture.read()
-                if ret:
-                    self._capture = capture
-                    self._active_camera_index = idx
-                    logger.info("Câmera aberta com sucesso no índice %s", idx)
-                    return True
-                else:
-                    logger.debug("Câmera %s abriu mas não consegue ler frames", idx)
+
+            for backend in backends:
+                capture = cv2.VideoCapture(idx, backend)
+
+                # Set timeout properties for faster failure detection (when supported)
+                capture.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self._timeout_ms)
+
+                if capture.isOpened():
+                    # Verify we can actually read a frame
+                    ret, _ = capture.read()
+                    if ret:
+                        self._capture = capture
+                        self._active_camera_index = idx
+                        logger.info(
+                            "Câmera aberta com sucesso no índice %s (backend=%s)",
+                            idx,
+                            backend,
+                        )
+                        return True
+
+                    logger.debug(
+                        "Câmera %s abriu mas não consegue ler frames (backend=%s)",
+                        idx,
+                        backend,
+                    )
                     capture.release()
-            else:
-                capture.release()
-                logger.debug("Câmera no índice %s não está disponível", idx)
+
+                else:
+                    capture.release()
+                    logger.debug(
+                        "Câmera no índice %s não está disponível (backend=%s)",
+                        idx,
+                        backend,
+                    )
         
         logger.warning(
             "Não foi possível abrir nenhuma câmera nos índices configurados: %s. "

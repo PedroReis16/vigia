@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     model_confidence_threshold: float = Field(default=0.65)
 
     webcam_preview_enabled: bool = Field(default=False)
-    webcam_index: int = Field(default=0)
+    webcam_index: str = Field(default="0,1")
     webcam_window_name: str = Field(default="older-fall webcam")
     webcam_flip_horizontal: bool = Field(default=False)
 
@@ -33,6 +33,14 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @property
+    def webcam_indices(self) -> list[int]:
+        """Parse comma-separated camera indices from config."""
+        try:
+            return [int(idx.strip()) for idx in self.webcam_index.split(",") if idx.strip()]
+        except (ValueError, AttributeError):
+            return [0]
 
     # @field_validator("replication_urls", mode="before")
     # @classmethod

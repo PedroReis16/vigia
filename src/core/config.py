@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     webcam_index: str = Field(default="0,1")
     webcam_window_name: str = Field(default="older-fall webcam")
     webcam_flip_horizontal: bool = Field(default=False)
+    # Modo debug: usa arquivo de vídeo em vez da câmera (mesma lógica YOLO/sequências)
+    webcam_debug_video: str | None = Field(default=None)
 
     yolo_model_path: str = Field(default="yolov8s.pt")
 

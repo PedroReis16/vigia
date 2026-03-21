@@ -1,0 +1,13 @@
+name: IoT Deploy
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to deploy"
+                required: true
+                default: "latest"
+
+jobs:
+    valdate_environment:
+        runs-on: ubuntu-latest

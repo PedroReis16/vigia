@@ -1,0 +1,61 @@
+name: Backend API Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy"
+        required: true
+        default: "latest"
+
+jobs:
+    validate_environment:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Validate deployments details
+              shell: bash
+              run: |
+                if [[ ${{ github.ref_name }} != "master" ]]; then
+                  echo "Esse workflow deve ser executado apenas na branch master"
+                  exit 1
+                fi
+
+    project_build:
+        name: Project compilation
+        needs: validate_environment
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v4
+              with:
+                go-version: 1.26.1
+
+            - name: Build project
+              run: go build -o vigia-api cmd/root.go
+
+    deploy_project:
+        name: Deploy project
+        needs: project_build
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v2
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Build and Push Docker image
+              uses: docker/build-push-action@v4
+              with:
+                context: .
+                push: true
+                tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia-api:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia-api:latest

@@ -1,7 +1,15 @@
 package cmd
 
-import "fmt"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 func Execute() {
-	fmt.Println("Hello, World!")
+	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "OK",
+		})
+	})
+	r.Run(":8000")
 }

@@ -57,5 +57,6 @@ jobs:
               uses: docker/build-push-action@v4
               with:
                 context: .
+                file: docker-compose/dockerfiles/vigia-api.dockerfile
                 push: true
                 tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia-api:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia-api:latest

@@ -6,7 +6,7 @@ import (
 
 func Execute() {
 	r := gin.Default()
-	r.GET("/health", func(c *gin.Context) {
+	r.GET("/gerenciamento-dispositivos/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "OK",
 		})

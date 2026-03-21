@@ -47,6 +47,12 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v4
 
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
             - name: Login to Docker Hub
               uses: docker/login-action@v2
               with:
@@ -58,6 +64,6 @@ jobs:
               with:
                 context: .
                 file: docker-compose/dockerfiles/vigia-api.dockerfile
-                platform: linux/arm64
+                platforms: linux/arm64
                 push: true
                 tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia-api:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia-api:latest

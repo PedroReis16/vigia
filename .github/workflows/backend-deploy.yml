@@ -58,5 +58,6 @@ jobs:
               with:
                 context: .
                 file: docker-compose/dockerfiles/vigia-api.dockerfile
+                platform: linux/arm64
                 push: true
                 tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia-api:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia-api:latest

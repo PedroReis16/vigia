@@ -6,7 +6,6 @@ on:
       version:
         description: "Version to deploy"
         required: true
-        default: "latest"
 
 jobs:
     validate_environment:
@@ -37,7 +36,8 @@ jobs:
                 go-version: 1.26.1
 
             - name: Build project
-              run: go build -o vigia-api cmd/root.go
+              working-directory: backend
+              run: go build -o vigia-api .
 
     deploy_project:
         name: Deploy project

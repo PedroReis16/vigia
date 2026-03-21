@@ -1,13 +1,23 @@
-name: IoT Deploy
+name: Backend API Deploy
 
 on:
-    workflow_dispatch:
-        inputs:
-            version:
-                description: "Version to deploy"
-                required: true
-                default: "latest"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy"
+        required: true
 
 jobs:
-    valdate_environment:
+    validate_environment:
         runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Validate deployments details
+              shell: bash
+              run: |
+                if [[ ${{ github.ref_name }} != "master" ]]; then
+                  echo "Esse workflow deve ser executado apenas na branch master"
+                  exit 1
+                fi

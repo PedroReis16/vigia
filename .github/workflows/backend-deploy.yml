@@ -1,5 +1,7 @@
 name: Backend API Deploy
 
+run-name: Backend API Deploy - v${{ inputs.version }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -66,4 +68,4 @@ jobs:
                 file: docker-compose/dockerfiles/vigia-api.dockerfile
                 platforms: linux/arm64
                 push: true
-                tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia-api:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia-api:latest
+                tags: ${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:latest

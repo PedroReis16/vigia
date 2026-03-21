@@ -11,9 +11,9 @@ RUN go mod download
 # Copy module sources (module root is backend/, not repo root)
 COPY backend/ ./
 
-# Build the application binary
-# CGO_ENABLED=0 is used to disable CGo, creating a statically-linked binary
-RUN CGO_ENABLED=0 go build -o vigia-api .
+# Production build: optimized binary, strip debug/symbol tables, reproducible paths
+# (Go has no separate "Release" profile; this is the usual container pattern.)
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o vigia-api .
 
 # Use a minimal base image like 'alpine:latest' or 'scratch' for the smallest possible size
 FROM alpine:latest

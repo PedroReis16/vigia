@@ -69,3 +69,20 @@ jobs:
                 platforms: linux/arm64
                 push: true
                 tags: ${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:latest
+    deploy_service:
+        name: Deploy service
+        needs: publish_docker_image
+        runs-on: ubuntu-latest
+        steps:
+            - name: Pull and restart on server (SSH)
+              uses: appleboy/ssh-action@v1.2.0
+              with:
+                  host: ${{ secrets.EC2_SERVER_HOST }}
+                  username: ${{ secrets.EC2_USER }}
+                  key: ${{ secrets.EC2_PRIVATE_KEY }}
+                  script_stop: true
+                  script: |
+                      set -euo pipefail
+                      cd "${{ secrets.EC2_DEPLOY_PATH }}"
+                      docker compose pull gerenciamento-dispositivos
+                      docker compose up -d --remove-orphans gerenciamento-dispositivos

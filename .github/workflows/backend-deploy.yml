@@ -84,5 +84,5 @@ jobs:
                   script: |
                       set -euo pipefail
                       cd "${{ secrets.EC2_DEPLOY_PATH }}"
-                      docker compose pull gerenciamento-dispositivos
-                      docker compose up -d --remove-orphans gerenciamento-dispositivos
+                      docker-compose pull gerenciamento-dispositivos
+                      docker-compose up -d --remove-orphans gerenciamento-dispositivos

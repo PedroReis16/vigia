@@ -33,9 +33,11 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Set up Python
-              uses: actions/setup-python@v4
+              uses: actions/setup-python@v5
               with:
-                python-version: 3.11
+                python-version: "3.11"
+                cache: pip
+                cache-dependency-path: fall-detection/requirements.txt
 
             - name: Install dependencies
               working-directory: fall-detection
@@ -43,7 +45,9 @@ jobs:
 
             - name: Build project
               working-directory: fall-detection
-              run: python src/main.py
+              # `python src/main.py` puts `src/` on sys.path, so `import src` fails.
+              # Running as a module keeps the project root on PYTHONPATH.
+              run: python -m src.main
 
     publish_docker_image:
         name: Publish Docker image

@@ -12,8 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code into the container
 COPY . .
 
+WORKDIR /app/fall-detection
+
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Define the command to run the application when the container start
-CMD ["python", "src/main.py"]
+# Same as CI: run as module so `src` package imports resolve
+CMD ["python", "-m", "src.main"]

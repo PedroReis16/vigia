@@ -8,3 +8,6 @@ numpy>=1.24
 # Pins for pip-audit; Pillow 12+ needs Python 3.10+ (CI/Docker use 3.11)
 pillow>=12.1.1
 filelock>=3.20.3
+# Trivy: CVE-2026-23949 (jaraco.context), CVE-2026-24049 (wheel)
+jaraco.context>=6.1.0
+wheel>=0.46.2

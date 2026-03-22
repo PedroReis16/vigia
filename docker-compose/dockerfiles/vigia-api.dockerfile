@@ -18,6 +18,9 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o vigia-api .
 # Use a minimal base image like 'alpine:latest' or 'scratch' for the smallest possible size
 FROM alpine:latest
 
+# Refresh Alpine packages (e.g. zlib CVE-2026-22184 fixed in 1.3.2-r0+)
+RUN apk update && apk upgrade --no-cache
+
 # Set the working directory in the container
 WORKDIR /root/
 

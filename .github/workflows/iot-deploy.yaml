@@ -133,7 +133,7 @@ jobs:
 
 
       - name: Trivy (image vulnerability scan)
-        uses: aquasecurity/trivy-action@v0.26.0
+        uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:${{ inputs.version }}"
           severity: "CRITICAL,HIGH"

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"log"
 	"vigia/cmd"
 )
 
-func main(){
-	cmd.Execute()
+func main() {
+	if err := cmd.Execute(); err != nil {
+		log.Fatal(err)
+	}
 }

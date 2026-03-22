@@ -67,7 +67,7 @@ jobs:
                 context: .
                 file: docker-compose/dockerfiles/vigia-api.dockerfile
                 push: true
-                tags: ${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/gerenciamento-dispositivos:latest
+                tags: ${{secrets.DOCKERHUB_USERNAME}}/vigia:${{ inputs.version }},${{secrets.DOCKERHUB_USERNAME}}/vigia:latest
     deploy_service:
         name: Deploy service
         needs: publish_docker_image
@@ -83,5 +83,5 @@ jobs:
                   script: |
                       set -euo pipefail
                       cd "${{ secrets.EC2_DEPLOY_PATH }}"
-                      docker-compose pull gerenciamento-dispositivos
-                      docker-compose up -d --remove-orphans gerenciamento-dispositivos
+                      docker-compose pull vigia
+                      docker-compose up -d --remove-orphans vigia

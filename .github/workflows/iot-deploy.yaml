@@ -43,11 +43,13 @@ jobs:
               working-directory: fall-detection
               run: pip install -r requirements.txt
 
-            - name: Build project
+            # `python -m src.main` runs LocalRuntime until Ctrl+C: with preview off it loops
+            # forever (see local_runtime.py); in CI there is no TTY/camera, so the job hangs.
+            - name: Verify imports and bytecode
               working-directory: fall-detection
-              # `python src/main.py` puts `src/` on sys.path, so `import src` fails.
-              # Running as a module keeps the project root on PYTHONPATH.
-              run: python -m src.main
+              run: |
+                python -c "import src.main; print('imports ok')"
+                python -m compileall -q src
 
     publish_docker_image:
         name: Publish Docker image

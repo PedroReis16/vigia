@@ -43,6 +43,7 @@ class LocalRuntime:
             flip_horizontal=settings.webcam_flip_horizontal,
             yolo_model_path=settings.yolo_model_path,
             video_source=source_path,  # None = webcam, Path = arquivo de vídeo
+            frames_to_capture=settings.frame_interval,
         )
 
     def run(self) -> None:

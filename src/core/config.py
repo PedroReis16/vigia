@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Modo debug: usa arquivo de vídeo em vez da câmera (mesma lógica YOLO/sequências)
     webcam_debug_video: str | None = Field(default=None)
 
+    # Janela LSTM: quantidade de frames por captura (tecla c / buffer deslizante)
+    frame_interval: int = Field(default=10, ge=1)
+
     yolo_model_path: str = Field(default="yolov8s.pt")
 
     # replication_enabled: bool = Field(default=False)

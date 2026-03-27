@@ -5,3 +5,6 @@ api:
 
 cli:
 	go run ./cmd/vigia-bootstrap/main.go
+
+integration:
+	go run ./cmd/vigia-integration/main.go

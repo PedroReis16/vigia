@@ -1,0 +1,145 @@
+name: IoT Deploy
+
+run-name: Fall Detection Deploy - v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate_environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deployments details
+        shell: bash
+        run: |
+          if [[ ${{ github.ref_name }} != "master" ]]; then
+            echo "Esse workflow deve ser executado apenas na branch master"
+            exit 1
+          fi
+
+  security:
+    name: Security (SAST, SCA, secrets, Dockerfile)
+    needs: validate_environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker-compose/dockerfiles/fall-detection.dockerfile
+          failure-threshold: error
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: fall-detection/requirements.txt
+
+      - name: Install dependencies and security tools
+        working-directory: fall-detection
+        run: |
+          pip install -r requirements.txt
+          pip install ruff bandit pip-audit
+
+      - name: Ruff (lint)
+        working-directory: fall-detection
+        run: ruff check src
+
+      - name: Bandit (Python SAST)
+        working-directory: fall-detection
+        run: bandit -r src -ll
+
+      - name: pip-audit (dependency vulnerabilities)
+        working-directory: fall-detection
+        run: pip-audit
+
+  project_build:
+    name: Project compilation
+    needs: validate_environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: fall-detection/requirements.txt
+
+      - name: Install dependencies
+        working-directory: fall-detection
+        run: pip install -r requirements.txt
+
+      # `python -m src.main` runs LocalRuntime until Ctrl+C: with preview off it loops
+      # forever (see local_runtime.py); in CI there is no TTY/camera, so the job hangs.
+      - name: Verify imports and bytecode
+        working-directory: fall-detection
+        run: |
+          python -c "import src.main; print('imports ok')"
+          python -m compileall -q src
+
+  publish_docker_image:
+    name: Publish Docker image
+    needs: [security, project_build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build image (load for Trivy)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker-compose/dockerfiles/fall-detection.dockerfile
+          platforms: linux/arm64
+          load: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:${{ inputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:latest
+
+
+      - name: Trivy (image vulnerability scan)
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:${{ inputs.version }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Push Docker image
+        run: |
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:${{ inputs.version }}"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/fall-detection:latest"

@@ -13,23 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  validate_environment:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Validate deployments details
-        shell: bash
-        run: |
-          if [[ ${{ github.ref_name }} != "master" ]]; then
-            echo "Esse workflow deve ser executado apenas na branch master"
-            exit 1
-          fi
-
   security:
     name: Security (SAST, SCA, secrets, Dockerfile)
-    needs: validate_environment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -75,7 +60,7 @@ jobs:
 
   project_build:
     name: Project compilation
-    needs: validate_environment
+    needs: security
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

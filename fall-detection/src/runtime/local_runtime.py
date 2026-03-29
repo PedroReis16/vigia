@@ -9,9 +9,10 @@ class LocalRuntime:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._webcam_preview = WebcamPreviewService(
-            camera_index=settings.webcam_index,
+            camera_index=settings.webcam_indices,
             window_name=settings.webcam_window_name,
             flip_horizontal=settings.webcam_flip_horizontal,
+            yolo_model_path=settings.yolo_model_path,
         )
 
     def run(self) -> None:

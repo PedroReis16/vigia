@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  vigia-api:
+    build:
+      context: .
+      dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+    ports:
+      - 8000:8000
+    environment:
+      - APP_RUNTIME_MODE=api
+      - LOG_LEVEL=INFO
+      - APP_NAME=vigia-api
+      - APP_VERSION=1.0.0

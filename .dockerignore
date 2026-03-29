@@ -1,0 +1,53 @@
+# Git e CI (não entram na imagem)
+.git
+.github
+
+# Editor / ferramentas locais
+.cursor
+.vscode
+.idea
+
+# Python: caches e ambientes virtuais
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+env
+
+# Segredos — nunca enviar para o contexto de build
+.env
+.env.*
+!**/.env.example
+
+# Logs, cobertura e artefatos
+*.log
+htmlcov
+.coverage
+.coverage.*
+*.egg-info
+
+# SO
+.DS_Store
+
+# Go: artefatos locais (go.mod / go.sum continuam no contexto)
+# Remova a linha vendor/ se o build usar -mod=vendor e copiar backend/vendor/
+go.work
+go.work.sum
+vendor/
+**/bin/
+*.test
+*.exe
+coverage.out
+coverage-*.out
+profile.out
+cpu.out
+mem.out
+trace.out
+**/.cache/go-build
+
+# Compose/Traefik são do host; não são COPY nos Dockerfiles atuais
+docker-compose/

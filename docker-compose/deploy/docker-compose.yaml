@@ -1,0 +1,41 @@
+services:
+  vigia:
+    image: pedroreis16/vigia:latest
+    container_name: vigia
+    restart: always
+    labels:
+      - "org.label-schema.group=vigia"
+      - "service_name=vigia"
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`)"
+      - "traefik.http.routers.vigia.entrypoints=websecure"
+      - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vigia.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=*"
+      - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+      - "traefik.http.routers.vigia.middlewares=cors"
+    networks:
+      - vigia-network
+
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - --configFile=/et/traefik/traefik.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:etc/traefik/traefik.yml:ro
+      - ./certificates:/certificates
+    networks:
+      - vigia-network
+networks:
+  vigia-network:
+    driver: bridge
+    external: true

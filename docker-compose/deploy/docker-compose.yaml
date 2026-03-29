@@ -1,25 +1,21 @@
 services:
+  # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
     image: pedroreis16/vigia:latest
     container_name: vigia
     restart: always
     labels:
-      - "org.label-schema.group=vigia"
-      - "service_name=vigia"
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`)"
+      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/api`)"
       - "traefik.http.routers.vigia.entrypoints=websecure"
       - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=*"
-      - "traefik.http.middlewares.cors.headers.accessControlAllowHeaders=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
-      - "traefik.http.routers.vigia.middlewares=cors"
+      - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
+      - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
     networks:
       - vigia-network
 
+  # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
     image: traefik:v3.0
     container_name: traefik
@@ -27,14 +23,170 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      - "1883:1883"
     command:
-      - --configFile=/et/traefik/traefik.yml
+      - --configFile=/etc/traefik/traefik.yml
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:etc/traefik/traefik.yml:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
       - ./certificates:/certificates
     networks:
       - vigia-network
+
+  # ─── MONGO HISTÓRICO (STH-Comet) ─────────────────────────────────────────
+  mongo-db-historical:
+    image: mongo:6.0
+    container_name: fiware-mongo-historical
+    restart: always
+    hostname: mongo-db-historical
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+    ports:
+      - "27077:27017"
+    command: ["mongod", "--nojournal", "--auth"]
+    volumes:
+      - mongo-historical-data:/data/db
+    networks:
+      - vigia-network
+
+  # ─── MONGO INTERNO (Orion + IoT Agent) ────────────────────────────────────
+  mongo-db-internal:
+    image: mongo:6.0
+    container_name: fiware-mongo-internal
+    restart: always
+    hostname: mongo-db-internal
+    command: ["mongod", "--nojournal"]
+    volumes:
+      - mongo-internal-data:/data/db
+    networks:
+      - vigia-network
+
+  # ─── ORION ────────────────────────────────────────────────────────────────
+  orion:
+    image: fiware/orion:3.11.0
+    restart: always
+    container_name: fiware-orion
+    hostname: orion
+    depends_on:
+      - mongo-db-historical
+    expose:
+      - "1026"
+    command: >
+      -dbhost mongo-db-historical
+      -dbuser admin
+      -dbpwd admin123
+      -dbAuthDb admin
+      -corsOrigin __ALL
+      -corsMaxAge 600
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.orion.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/orion`)"
+      - "traefik.http.routers.orion.entrypoints=websecure"
+      - "traefik.http.routers.orion.tls.certresolver=letsencrypt"
+      - "traefik.http.services.orion.loadbalancer.server.port=1026"
+      - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
+      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/orion"
+    networks:
+      - vigia-network
+
+  # ─── STH-COMET ────────────────────────────────────────────────────────────
+  fiware-sth-comet:
+    image: telefonicaiot/fiware-sth-comet
+    restart: always
+    container_name: fiware-sth-comet
+    hostname: sth-comet
+    depends_on:
+      - mongo-db-historical
+    expose:
+      - "8666"
+    environment:
+      - STH_HOST=0.0.0.0
+      - STH_PORT=8666
+      - DB_PREFIX=sth_
+      - DB_URI=mongo-db-historical:27017
+      - DB_USERNAME=admin
+      - DB_PASSWORD=admin123
+      - DB_AUTH_SOURCE=admin
+      - LOGOPS_LEVEL=DEBUG
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sth.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/sth-comet`)"
+      - "traefik.http.routers.sth.entrypoints=websecure"
+      - "traefik.http.routers.sth.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sth.loadbalancer.server.port=8666"
+      - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
+      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/sth-comet"
+    networks:
+      - vigia-network
+
+  # ─── IOT AGENT ────────────────────────────────────────────────────────────
+  iot-agent:
+    image: fiware/iotagent-ul:latest
+    restart: always
+    container_name: fiware-iot-agent
+    hostname: iot-agent
+    depends_on:
+      - mongo-db-internal
+      - mosquitto
+    expose:
+      - "4041"
+    environment:
+      - IOTA_CB_HOST=orion
+      - IOTA_CB_PORT=1026
+      - IOTA_CB_NGSI_VERSION=v2
+      - IOTA_NORTH_PORT=4041
+      - IOTA_MONGO_HOST=mongo-db-internal
+      - IOTA_MONGO_PORT=27017
+      - IOTA_MQTT_HOST=mosquitto
+      - IOTA_MQTT_PORT=1883
+      - IOTA_LOG_LEVEL=DEBUG
+      - IOTA_TIMESTAMP=true
+      - IOTA_AUTOCAST=true
+      - IOTA_PROVIDER_URL=http://iot-agent:4041
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.iot.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/iot-agent`)"
+      - "traefik.http.routers.iot.entrypoints=websecure"
+      - "traefik.http.routers.iot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.iot.loadbalancer.server.port=4041"
+      - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/iot-agent"
+    networks:
+      - vigia-network
+
+  # ─── MOSQUITTO (MQTT) ─────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    restart: always
+    container_name: fiware-mosquitto
+    hostname: mosquitto
+    expose:
+      - "1883"
+      - "9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    labels:
+      - "traefik.enable=true"
+      # Roteamento TCP para MQTT puro (1883) — TCP não suporta PathPrefix, mantém HostSNI
+      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
+      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
+      # Roteamento HTTP para MQTT sobre WebSocket (9001)
+      - "traefik.http.routers.mqttws.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/mosquitto`)"
+      - "traefik.http.routers.mqttws.entrypoints=websecure"
+      - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
+      - "traefik.http.routers.mqttws.middlewares=strip-mosquitto"
+      - "traefik.http.middlewares.strip-mosquitto.stripprefix.prefixes=/mosquitto"
+    networks:
+      - vigia-network
+
+volumes:
+  mongo-historical-data:
+  mongo-internal-data:
+
 networks:
   vigia-network:
     driver: bridge

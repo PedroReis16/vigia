@@ -209,3 +209,6 @@ __marimo__/
 *.pt
 
 backend/vigia-bootstrap
+
+fall-detection/data/
+fall-detection/.DS_Store

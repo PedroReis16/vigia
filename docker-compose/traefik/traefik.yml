@@ -12,11 +12,16 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+  mqtt:
+    address: ":1883"
 
 providers:
   docker:
     exposedByDefault: false
     network: vigia-network
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
 
 certificatesResolvers:
   letsencrypt:

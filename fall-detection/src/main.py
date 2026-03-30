@@ -1,8 +1,10 @@
 import cv2
+import os
+import queue
+import threading
 import time
 
 from dotenv import load_dotenv
-import os
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -20,6 +22,42 @@ _last_auto_capture = time.monotonic()
 _t_session_start = time.monotonic()
 _second_bucket = -1
 _frame_in_second = 0
+
+# Gravação em thread separada: o loop principal só enfileira; imwrite não bloqueia read/show.
+# maxsize limita memória se o disco for mais lento que a captura (backpressure).
+_save_queue: queue.Queue[tuple[str, object] | None] | None = None
+_save_thread: threading.Thread | None = None
+
+
+def _start_save_worker() -> None:
+    global _save_queue, _save_thread
+
+    def worker() -> None:
+        assert _save_queue is not None
+        while True:
+            job = _save_queue.get()
+            if job is None:
+                break
+            path, img = job
+            cv2.imwrite(path, img)
+
+    _save_queue = queue.Queue(maxsize=8)
+    _save_thread = threading.Thread(target=worker, name="frame-saver", daemon=True)
+    _save_thread.start()
+
+
+def _stop_save_worker() -> None:
+    global _save_queue, _save_thread
+    if _save_queue is not None:
+        _save_queue.put(None)
+    if _save_thread is not None:
+        _save_thread.join(timeout=5.0)
+        _save_thread = None
+        _save_queue = None
+
+
+if FRAMES_DIR:
+    _start_save_worker()
 
 # 1. Inicializar a webcam (0 é geralmente a câmera padrão)
 cap = cv2.VideoCapture(0)
@@ -46,10 +84,18 @@ def capture_frame(roi, now: float) -> None:
     item += 1
     out_dir = frame_dir_for_elapsed_seconds(FRAMES_DIR, elapsed_sec)
     path = os.path.join(out_dir, f"frame_{_frame_in_second:04d}.png")
-    ok = cv2.imwrite(path, roi)
-    if not ok:
-        item -= 1
-        _frame_in_second -= 1
+    # Cópia: o array do ROI é reutilizado no próximo frame; a fila grava em outra thread.
+    if _save_queue is not None:
+        try:
+            _save_queue.put_nowait((path, roi.copy()))
+        except queue.Full:
+            item -= 1
+            _frame_in_second -= 1
+    else:
+        ok = cv2.imwrite(path, roi)
+        if not ok:
+            item -= 1
+            _frame_in_second -= 1
 
 while True:
     # 2. Ler o frame (retorna booleano e a imagem)
@@ -85,5 +131,6 @@ while True:
         break
 
 # 5. Liberar recursos
+_stop_save_worker()
 cap.release()
 cv2.destroyAllWindows()

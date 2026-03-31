@@ -3,6 +3,9 @@
 api:
 	go run ./cmd/vigia-api/main.go
 
+stream:
+	go run ./cmd/vigia-stream/main.go
+
 bootstrap:
 	go run ./cmd/vigia-bootstrap/main.go
 

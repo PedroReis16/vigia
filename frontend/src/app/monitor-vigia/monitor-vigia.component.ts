@@ -1,12 +1,8 @@
-import {
-  Component,
-  ElementRef,
-  OnDestroy,
-  OnInit,
-  ViewChild,
-} from '@angular/core';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 
-/** URL do WebSocket do backend (vigia-stream). Ajuste se o host/porta mudarem. */
+/**
+ * WebSocket do Gin (vigia-stream). A porta 8091 serve HTTP/WS; a 8090 é só TCP da câmera.
+ */
 const STREAM_WS_URL = 'ws://127.0.0.1:8091/stream';
 
 @Component({
@@ -15,10 +11,11 @@ const STREAM_WS_URL = 'ws://127.0.0.1:8091/stream';
   styleUrl: './monitor-vigia.component.css',
 })
 export class MonitorVigiaComponent implements OnInit, OnDestroy {
-  @ViewChild('cameraFeed', { static: true })
-  cameraFeed!: ElementRef<HTMLImageElement>;
-
-  defaultImage = '/placeholder.svg';
+  /**
+   * Signal: callbacks do WebSocket rodam fora do ciclo normal do Angular (e apps zoneless
+   * não re-renderizam); atualizar um signal notifica o template de forma confiável.
+   */
+  readonly feedSrc = signal('/placeholder.svg');
 
   private ws?: WebSocket;
 
@@ -27,7 +24,7 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.revokeCurrentBlobUrl();
+    this.revokeFeedBlob();
     this.ws?.close();
   }
 
@@ -39,8 +36,8 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
       const arrayBuffer = event.data;
       const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
 
-      this.revokeCurrentBlobUrl();
-      this.cameraFeed.nativeElement.src = URL.createObjectURL(blob);
+      this.revokeFeedBlob();
+      this.feedSrc.set(URL.createObjectURL(blob));
     };
 
     this.ws.onerror = (error) => {
@@ -48,10 +45,10 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
     };
   }
 
-  private revokeCurrentBlobUrl(): void {
-    const src = this.cameraFeed?.nativeElement?.src;
-    if (src?.startsWith('blob:')) {
-      URL.revokeObjectURL(src);
+  private revokeFeedBlob(): void {
+    const current = this.feedSrc();
+    if (current.startsWith('blob:')) {
+      URL.revokeObjectURL(current);
     }
   }
 }

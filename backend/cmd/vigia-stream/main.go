@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -16,33 +17,67 @@ var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
-	// Canal para transmitir os frames do TCP para o WebSocket
+	// Canal: um único consumidor faz fan-out para todos os WebSockets (várias abas/dispositivos).
 	frameStream = make(chan []byte, 10)
+
+	subsMu  sync.RWMutex
+	clients = make(map[*websocket.Conn]struct{})
 )
+
+func registerWS(c *websocket.Conn) {
+	subsMu.Lock()
+	clients[c] = struct{}{}
+	subsMu.Unlock()
+}
+
+func unregisterWS(c *websocket.Conn) {
+	subsMu.Lock()
+	delete(clients, c)
+	subsMu.Unlock()
+}
+
+// broadcastFrame envia o mesmo frame a todos os clientes conectados.
+func broadcastFrame(frame []byte) {
+	payload := append([]byte(nil), frame...)
+	subsMu.RLock()
+	list := make([]*websocket.Conn, 0, len(clients))
+	for c := range clients {
+		list = append(list, c)
+	}
+	subsMu.RUnlock()
+	for _, c := range list {
+		if err := c.WriteMessage(websocket.BinaryMessage, payload); err != nil {
+			log.Println("Falha ao enviar frame para cliente, removendo:", err)
+			unregisterWS(c)
+			_ = c.Close()
+		}
+	}
+}
 
 func main() {
 	// Inicia o listener TCP em uma Goroutine separada para não travar o Gin
 	go startTCPServer()
+	go fanOutFrames()
 
 	r := gin.Default()
 
-	// Rota do WebSocket para o Angular consumir
+	// Rota do WebSocket para o Angular consumir (múltiplos clientes em paralelo)
 	r.GET("/stream", func(c *gin.Context) {
 		ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
 			log.Println("Erro no upgrade WS:", err)
 			return
 		}
-		defer ws.Close()
+		registerWS(ws)
+		defer func() {
+			unregisterWS(ws)
+			_ = ws.Close()
+		}()
 
+		// Lê até o cliente fechar; sem isso o servidor pode não notar desconexão.
 		for {
-			// Aguarda um novo frame chegar do Python
-			frame := <-frameStream
-			
-			// Envia o frame em formato binário para o Angular
-			err = ws.WriteMessage(websocket.BinaryMessage, frame)
+			_, _, err := ws.ReadMessage()
 			if err != nil {
-				log.Println("Cliente desconectado")
 				break
 			}
 		}
@@ -50,6 +85,12 @@ func main() {
 
 	log.Println("Servidor Gin rodando na porta 8091...")
 	r.Run(":8091")
+}
+
+func fanOutFrames() {
+	for frame := range frameStream {
+		broadcastFrame(frame)
+	}
 }
 
 // Escuta a conexão vinda do Python (Placa)
@@ -90,9 +131,10 @@ func handleCameraConnection(conn net.Conn) {
 			return
 		}
 
-		// 3. Joga a imagem no canal. Se o canal estiver cheio, descarta para evitar gargalo e lag
+		// 3. Copia para o canal: o consumidor faz broadcast a todos os WebSockets.
+		// Se o canal estiver cheio, descarta para evitar gargalo e lag.
 		select {
-		case frameStream <- frameBuf:
+		case frameStream <- append([]byte(nil), frameBuf...):
 		default:
 		}
 	}

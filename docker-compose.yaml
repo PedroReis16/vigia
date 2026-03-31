@@ -14,6 +14,27 @@ services:
       - APP_VERSION=1.0.0
     networks:
       - vigia-network
+
+  vigia-stream:
+    build:
+      context: .
+      dockerfile: docker-compose/dockerfiles/vigia-stream.dockerfile
+    ports:
+      - 8090:8090
+      - 8091:8091
+    networks:
+      - vigia-network
+
+  vigia-frontend:
+    build:
+      context: .
+      dockerfile: docker-compose/dockerfiles/vigia-frontend.dockerfile
+    # Nginx escuta na 80 no container; 4200 é só a porta no host (como no ng serve)
+    ports:
+      - 4200:80
+    networks:
+      - vigia-network
+
   # MongoDB HISTÓRICO (com autenticação) - usado pelo STH Comet
   mongo-db-historical:
     image: mongo:4.4

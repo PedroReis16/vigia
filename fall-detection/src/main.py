@@ -1,15 +1,41 @@
 import shutil
+import socket
+import struct
 import cv2
 import os
 import queue
 import threading
 import time
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
 load_dotenv()
 DATA_PATH = os.getenv("DATA_PATH")
+
+
+def _tcp_stream_target() -> tuple[str, int] | None:
+    """Host/porta do TCP de ingestão no Go (porta 8090), não WebSocket."""
+    raw = (os.getenv("STREAM_TCP_ADDR") or "").strip()
+    if raw:
+        if ":" in raw:
+            h, _, p = raw.rpartition(":")
+            return (h.strip(), int(p))
+        return (raw, 8090)
+    ws = (os.getenv("STREAM_WS_URL") or "").strip()
+    if ws.startswith("ws://"):
+        u = urlparse(ws.replace("ws://", "http://", 1))
+        if u.hostname:
+            port = u.port or 8090
+            # WS do Angular costuma ser :8091; o TCP da câmera no Go é :8090
+            if port == 8091:
+                return (u.hostname, 8090)
+            return (u.hostname, port)
+    return None
+
+
+STREAM_TARGET = _tcp_stream_target()
 if DATA_PATH:
     FRAMES_DIR = os.path.join(DATA_PATH.rstrip("/"), "frames")
     os.makedirs(FRAMES_DIR, exist_ok=True)
@@ -60,8 +86,81 @@ def _stop_save_worker() -> None:
 if FRAMES_DIR:
     _start_save_worker()
 
-# 1. Inicializar a webcam (0 é geralmente a câmera padrão)
-cap = cv2.VideoCapture(0)
+_stream_queue: queue.Queue[bytes | None] | None = None
+_stream_thread: threading.Thread | None = None
+
+
+def _start_stream_worker(host: str, port: int) -> None:
+    global _stream_queue, _stream_thread
+
+    def worker() -> None:
+        assert _stream_queue is not None
+        sock: socket.socket | None = None
+        while True:
+            job = _stream_queue.get()
+            if job is None:
+                break
+            payload = job
+            while True:
+                try:
+                    if sock is None:
+                        sock = socket.create_connection((host, port), timeout=2.0)
+                    header = struct.pack("<I", len(payload))
+                    sock.sendall(header + payload)
+                    break
+                except OSError:
+                    if sock is not None:
+                        try:
+                            sock.close()
+                        except OSError:
+                            pass
+                        sock = None
+                    time.sleep(0.25)
+
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    _stream_queue = queue.Queue(maxsize=2)
+    _stream_thread = threading.Thread(
+        target=worker, name="tcp-stream", daemon=True
+    )
+    _stream_thread.start()
+
+
+def _stop_stream_worker() -> None:
+    global _stream_queue, _stream_thread
+    if _stream_queue is not None:
+        _stream_queue.put(None)
+    if _stream_thread is not None:
+        _stream_thread.join(timeout=5.0)
+        _stream_thread = None
+        _stream_queue = None
+
+
+if STREAM_TARGET:
+    _start_stream_worker(STREAM_TARGET[0], STREAM_TARGET[1])
+
+
+def _video_capture_source() -> int | str:
+    """
+    Fonte para cv2.VideoCapture:
+    - número (ex.: 0, 1): índice do dispositivo — no Mac, Continuity Camera / webcam virtual
+      costuma ser 1 ou 2 se 0 for a webcam do notebook;
+    - URL: http://... ou rtsp://... (ex.: app no iPhone que expõe MJPEG/RTSP).
+    """
+    raw = (os.getenv("VIDEO_CAPTURE_SOURCE") or "0").strip()
+    if not raw:
+        return 0
+    if raw.isdigit():
+        return int(raw)
+    return raw
+
+
+# 1. Inicializar captura (índice, URL ou caminho — ver VIDEO_CAPTURE_SOURCE no .env)
+cap = cv2.VideoCapture(_video_capture_source())
 
 item = 0
 
@@ -98,6 +197,25 @@ def capture_frame(roi, now: float) -> None:
             item -= 1
             _frame_in_second -= 1
 
+def send_frame(frame) -> None:
+    if _stream_queue is None:
+        return
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+    if not ok:
+        return
+    payload = buf.tobytes()
+    try:
+        _stream_queue.put_nowait(payload)
+    except queue.Full:
+        try:
+            _stream_queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            _stream_queue.put_nowait(payload)
+        except queue.Full:
+            pass
+
 while True:
     # 2. Ler o frame (retorna booleano e a imagem)
     ret, frame = cap.read()
@@ -127,13 +245,17 @@ while True:
 
     key = cv2.waitKey(1) & 0xFF
 
+    send_frame(frame)
+
     # 4. Parar ao pressionar 'q'
     if key == ord("q"):
         break
 
 # 5. Liberar recursos
+_stop_stream_worker()
 _stop_save_worker()
 cap.release()
 cv2.destroyAllWindows()
 
-shutil.rmtree(DATA_PATH)
+if DATA_PATH:
+    shutil.rmtree(DATA_PATH)

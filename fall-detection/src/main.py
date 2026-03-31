@@ -1,3 +1,4 @@
+import shutil
 import cv2
 import os
 import queue
@@ -134,3 +135,5 @@ while True:
 _stop_save_worker()
 cap.release()
 cv2.destroyAllWindows()
+
+shutil.rmtree(DATA_PATH)

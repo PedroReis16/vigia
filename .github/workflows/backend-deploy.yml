@@ -1,10 +1,17 @@
-name: Backend API Deploy
+name: Backend Deploy
 
-run-name: Backend API Deploy - v${{ inputs.version }}
+run-name: Backend Deploy — ${{ inputs.project }} v${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
+      project:
+        description: "Projeto a publicar e implantar"
+        type: choice
+        options:
+          - vigia-api
+          - vigia-stream
+        required: true
       version:
         description: "Version to deploy"
         required: true
@@ -16,6 +23,8 @@ jobs:
   security:
     name: Security (SAST, SCA, secrets, Dockerfile)
     runs-on: ubuntu-latest
+    env:
+      DOCKERFILE: ${{ inputs.project == 'vigia-api' && 'docker-compose/dockerfiles/vigia-api.dockerfile' || 'docker-compose/dockerfiles/vigia-stream.dockerfile' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,7 +39,7 @@ jobs:
       - name: Lint Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+          dockerfile: ${{ env.DOCKERFILE }}
           failure-threshold: error
 
       - name: Set up Go
@@ -66,14 +75,23 @@ jobs:
           go-version: "1.26.1"
           cache-dependency-path: backend/go.sum
 
-      - name: Build project
+      - name: Build project (vigia-api)
+        if: inputs.project == 'vigia-api'
         working-directory: backend
         run: go build -trimpath -ldflags="-s -w" -o vigia-api .
+
+      - name: Build project (vigia-stream)
+        if: inputs.project == 'vigia-stream'
+        working-directory: backend
+        run: go build -trimpath -ldflags="-s -w" -o vigia-stream ./cmd/vigia-stream
 
   publish_docker_image:
     name: Publish Docker image
     needs: [security, project_build]
     runs-on: ubuntu-latest
+    env:
+      DOCKERFILE: ${{ inputs.project == 'vigia-api' && 'docker-compose/dockerfiles/vigia-api.dockerfile' || 'docker-compose/dockerfiles/vigia-stream.dockerfile' }}
+      IMAGE_NAME: ${{ inputs.project == 'vigia-api' && 'vigia' || 'vigia-stream' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -94,28 +112,30 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker-compose/dockerfiles/vigia-api.dockerfile
+          file: ${{ env.DOCKERFILE }}
           load: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/vigia:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Trivy (image vulnerability scan)
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
           severity: "CRITICAL,HIGH"
           exit-code: "1"
 
       - name: Push Docker image
         run: |
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}"
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/vigia:latest"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
 
   deploy_service:
     name: Deploy service
     needs: publish_docker_image
     runs-on: ubuntu-latest
+    env:
+      COMPOSE_SERVICE: ${{ inputs.project == 'vigia-api' && 'vigia' || 'vigia-stream' }}
     steps:
       - name: Pull and restart on server (SSH)
         uses: appleboy/ssh-action@v1.2.0
@@ -127,5 +147,5 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.EC2_DEPLOY_PATH }}"
-            docker-compose pull vigia
-            docker-compose up -d --remove-orphans vigia
+            docker-compose pull ${{ env.COMPOSE_SERVICE }}
+            docker-compose up -d --remove-orphans ${{ env.COMPOSE_SERVICE }}

@@ -15,6 +15,20 @@ services:
     networks:
       - vigia-network
 
+  vigia-frontend:
+    image: pedroreis16/vigia-frontend:latest
+    container_name: vigia-frontend
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia-frontend.rule=Host(`www.vigia-deteccoes.duckdns.org`)"
+      - "traefik.http.routers.vigia-frontend.entrypoints=websecure"
+      - "traefik.http.routers.vigia-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vigia-frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.vigia-frontend.middlewares=cors@file"
+    networks:
+      - vigia-network
+
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
     image: traefik:v3.0

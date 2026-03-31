@@ -78,7 +78,7 @@ jobs:
       - name: Build project (vigia-api)
         if: inputs.project == 'vigia-api'
         working-directory: backend
-        run: go build -trimpath -ldflags="-s -w" -o vigia-api .
+        run: go build -trimpath -ldflags="-s -w" -o vigia-api ./cmd/vigia-api
 
       - name: Build project (vigia-stream)
         if: inputs.project == 'vigia-stream'

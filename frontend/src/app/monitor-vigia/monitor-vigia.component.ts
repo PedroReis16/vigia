@@ -1,9 +1,11 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 
-/**
- * WebSocket do Gin (vigia-stream). A porta 8091 serve HTTP/WS; a 8090 é só TCP da câmera.
- */
-const STREAM_WS_URL = 'ws://127.0.0.1:8091/stream';
+/** Mesmo host da página + path /stream (Traefik → vigia-stream:8091). Local: ws://localhost:8091/stream */
+function streamWebSocketUrl(): string {
+  const proto = globalThis.location?.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = globalThis.location?.host ?? '127.0.0.1:8091';
+  return `${proto}//${host}/stream`;
+}
 
 @Component({
   selector: 'app-monitor-vigia',
@@ -29,7 +31,7 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
   }
 
   private connectStream(): void {
-    this.ws = new WebSocket(STREAM_WS_URL);
+    this.ws = new WebSocket(streamWebSocketUrl());
     this.ws.binaryType = 'arraybuffer';
 
     this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {

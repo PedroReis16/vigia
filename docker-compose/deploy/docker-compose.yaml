@@ -1,3 +1,5 @@
+# Host público: apex + www (ambos no certificado; DuckDNS deve resolver para o IP da VM).
+
 services:
   # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
@@ -6,12 +8,33 @@ services:
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.vigia.entrypoints=websecure"
       - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia.loadbalancer.server.port=8000"
       - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
       - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
+    networks:
+      - vigia-network
+
+  # WebSocket /stream + ingest TCP da câmera (8090) — mesma rede que o Traefik
+  vigia-stream:
+    image: pedroreis16/vigia-stream:latest
+    container_name: vigia-stream
+    restart: always
+    ports:
+      # Expor no host se o cliente de vídeo (ex.: fall-detection) estiver fora do Docker
+      - "8090:8090"
+    environment:
+      - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
+      - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia-stream.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.vigia-stream.entrypoints=websecure"
+      - "traefik.http.routers.vigia-stream.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vigia-stream.loadbalancer.server.port=8091"
+      - "traefik.http.routers.vigia-stream.middlewares=cors@file"
     networks:
       - vigia-network
 
@@ -21,11 +44,12 @@ services:
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia-frontend.rule=Host(`www.vigia-deteccoes.duckdns.org`)"
+      - "traefik.http.routers.vigia-frontend.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`))"
       - "traefik.http.routers.vigia-frontend.entrypoints=websecure"
       - "traefik.http.routers.vigia-frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia-frontend.loadbalancer.server.port=80"
       - "traefik.http.routers.vigia-frontend.middlewares=cors@file"
+      - "traefik.http.routers.vigia-frontend.priority=1"
     networks:
       - vigia-network
 
@@ -96,7 +120,7 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/orion`)"
+      - "traefik.http.routers.orion.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/orion`)"
       - "traefik.http.routers.orion.entrypoints=websecure"
       - "traefik.http.routers.orion.tls.certresolver=letsencrypt"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
@@ -126,7 +150,7 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/sth-comet`)"
+      - "traefik.http.routers.sth.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/sth-comet`)"
       - "traefik.http.routers.sth.entrypoints=websecure"
       - "traefik.http.routers.sth.tls.certresolver=letsencrypt"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
@@ -161,7 +185,7 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/iot-agent`)"
+      - "traefik.http.routers.iot.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/iot-agent`)"
       - "traefik.http.routers.iot.entrypoints=websecure"
       - "traefik.http.routers.iot.tls.certresolver=letsencrypt"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
@@ -188,7 +212,7 @@ services:
       - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
       - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
       # Roteamento HTTP para MQTT sobre WebSocket (9001)
-      - "traefik.http.routers.mqttws.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=websecure"
       - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"

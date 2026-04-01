@@ -1,13 +1,13 @@
 import shutil
 import socket
 import struct
+import urllib.error
+import urllib.request
 import cv2
 import os
 import queue
 import threading
 import time
-from urllib.parse import urlparse
-
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente
@@ -15,27 +15,58 @@ load_dotenv()
 DATA_PATH = os.getenv("DATA_PATH")
 
 
+def _parse_tcp_ingest_addr(raw: str) -> tuple[str, int] | None:
+    """
+    Destino do socket TCP do vigia-stream (4 bytes LE + JPEG), não HTTP/WebSocket.
+    Aceita host:porta, URLs com path (/stream é ignorado) e ws(s):// (só host/porta).
+    """
+    s = raw.strip()
+    if not s:
+        return None
+    lower = s.lower()
+    for prefix in ("tcp://", "http://", "https://", "ws://", "wss://"):
+        if lower.startswith(prefix):
+            s = s[len(prefix) :]
+            break
+    if "/" in s:
+        s = s.split("/", 1)[0]
+    if ":" in s:
+        host, _, port_s = s.rpartition(":")
+        host = host.strip()
+        if not host:
+            return None
+        try:
+            port = int(port_s)
+        except ValueError:
+            return None
+    else:
+        host, port = s, 8090
+    # Em docker local, ws://…:8091 é o Gin; o ingest TCP da câmera no Go é :8090
+    if port == 8091:
+        port = 8090
+    return (host, port)
+
+
 def _tcp_stream_target() -> tuple[str, int] | None:
-    """Host/porta do TCP de ingestão no Go (porta 8090), não WebSocket."""
-    raw = (os.getenv("STREAM_TCP_ADDR") or "").strip()
-    if raw:
-        if ":" in raw:
-            h, _, p = raw.rpartition(":")
-            return (h.strip(), int(p))
-        return (raw, 8090)
-    ws = (os.getenv("STREAM_WS_URL") or "").strip()
-    if ws.startswith("ws://"):
-        u = urlparse(ws.replace("ws://", "http://", 1))
-        if u.hostname:
-            port = u.port or 8090
-            # WS do Angular costuma ser :8091; o TCP da câmera no Go é :8090
-            if port == 8091:
-                return (u.hostname, 8090)
-            return (u.hostname, port)
+    for key in ("STREAM_TCP_ADDR", "STREAM_WS_URL"):
+        raw = (os.getenv(key) or "").strip()
+        if not raw:
+            continue
+        t = _parse_tcp_ingest_addr(raw)
+        if t:
+            return t
     return None
 
 
+STREAM_INGEST_URL = (os.getenv("STREAM_INGEST_URL") or "").strip()
+STREAM_INGEST_TOKEN = (os.getenv("STREAM_INGEST_TOKEN") or "").strip()
 STREAM_TARGET = _tcp_stream_target()
+if not STREAM_INGEST_URL and STREAM_TARGET is None:
+    print(
+        "Aviso: defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
+        "STREAM_TCP_ADDR=host:porta (TCP :8090).",
+        flush=True,
+    )
 if DATA_PATH:
     FRAMES_DIR = os.path.join(DATA_PATH.rstrip("/"), "frames")
     os.makedirs(FRAMES_DIR, exist_ok=True)
@@ -130,6 +161,39 @@ def _start_stream_worker(host: str, port: int) -> None:
     _stream_thread.start()
 
 
+def _start_http_ingest_worker(url: str, token: str) -> None:
+    global _stream_queue, _stream_thread
+
+    def worker() -> None:
+        assert _stream_queue is not None
+        while True:
+            job = _stream_queue.get()
+            if job is None:
+                break
+            while True:
+                try:
+                    req = urllib.request.Request(
+                        url, data=job, method="POST"
+                    )
+                    req.add_header("Content-Type", "application/octet-stream")
+                    if token:
+                        req.add_header("X-Vigia-Ingest-Token", token)
+                    with urllib.request.urlopen(req, timeout=20) as resp:
+                        if resp.status not in (200, 204):
+                            raise urllib.error.HTTPError(
+                                req.full_url, resp.status, resp.reason, resp.headers, None
+                            )
+                    break
+                except (OSError, urllib.error.HTTPError):
+                    time.sleep(0.25)
+
+    _stream_queue = queue.Queue(maxsize=2)
+    _stream_thread = threading.Thread(
+        target=worker, name="http-ingest", daemon=True
+    )
+    _stream_thread.start()
+
+
 def _stop_stream_worker() -> None:
     global _stream_queue, _stream_thread
     if _stream_queue is not None:
@@ -140,7 +204,9 @@ def _stop_stream_worker() -> None:
         _stream_queue = None
 
 
-if STREAM_TARGET:
+if STREAM_INGEST_URL:
+    _start_http_ingest_worker(STREAM_INGEST_URL, STREAM_INGEST_TOKEN)
+elif STREAM_TARGET:
     _start_stream_worker(STREAM_TARGET[0], STREAM_TARGET[1])
 
 

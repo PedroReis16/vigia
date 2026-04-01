@@ -1,10 +1,22 @@
 import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 
-/** Mesmo host da página + path /stream (Traefik → vigia-stream:8091). Local: ws://localhost:8091/stream */
+/**
+ * Produção: mesmo host da página + /stream (Traefik → vigia-stream).
+ * Dev (ng serve em :4200, etc.): o Gin escuta em :8091 — não usar a porta da página.
+ */
 function streamWebSocketUrl(): string {
-  const proto = globalThis.location?.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = globalThis.location?.host ?? '127.0.0.1:8091';
-  return `${proto}//${host}/stream`;
+  const loc = globalThis.location;
+  if (!loc) {
+    return 'ws://127.0.0.1:8091/stream';
+  }
+  const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+  const h = loc.hostname;
+  const isLocalHost = h === 'localhost' || h === '127.0.0.1';
+  const streamOnSameOrigin = loc.port === '8091';
+  if (isLocalHost && !streamOnSameOrigin) {
+    return `${proto}//${h}:8091/stream`;
+  }
+  return `${proto}//${loc.host}/stream`;
 }
 
 @Component({

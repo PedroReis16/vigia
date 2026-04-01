@@ -31,11 +31,17 @@ services:
       - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia-stream.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && (PathPrefix(`/stream`) || PathPrefix(`/ingest`))"
-      - "traefik.http.routers.vigia-stream.entrypoints=websecure"
-      - "traefik.http.routers.vigia-stream.tls.certresolver=letsencrypt"
+      # WS: router dedicado sem CORS — o middleware headers pode quebrar o upgrade.
+      - "traefik.http.routers.vigia-stream-ws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.vigia-stream-ws.entrypoints=websecure"
+      - "traefik.http.routers.vigia-stream-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vigia-stream-ws.service=vigia-stream"
+      - "traefik.http.routers.vigia-stream-ingest.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/ingest`)"
+      - "traefik.http.routers.vigia-stream-ingest.entrypoints=websecure"
+      - "traefik.http.routers.vigia-stream-ingest.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vigia-stream-ingest.service=vigia-stream"
+      - "traefik.http.routers.vigia-stream-ingest.middlewares=cors@file"
       - "traefik.http.services.vigia-stream.loadbalancer.server.port=8091"
-      - "traefik.http.routers.vigia-stream.middlewares=cors@file"
     networks:
       - vigia-network
 

@@ -12,12 +12,12 @@ import (
 
 // EnsurePrerequisites verifica docker e docker compose v2.
 func EnsurePrerequisites(ctx context.Context, cfg Config) error {
-	if err := requireCommand(ctx, "docker", "--version"); err != nil {
+	if err := requireDocker(ctx, "--version"); err != nil {
 		if cfg.AutoInstall {
 			if err2 := tryInstallDocker(ctx); err2 != nil {
 				return fmt.Errorf("docker ausente e instalação automática falhou: %w (original: %v)", err2, err)
 			}
-			if err := requireCommand(ctx, "docker", "--version"); err != nil {
+			if err := requireDocker(ctx, "--version"); err != nil {
 				return err
 			}
 		} else {
@@ -25,12 +25,12 @@ func EnsurePrerequisites(ctx context.Context, cfg Config) error {
 		}
 	}
 
-	if err := requireCommand(ctx, "docker", "compose", "version"); err != nil {
+	if err := requireDocker(ctx, "compose", "version"); err != nil {
 		if cfg.AutoInstall && runtime.GOOS == "linux" {
 			if err2 := tryInstallDockerComposePluginLinux(ctx); err2 != nil {
 				return fmt.Errorf("docker compose ausente: %w (tentativa plugin: %v)", err, err2)
 			}
-			if err := requireCommand(ctx, "docker", "compose", "version"); err != nil {
+			if err := requireDocker(ctx, "compose", "version"); err != nil {
 				return err
 			}
 		} else {
@@ -42,14 +42,26 @@ func EnsurePrerequisites(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func requireCommand(ctx context.Context, name string, args ...string) error {
+func requireDocker(ctx context.Context, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
+	// #nosec G204 -- executável fixo "docker"; args só de chamadas neste pacote (subcomandos conhecidos)
+	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("docker %s: %w (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func requireBrew(ctx context.Context, args ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	// #nosec G204 -- executável fixo "brew"; args só de tryInstallDocker (darwin)
+	cmd := exec.CommandContext(ctx, "brew", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("brew %s: %w (%s)", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -57,7 +69,7 @@ func requireCommand(ctx context.Context, name string, args ...string) error {
 func tryInstallDocker(ctx context.Context) error {
 	switch runtime.GOOS {
 	case "darwin":
-		return requireCommand(ctx, "brew", "install", "--cask", "docker")
+		return requireBrew(ctx, "install", "--cask", "docker")
 	case "linux":
 		return installDockerLinux(ctx)
 	default:
@@ -126,8 +138,10 @@ func fileExists(path string) bool {
 func runPrivilegedShell(ctx context.Context, script string) error {
 	var cmd *exec.Cmd
 	if os.Geteuid() == 0 {
+		// #nosec G204 -- corpo do script é constante neste pacote (instalação Docker/compose), não vem do utilizador
 		cmd = exec.CommandContext(ctx, "sh", "-c", script)
 	} else {
+		// #nosec G204 -- idem
 		cmd = exec.CommandContext(ctx, "sudo", "sh", "-c", script)
 	}
 	cmd.Stdout = os.Stdout

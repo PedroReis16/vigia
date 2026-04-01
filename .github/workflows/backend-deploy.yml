@@ -98,13 +98,18 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # Só o pacote main do serviço escolhido (e subpacotes). ./... varre o módulo inteiro e mistura vigia-api, stream, bootstrap, etc.
       - name: Gosec (Go SAST)
         working-directory: backend
-        run: gosec ./...
+        env:
+          GO_PACKAGE: ${{ needs.validate_environment.outputs.go_package }}
+        run: gosec "${GO_PACKAGE}/..."
 
       - name: Govulncheck (dependency vulnerabilities)
         working-directory: backend
-        run: govulncheck ./...
+        env:
+          GO_PACKAGE: ${{ needs.validate_environment.outputs.go_package }}
+        run: govulncheck "${GO_PACKAGE}/..."
 
   project_build:
     name: Project compilation

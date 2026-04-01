@@ -14,6 +14,9 @@ import (
 // RegistryManifestDigest obtém o digest da manifest (Docker Hub / OCI registry v2).
 // Referências fixas por digest (@sha256:...) não são consultadas.
 func RegistryManifestDigest(ctx context.Context, imageRef string) (string, error) {
+	if err := validateDockerImageRef(imageRef); err != nil {
+		return "", err
+	}
 	repo, tag, pinned := parseRepoTag(imageRef)
 	if pinned {
 		return "", fmt.Errorf("imagem já fixada por digest: %s", imageRef)

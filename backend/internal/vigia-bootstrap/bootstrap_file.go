@@ -39,13 +39,17 @@ func (f FileConfig) UpdateInterval() time.Duration {
 
 // EnsureBootstrapYAML cria bootstrap.yaml com valores por omissão se não existir.
 func EnsureBootstrapYAML(path string) error {
-	if _, err := os.Stat(path); err == nil {
+	dataDir, err := assertBootstrapYAMLPath(path)
+	if err != nil {
+		return err
+	}
+	if _, err := statDataFile(dataDir, dataFileBootstrap); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("stat bootstrap.yaml: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(defaultBootstrapYAML), 0o644); err != nil {
+	if err := writeDataFile(dataDir, dataFileBootstrap, []byte(defaultBootstrapYAML), 0o600); err != nil {
 		return fmt.Errorf("gravar bootstrap.yaml: %w", err)
 	}
 	return nil
@@ -53,7 +57,11 @@ func EnsureBootstrapYAML(path string) error {
 
 // LoadFileConfig lê bootstrap.yaml; se não existir, devolve valores por omissão.
 func LoadFileConfig(path string) (FileConfig, error) {
-	data, err := os.ReadFile(path)
+	dataDir, err := assertBootstrapYAMLPath(path)
+	if err != nil {
+		return FileConfig{}, err
+	}
+	data, err := readDataFile(dataDir, dataFileBootstrap)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return FileConfig{}, nil

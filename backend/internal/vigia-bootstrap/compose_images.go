@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -18,7 +17,11 @@ type composeService struct {
 
 // ImagesFromCompose extrai referências únicas do campo image: (ignora serviços sem image).
 func ImagesFromCompose(composePath string) ([]string, error) {
-	data, err := os.ReadFile(composePath)
+	dataDir, err := assertComposeYAMLPath(composePath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readDataFile(dataDir, dataFileCompose)
 	if err != nil {
 		return nil, fmt.Errorf("ler compose: %w", err)
 	}

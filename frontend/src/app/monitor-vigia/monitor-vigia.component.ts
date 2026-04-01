@@ -1,4 +1,10 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  OnDestroy,
+  ViewChild,
+} from '@angular/core';
 
 /**
  * Produção: mesmo host da página + /stream (Traefik → vigia-stream).
@@ -24,21 +30,32 @@ function streamWebSocketUrl(): string {
   templateUrl: './monitor-vigia.component.html',
   styleUrl: './monitor-vigia.component.css',
 })
-export class MonitorVigiaComponent implements OnInit, OnDestroy {
-  /**
-   * Signal: callbacks do WebSocket rodam fora do ciclo normal do Angular (e apps zoneless
-   * não re-renderizam); atualizar um signal notifica o template de forma confiável.
-   */
-  readonly feedSrc = signal('/placeholder.svg');
+export class MonitorVigiaComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('feedCanvas') feedCanvas?: ElementRef<HTMLCanvasElement>;
 
   private ws?: WebSocket;
+  private ctx?: CanvasRenderingContext2D | null;
+  private rafId = 0;
+  /** Último frame recebido; durante decode pode ser substituído por um mais novo. */
+  private pendingFrame: ArrayBuffer | null = null;
+  private paintScheduled = false;
+  private destroyed = false;
 
-  ngOnInit(): void {
+  ngAfterViewInit(): void {
+    const el = this.feedCanvas?.nativeElement;
+    if (el) {
+      this.ctx = el.getContext('2d');
+    }
     this.connectStream();
   }
 
   ngOnDestroy(): void {
-    this.revokeFeedBlob();
+    this.destroyed = true;
+    if (this.rafId !== 0) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
+    this.pendingFrame = null;
     this.ws?.close();
   }
 
@@ -47,11 +64,11 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
     this.ws.binaryType = 'arraybuffer';
 
     this.ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      const arrayBuffer = event.data;
-      const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
-
-      this.revokeFeedBlob();
-      this.feedSrc.set(URL.createObjectURL(blob));
+      if (this.destroyed) {
+        return;
+      }
+      this.pendingFrame = event.data;
+      this.schedulePaint();
     };
 
     this.ws.onerror = (error) => {
@@ -59,10 +76,53 @@ export class MonitorVigiaComponent implements OnInit, OnDestroy {
     };
   }
 
-  private revokeFeedBlob(): void {
-    const current = this.feedSrc();
-    if (current.startsWith('blob:')) {
-      URL.revokeObjectURL(current);
+  private schedulePaint(): void {
+    if (this.paintScheduled || this.destroyed) {
+      return;
+    }
+    this.paintScheduled = true;
+    this.rafId = requestAnimationFrame(() => void this.paint());
+  }
+
+  private async paint(): Promise<void> {
+    this.paintScheduled = false;
+    this.rafId = 0;
+
+    const buf = this.pendingFrame;
+    if (!buf || this.destroyed || !this.feedCanvas) {
+      return;
+    }
+    if (!this.ctx) {
+      this.ctx = this.feedCanvas.nativeElement.getContext('2d');
+    }
+    if (!this.ctx) {
+      return;
+    }
+
+    const canvas = this.feedCanvas.nativeElement;
+    const blob = new Blob([buf], { type: 'image/jpeg' });
+
+    try {
+      const bmp = await createImageBitmap(blob);
+      if (this.destroyed) {
+        bmp.close();
+        return;
+      }
+      if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+        canvas.width = bmp.width;
+        canvas.height = bmp.height;
+      }
+      this.ctx.drawImage(bmp, 0, 0);
+      bmp.close();
+    } catch {
+      // Frame inválido ou decode indisponível — descarta.
+    }
+
+    if (this.pendingFrame === buf) {
+      this.pendingFrame = null;
+    }
+    if (this.pendingFrame !== null && !this.destroyed) {
+      this.schedulePaint();
     }
   }
 }

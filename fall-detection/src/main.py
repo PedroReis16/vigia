@@ -136,6 +136,10 @@ def _start_stream_worker(host: str, port: int) -> None:
                 try:
                     if sock is None:
                         sock = socket.create_connection((host, port), timeout=2.0)
+                        try:
+                            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                        except OSError:
+                            pass
                     header = struct.pack("<I", len(payload))
                     sock.sendall(header + payload)
                     break
@@ -154,7 +158,7 @@ def _start_stream_worker(host: str, port: int) -> None:
             except OSError:
                 pass
 
-    _stream_queue = queue.Queue(maxsize=2)
+    _stream_queue = queue.Queue(maxsize=8)
     _stream_thread = threading.Thread(
         target=worker, name="tcp-stream", daemon=True
     )

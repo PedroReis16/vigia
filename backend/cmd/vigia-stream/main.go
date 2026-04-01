@@ -6,6 +6,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +25,20 @@ var (
 	subsMu  sync.RWMutex
 	clients = make(map[*websocket.Conn]struct{})
 )
+
+// resolveListenAddr devolve host:port a partir da env ou o default; rejeita valores que net.ResolveTCPAddr não aceita.
+func resolveListenAddr(envKey, defaultAddr string) string {
+	v := strings.TrimSpace(os.Getenv(envKey))
+	if v == "" {
+		v = defaultAddr
+	}
+	if _, err := net.ResolveTCPAddr("tcp", v); err != nil {
+		// #nosec G706 -- valor só vem de env/local; %q no valor cru
+		log.Printf("aviso: %s=%q inválido (%v), uso %q", envKey, v, err, defaultAddr)
+		return defaultAddr
+	}
+	return v
+}
 
 func registerWS(c *websocket.Conn) {
 	subsMu.Lock()
@@ -55,8 +71,13 @@ func broadcastFrame(frame []byte) {
 }
 
 func main() {
+	const defTCP = "127.0.0.1:8090"
+	const defHTTP = "127.0.0.1:8091"
+	tcpAddr := resolveListenAddr("VIGIA_STREAM_TCP_ADDR", defTCP)
+	httpAddr := resolveListenAddr("VIGIA_STREAM_HTTP_ADDR", defHTTP)
+
 	// Inicia o listener TCP em uma Goroutine separada para não travar o Gin
-	go startTCPServer()
+	go startTCPServer(tcpAddr)
 	go fanOutFrames()
 
 	r := gin.Default()
@@ -83,8 +104,11 @@ func main() {
 		}
 	})
 
-	log.Println("Servidor Gin rodando na porta 8091...")
-	r.Run(":8091")
+	// #nosec G706 -- httpAddr validado por resolveListenAddr
+	log.Printf("Servidor Gin em %s (WebSocket /stream)…", httpAddr)
+	if err := r.Run(httpAddr); err != nil {
+		log.Fatalf("gin: %v", err)
+	}
 }
 
 func fanOutFrames() {
@@ -94,14 +118,15 @@ func fanOutFrames() {
 }
 
 // Escuta a conexão vinda do Python (Placa)
-func startTCPServer() {
-	l, err := net.Listen("tcp", ":8090")
+func startTCPServer(addr string) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatal("Erro ao iniciar TCP:", err)
 	}
 	defer l.Close()
 
-	log.Println("Aguardando câmera na porta TCP 8090...")
+	// #nosec G706 -- addr validado por resolveListenAddr antes de Listen
+	log.Printf("Aguardando câmera em tcp://%s …", addr)
 	for {
 		conn, err := l.Accept()
 		if err != nil {

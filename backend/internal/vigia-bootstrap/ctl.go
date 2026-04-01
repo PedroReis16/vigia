@@ -10,7 +10,7 @@ import (
 
 // PrepareWorkspace cria data-dir, bootstrap.yaml por omissão e compose embutido se em falta.
 func PrepareWorkspace(cfg Config) error {
-	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return fmt.Errorf("data-dir: %w", err)
 	}
 	if err := EnsureBootstrapYAML(cfg.BootstrapYAMLPath()); err != nil {
@@ -21,7 +21,7 @@ func PrepareWorkspace(cfg Config) error {
 
 // Doctor imprime diagnóstico para stdout. Não falha se o Docker estiver ausente.
 func Doctor(ctx context.Context, cfg Config) {
-	_ = os.MkdirAll(cfg.DataDir, 0o755)
+	_ = os.MkdirAll(cfg.DataDir, 0o750)
 	_ = EnsureBootstrapYAML(cfg.BootstrapYAMLPath())
 
 	fmt.Printf("data-dir:        %s\n", cfg.DataDir)
@@ -29,7 +29,7 @@ func Doctor(ctx context.Context, cfg Config) {
 	fmt.Printf("bootstrap.yaml:  %s\n", cfg.BootstrapYAMLPath())
 	fmt.Printf("device-id file:  %s\n", cfg.DeviceIDFilePath())
 
-	if st, err := os.Stat(cfg.ComposePath()); err != nil {
+	if st, err := statDataFile(cfg.DataDir, dataFileCompose); err != nil {
 		fmt.Printf("compose existe:  não (%v)\n", err)
 	} else {
 		fmt.Printf("compose existe:  sim (%d bytes)\n", st.Size())
@@ -38,18 +38,18 @@ func Doctor(ctx context.Context, cfg Config) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	if err := requireCommand(ctx, "docker", "--version"); err != nil {
+	if err := requireDocker(ctx, "--version"); err != nil {
 		fmt.Printf("docker:          ERRO %v\n", err)
 	} else {
 		fmt.Println("docker:          OK")
 	}
-	if err := requireCommand(ctx, "docker", "compose", "version"); err != nil {
+	if err := requireDocker(ctx, "compose", "version"); err != nil {
 		fmt.Printf("docker compose:  ERRO %v\n", err)
 	} else {
 		fmt.Println("docker compose:  OK")
 	}
 
-	if err := requireCommand(ctx, "docker", "ps"); err != nil {
+	if err := requireDocker(ctx, "ps"); err != nil {
 		fmt.Printf("docker ps (user): ERRO %v\n", err)
 		if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
 			fmt.Println("  dica: sudo usermod -aG docker $USER && newgrp docker   (ou termine a sessão SSH)")

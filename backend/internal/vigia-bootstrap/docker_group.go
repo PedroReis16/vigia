@@ -29,14 +29,22 @@ func EnsureDockerGroupForLoginUser(ctx context.Context, cfg Config) {
 	if u == "" || u == "root" {
 		return
 	}
+	if err := validateLinuxUsername(u); err != nil {
+		log.Printf("aviso: %v (grupo docker)", err)
+		return
+	}
 	if _, err := user.Lookup(u); err != nil {
+		// #nosec G706 -- u validado por validateLinuxUsername (nome POSIX)
 		log.Printf("aviso: utilizador %q não existe (grupo docker): %v", u, err)
 		return
 	}
+	// #nosec G702 G204 -- u validado por validateLinuxUsername; argv separado (sem shell)
 	cmd := exec.CommandContext(ctx, "usermod", "-aG", "docker", u)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("aviso: usermod -aG docker %s: %v (%s)", u, err, strings.TrimSpace(string(out)))
+		// #nosec G706 -- u validado; saída do comando sanitizada
+		log.Printf("aviso: usermod -aG docker %q: %v (%s)", u, err, SanitizeLogString(string(out)))
 		return
 	}
+	// #nosec G706 -- u validado
 	log.Printf("utilizador %q adicionado ao grupo docker; para aplicar na sessão SSH atual: newgrp docker (ou termine a sessão e volte a entrar)", u)
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const maxIngestBodyBytes = 8 << 20 // 8 MiB — um JPEG por POST
+
 var (
 	// Configura o WebSocket permitindo qualquer origem (CORS)
 	upgrader = websocket.Upgrader{
@@ -52,6 +54,13 @@ func unregisterWS(c *websocket.Conn) {
 	subsMu.Unlock()
 }
 
+func enqueueFrame(frame []byte) {
+	select {
+	case frameStream <- append([]byte(nil), frame...):
+	default:
+	}
+}
+
 // broadcastFrame envia o mesmo frame a todos os clientes conectados.
 func broadcastFrame(frame []byte) {
 	payload := append([]byte(nil), frame...)
@@ -82,6 +91,30 @@ func main() {
 
 	r := gin.Default()
 
+	// POST /ingest — mesmo pipeline que o TCP (Traefik HTTPS :443 → sem porta extra no firewall)
+	r.POST("/ingest", func(c *gin.Context) {
+		secret := strings.TrimSpace(os.Getenv("VIGIA_INGEST_TOKEN"))
+		if secret != "" && c.GetHeader("X-Vigia-Ingest-Token") != secret {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxIngestBodyBytes+1))
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if len(body) == 0 {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if len(body) > maxIngestBodyBytes {
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
+		enqueueFrame(body)
+		c.Status(http.StatusNoContent)
+	})
+
 	// Rota do WebSocket para o Angular consumir (múltiplos clientes em paralelo)
 	r.GET("/stream", func(c *gin.Context) {
 		ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -104,8 +137,11 @@ func main() {
 		}
 	})
 
+	if strings.TrimSpace(os.Getenv("VIGIA_INGEST_TOKEN")) == "" {
+		log.Println("aviso: VIGIA_INGEST_TOKEN vazio — POST /ingest aceita qualquer cliente que alcance o Gin (use token em produção).")
+	}
 	// #nosec G706 -- httpAddr validado por resolveListenAddr
-	log.Printf("Servidor Gin em %s (WebSocket /stream)…", httpAddr)
+	log.Printf("Servidor Gin em %s (GET /stream, POST /ingest)…", httpAddr)
 	if err := r.Run(httpAddr); err != nil {
 		log.Fatalf("gin: %v", err)
 	}
@@ -156,11 +192,6 @@ func handleCameraConnection(conn net.Conn) {
 			return
 		}
 
-		// 3. Copia para o canal: o consumidor faz broadcast a todos os WebSockets.
-		// Se o canal estiver cheio, descarta para evitar gargalo e lag.
-		select {
-		case frameStream <- append([]byte(nil), frameBuf...):
-		default:
-		}
+		enqueueFrame(frameBuf)
 	}
 }

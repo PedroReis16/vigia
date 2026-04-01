@@ -180,9 +180,8 @@ def _start_http_ingest_worker(url: str, token: str) -> None:
                         req.add_header("X-Vigia-Ingest-Token", token)
                     with urllib.request.urlopen(req, timeout=20) as resp:
                         if resp.status not in (200, 204):
-                            raise urllib.error.HTTPError(
-                                req.full_url, resp.status, resp.reason, resp.headers, None
-                            )
+                            time.sleep(0.25)
+                            continue
                     break
                 except (OSError, urllib.error.HTTPError):
                     time.sleep(0.25)

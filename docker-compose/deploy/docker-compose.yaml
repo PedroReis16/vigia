@@ -17,20 +17,21 @@ services:
     networks:
       - vigia-network
 
-  # WebSocket /stream + ingest TCP da câmera (8090) — mesma rede que o Traefik
+  # GET /stream (WS) + POST /ingest (JPEG) via Traefik :443; TCP :8090 opcional (LAN / legado)
   vigia-stream:
     image: pedroreis16/vigia-stream:latest
     container_name: vigia-stream
     restart: always
     ports:
-      # Expor no host se o cliente de vídeo (ex.: fall-detection) estiver fora do Docker
+      # Remova esta secção se só usar ingestão HTTPS (POST /ingest) — não precisa abrir 8090 no firewall
       - "8090:8090"
     environment:
       - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
       - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
+      - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia-stream.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/stream`)"
+      - "traefik.http.routers.vigia-stream.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && (PathPrefix(`/stream`) || PathPrefix(`/ingest`))"
       - "traefik.http.routers.vigia-stream.entrypoints=websecure"
       - "traefik.http.routers.vigia-stream.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia-stream.loadbalancer.server.port=8091"

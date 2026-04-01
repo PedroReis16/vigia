@@ -27,6 +27,7 @@ services:
     environment:
       - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
       - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
+      - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
     networks:
       - vigia-network
 

@@ -11,10 +11,12 @@
 }
 
 .monitor__feed {
+  display: block;
   width: 100%;
   max-width: 640px;
+  height: auto;
+  margin-inline: auto;
   border: 2px solid #ccc;
   border-radius: 4px;
-  vertical-align: middle;
   background: #111;
 }

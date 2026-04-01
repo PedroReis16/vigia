@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -22,7 +23,8 @@ var (
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 	// Canal: um único consumidor faz fan-out para todos os WebSockets (várias abas/dispositivos).
-	frameStream = make(chan []byte, 10)
+	// Buffer maior absorve picos enquanto o fan-out (ou a rede) acompanha.
+	frameStream = make(chan []byte, 48)
 
 	subsMu  sync.RWMutex
 	clients = make(map[*websocket.Conn]struct{})
@@ -61,7 +63,10 @@ func enqueueFrame(frame []byte) {
 	}
 }
 
-// broadcastFrame envia o mesmo frame a todos os clientes conectados.
+// wsWriteDeadline evita que um cliente lento bloqueie o envio para os demais (antes era sequencial).
+const wsWriteDeadline = 4 * time.Second
+
+// broadcastFrame envia o mesmo frame a todos os clientes em paralelo (tempo ~max, não ~soma).
 func broadcastFrame(frame []byte) {
 	payload := append([]byte(nil), frame...)
 	subsMu.RLock()
@@ -70,13 +75,24 @@ func broadcastFrame(frame []byte) {
 		list = append(list, c)
 	}
 	subsMu.RUnlock()
-	for _, c := range list {
-		if err := c.WriteMessage(websocket.BinaryMessage, payload); err != nil {
-			log.Println("Falha ao enviar frame para cliente, removendo:", err)
-			unregisterWS(c)
-			_ = c.Close()
-		}
+	if len(list) == 0 {
+		return
 	}
+	var wg sync.WaitGroup
+	deadline := time.Now().Add(wsWriteDeadline)
+	for _, c := range list {
+		wg.Add(1)
+		go func(conn *websocket.Conn) {
+			defer wg.Done()
+			_ = conn.SetWriteDeadline(deadline)
+			if err := conn.WriteMessage(websocket.BinaryMessage, payload); err != nil {
+				log.Println("Falha ao enviar frame para cliente, removendo:", err)
+				unregisterWS(conn)
+				_ = conn.Close()
+			}
+		}(c)
+	}
+	wg.Wait()
 }
 
 func main() {

@@ -1,0 +1,22 @@
+.monitor {
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+.monitor__title {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.monitor__feed {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  margin-inline: auto;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  background: #111;
+}

@@ -67,7 +67,7 @@ func InstallSystemdUnit(cfg Config, opts InstallSystemdOptions) error {
 	}
 
 	content := renderSystemdUnit(bin, dataDir)
-	if err := os.WriteFile(unitPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(unitPath, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("escrever %s: %w", unitPath, err)
 	}
 
@@ -76,13 +76,16 @@ func InstallSystemdUnit(cfg Config, opts InstallSystemdOptions) error {
 	}
 
 	unitName := filepath.Base(unitPath)
+	if err := ValidateSystemdUnitFilename(unitName); err != nil {
+		return err
+	}
 	if opts.Enable {
-		if out, err := exec.Command("systemctl", "enable", unitName).CombinedOutput(); err != nil {
+		if out, err := exec.Command("systemctl", "enable", unitName).CombinedOutput(); err != nil { // #nosec G204 -- unitName validado
 			return fmt.Errorf("systemctl enable %s: %w (%s)", unitName, err, strings.TrimSpace(string(out)))
 		}
 	}
 	if opts.StartNow {
-		if out, err := exec.Command("systemctl", "start", unitName).CombinedOutput(); err != nil {
+		if out, err := exec.Command("systemctl", "start", unitName).CombinedOutput(); err != nil { // #nosec G204
 			return fmt.Errorf("systemctl start %s: %w (%s)", unitName, err, strings.TrimSpace(string(out)))
 		}
 	}
@@ -116,9 +119,12 @@ func UninstallSystemdUnit(opts UninstallSystemdOptions) error {
 		return err
 	}
 	unitName := filepath.Base(unitPath)
+	if err := ValidateSystemdUnitFilename(unitName); err != nil {
+		return err
+	}
 
-	_ = exec.Command("systemctl", "stop", unitName).Run()
-	_ = exec.Command("systemctl", "disable", unitName).Run()
+	_ = exec.Command("systemctl", "stop", unitName).Run() // #nosec G204 -- unitName validado
+	_ = exec.Command("systemctl", "disable", unitName).Run() // #nosec G204
 
 	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remover %s: %w", unitPath, err)

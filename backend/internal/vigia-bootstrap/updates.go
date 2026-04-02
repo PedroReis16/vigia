@@ -33,9 +33,12 @@ func mergeImageRefs(fromCompose, extra []string) []string {
 }
 
 func localRepoDigests(ctx context.Context, imageRef string) (string, error) {
+	if err := validateDockerImageRef(imageRef); err != nil {
+		return "", err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", imageRef, "--format", "{{range .RepoDigests}}{{.}} {{end}}")
+	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", imageRef, "--format", "{{range .RepoDigests}}{{.}} {{end}}") // #nosec G204 -- imageRef validado
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err

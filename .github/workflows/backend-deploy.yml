@@ -1,10 +1,17 @@
 name: Backend API Deploy
 
-run-name: Backend API Deploy - v${{ inputs.version }}
+run-name: "${{ inputs.api_selection }} - v${{ inputs.version }}"
 
 on:
   workflow_dispatch:
     inputs:
+      api_selection:
+        description: "Serviço backend a compilar e publicar"
+        required: true
+        type: choice
+        options:
+          - Vigia API
+          - Vigia Stream
       version:
         description: "Version to deploy"
         required: true
@@ -13,8 +20,55 @@ permissions:
   contents: read
 
 jobs:
+  validate_environment:
+    name: Deployment context
+    runs-on: ubuntu-latest
+    outputs:
+      go_package: ${{ steps.deployment_vars.outputs.go_package }}
+      binary_name: ${{ steps.deployment_vars.outputs.binary_name }}
+      dockerfile_path: ${{ steps.deployment_vars.outputs.dockerfile_path }}
+      image_name: ${{ steps.deployment_vars.outputs.image_name }}
+      compose_service: ${{ steps.deployment_vars.outputs.compose_service }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Map selection to build and deploy paths
+        id: deployment_vars
+        shell: bash
+        run: |
+          SLUG="${{ inputs.api_selection }}"
+
+          case "$SLUG" in
+            "Vigia API")
+              GO_PACKAGE="./cmd/vigia-api"
+              BINARY_NAME="vigia-api"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-api.dockerfile"
+              IMAGE_NAME="vigia"
+              COMPOSE_SERVICE="vigia"
+              ;;
+            "Vigia Stream")
+              GO_PACKAGE="./cmd/vigia-stream"
+              BINARY_NAME="vigia-stream"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-stream.dockerfile"
+              IMAGE_NAME="vigia-stream"
+              COMPOSE_SERVICE="vigia-stream"
+              ;;
+            *)
+              echo "Seleção inválida: $SLUG"
+              exit 1
+              ;;
+          esac
+
+          echo "go_package=$GO_PACKAGE" >> "$GITHUB_OUTPUT"
+          echo "binary_name=$BINARY_NAME" >> "$GITHUB_OUTPUT"
+          echo "dockerfile_path=$DOCKERFILE_PATH" >> "$GITHUB_OUTPUT"
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "compose_service=$COMPOSE_SERVICE" >> "$GITHUB_OUTPUT"
+
   security:
     name: Security (SAST, SCA, secrets, Dockerfile)
+    needs: validate_environment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -30,7 +84,7 @@ jobs:
       - name: Lint Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+          dockerfile: ${{ needs.validate_environment.outputs.dockerfile_path }}
           failure-threshold: error
 
       - name: Set up Go
@@ -44,18 +98,26 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      # Só o pacote main do serviço escolhido (e subpacotes). ./... varre o módulo inteiro e mistura vigia-api, stream, bootstrap, etc.
       - name: Gosec (Go SAST)
         working-directory: backend
-        run: gosec ./...
+        env:
+          GO_PACKAGE: ${{ needs.validate_environment.outputs.go_package }}
+        run: gosec "${GO_PACKAGE}/..."
 
       - name: Govulncheck (dependency vulnerabilities)
         working-directory: backend
-        run: govulncheck ./...
+        env:
+          GO_PACKAGE: ${{ needs.validate_environment.outputs.go_package }}
+        run: govulncheck "${GO_PACKAGE}/..."
 
   project_build:
     name: Project compilation
-    needs: security
+    needs: [validate_environment, security]
     runs-on: ubuntu-latest
+    env:
+      GO_PACKAGE: ${{ needs.validate_environment.outputs.go_package }}
+      BINARY_NAME: ${{ needs.validate_environment.outputs.binary_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,13 +128,13 @@ jobs:
           go-version: "1.26.1"
           cache-dependency-path: backend/go.sum
 
-      - name: Build project
+      - name: Build Go binary
         working-directory: backend
-        run: go build -trimpath -ldflags="-s -w" -o vigia-api .
+        run: go build -trimpath -ldflags="-s -w" -o "$BINARY_NAME" "$GO_PACKAGE"
 
   publish_docker_image:
     name: Publish Docker image
-    needs: [security, project_build]
+    needs: [validate_environment, security, project_build]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -94,27 +156,27 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker-compose/dockerfiles/vigia-api.dockerfile
+          file: ${{ needs.validate_environment.outputs.dockerfile_path }}
           load: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/vigia:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:latest
 
       - name: Trivy (image vulnerability scan)
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
           severity: "CRITICAL,HIGH"
           exit-code: "1"
 
       - name: Push Docker image
         run: |
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/vigia:${{ inputs.version }}"
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/vigia:latest"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:latest"
 
   deploy_service:
     name: Deploy service
-    needs: publish_docker_image
+    needs: [validate_environment, publish_docker_image]
     runs-on: ubuntu-latest
     steps:
       - name: Pull and restart on server (SSH)
@@ -127,5 +189,5 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.EC2_DEPLOY_PATH }}"
-            docker-compose pull vigia
-            docker-compose up -d --remove-orphans vigia
+            docker-compose pull ${{ needs.validate_environment.outputs.compose_service }}
+            docker-compose up -d --remove-orphans ${{ needs.validate_environment.outputs.compose_service }}

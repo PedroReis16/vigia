@@ -20,8 +20,7 @@ func ResolveDeviceID(cfg Config, fileCfg FileConfig) (string, error) {
 		return id, nil
 	}
 
-	path := cfg.DeviceIDFilePath()
-	if data, err := os.ReadFile(path); err == nil {
+	if data, err := readDataFile(cfg.DataDir, dataFileDeviceID); err == nil {
 		id := strings.TrimSpace(string(data))
 		if id != "" {
 			return id, nil
@@ -31,7 +30,7 @@ func ResolveDeviceID(cfg Config, fileCfg FileConfig) (string, error) {
 	}
 
 	id := uuid.NewString()
-	if err := os.WriteFile(path, []byte(id+"\n"), 0o600); err != nil {
+	if err := writeDataFile(cfg.DataDir, dataFileDeviceID, []byte(id+"\n"), 0o600); err != nil {
 		return "", fmt.Errorf("gravar device-id: %w", err)
 	}
 	return id, nil

@@ -6,11 +6,16 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+const maxIngestBodyBytes = 8 << 20 // 8 MiB — um JPEG por POST
 
 var (
 	// Configura o WebSocket permitindo qualquer origem (CORS)
@@ -18,11 +23,26 @@ var (
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 	// Canal: um único consumidor faz fan-out para todos os WebSockets (várias abas/dispositivos).
-	frameStream = make(chan []byte, 10)
+	// Buffer maior absorve picos enquanto o fan-out (ou a rede) acompanha.
+	frameStream = make(chan []byte, 48)
 
 	subsMu  sync.RWMutex
 	clients = make(map[*websocket.Conn]struct{})
 )
+
+// resolveListenAddr devolve host:port a partir da env ou o default; rejeita valores que net.ResolveTCPAddr não aceita.
+func resolveListenAddr(envKey, defaultAddr string) string {
+	v := strings.TrimSpace(os.Getenv(envKey))
+	if v == "" {
+		v = defaultAddr
+	}
+	if _, err := net.ResolveTCPAddr("tcp", v); err != nil {
+		// #nosec G706 -- valor só vem de env/local; %q no valor cru
+		log.Printf("aviso: %s=%q inválido (%v), uso %q", envKey, v, err, defaultAddr)
+		return defaultAddr
+	}
+	return v
+}
 
 func registerWS(c *websocket.Conn) {
 	subsMu.Lock()
@@ -36,7 +56,17 @@ func unregisterWS(c *websocket.Conn) {
 	subsMu.Unlock()
 }
 
-// broadcastFrame envia o mesmo frame a todos os clientes conectados.
+func enqueueFrame(frame []byte) {
+	select {
+	case frameStream <- append([]byte(nil), frame...):
+	default:
+	}
+}
+
+// wsWriteDeadline evita que um cliente lento bloqueie o envio para os demais (antes era sequencial).
+const wsWriteDeadline = 4 * time.Second
+
+// broadcastFrame envia o mesmo frame a todos os clientes em paralelo (tempo ~max, não ~soma).
 func broadcastFrame(frame []byte) {
 	payload := append([]byte(nil), frame...)
 	subsMu.RLock()
@@ -45,21 +75,61 @@ func broadcastFrame(frame []byte) {
 		list = append(list, c)
 	}
 	subsMu.RUnlock()
-	for _, c := range list {
-		if err := c.WriteMessage(websocket.BinaryMessage, payload); err != nil {
-			log.Println("Falha ao enviar frame para cliente, removendo:", err)
-			unregisterWS(c)
-			_ = c.Close()
-		}
+	if len(list) == 0 {
+		return
 	}
+	var wg sync.WaitGroup
+	deadline := time.Now().Add(wsWriteDeadline)
+	for _, c := range list {
+		wg.Add(1)
+		go func(conn *websocket.Conn) {
+			defer wg.Done()
+			_ = conn.SetWriteDeadline(deadline)
+			if err := conn.WriteMessage(websocket.BinaryMessage, payload); err != nil {
+				log.Println("Falha ao enviar frame para cliente, removendo:", err)
+				unregisterWS(conn)
+				_ = conn.Close()
+			}
+		}(c)
+	}
+	wg.Wait()
 }
 
 func main() {
+	const defTCP = "127.0.0.1:8090"
+	const defHTTP = "127.0.0.1:8091"
+	tcpAddr := resolveListenAddr("VIGIA_STREAM_TCP_ADDR", defTCP)
+	httpAddr := resolveListenAddr("VIGIA_STREAM_HTTP_ADDR", defHTTP)
+
 	// Inicia o listener TCP em uma Goroutine separada para não travar o Gin
-	go startTCPServer()
+	go startTCPServer(tcpAddr)
 	go fanOutFrames()
 
 	r := gin.Default()
+
+	// POST /ingest — mesmo pipeline que o TCP (Traefik HTTPS :443 → sem porta extra no firewall)
+	r.POST("/ingest", func(c *gin.Context) {
+		secret := strings.TrimSpace(os.Getenv("VIGIA_INGEST_TOKEN"))
+		if secret != "" && c.GetHeader("X-Vigia-Ingest-Token") != secret {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxIngestBodyBytes+1))
+		if err != nil {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if len(body) == 0 {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		if len(body) > maxIngestBodyBytes {
+			c.AbortWithStatus(http.StatusRequestEntityTooLarge)
+			return
+		}
+		enqueueFrame(body)
+		c.Status(http.StatusNoContent)
+	})
 
 	// Rota do WebSocket para o Angular consumir (múltiplos clientes em paralelo)
 	r.GET("/stream", func(c *gin.Context) {
@@ -83,8 +153,14 @@ func main() {
 		}
 	})
 
-	log.Println("Servidor Gin rodando na porta 8091...")
-	r.Run(":8091")
+	if strings.TrimSpace(os.Getenv("VIGIA_INGEST_TOKEN")) == "" {
+		log.Println("aviso: VIGIA_INGEST_TOKEN vazio — POST /ingest aceita qualquer cliente que alcance o Gin (use token em produção).")
+	}
+	// #nosec G706 -- httpAddr validado por resolveListenAddr
+	log.Printf("Servidor Gin em %s (GET /stream, POST /ingest)…", httpAddr)
+	if err := r.Run(httpAddr); err != nil {
+		log.Fatalf("gin: %v", err)
+	}
 }
 
 func fanOutFrames() {
@@ -94,14 +170,15 @@ func fanOutFrames() {
 }
 
 // Escuta a conexão vinda do Python (Placa)
-func startTCPServer() {
-	l, err := net.Listen("tcp", ":8090")
+func startTCPServer(addr string) {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatal("Erro ao iniciar TCP:", err)
 	}
 	defer l.Close()
 
-	log.Println("Aguardando câmera na porta TCP 8090...")
+	// #nosec G706 -- addr validado por resolveListenAddr antes de Listen
+	log.Printf("Aguardando câmera em tcp://%s …", addr)
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -131,11 +208,6 @@ func handleCameraConnection(conn net.Conn) {
 			return
 		}
 
-		// 3. Copia para o canal: o consumidor faz broadcast a todos os WebSockets.
-		// Se o canal estiver cheio, descarta para evitar gargalo e lag.
-		select {
-		case frameStream <- append([]byte(nil), frameBuf...):
-		default:
-		}
+		enqueueFrame(frameBuf)
 	}
 }

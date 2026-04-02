@@ -61,6 +61,7 @@ func main() {
 		cfg, rest := parseCommonFlags(args[1:])
 		exit(bootstrap.Restart(context.Background(), cfg, rest))
 	default:
+		// #nosec G706 -- argv do processo; %q escapa conteúdo
 		log.Printf("comando desconhecido: %q\n\n", args[0])
 		fmt.Print(bootstrap.Usage)
 		os.Exit(2)

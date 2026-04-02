@@ -78,7 +78,8 @@ func parseInstallServiceFlags(args []string) (*installServiceFlags, error) {
 }
 
 func finishInstallService(f *installServiceFlags) error {
-	log.Printf("install-service: data-dir no unit: %s", f.cfg.DataDir)
+	// #nosec G706 -- caminho de configuração administrativa
+	log.Printf("install-service: data-dir no unit: %q", f.cfg.DataDir)
 	if err := bootstrap.InstallSystemdUnit(f.cfg, bootstrap.InstallSystemdOptions{
 		UnitPath:   f.unitPath,
 		BinaryPath: f.binaryPath,
@@ -90,17 +91,24 @@ func finishInstallService(f *installServiceFlags) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	bootstrap.EnsureDockerGroupForLoginUser(ctx, f.cfg)
 	cancel()
-	log.Printf("unit systemd instalado em %s", f.unitPath)
+	// #nosec G706 -- caminho administrativo
+	log.Printf("unit systemd instalado em %q", f.unitPath)
 	if f.enable {
 		log.Println("habilitado no boot (systemctl enable)")
 	}
 	if f.startNow {
 		log.Println("serviço iniciado (systemctl start)")
 		unitName := filepath.Base(f.unitPath)
+		if err := bootstrap.ValidateSystemdUnitFilename(unitName); err != nil {
+			return err
+		}
+		// #nosec G702 G204 -- unitName validado por ValidateSystemdUnitFilename; argv separado
 		if out, err := exec.Command("systemctl", "is-active", unitName).CombinedOutput(); err != nil {
-			log.Printf("aviso: systemctl is-active %s: %v — %s", unitName, err, strings.TrimSpace(string(out)))
+			// #nosec G706 -- unitName validado; saída sanitizada
+			log.Printf("aviso: systemctl is-active %q: %v — %s", unitName, err, bootstrap.SanitizeLogString(string(out)))
 		} else {
-			log.Printf("estado do serviço: %s", strings.TrimSpace(string(out)))
+			// #nosec G706 -- saída de systemctl sanitizada
+			log.Printf("estado do serviço: %s", bootstrap.SanitizeLogString(string(out)))
 		}
 	}
 	return nil

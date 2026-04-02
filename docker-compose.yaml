@@ -12,6 +12,8 @@ services:
       - LOG_LEVEL=INFO
       - APP_NAME=vigia-api
       - APP_VERSION=1.0.0
+      # Omissão do binário escuta só em 127.0.0.1 (gosec); no container é preciso expor na interface publicada.
+      - VIGIA_API_ADDR=0.0.0.0:8000
     networks:
       - vigia-network
 
@@ -22,6 +24,10 @@ services:
     ports:
       - 8090:8090
       - 8091:8091
+    environment:
+      - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
+      - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
+      - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
     networks:
       - vigia-network
 

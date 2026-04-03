@@ -19,7 +19,8 @@ class Settings:
     stream_target: tuple[str, int] | None
     captures_per_second: int
     video_capture_source: int | str
-
+    show_video: bool
+    
     @property
     def capture_interval(self) -> float | None:
         if self.captures_per_second <= 0:
@@ -37,17 +38,20 @@ class Settings:
         else:
             frames_dir = None
 
+        stream_video = (os.getenv("STREAM_VIDEO") or False).strip()
+
         stream_ingest_url = (os.getenv("STREAM_INGEST_URL") or "").strip()
         stream_ingest_token = (os.getenv("STREAM_INGEST_TOKEN") or "").strip()
         stream_target = tcp_stream_target_from_env()
 
-        if not stream_ingest_url and stream_target is None:
+        if stream_video and not stream_ingest_url and stream_target is None:
             print(
                 "Aviso: defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
                 "STREAM_TCP_ADDR=host:porta (TCP :8090).",
                 flush=True,
             )
 
+        show_video = (os.getenv("SHOW_VIDEO") or False).strip()
         captures_per_second = int(os.getenv("CAPTURES_PER_SECOND", "0"))
         video_source = _video_capture_source()
 
@@ -59,6 +63,7 @@ class Settings:
             stream_target=stream_target,
             captures_per_second=captures_per_second,
             video_capture_source=video_source,
+            show_video=show_video
         )
 
 

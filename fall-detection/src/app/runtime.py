@@ -32,6 +32,10 @@ def run(settings: Settings) -> None:
     cap = cv2.VideoCapture(settings.video_capture_source)
 
     try:
+        if settings.data_path:
+            print(f"Removing data path: {settings.data_path}")
+            shutil.rmtree(settings.data_path)
+
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -54,11 +58,10 @@ def run(settings: Settings) -> None:
             if key == ord("q"):
                 break
     finally:
+        # Libera UI primeiro; stop() dos workers pode esperar rede/disco e atrasaria a janela.
+        cap.release()
+        cv2.destroyAllWindows()
         if stream is not None:
             stream.stop()
         if saver is not None:
             saver.stop()
-        cap.release()
-        cv2.destroyAllWindows()
-        if settings.data_path:
-            shutil.rmtree(settings.data_path)

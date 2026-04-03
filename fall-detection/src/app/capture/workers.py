@@ -42,9 +42,18 @@ class FrameSaveWorker:
 
     def stop(self) -> None:
         if self._q is not None:
-            self._q.put(None)
+            # put(None) bloqueia se a fila estiver cheia e o worker estiver lento (imwrite).
+            while True:
+                try:
+                    self._q.put_nowait(None)
+                    break
+                except queue.Full:
+                    try:
+                        self._q.get_nowait()
+                    except queue.Empty:
+                        pass
         if self._thread is not None:
-            self._thread.join(timeout=5.0)
+            self._thread.join(timeout=0.5)
             self._thread = None
             self._q = None
 
@@ -138,9 +147,19 @@ class StreamOutWorker:
 
     def stop(self) -> None:
         if self._q is not None:
-            self._q.put(None)
+            # put(None) bloqueia se a fila estiver cheia e o worker estiver em I/O de rede
+            # (ex.: urlopen até 20s), travando o encerramento ao pressionar "q".
+            while True:
+                try:
+                    self._q.put_nowait(None)
+                    break
+                except queue.Full:
+                    try:
+                        self._q.get_nowait()
+                    except queue.Empty:
+                        pass
         if self._thread is not None:
-            self._thread.join(timeout=5.0)
+            self._thread.join(timeout=0.5)
             self._thread = None
             self._q = None
 

@@ -49,16 +49,16 @@ def run(settings: Settings) -> None:
                 now = time.monotonic()
                 disk.maybe_auto_capture(roi, now, settings.capture_interval)
 
-            cv2.imshow("Webcam", frame)
-            key = cv2.waitKey(1) & 0xFF
-
             if stream is not None:
                 stream.send_frame(frame)
 
-            if key == ord("q"):
-                break
+            if settings.show_video:
+                cv2.imshow("Webcam", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    break
+
     finally:
-        # Libera UI primeiro; stop() dos workers pode esperar rede/disco e atrasaria a janela.
         cap.release()
         cv2.destroyAllWindows()
         if stream is not None:

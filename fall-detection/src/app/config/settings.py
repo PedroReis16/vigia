@@ -38,7 +38,7 @@ class Settings:
         else:
             frames_dir = None
 
-        stream_video = (os.getenv("STREAM_VIDEO") or False).strip()
+        stream_video = _env_truthy("STREAM_VIDEO")
 
         stream_ingest_url = (os.getenv("STREAM_INGEST_URL") or "").strip()
         stream_ingest_token = (os.getenv("STREAM_INGEST_TOKEN") or "").strip()
@@ -51,7 +51,7 @@ class Settings:
                 flush=True,
             )
 
-        show_video = (os.getenv("SHOW_VIDEO") or False).strip()
+        show_video = _env_truthy("SHOW_VIDEO")
         captures_per_second = int(os.getenv("CAPTURES_PER_SECOND", "0"))
         video_source = _video_capture_source()
 
@@ -65,6 +65,12 @@ class Settings:
             video_capture_source=video_source,
             show_video=show_video
         )
+
+
+def _env_truthy(name: str) -> bool:
+    """Aceita True/1/yes/on (case-insensitive) como em .env com SHOW_VIDEO=True."""
+    v = (os.getenv(name) or "").strip().lower()
+    return v in ("1", "true", "yes", "on")
 
 
 def _video_capture_source() -> int | str:

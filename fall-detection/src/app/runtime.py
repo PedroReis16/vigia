@@ -59,7 +59,6 @@ def run(settings: Settings) -> None:
                 stream.send_frame(annotated_frame)
 
             if settings.show_video:
-                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.imshow("Webcam", annotated_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):

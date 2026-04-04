@@ -14,6 +14,7 @@ from app.config.ingest import tcp_stream_target_from_env
 class Settings:
     data_path: str | None
     frames_dir: str | None
+    stream_video: bool
     stream_ingest_url: str
     stream_ingest_token: str
     stream_target: tuple[str, int] | None
@@ -65,6 +66,7 @@ class Settings:
         return cls(
             data_path=data_path,
             frames_dir=frames_dir,
+            stream_video=stream_video,
             stream_ingest_url=stream_ingest_url,
             stream_ingest_token=stream_ingest_token,
             stream_target=stream_target,

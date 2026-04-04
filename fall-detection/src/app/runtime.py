@@ -1,18 +1,13 @@
-"""Loop principal de captura e exibição."""
-
 from __future__ import annotations
-
 import shutil
 import time
-
 import cv2
+from concurrent.futures import ThreadPoolExecutor, Future
 from ultralytics import YOLO
-
 from app.capture.disk_capture import DiskFrameCapture
 from app.capture.roi import central_roi
 from app.capture.workers import FrameSaveWorker, optional_stream_worker
 from app.config import Settings
-
 
 def run(settings: Settings) -> None:
     stream = optional_stream_worker(
@@ -37,32 +32,42 @@ def run(settings: Settings) -> None:
             print(f"Removing data path: {settings.data_path}")
             shutil.rmtree(settings.data_path)
 
+        detect_model = YOLO(settings.yolo_model)
+        pose_model = YOLO(settings.yolo_pose_model)
 
-        model = YOLO(settings.yolo_model)
+        detect_classes = list(range(1, 80))
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        def run_pose(f):
+            return pose_model.predict(f, conf=0.75, verbose=False, device=settings.yolo_model_device)
 
-            roi, (x1, y1, x2, y2) = central_roi(frame)
+        def run_detect(f):
+            return detect_model.predict(f, conf=0.75, verbose=False, classes=detect_classes, device=settings.yolo_model_device)
 
-            results = model.predict(frame, conf=0.75)
-
-            annotated_frame = results[0].plot()
-
-            if disk is not None and settings.capture_interval is not None:
-                now = time.monotonic()
-                disk.maybe_auto_capture(roi, now, settings.capture_interval)
-
-            if stream is not None:
-                stream.send_frame(annotated_frame)
-
-            if settings.show_video:
-                cv2.imshow("Webcam", annotated_frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
                     break
+
+                # Submete os dois modelos simultaneamente
+                fut_pose = executor.submit(run_pose, frame)
+                fut_detect = executor.submit(run_detect, frame)
+
+                # Aguarda os dois terminarem
+                pose_results = fut_pose.result()
+                detect_results = fut_detect.result()
+
+                annotated_frame = pose_results[0].plot(img=frame.copy())
+                annotated_frame = detect_results[0].plot(img=annotated_frame.copy())
+
+                if stream is not None:
+                    stream.send_frame(annotated_frame)
+
+                if settings.show_video:
+                    cv2.imshow("Detection", annotated_frame)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q"):
+                        break
 
     finally:
         cap.release()

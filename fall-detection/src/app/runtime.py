@@ -1,20 +1,26 @@
 from __future__ import annotations
 import shutil
 import time
+from typing import Optional
 import cv2
 from concurrent.futures import ThreadPoolExecutor, Future
 from ultralytics import YOLO
 from app.capture.disk_capture import DiskFrameCapture
 from app.capture.roi import central_roi
-from app.capture.workers import FrameSaveWorker, optional_stream_worker
+from app.capture.workers import FrameSaveWorker, StreamOutWorker, optional_stream_worker
 from app.config import Settings
 
 def run(settings: Settings) -> None:
-    stream = optional_stream_worker(
-        settings.stream_ingest_url,
-        settings.stream_ingest_token,
-        settings.stream_target,
-    )
+
+    stream: Optional[StreamOutWorker] | None = None
+    
+    if settings.stream_video:
+        stream = optional_stream_worker(
+            settings.stream_ingest_url,
+            settings.stream_ingest_token,
+            settings.stream_target,
+        )
+        
 
     saver: FrameSaveWorker | None = None
     if settings.frames_dir:

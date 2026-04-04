@@ -6,6 +6,7 @@ import shutil
 import time
 
 import cv2
+from ultralytics import YOLO
 
 from app.capture.disk_capture import DiskFrameCapture
 from app.capture.roi import central_roi
@@ -36,6 +37,9 @@ def run(settings: Settings) -> None:
             print(f"Removing data path: {settings.data_path}")
             shutil.rmtree(settings.data_path)
 
+
+        model = YOLO(settings.yolo_model)
+
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -43,17 +47,20 @@ def run(settings: Settings) -> None:
 
             roi, (x1, y1, x2, y2) = central_roi(frame)
 
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            results = model.predict(frame, conf=0.75)
+
+            annotated_frame = results[0].plot()
 
             if disk is not None and settings.capture_interval is not None:
                 now = time.monotonic()
                 disk.maybe_auto_capture(roi, now, settings.capture_interval)
 
             if stream is not None:
-                stream.send_frame(frame)
+                stream.send_frame(annotated_frame)
 
             if settings.show_video:
-                cv2.imshow("Webcam", frame)
+                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.imshow("Webcam", annotated_frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     break

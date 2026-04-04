@@ -20,6 +20,7 @@ class Settings:
     captures_per_second: int
     video_capture_source: int | str
     show_video: bool
+    yolo_model: str | None
     
     @property
     def capture_interval(self) -> float | None:
@@ -55,6 +56,8 @@ class Settings:
         captures_per_second = int(os.getenv("CAPTURES_PER_SECOND", "0"))
         video_source = _video_capture_source()
 
+        yolo_model = os.getenv("YOLO_MODEL")
+
         return cls(
             data_path=data_path,
             frames_dir=frames_dir,
@@ -63,7 +66,8 @@ class Settings:
             stream_target=stream_target,
             captures_per_second=captures_per_second,
             video_capture_source=video_source,
-            show_video=show_video
+            show_video=show_video,
+            yolo_model=yolo_model
         )
 
 

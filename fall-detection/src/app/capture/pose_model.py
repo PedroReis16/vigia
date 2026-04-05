@@ -58,10 +58,11 @@ class PoseModel:  # pylint: disable=too-few-public-methods
 
                 for label, idx in self._TRACKED_KEYPOINTS:
                     x, y, conf = person[idx]
-                    if conf < self._CONF_MIN:
+                    cf = float(conf.item())
+                    if cf < self._CONF_MIN:
                         continue
                     cx, cy = float(x.item()), float(y.item())
-                    body_data.append(BodyData(label, cx, cy, conf))
+                    body_data.append(BodyData(label, cx, cy, cf))
 
                 frame_results.append(PersonData(person_id, body_data))
 

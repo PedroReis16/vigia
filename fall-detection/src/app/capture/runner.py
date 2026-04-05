@@ -1,24 +1,20 @@
-from app.config import Settings
+from __future__ import annotations
+
+import cv2
+
+from app.config import Settings, prepare_data_workspace
 from app.capture.io import FrameSaveWorker, StreamOutWorker, optional_stream_worker
 from app.capture.loop import CaptureLoopContext, run_capture_loop
 from app.capture.pose import PoseModel
-import cv2
-import os
-import shutil
 
-def run_capture(settings: Settings)-> None:
+
+def run_capture(settings: Settings) -> None:
     """Executa o loop de captura de imagens da câmera."""
-    
     pose_csv_dir: str | None = None
     if settings.data_path:
         if settings.pose_csv_window_seconds <= 0:
             raise ValueError("pose_csv_window_seconds must be greater than 0")
-        print(f"Removing data path: {settings.data_path}")
-        if os.path.isdir(settings.data_path):
-            shutil.rmtree(settings.data_path)
-        os.makedirs(settings.data_path, exist_ok=True)
-        if settings.frames_dir:
-            os.makedirs(settings.frames_dir, exist_ok=True)
+        prepare_data_workspace(settings, reset=True)
         pose_csv_dir = settings.data_path
 
     stream: StreamOutWorker | None = None

@@ -1,4 +1,4 @@
-"""Região de interesse central no frame (margem percentual)."""
+"""Recorte de região de interesse no frame (ex.: ROI central com margem)."""
 
 from __future__ import annotations
 
@@ -18,3 +18,6 @@ def central_roi(
     y2 = int(height * (1.0 - margin_ratio))
     roi = frame[y1:y2, x1:x2]
     return roi, (x1, y1, x2, y2)
+
+
+__all__ = ["central_roi"]

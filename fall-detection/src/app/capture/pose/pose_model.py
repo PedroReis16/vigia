@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from ultralytics import YOLO
 
-from app.capture.frame_data import BodyData, PersonData
+from app.capture.pose.frame_data import BodyData, PersonData
 
 
 class PoseModel:  # pylint: disable=too-few-public-methods

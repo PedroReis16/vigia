@@ -1,9 +1,16 @@
-from ultralytics import YOLO
-import numpy as np
-from app.capture.frame_data import PersonData, BodyData
+"""Modelo YOLO pose: rastreia pessoas e extrai keypoints selecionados."""
 
-class PoseModel:
-    
+from __future__ import annotations
+
+import numpy as np
+from ultralytics import YOLO
+
+from app.capture.frame_data import BodyData, PersonData
+
+
+class PoseModel:  # pylint: disable=too-few-public-methods
+    """Envolve YOLO pose + track e monta `PersonData` por frame."""
+
     _TRACKED_KEYPOINTS: tuple[tuple[str, int], ...] = (
         ("nariz", 0),
         ("ombro_esq", 5),
@@ -12,9 +19,9 @@ class PoseModel:
 
     _CONF_MIN: float = 0.75
 
-    def __init__(self, model_path: str, device: str = "cpu"):
-            self.model = YOLO(model_path)
-            self.device = device
+    def __init__(self, model_path: str, device: str = "cpu") -> None:
+        self.model = YOLO(model_path)
+        self.device = device
 
     def _get_person_ids_from_result(self, result, data: np.ndarray) -> list[int]:
         boxes = result.boxes
@@ -22,14 +29,17 @@ class PoseModel:
 
         if ids_tensor is not None and len(ids_tensor) >= len(data):
             return [int(ids_tensor[i].item()) for i in range(len(data))]
-        return list[int](range(len(data)))
+        return list(range(len(data)))
 
-    def capture_frame(self, frame: np.ndarray) -> list[PersonData]:
-        """
-        Capture a frame with YOLO pose model and return the person keypoints data.
-        """
-        
-        results = self.model.track(frame, conf=self._CONF_MIN, verbose=False, device=self.device, persist=True)
+    def capture_frame(self, frame: np.ndarray) -> list[PersonData]:  # pylint: disable=too-many-locals
+        """Roda track no frame e devolve lista de pessoas com keypoints acima do limiar."""
+        results = self.model.track(
+            frame,
+            conf=self._CONF_MIN,
+            verbose=False,
+            device=self.device,
+            persist=True,
+        )
 
         frame_results: list[PersonData] = []
 
@@ -56,5 +66,3 @@ class PoseModel:
                 frame_results.append(PersonData(person_id, body_data))
 
         return frame_results
-
-    

@@ -1,18 +1,20 @@
+"""Loop principal: captura de vídeo, pose YOLO e gravação opcional de CSV/stream."""
+
 from __future__ import annotations
+
 import os
 import shutil
 import time
+from dataclasses import dataclass
 from typing import Optional
+
 import cv2
-import numpy as np
 import pandas as pd
 
 from app.capture.frame_data import PersonData
-
-from app.capture.disk_capture import DiskFrameCapture
+from app.capture.pose_model import PoseModel
 from app.capture.workers import FrameSaveWorker, StreamOutWorker, optional_stream_worker
 from app.config import Settings
-from app.capture.pose_model import PoseModel
 
 
 def _save_frame_data(frame_data: list[PersonData], data_path: str) -> None:
@@ -31,41 +33,44 @@ def _save_frame_data(frame_data: list[PersonData], data_path: str) -> None:
     df = pd.DataFrame(lines)
     df.to_csv(data_path, index=False)
 
-def _execute_role(
-    cap: cv2.VideoCapture,
-    show_video: bool, 
-    pose_model: PoseModel, 
-    capture_per_second: int,
-    pose_csv_path: str | None,
-    stream: Optional[StreamOutWorker], 
+
+@dataclass
+class _CaptureLoopContext:
+    cap: cv2.VideoCapture
+    show_video: bool
+    pose_model: PoseModel
+    capture_per_second: int
+    pose_csv_path: str | None
+    stream: Optional[StreamOutWorker]
     saver: Optional[FrameSaveWorker]
-    )-> None:
-    
+
+
+def _execute_role(ctx: _CaptureLoopContext) -> None:
     try:
-        if capture_per_second <= 0:
+        if ctx.capture_per_second <= 0:
             raise ValueError("capture_per_second must be greater than 0")
 
-        capture_interval = 1.0 / capture_per_second
+        capture_interval = 1.0 / ctx.capture_per_second
         _last_auto_capture = time.monotonic()
 
         while True:
-            ret, frame = cap.read()
+            ret, frame = ctx.cap.read()
             if not ret:
                 break
 
             now = time.monotonic()
 
             if now - _last_auto_capture >= capture_interval:
-                person_data = pose_model.capture_frame(frame)
-                if pose_csv_path is not None:
-                    _save_frame_data(frame_data=person_data, data_path=pose_csv_path)
+                person_data = ctx.pose_model.capture_frame(frame)
+                if ctx.pose_csv_path is not None:
+                    _save_frame_data(frame_data=person_data, data_path=ctx.pose_csv_path)
                 print(f"Saved frame data for {len(person_data)} people")
                 _last_auto_capture = now
 
-            if stream is not None:
-                stream.send_frame(frame)
+            if ctx.stream is not None:
+                ctx.stream.send_frame(frame)
 
-            if show_video:
+            if ctx.show_video:
                 frame = cv2.flip(frame, 1)
                 cv2.imshow("Detection", frame)
                 key = cv2.waitKey(1) & 0xFF
@@ -73,17 +78,16 @@ def _execute_role(
                     break
 
     finally:
-        cap.release()
+        ctx.cap.release()
         cv2.destroyAllWindows()
-        if stream is not None:
-            stream.stop()
-        if saver is not None:
-            saver.stop()
-
+        if ctx.stream is not None:
+            ctx.stream.stop()
+        if ctx.saver is not None:
+            ctx.saver.stop()
 
 
 def run(settings: Settings) -> None:
-
+    """Configura captura, workers opcionais e loop principal de vídeo/pose."""
     pose_csv_path: str | None = None
     if settings.data_path:
         print(f"Removing data path: {settings.data_path}")
@@ -94,24 +98,19 @@ def run(settings: Settings) -> None:
             os.makedirs(settings.frames_dir, exist_ok=True)
         pose_csv_path = os.path.join(settings.data_path, "poses.csv")
 
-
     stream: Optional[StreamOutWorker] | None = None
-    
+
     if settings.stream_video:
         stream = optional_stream_worker(
             settings.stream_ingest_url,
             settings.stream_ingest_token,
             settings.stream_target,
         )
-        
+
     saver: FrameSaveWorker | None = None
     if settings.frames_dir:
         saver = FrameSaveWorker()
         saver.start()
-
-    disk: DiskFrameCapture | None = None
-    if settings.frames_dir:
-        disk = DiskFrameCapture(settings.frames_dir, saver)
 
     cap = cv2.VideoCapture(settings.video_capture_source)
 
@@ -119,11 +118,13 @@ def run(settings: Settings) -> None:
     show_video = settings.show_video
 
     _execute_role(
-        cap=cap,
-        show_video=show_video,
-        pose_model=pose_model,
-        capture_per_second=settings.captures_per_second,
-        pose_csv_path=pose_csv_path,
-        stream=stream,
-        saver=saver
+        _CaptureLoopContext(
+            cap=cap,
+            show_video=show_video,
+            pose_model=pose_model,
+            capture_per_second=settings.captures_per_second,
+            pose_csv_path=pose_csv_path,
+            stream=stream,
+            saver=saver,
+        )
     )

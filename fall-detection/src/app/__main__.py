@@ -5,6 +5,7 @@ from app.runtime import run
 
 
 def main() -> None:
+    """Ponto de entrada: configuração via ambiente e execução do runtime."""
     run(Settings.from_env())
 
 

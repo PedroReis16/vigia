@@ -1,10 +1,5 @@
 """
-Modelos e pós-processamento (ex.: YOLO, pose, métricas).
+Machile Learning para o reconhecimento de quedas
 
-Coloque aqui inferência, conversão de tensores e cálculos derivados dos keypoints.
-O loop em `app.runtime` pode importar e chamar funções deste pacote quando existirem.
+Pacote para a aplicação de algoritmos de reconhecimento de quedas, utilizando machine learning.
 """
-
-from .runner import run_analysis
-
-__all__ = ["run_analysis"]

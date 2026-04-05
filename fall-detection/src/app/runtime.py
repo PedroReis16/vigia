@@ -7,7 +7,7 @@ import time
 
 from app.capture.runner import run_capture
 from app.config import Settings
-from app.ml.runner import run_analysis
+from app.core.runner import run_analysis
 
 
 def run(settings: Settings) -> None:

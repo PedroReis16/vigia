@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import queue
 import shutil
+import threading
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import cv2
 import pandas as pd
@@ -56,7 +58,32 @@ def _append_pose_csv(path: str, frame_data: list[PersonData], *, capture_seq: in
     df.to_csv(path, index=False, mode="w" if write_header else "a", header=write_header)
 
 
+@dataclass(frozen=True)
+class _PoseProcessJob:
+    """Frame já copiado; path e capture_seq definidos na thread de captura."""
+
+    frame: Any
+    csv_path: str | None
+    capture_seq: int
+
+
+def _pose_worker_loop(pose_model: PoseModel, work_q: "queue.Queue[_PoseProcessJob | None]") -> None:
+    while True:
+        job = work_q.get()
+        if job is None:
+            work_q.task_done()
+            break
+        try:
+            person_data = pose_model.capture_frame(job.frame)
+            if job.csv_path is not None:
+                _append_pose_csv(job.csv_path, person_data, capture_seq=job.capture_seq)
+        finally:
+            work_q.task_done()
+
+
 def _execute_role(ctx: _CaptureLoopContext) -> None:
+    pose_work_q: queue.Queue[_PoseProcessJob | None] | None = None
+    pose_worker: threading.Thread | None = None
     try:
         if ctx.capture_per_second <= 0:
             raise ValueError("capture_per_second must be greater than 0")
@@ -67,6 +94,16 @@ def _execute_role(ctx: _CaptureLoopContext) -> None:
         _csv_segment_index = 0
         _pose_capture_seq = 0
 
+        # Fila acoplada: se o worker atrasar, a captura espera em put() (evita fila infinita).
+        pose_work_q = queue.Queue(maxsize=4)
+        pose_worker = threading.Thread(
+            target=_pose_worker_loop,
+            args=(ctx.pose_model, pose_work_q),
+            name="pose-csv-worker",
+            daemon=True,
+        )
+        pose_worker.start()
+
         while True:
             ret, frame = ctx.cap.read()
             if not ret:
@@ -75,7 +112,7 @@ def _execute_role(ctx: _CaptureLoopContext) -> None:
             now = time.monotonic()
 
             if now - _last_auto_capture >= capture_interval:
-                person_data = ctx.pose_model.capture_frame(frame)
+                csv_path: str | None = None
                 if ctx.pose_csv_dir is not None:
                     new_segment = (
                         _csv_segment_start is None
@@ -88,10 +125,11 @@ def _execute_role(ctx: _CaptureLoopContext) -> None:
                     csv_path = os.path.join(
                         ctx.pose_csv_dir, f"poses_{_csv_segment_index:06d}.csv"
                     )
-                    _append_pose_csv(
-                        csv_path, person_data, capture_seq=_pose_capture_seq
-                    )
-                    _pose_capture_seq += 1
+                seq = _pose_capture_seq
+                _pose_capture_seq += 1
+                pose_work_q.put(
+                    _PoseProcessJob(frame=frame.copy(), csv_path=csv_path, capture_seq=seq)
+                )
                 _last_auto_capture = now
 
             if ctx.stream is not None:
@@ -105,6 +143,10 @@ def _execute_role(ctx: _CaptureLoopContext) -> None:
                     break
 
     finally:
+        if pose_work_q is not None:
+            pose_work_q.put(None)
+        if pose_worker is not None:
+            pose_worker.join(timeout=120.0)
         ctx.cap.release()
         cv2.destroyAllWindows()
         if ctx.stream is not None:

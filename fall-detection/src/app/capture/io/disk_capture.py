@@ -8,7 +8,7 @@ from typing import Any
 
 import cv2
 
-from app.capture.workers import FrameSaveWorker
+from app.capture.io.workers import FrameSaveWorker
 
 
 def frame_dir_for_elapsed_seconds(fr_dir: str, elapsed_sec: int) -> str:

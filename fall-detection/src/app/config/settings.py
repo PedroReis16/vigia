@@ -34,6 +34,7 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         load_dotenv()
+        
         data_path = (os.getenv("DATA_PATH") or "").strip() or None
         frames_dir: str | None
         if data_path:

@@ -3,14 +3,94 @@ import shutil
 import time
 from typing import Optional
 import cv2
-from concurrent.futures import ThreadPoolExecutor, Future
-from ultralytics import YOLO
+import numpy as np
+
 from app.capture.disk_capture import DiskFrameCapture
-from app.capture.roi import central_roi
 from app.capture.workers import FrameSaveWorker, StreamOutWorker, optional_stream_worker
 from app.config import Settings
+from app.ml.pose_model import PoseModel
+
+_prev_keypoints: tuple[float, float] | None = None
+
+
+def _capture_frame(pose_model: PoseModel, frame: np.ndarray) -> None:
+    global _prev_keypoints
+
+    results = pose_model.predict(frame)
+
+    for result in results:
+        kpts = result.keypoints.data
+
+        for person in kpts:
+            x, y, conf = person[0]  # Ex.: nariz (keypoint 0)
+
+            if conf < 0.75:
+                continue
+
+            cx, cy = float(x.item()), float(y.item())
+            current_pos = (cx, cy)
+
+            if _prev_keypoints is not None:
+                px, py = _prev_keypoints
+                distance = ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+                velocity = distance
+                print(f"Deslocamento: {distance:.2f}px | Velocidade: {velocity:.2f}px/frame")
+
+            _prev_keypoints = current_pos
+
+
+def _execute_role(
+    cap: cv2.VideoCapture,
+    show_video: bool, 
+    pose_model: PoseModel, 
+    capture_per_second: int,
+    stream: Optional[StreamOutWorker], 
+    saver: Optional[FrameSaveWorker]
+    )-> None:
+    
+    try:
+        if capture_per_second <= 0:
+            raise ValueError("capture_per_second must be greater than 0")
+
+        capture_interval = 1.0 / capture_per_second
+        _last_auto_capture = time.monotonic()
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            now = time.monotonic()
+
+            if now - _last_auto_capture >= capture_interval:
+                _capture_frame(pose_model, frame)
+                _last_auto_capture = now
+
+            if stream is not None:
+                stream.send_frame(frame)
+
+            if show_video:
+                cv2.imshow("Detection", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    break
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        if stream is not None:
+            stream.stop()
+        if saver is not None:
+            saver.stop()
+
+
 
 def run(settings: Settings) -> None:
+
+    if settings.data_path:
+        print(f"Removing data path: {settings.data_path}")
+        shutil.rmtree(settings.data_path)
+
 
     stream: Optional[StreamOutWorker] | None = None
     
@@ -21,7 +101,6 @@ def run(settings: Settings) -> None:
             settings.stream_target,
         )
         
-
     saver: FrameSaveWorker | None = None
     if settings.frames_dir:
         saver = FrameSaveWorker()
@@ -33,52 +112,14 @@ def run(settings: Settings) -> None:
 
     cap = cv2.VideoCapture(settings.video_capture_source)
 
-    try:
-        if settings.data_path:
-            print(f"Removing data path: {settings.data_path}")
-            shutil.rmtree(settings.data_path)
+    pose_model = PoseModel(model_path=settings.yolo_pose_model, device=settings.yolo_model_device)
+    show_video = settings.show_video
 
-        detect_model = YOLO(settings.yolo_model)
-        pose_model = YOLO(settings.yolo_pose_model)
-
-        detect_classes = list(range(1, 80))
-
-        def run_pose(f):
-            return pose_model.predict(f, conf=0.75, verbose=False, device=settings.yolo_model_device)
-
-        def run_detect(f):
-            return detect_model.predict(f, conf=0.75, verbose=False, classes=detect_classes, device=settings.yolo_model_device)
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                # Submete os dois modelos simultaneamente
-                fut_pose = executor.submit(run_pose, frame)
-                fut_detect = executor.submit(run_detect, frame)
-
-                # Aguarda os dois terminarem
-                pose_results = fut_pose.result()
-                detect_results = fut_detect.result()
-
-                annotated_frame = pose_results[0].plot(img=frame.copy())
-                annotated_frame = detect_results[0].plot(img=annotated_frame.copy())
-
-                if stream is not None:
-                    stream.send_frame(annotated_frame)
-
-                if settings.show_video:
-                    cv2.imshow("Detection", annotated_frame)
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord("q"):
-                        break
-
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
-        if stream is not None:
-            stream.stop()
-        if saver is not None:
-            saver.stop()
+    _execute_role(
+        cap=cap,
+        show_video=show_video,
+        pose_model=pose_model,
+        capture_per_second=settings.captures_per_second,
+        stream=stream,
+        saver=saver
+    )

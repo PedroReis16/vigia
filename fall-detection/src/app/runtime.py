@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from multiprocessing import Process
+import time
 
 from app.capture.runner import run_capture
 from app.config import Settings
@@ -19,10 +20,15 @@ def run(settings: Settings) -> None:
     capture_process.start()
     analysis_process.start()
 
+    # Verificação de status dos processos
+    while True:
+        if not capture_process.is_alive() or not analysis_process.is_alive():
+            print("Um processo finalizou. Encerrando os demais processos...")
+            capture_process.terminate()
+            analysis_process.terminate()
+            break
+        time.sleep(0.5)
+
     capture_process.join()
     analysis_process.join()
-
-    if capture_process.exitcode != 0:
-        raise RuntimeError(f"Capture process exited with code {capture_process.exitcode}")
-    if analysis_process.exitcode != 0:
-        raise RuntimeError(f"Analysis process exited with code {analysis_process.exitcode}")
+    print("Processos finalizados")

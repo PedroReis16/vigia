@@ -6,25 +6,12 @@ import os
 import queue
 import threading
 import time
-from dataclasses import dataclass
 
 import cv2
 
-from app.capture.io.workers import FrameSaveWorker, StreamOutWorker
-from app.capture.pose.pose_model import PoseModel
-from app.capture.pose.pose_process_worker import PoseProcessJob, pose_worker_loop
-
-
-@dataclass
-class CaptureLoopContext:
-    cap: cv2.VideoCapture
-    show_video: bool
-    pose_model: PoseModel
-    capture_per_second: int
-    pose_csv_dir: str | None
-    pose_csv_window_seconds: float
-    stream: StreamOutWorker | None
-    saver: FrameSaveWorker | None
+from app.capture.loop.capture_loop_context import CaptureLoopContext
+from app.capture.pose.pose_process_job import PoseProcessJob
+from app.capture.pose.pose_worker import pose_worker_loop
 
 
 def run_capture_loop(ctx: CaptureLoopContext) -> None:

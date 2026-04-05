@@ -1,60 +1,28 @@
-"""Ponto de entrada do app: monta Settings em recursos OpenCV/workers e inicia o loop de captura."""
+"""Orquestra processos: captura (câmera/pose) e análise ML em paralelo."""
 
 from __future__ import annotations
 
-import os
-import shutil
+from multiprocessing import Process
 
-import cv2
-
-from app.capture.io import FrameSaveWorker, StreamOutWorker, optional_stream_worker
-from app.capture.loop import CaptureLoopContext, run_capture_loop
-from app.capture.pose import PoseModel
+from app.capture.runner import run_capture
 from app.config import Settings
+from app.ml.runner import run_analysis
 
 
 def run(settings: Settings) -> None:
-    """Prepara diretórios, workers opcionais, câmera e modelo; delega o loop a `run_capture_loop`."""
-    pose_csv_dir: str | None = None
-    if settings.data_path:
-        if settings.pose_csv_window_seconds <= 0:
-            raise ValueError("pose_csv_window_seconds must be greater than 0")
-        print(f"Removing data path: {settings.data_path}")
-        if os.path.isdir(settings.data_path):
-            shutil.rmtree(settings.data_path)
-        os.makedirs(settings.data_path, exist_ok=True)
-        if settings.frames_dir:
-            os.makedirs(settings.frames_dir, exist_ok=True)
-        pose_csv_dir = settings.data_path
+    """Inicia de forma paralela os processos de captura e análise dos movimentos e quedas."""
 
-    stream: StreamOutWorker | None = None
+    # `args` precisa ser uma tupla: `(settings)` em Python é só o valor, não um 1-tuple.
+    capture_process = Process(target=run_capture, args=(settings,))
+    analysis_process = Process(target=run_analysis, args=(settings,))
 
-    if settings.stream_video:
-        stream = optional_stream_worker(
-            settings.stream_ingest_url,
-            settings.stream_ingest_token,
-            settings.stream_target,
-        )
+    capture_process.start()
+    analysis_process.start()
 
-    saver: FrameSaveWorker | None = None
-    if settings.frames_dir:
-        saver = FrameSaveWorker()
-        saver.start()
+    capture_process.join()
+    analysis_process.join()
 
-    cap = cv2.VideoCapture(settings.video_capture_source)
-
-    pose_model = PoseModel(model_path=settings.yolo_pose_model, device=settings.yolo_model_device)
-    show_video = settings.show_video
-
-    run_capture_loop(
-        CaptureLoopContext(
-            cap=cap,
-            show_video=show_video,
-            pose_model=pose_model,
-            capture_per_second=settings.captures_per_second,
-            pose_csv_dir=pose_csv_dir,
-            pose_csv_window_seconds=settings.pose_csv_window_seconds,
-            stream=stream,
-            saver=saver,
-        )
-    )
+    if capture_process.exitcode != 0:
+        raise RuntimeError(f"Capture process exited with code {capture_process.exitcode}")
+    if analysis_process.exitcode != 0:
+        raise RuntimeError(f"Analysis process exited with code {analysis_process.exitcode}")

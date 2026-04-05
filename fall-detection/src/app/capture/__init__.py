@@ -6,3 +6,7 @@ Pacote de captura (subpastas por responsabilidade):
 - ``io/`` — workers de disco/stream e gravação por sessão em pastas.
 - ``roi/`` — recorte de região de interesse no frame.
 """
+
+from .runner import run_capture
+
+__all__ = ["run_capture"]

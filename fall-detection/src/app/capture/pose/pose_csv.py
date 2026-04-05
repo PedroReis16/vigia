@@ -6,7 +6,7 @@ import os
 
 import pandas as pd
 
-from app.capture.pose.frame_data import PersonData
+from app.capture.pose.person_data import PersonData
 
 
 def _frame_rows(

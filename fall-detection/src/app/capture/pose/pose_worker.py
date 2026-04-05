@@ -1,22 +1,12 @@
-"""Thread de inferência pose + gravação CSV (fila de jobs vinda do loop de captura)."""
+"""Loop do worker em thread: consome fila de `PoseProcessJob`."""
 
 from __future__ import annotations
 
 import queue
-from dataclasses import dataclass
-from typing import Any
 
 from app.capture.pose.pose_csv import append_pose_csv
 from app.capture.pose.pose_model import PoseModel
-
-
-@dataclass(frozen=True)
-class PoseProcessJob:
-    """Frame já copiado; path e capture_seq definidos na thread de captura."""
-
-    frame: Any
-    csv_path: str | None
-    capture_seq: int
+from app.capture.pose.pose_process_job import PoseProcessJob
 
 
 def pose_worker_loop(pose_model: PoseModel, work_q: "queue.Queue[PoseProcessJob | None]") -> None:

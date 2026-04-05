@@ -15,6 +15,8 @@ from app.capture.pose.pose_worker import pose_worker_loop
 
 
 def run_capture_loop(ctx: CaptureLoopContext) -> None:
+    """Loop contínuo: leitura da câmera, enfileiramento de pose/CSV, stream e preview."""
+
     pose_work_q: queue.Queue[PoseProcessJob | None] | None = None
     pose_worker: threading.Thread | None = None
     try:
@@ -56,7 +58,9 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                             _csv_segment_index += 1
                         _csv_segment_start = now
                     csv_path = os.path.join(
-                        ctx.pose_csv_dir, f"poses_{_csv_segment_index:06d}.csv"
+                        ctx.pose_csv_dir,
+                        "coordinates",
+                        f"poses_{_csv_segment_index:06d}.csv",
                     )
                 seq = _pose_capture_seq
                 _pose_capture_seq += 1

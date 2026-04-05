@@ -1,4 +1,4 @@
-"""Preparação do diretório de dados compartilhado (DATA_PATH / frames).
+"""Preparação do diretório de dados (DATA_PATH, ``coordinates/``, ``frames/``).
 
 Usado por captura e ML sem acoplar um pacote ao outro; ambos dependem só de `config`.
 """
@@ -13,7 +13,7 @@ from app.config.settings import Settings
 
 def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
     """
-    Garante ``settings.data_path`` e, se houver, ``settings.frames_dir``.
+    Garante ``settings.data_path``, ``…/coordinates`` (CSVs de pose) e ``settings.frames_dir``.
 
     Se ``reset`` for verdadeiro e ``data_path`` estiver definido, remove a árvore
     existente antes de recriar (comportamento atual do runner de captura).
@@ -28,5 +28,6 @@ def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
         if os.path.isdir(settings.data_path):
             shutil.rmtree(settings.data_path)
     os.makedirs(settings.data_path, exist_ok=True)
+    os.makedirs(os.path.join(settings.data_path, "coordinates"), exist_ok=True)
     if settings.frames_dir:
         os.makedirs(settings.frames_dir, exist_ok=True)

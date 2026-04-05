@@ -25,6 +25,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     yolo_model: str | None
     yolo_pose_model: str | None
     yolo_model_device: str | None
+    pose_csv_window_seconds: float
 
     @property
     def capture_interval(self) -> float | None:
@@ -66,6 +67,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         yolo_model = os.getenv("YOLO_MODEL")
         yolo_pose_model = os.getenv("YOLO_POSE_MODEL")
         yolo_model_device = os.getenv("YOLO_MODEL_DEVICE")
+        pose_csv_window_seconds = float(os.getenv("POSE_CSV_WINDOW_SECONDS", "3"))
 
         return cls(
             data_path=data_path,
@@ -79,7 +81,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             show_video=show_video,
             yolo_model=yolo_model,
             yolo_pose_model=yolo_pose_model,
-            yolo_model_device=yolo_model_device
+            yolo_model_device=yolo_model_device,
+            pose_csv_window_seconds=pose_csv_window_seconds,
         )
 
 

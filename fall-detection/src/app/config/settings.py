@@ -11,7 +11,8 @@ from app.config.ingest import tcp_stream_target_from_env
 
 
 @dataclass(frozen=True)
-class Settings:
+class Settings:  # pylint: disable=too-many-instance-attributes
+    """Parâmetros da aplicação carregados de variáveis de ambiente (.env)."""
     data_path: str | None
     frames_dir: str | None
     stream_video: bool
@@ -27,14 +28,16 @@ class Settings:
 
     @property
     def capture_interval(self) -> float | None:
+        """Intervalo em segundos entre capturas automáticas, ou None se desligado."""
         if self.captures_per_second <= 0:
             return None
         return 1.0 / self.captures_per_second
 
     @classmethod
     def from_env(cls) -> Settings:
+        """Lê `.env` e variáveis de ambiente e monta `Settings`."""
         load_dotenv()
-        
+
         data_path = (os.getenv("DATA_PATH") or "").strip() or None
         frames_dir: str | None
         if data_path:

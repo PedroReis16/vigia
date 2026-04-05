@@ -38,6 +38,7 @@ def parse_tcp_ingest_addr(raw: str) -> tuple[str, int] | None:
 
 
 def tcp_stream_target_from_env() -> tuple[str, int] | None:
+    """Lê `STREAM_TCP_ADDR` ou `STREAM_WS_URL` e devolve (host, porta) ou None."""
     for key in ("STREAM_TCP_ADDR", "STREAM_WS_URL"):
         raw = (os.getenv(key) or "").strip()
         if not raw:

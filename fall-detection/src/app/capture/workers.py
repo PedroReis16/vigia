@@ -23,6 +23,7 @@ class FrameSaveWorker:
         self._maxsize = maxsize
 
     def start(self) -> None:
+        """Inicia thread que consome a fila e grava PNG com `cv2.imwrite`."""
         if self._thread is not None:
             return
 
@@ -41,6 +42,7 @@ class FrameSaveWorker:
         self._thread.start()
 
     def stop(self) -> None:
+        """Sinaliza fim ao worker e aguarda encerramento (curto timeout)."""
         if self._q is not None:
             # put(None) bloqueia se a fila estiver cheia e o worker estiver lento (imwrite).
             while True:
@@ -76,6 +78,7 @@ class StreamOutWorker:
         self._thread: threading.Thread | None = None
 
     def start_tcp(self, host: str, port: int) -> None:
+        """Inicia envio JPEG por TCP (header 4 bytes LE + payload)."""
         self._start_queue(maxsize=8)
         assert self._q is not None
 
@@ -115,6 +118,7 @@ class StreamOutWorker:
         self._thread.start()
 
     def start_http(self, url: str, token: str) -> None:
+        """Inicia POST de JPEG para URL de ingest (com token opcional no header)."""
         self._start_queue(maxsize=2)
         assert self._q is not None
 
@@ -141,11 +145,13 @@ class StreamOutWorker:
         self._thread.start()
 
     def _start_queue(self, maxsize: int) -> None:
+        """Cria fila interna se ainda não houver worker ativo."""
         if self._thread is not None:
             return
         self._q = queue.Queue(maxsize=maxsize)
 
     def stop(self) -> None:
+        """Encerra worker TCP/HTTP de forma não bloqueante quando possível."""
         if self._q is not None:
             # put(None) bloqueia se a fila estiver cheia e o worker estiver em I/O de rede
             # (ex.: urlopen até 20s), travando o encerramento ao pressionar "q".
@@ -164,6 +170,7 @@ class StreamOutWorker:
             self._q = None
 
     def send_frame(self, frame: Any) -> None:
+        """Codifica frame em JPEG e enfileira (descarta mais antigo se fila cheia)."""
         if self._q is None:
             return
         ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])

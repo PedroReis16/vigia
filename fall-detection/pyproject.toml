@@ -1,0 +1,6 @@
+[tool.pylint.main]
+extension-pkg-allow-list = ["cv2"]
+
+[tool.pylint.typecheck]
+# opencv-python expõe a API nativa de forma dinâmica; evita E1101 (no-member).
+generated-members = ["cv2.*"]

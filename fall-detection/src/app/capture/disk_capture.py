@@ -36,12 +36,14 @@ class DiskFrameCapture:
         self._last_auto_capture = time.monotonic()
 
     def maybe_auto_capture(self, roi: Any, now: float, interval: float | None) -> None:
+        """Dispara `capture_frame` quando o intervalo desde a última captura foi atingido."""
         if interval is None:
             return
         if now - self._last_auto_capture >= interval:
             self.capture_frame(roi, now)
 
     def capture_frame(self, roi: Any, now: float) -> None:
+        """Grava um PNG no bucket do segundo atual (fila assíncrona ou `imwrite`)."""
         self._last_auto_capture = now
         elapsed_sec = int(now - self._t0)
 

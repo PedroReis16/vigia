@@ -21,6 +21,7 @@ services:
     build:
       context: .
       dockerfile: docker-compose/dockerfiles/vigia-stream.dockerfile
+    container_name: vigia-stream
     ports:
       - 8090:8090
       - 8091:8091
@@ -28,14 +29,18 @@ services:
       - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
       - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
       - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
+    restart: always
     networks:
       - vigia-network
 
   vigia-frontend:
+    container_name: vigia-frontend
     build:
       context: .
       dockerfile: docker-compose/dockerfiles/vigia-frontend.dockerfile
     # Nginx escuta na 80 no container; 4200 é só a porta no host (como no ng serve)
+    depends_on:
+      - vigia-stream
     ports:
       - 4200:80
     networks:

@@ -1,0 +1,2 @@
+# Dependências só para gerar o executável (make build).
+pyinstaller>=6.0

@@ -214,3 +214,4 @@ fall-detection/data/
 fall-detection/.DS_Store
 
 docker-compose/mongo*
+.DS_Store

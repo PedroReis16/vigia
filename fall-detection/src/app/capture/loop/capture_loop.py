@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import queue
 import threading
 import time
@@ -13,6 +14,11 @@ from app.capture.loop.capture_loop_context import CaptureLoopContext
 from app.capture.pose.pose_process_job import PoseProcessJob
 from app.capture.pose.pose_worker import pose_worker_loop
 
+from app.capture.fall_classifier import FallClassifier, build_keypoints_list
+
+def disparar_alerta() -> None:
+    """Dispara o alerta de queda."""
+    print("Alerta de queda disparado")
 
 def run_capture_loop(ctx: CaptureLoopContext) -> None:
     """Loop contínuo: leitura da câmera, enfileiramento de pose/CSV, stream e preview."""
@@ -39,42 +45,42 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
         )
         pose_worker.start()
 
+        clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.joblib")
+
+        first_infer = True
         while True:
             ret, frame = ctx.cap.read()
             if not ret:
                 break
 
-            now = time.monotonic()
-
-            if now - _last_auto_capture >= capture_interval:
-                csv_path: str | None = None
-                if ctx.pose_csv_dir is not None:
-                    new_segment = (
-                        _csv_segment_start is None
-                        or (now - _csv_segment_start) >= ctx.pose_csv_window_seconds
-                    )
-                    if new_segment:
-                        if _csv_segment_start is not None:
-                            _csv_segment_index += 1
-                        _csv_segment_start = now
-                    csv_path = os.path.join(
-                        ctx.pose_csv_dir,
-                        "coordinates",
-                        f"poses_{_csv_segment_index:06d}.csv",
-                    )
-                seq = _pose_capture_seq
-                _pose_capture_seq += 1
-                pose_work_q.put(
-                    PoseProcessJob(frame=frame.copy(), csv_path=csv_path, capture_seq=seq)
+            if first_infer:
+                print(
+                    "Primeira inferência de pose (CPU pode demorar dezenas de segundos)…",
+                    flush=True,
                 )
-                _last_auto_capture = now
+                first_infer = False
+
+            results = ctx.pose_model.model(frame, verbose=False)[0]
+
+            if results.keypoints is not None and len(results.keypoints) > 0:
+                # Converte saída do YOLO para o formato do classificador
+                kps = results.keypoints.xy.cpu().numpy()  # (N_pessoas, 17, 2)
+                kconf = results.keypoints.conf.cpu().numpy()
+                keypoints = build_keypoints_list(kps, kconf, person_idx=0)
+                resultado = clf.predict(keypoints)
+
+                if resultado is not None:
+                    if resultado["prob_deitado"] > 0.4:
+                        disparar_alerta()
+                    if resultado["prob_deitado"] > 0.7:
+                        disparar_alerta()
 
             if ctx.stream is not None:
                 ctx.stream.send_frame(frame)
 
             if ctx.show_video:
-                frame = cv2.flip(frame, 1)
-                cv2.imshow("Detection", frame)
+                display = cv2.flip(frame, 1)
+                cv2.imshow("Detection", display)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     break

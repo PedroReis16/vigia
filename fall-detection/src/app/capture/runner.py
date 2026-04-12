@@ -31,9 +31,21 @@ def run_capture(settings: Settings) -> None:
         saver = FrameSaveWorker()
         saver.start()
 
+    print("Abrindo fonte de vídeo…", flush=True)
     cap = cv2.VideoCapture(settings.video_capture_source)
+    if not cap.isOpened():
+        raise RuntimeError(
+            f"Não foi possível abrir VIDEO_CAPTURE_SOURCE={settings.video_capture_source!r}. "
+            "Experimente outro índice (0, 1, …) ou uma URL válida."
+        )
+    print(f"Fonte de vídeo OK ({settings.video_capture_source!r}).", flush=True)
 
+    print(
+        "A carregar modelo YOLO pose (a primeira execução pode descarregar pesos; CPU pode demorar)…",
+        flush=True,
+    )
     pose_model = PoseModel(model_path=settings.yolo_pose_model, device=settings.yolo_model_device)
+    print("Modelo YOLO pose pronto.", flush=True)
     show_video = settings.show_video
 
     run_capture_loop(

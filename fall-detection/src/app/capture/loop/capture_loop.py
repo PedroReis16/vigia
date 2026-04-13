@@ -45,7 +45,7 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
         )
         pose_worker.start()
 
-        clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.joblib")
+        clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.onnx")
 
         first_infer = True
         while True:
@@ -61,6 +61,7 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 first_infer = False
 
             results = ctx.pose_model.model(frame, verbose=False)[0]
+            annotated = results.plot()
 
             if results.keypoints is not None and len(results.keypoints) > 0:
                 # Converte saída do YOLO para o formato do classificador
@@ -69,17 +70,16 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 keypoints = build_keypoints_list(kps, kconf, person_idx=0)
                 resultado = clf.predict(keypoints)
 
-                if resultado is not None:
-                    if resultado["prob_deitado"] > 0.4:
-                        disparar_alerta()
-                    if resultado["prob_deitado"] > 0.7:
-                        disparar_alerta()
+                if resultado is None:
+                    print("Sem resultados")
+                else:
+                    print(resultado)
 
             if ctx.stream is not None:
-                ctx.stream.send_frame(frame)
+                ctx.stream.send_frame(annotated)
 
             if ctx.show_video:
-                display = cv2.flip(frame, 1)
+                display = cv2.flip(annotated, 1)
                 cv2.imshow("Detection", display)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):

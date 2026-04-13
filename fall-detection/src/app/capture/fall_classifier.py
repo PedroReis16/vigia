@@ -1,6 +1,7 @@
 
 import math
 import warnings
+import onnxruntime as ort
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -108,34 +109,33 @@ class FallClassifier:
     a predição. É o único objeto que o colega precisa usar.
     """
 
-    def __init__(self, model_path: str | Path) -> None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", InconsistentVersionWarning)
-            self._pipeline = joblib.load(model_path)
+    def __init__(self, model_path: str):
+        self._session = ort.InferenceSession(model_path)
+        self._input_name = self._session.get_inputs()[0].name
 
     def predict(self, keypoints_data: list) -> dict | None:
-        """
-        Parâmetros
-        ----------
-        keypoints_data : lista de dicts {joint_id, x, y, conf}
-                         gerada por build_keypoints_list()
-
-        Retorno
-        -------
-        {
-          "label":  "em_pe" | "deitado",
-          "pred":   0 | 1,
-          "prob_deitado": float   # probabilidade 0-1
-        }
-        Retorna None se não houver keypoints suficientes.
-        """
         feats = extract_features(keypoints_data)
         if feats is None:
             return None
 
-        X    = pd.DataFrame([feats])[FEATURE_COLS].values
-        pred = int(self._pipeline.predict(X)[0])
-        prob = float(self._pipeline.predict_proba(X)[0][1])
+        X = np.array([[
+            feats.get("angle_from_vertical", 0),
+            feats.get("aspect_ratio", 0),
+            feats.get("trunk_ratio", 0),
+            feats.get("head_hip_ratio", 0),
+            feats.get("vert_alignment", 0),
+            feats.get("knee_angle", 0),
+        ]], dtype=np.float32)
+
+        # NaN vira 0 (mesmo comportamento do SimpleImputer com median≈0)
+        X = np.nan_to_num(X, nan=0.0)
+
+        pred  = int(self._session.run(None, {self._input_name: X})[0][0])
+        # ONNX com SVM não exporta probabilidade por padrão
+        # Para ter prob, use: convert_sklearn(..., options={"zipmap": False})
+        # e acesse o segundo output
+        proba_output = self._session.run(None, {self._input_name: X})
+        prob = float(proba_output[1][0][1]) if len(proba_output) > 1 else float(pred)
 
         return {
             "label":        "deitado" if pred == 1 else "em_pe",

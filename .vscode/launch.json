@@ -1,0 +1,62 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Fall Detection: main.py",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/fall-detection/main.py",
+      "cwd": "${workspaceFolder}/fall-detection",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Fall Detection: módulo app (runtime completo)",
+      "type": "python",
+      "request": "launch",
+      "module": "app",
+      "cwd": "${workspaceFolder}/fall-detection",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/fall-detection/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Fall Detection: módulo app.capture",
+      "type": "python",
+      "request": "launch",
+      "module": "app.capture",
+      "cwd": "${workspaceFolder}/fall-detection",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/fall-detection/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Fall Detection: módulo app.core (análise)",
+      "type": "python",
+      "request": "launch",
+      "module": "app.core",
+      "cwd": "${workspaceFolder}/fall-detection",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/fall-detection/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Fall Detection: módulo app.integration",
+      "type": "python",
+      "request": "launch",
+      "module": "app.integration",
+      "cwd": "${workspaceFolder}/fall-detection",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/fall-detection/src"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

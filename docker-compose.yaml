@@ -72,6 +72,8 @@ services:
     hostname: mongo-db-internal
     command: ["mongod", "--nojournal"]
     profiles: ["fiware"]
+    ports:
+      - "27067:27017"
     # Nenhuma porta mapeada para o host
     volumes:
       - ./docker-compose/mongo-db-internal/data:/data/db

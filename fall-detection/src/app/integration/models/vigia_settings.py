@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+import json
 from uuid import UUID, uuid4
 
 from app.integration.models.vigia_attributes import VigiaAttribute
@@ -29,3 +30,13 @@ class VigiaSettings:
             self, "entity_name", f"urn:ngsi-ld:VigiaCam:{id_suffix}"
         )
 
+
+    def to_dict(self) -> dict:
+        """Dict JSON-serializável para `requests` (`json=`) e APIs."""
+        data = asdict(self)
+        data["device_id"] = str(data["device_id"])
+        return data
+
+    def to_json(self) -> str:
+        """Representação JSON legível (debug/logs)."""
+        return json.dumps(self.to_dict(), indent=4, ensure_ascii=False)

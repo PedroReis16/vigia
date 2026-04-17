@@ -1,6 +1,7 @@
 import datetime
 import json
 from dataclasses import asdict
+import os
 from pathlib import Path
 from uuid import UUID
 import schedule
@@ -37,18 +38,24 @@ def _setup_fiware_device()-> None:
 
     device_json = Path(__file__).resolve().parents[3]/"device"/"device.json"
 
+    is_file_exists = os.path.exists(str(device_json))
+
     try:
-        if not device_json.is_file():
+        if not is_file_exists:
             device_json.parent.mkdir(parents=True, exist_ok=True)
             device_json.touch()
             payload = asdict(device_settings)
             device_json.write_text(
                 json.dumps(payload, indent=4, ensure_ascii=False, default=_json_default)
             )
+        else:
+            device_settings = VigiaSettings.from_json(device_json.read_text())
+            print(device_settings)
+            
     except Exception as e:
         print(f"Error setting up FIWARE device: {e}")
         
-        if device_json.is_file():
+        if not is_file_exists:
             device_json.unlink()
         raise e
 

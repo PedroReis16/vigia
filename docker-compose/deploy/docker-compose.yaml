@@ -88,6 +88,7 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin123
+    profiles: ["fiware"]
     ports:
       - "27077:27017"
     command: ["mongod", "--nojournal", "--auth"]
@@ -102,6 +103,7 @@ services:
     container_name: fiware-mongo-internal
     restart: always
     hostname: mongo-db-internal
+    profiles: ["fiware"]
     command: ["mongod", "--nojournal"]
     volumes:
       - mongo-internal-data:/data/db
@@ -114,6 +116,7 @@ services:
     restart: always
     container_name: fiware-orion
     hostname: orion
+    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
     expose:
@@ -142,6 +145,7 @@ services:
     restart: always
     container_name: fiware-sth-comet
     hostname: sth-comet
+    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
     expose:
@@ -172,6 +176,7 @@ services:
     restart: always
     container_name: fiware-iot-agent
     hostname: iot-agent
+    profiles: ["fiware"]
     depends_on:
       - mongo-db-internal
       - mosquitto
@@ -207,6 +212,7 @@ services:
     restart: always
     container_name: fiware-mosquitto
     hostname: mosquitto
+    profiles: ["fiware"]
     expose:
       - "1883"
       - "9001"

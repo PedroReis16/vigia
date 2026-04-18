@@ -5,6 +5,7 @@
       "name": "Fall Detection: main.py",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}/fall-detection/.venv/bin/python",
       "program": "${workspaceFolder}/fall-detection/main.py",
       "cwd": "${workspaceFolder}/fall-detection",
       "console": "integratedTerminal",
@@ -14,6 +15,7 @@
       "name": "Fall Detection: módulo app (runtime completo)",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}/fall-detection/.venv/bin/python",
       "module": "app",
       "cwd": "${workspaceFolder}/fall-detection",
       "env": {
@@ -26,6 +28,7 @@
       "name": "Fall Detection: módulo app.capture",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}/fall-detection/.venv/bin/python",
       "module": "app.capture",
       "cwd": "${workspaceFolder}/fall-detection",
       "env": {
@@ -38,6 +41,7 @@
       "name": "Fall Detection: módulo app.core (análise)",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}/fall-detection/.venv/bin/python",
       "module": "app.core",
       "cwd": "${workspaceFolder}/fall-detection",
       "env": {
@@ -50,6 +54,7 @@
       "name": "Fall Detection: módulo app.integration",
       "type": "python",
       "request": "launch",
+      "python": "${workspaceFolder}/fall-detection/.venv/bin/python",
       "module": "app.integration",
       "cwd": "${workspaceFolder}/fall-detection",
       "env": {

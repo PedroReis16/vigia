@@ -83,6 +83,9 @@ class VigiaSettings:
 
     @classmethod
     def from_json(cls, s: str) -> VigiaSettings:
+        """"
+        Reconstrói a partir de JSON/`to_json`; ignora `entity_name` (derivado de `device_id`).
+        """
         return cls._from_dict(json.loads(s))
 
     def to_dict(self) -> dict:

@@ -1,6 +1,6 @@
 import os
 
-import requests
+import aiohttp
 from dotenv import load_dotenv
 
 from app.integration.models.vigia_settings import VigiaSettings
@@ -20,42 +20,17 @@ class PostVigiaCommand:
             os.getenv("ORION_COMMAND_PROVIDER_URL") or f"{self._fiware_path}/iot-agent"
         ).rstrip("/")
 
-    def execute(self, device_settings: VigiaSettings) -> None:
-        attrs = [cmd.name for cmd in device_settings.commands]
-        description = os.getenv(
-            "ORION_COMMAND_REGISTRATION_DESCRIPTION",
-            "VigiaCam commands",
-        )
-        body = {
-            "description": description,
-            "dataProvided": {
-                "entities": [
-                    {
-                        "id": device_settings.entity_name,
-                        "type": device_settings.entity_type,
-                    }
-                ],
-                "attrs": attrs,
-            },
-            "provider": {
-                "http": {"url": self._provider_url},
-                "legacyForwarding": True,
-            },
-        }
-
-        url = f"{self._fiware_path}/orion/v2/registrations"
-        response = requests.post(
-            url,
-            headers={
-                "Content-Type": "application/json",
-                "fiware-service": self._fiware_service,
-                "fiware-servicepath": "/",
-            },
-            json=body,
-            timeout=60,
-        )
-
-        if response.status_code not in (200, 201):
-            raise RuntimeError(
-                f"Orion registration failed: {response.status_code} {response.text}"
-            )
+    async def execute_async(self, device_settings: VigiaSettings) -> None:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self._fiware_path}/orion/v2/registrations",
+                headers={
+                    "Content-Type": "application/json",
+                    "fiware-service": self._fiware_service,
+                    "fiware-servicepath": "/",
+                },
+                json=device_settings.to_json(),
+                timeout=60,
+            ) as response:
+                if response.status != 200:
+                    raise Exception(f"Error posting command to FIWARE: {response.status} {await response.text()}")

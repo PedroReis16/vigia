@@ -1,4 +1,4 @@
-# VIGIA - Sitema doméstico para o monitoramento de quedas
+# VIGIA - Sistema doméstico para o monitoramento de quedas
 
 
 

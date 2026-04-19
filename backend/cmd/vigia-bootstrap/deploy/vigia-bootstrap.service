@@ -1,6 +1,7 @@
 # Referência: o binário pode gerar/remover esta unit com:
-#   sudo vigia-bootstrap install-service -data-dir /var/lib/vigia/bootstrap -now
+#   sudo vigia-bootstrap install-service --data-dir /var/lib/vigia/bootstrap --now
 #   sudo vigia-bootstrap uninstall-service
+#   sudo vigia-bootstrap uninstall-service --keep-data   # mantém /var/lib/vigia
 #
 # Também existe /etc/vigia-bootstrap/data-dir (uma linha com o caminho), escrito pelo install-service,
 # como recurso quando Environment= não chega ao processo.

@@ -1,8 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"os"
+	vigiabootstrap "vigia/internal/vigia-bootstrap"
 	"vigia/pkg/logger"
+
+	"go.uber.org/zap"
 )
 
 
@@ -13,5 +16,12 @@ func main(){
 
 	log.Info("Starting vigia-bootstrap")
 
-	fmt.Println("Hello, World!")
+	worker := vigiabootstrap.NewContainerWorker(log)
+
+	if err := worker.Start(); err != nil{
+		log.Error("Failed to start container observer worker", zap.String("error", err.Error()))
+		os.Exit(1)	
+	}
+
+	log.Info("Container observer worker started successfully")
 }

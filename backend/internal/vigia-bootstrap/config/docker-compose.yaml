@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  fall-detection:
+    image: pedroreis16/fall-detection:latest
+    container_name: fall-detection
+    env_file:
+      - detection.env
+    restart: always

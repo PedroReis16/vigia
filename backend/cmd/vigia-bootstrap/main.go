@@ -7,7 +7,7 @@ import (
 
 
 func main(){
-	log := logger.NewLogger()
+	log := logger.NewLogger("vigia-bootstrap")
 
 	defer log.Sync()
 

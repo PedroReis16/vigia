@@ -2,13 +2,14 @@ package logger
 
 import (
 	"os"
+	"vigia/pkg/utils"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func NewLogger() *zap.Logger {
+func NewLogger(projectName string) *zap.Logger {
 
 	// Configuração do encoder
 	encoderConfig := zap.NewProductionConfig()
@@ -21,12 +22,14 @@ func NewLogger() *zap.Logger {
 	// Console encoder
 	consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
 
+	logPath := createFilePath(projectName)
+
 	// File writer
 	logFile := &lumberjack.Logger{
-		Filename: "logs/vigia-bootstrap.log",
-		MaxSize: 100, // MB
+		Filename: logPath,
+		MaxSize: 10, // MB
 		MaxBackups: 3,
-		MaxAge: 30, // days
+		MaxAge: 7, // days
 		Compress: true,
 	}
 
@@ -35,7 +38,7 @@ func NewLogger() *zap.Logger {
 
 	// Níveis de log
 	infoLevel := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool{
-		return lvl < zapcore.InfoLevel && lvl < zapcore.ErrorLevel
+		return lvl >= zapcore.InfoLevel && lvl < zapcore.PanicLevel
 	})
 
 	// Core para arquivo (apenas info+)
@@ -46,5 +49,24 @@ func NewLogger() *zap.Logger {
 
 	core := zapcore.NewTee(fileCore, consoleCore)
 
-	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.PanicLevel))
+}
+
+func createFilePath(projectName string) string{
+
+	logPath := "~/vigia/logs/" + projectName + "/" + projectName + ".log"
+
+	logPath = utils.GetCompletePath(logPath)
+
+	_, err := os.Stat(logPath)
+
+	if os.IsNotExist(err){
+		err := os.MkdirAll(logPath, 0755)
+
+		if err != nil{
+			panic(err)
+		}
+	}
+
+	return logPath
 }

@@ -2,6 +2,8 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"vigia/pkg/utils"
 
 	"go.uber.org/zap"
@@ -34,7 +36,8 @@ func NewLogger(projectName string) *zap.Logger {
 	}
 
 	fileWriter := zapcore.AddSync(logFile)
-	consoleWriter := zapcore.AddSync(os.Stdout)
+	// stderr under systemd tends to reach journal reliably; stdout without TTY may be fully buffered so logs appear late or never.
+	consoleWriter := zapcore.AddSync(os.Stderr)
 
 	// Níveis de log
 	infoLevel := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool{
@@ -52,20 +55,18 @@ func NewLogger(projectName string) *zap.Logger {
 	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.PanicLevel))
 }
 
-func createFilePath(projectName string) string{
+func createFilePath(projectName string) string {
+	var logPath string
+	if logDir := strings.TrimSpace(os.Getenv("VIGIA_LOG_DIR")); logDir != "" {
+		logPath = filepath.Join(filepath.Clean(logDir), projectName, projectName+".log")
+	} else {
+		logPath = "~/vigia/logs/" + projectName + "/" + projectName + ".log"
+		logPath = utils.GetCompletePath(logPath)
+	}
 
-	logPath := "~/vigia/logs/" + projectName + "/" + projectName + ".log"
-
-	logPath = utils.GetCompletePath(logPath)
-
-	_, err := os.Stat(logPath)
-
-	if os.IsNotExist(err){
-		err := os.MkdirAll(logPath, 0755)
-
-		if err != nil{
-			panic(err)
-		}
+	parent := filepath.Dir(logPath)
+	if err := os.MkdirAll(parent, 0755); err != nil {
+		panic(err)
 	}
 
 	return logPath

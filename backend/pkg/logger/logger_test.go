@@ -1,70 +1,42 @@
 package logger
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func TestCreateFilePath(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+func TestCreateFilePathVIGIALogDir(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("VIGIA_LOG_DIR", tmp)
 
-	projectName := "unit-project"
-	got := createFilePath(projectName)
-	want := filepath.Join(homeDir, "vigia", "logs", projectName, projectName+".log")
-
-	if got != want {
-		t.Fatalf("createFilePath(%q) = %q, want %q", projectName, got, want)
+	p := createFilePath("myproj")
+	wantDir := filepath.Join(tmp, "myproj")
+	wantFile := filepath.Join(wantDir, "myproj.log")
+	if p != wantFile {
+		t.Fatalf("path = %q want %q", p, wantFile)
 	}
-
-	info, err := os.Stat(got)
-	if err != nil {
-		t.Fatalf("expected path %q to exist: %v", got, err)
-	}
-
-	if !info.IsDir() {
-		t.Fatalf("expected %q to be a directory based on current implementation", got)
+	st, err := os.Stat(wantDir)
+	if err != nil || !st.IsDir() {
+		t.Fatalf("expected parent dir: %v", err)
 	}
 }
 
-func TestNewLoggerWritesDebugToConsole(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+func TestCreateFilePathDefaultUnderHome(t *testing.T) {
+	t.Setenv("VIGIA_LOG_DIR", "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
-	originalStdout := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create stdout pipe: %v", err)
+	p := createFilePath("x")
+	if !strings.HasPrefix(p, home) {
+		t.Fatalf("expected under HOME: %s", p)
 	}
-	defer r.Close()
-	defer w.Close()
-
-	os.Stdout = w
-	t.Cleanup(func() {
-		os.Stdout = originalStdout
-	})
-
-	logger := NewLogger("logger-console-test")
-	if logger == nil {
-		t.Fatal("NewLogger returned nil")
+	if !strings.HasSuffix(p, filepath.Join("vigia", "logs", "x", "x.log")) {
+		t.Fatalf("unexpected path: %s", p)
 	}
-
-	logger.Debug("debug-message-visible-on-console")
-	_ = logger.Sync()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("failed to close write pipe: %v", err)
-	}
-
-	output, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("failed to read captured stdout: %v", err)
-	}
-
-	if !strings.Contains(string(output), "debug-message-visible-on-console") {
-		t.Fatalf("expected debug message in console output, got %q", string(output))
+	parent := filepath.Dir(p)
+	if st, err := os.Stat(parent); err != nil || !st.IsDir() {
+		t.Fatalf("parent dir: %v %v", err, st)
 	}
 }

@@ -1,0 +1,23 @@
+# Referência: o binário pode gerar/remover esta unit com:
+#   sudo vigia-bootstrap install-service -data-dir /var/lib/vigia/bootstrap -now
+#   sudo vigia-bootstrap uninstall-service
+#
+# Também existe /etc/vigia-bootstrap/data-dir (uma linha com o caminho), escrito pelo install-service,
+# como recurso quando Environment= não chega ao processo.
+#
+[Unit]
+Description=Vigia bootstrap (compose watcher)
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=simple
+Environment=VIGIA_BOOTSTRAP_DATA_DIR=/var/lib/vigia/bootstrap
+Environment=VIGIA_LOG_DIR=/var/lib/vigia/bootstrap/logs
+ExecStart=/usr/local/bin/vigia-bootstrap --data-dir /var/lib/vigia/bootstrap
+Restart=on-failure
+RestartSec=10
+SyslogIdentifier=vigia-bootstrap
+
+[Install]
+WantedBy=multi-user.target

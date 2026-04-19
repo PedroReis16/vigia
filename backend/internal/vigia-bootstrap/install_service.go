@@ -19,6 +19,9 @@ const SystemdUnitName = "vigia-bootstrap.service"
 // systemdDropInWorkdirPath sorts late (zzz-) so it overrides older drop-ins that set WorkingDirectory to a missing path.
 const systemdDropInWorkdirPath = "/etc/systemd/system/vigia-bootstrap.service.d/zzz-vigia-bootstrap-workdir.conf"
 
+// VarLibVigiaRoot is the state directory tree removed on uninstall when keepData is false.
+const VarLibVigiaRoot = "/var/lib/vigia"
+
 // DropInResetWorkingDirectory returns the fragment that forces a valid CHDIR for systemd.
 func DropInResetWorkingDirectory() string {
 	return `# Written by vigia-bootstrap install-service: overrides legacy WorkingDirectory= fragments
@@ -132,9 +135,9 @@ func InstallSystemdUnit(dataDir string, startNow bool) error {
 	return nil
 }
 
-// UninstallSystemdUnit stops the service, disables it, removes the unit file, and daemon-reloads.
+// UninstallSystemdUnit stops the service, disables it, removes the unit file, optional local data under /var/lib/vigia, and daemon-reloads.
 // Requires root on typical setups. Linux only. Missing unit file or stopped service is not an error.
-func UninstallSystemdUnit() error {
+func UninstallSystemdUnit(keepData bool) error {
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("uninstall-service is only supported on Linux")
 	}
@@ -147,11 +150,18 @@ func UninstallSystemdUnit() error {
 	}
 
 	RemoveEtcBootstrapDataDir()
+	removeEtcVigiaBootstrapDirIfEmpty()
 
 	_ = os.Remove(systemdDropInWorkdirPath)
 	dropInDir := filepath.Dir(systemdDropInWorkdirPath)
 	if entries, err := os.ReadDir(dropInDir); err == nil && len(entries) == 0 {
 		_ = os.Remove(dropInDir)
+	}
+
+	if !keepData {
+		if err := os.RemoveAll(VarLibVigiaRoot); err != nil {
+			return fmt.Errorf("remove %s: %w", VarLibVigiaRoot, err)
+		}
 	}
 
 	out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput()
@@ -161,6 +171,15 @@ func UninstallSystemdUnit() error {
 
 	_, _ = exec.Command("systemctl", "reset-failed", SystemdUnitName).CombinedOutput()
 	return nil
+}
+
+func removeEtcVigiaBootstrapDirIfEmpty() {
+	dir := filepath.Dir(EtcBootstrapDataDirPath)
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 0 {
+		return
+	}
+	_ = os.Remove(dir)
 }
 
 func resolveExecutablePath() (string, error) {

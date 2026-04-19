@@ -61,7 +61,7 @@ func TestUninstallSystemdUnitUnsupportedOS(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		t.Skip("linux would run real systemctl")
 	}
-	if err := UninstallSystemdUnit(); err == nil {
+	if err := UninstallSystemdUnit(false); err == nil {
 		t.Fatal("expected error outside Linux")
 	}
 }

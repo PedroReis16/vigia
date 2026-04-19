@@ -89,12 +89,17 @@ func (c *ContainerWorker) Start() error {
 }
 
 func loadComposeContainers(logger *zap.Logger) (*string, error) {
-	composeFile := "~/vigia/compose/docker-compose.yaml"
-
-	composeFile = utils.GetCompletePath(composeFile)
-
-	envFile := "~/vigia/compose/default.env"
-	envFile = utils.GetCompletePath(envFile)
+	var composeFile, envFile string
+	if dir := strings.TrimSpace(os.Getenv("VIGIA_BOOTSTRAP_DATA_DIR")); dir != "" {
+		dir = filepath.Clean(dir)
+		composeFile = filepath.Join(dir, "docker-compose.yaml")
+		envFile = filepath.Join(dir, "default.env")
+	} else {
+		composeFile = "~/vigia/compose/docker-compose.yaml"
+		composeFile = utils.GetCompletePath(composeFile)
+		envFile = "~/vigia/compose/default.env"
+		envFile = utils.GetCompletePath(envFile)
+	}
 
 	byteFile := []byte(embeddedBaseEnv)
 
@@ -326,12 +331,12 @@ func trimSHA(digest string) string {
 func applyComposeUpdates(ctx context.Context, composeFilePath string) error {
 	composeFilePath = filepath.Clean(composeFilePath)
 	dir := filepath.Dir(composeFilePath)
-	pull := exec.CommandContext(ctx, "docker", "compose", "-f", composeFilePath, "pull")
+	pull := exec.CommandContext(ctx, "docker-compose", "-f", composeFilePath, "pull")
 	pull.Dir = dir
 	if out, err := pull.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker compose pull: %w\n%s", err, out)
 	}
-	up := exec.CommandContext(ctx, "docker", "compose", "-f", composeFilePath, "up", "-d")
+	up := exec.CommandContext(ctx, "docker-compose", "-f", composeFilePath, "up", "-d")
 	up.Dir = dir
 	if out, err := up.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker compose up: %w\n%s", err, out)

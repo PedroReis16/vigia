@@ -5,5 +5,5 @@ services:
     image: pedroreis16/fall-detection:latest
     container_name: fall-detection
     env_file:
-      - detection.env
+      - default.env
     restart: always

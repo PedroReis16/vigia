@@ -18,5 +18,5 @@ WORKDIR /app/fall-detection
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Same as CI: run as module so `src` package imports resolve
-CMD ["python", "-m", "src.main"]
+# main.py adiciona src/ ao path; alternativa: PYTHONPATH=src python -m app
+CMD ["python", "main.py"]

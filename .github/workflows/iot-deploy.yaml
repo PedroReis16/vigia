@@ -77,12 +77,11 @@ jobs:
         working-directory: fall-detection
         run: pip install -r requirements.txt
 
-      # `python -m src.main` runs LocalRuntime until Ctrl+C: with preview off it loops
-      # forever (see local_runtime.py); in CI there is no TTY/camera, so the job hangs.
+      # `python main.py` abre câmera e loop; em CI só validamos imports e bytecode.
       - name: Verify imports and bytecode
         working-directory: fall-detection
         run: |
-          python -c "import src.main; print('imports ok')"
+          PYTHONPATH=src python -c "import app.config, app.runtime; print('imports ok')"
           python -m compileall -q src
 
   publish_docker_image:

@@ -7,7 +7,7 @@ stream:
 	go run ./cmd/vigia-stream/main.go
 
 bootstrap:
-	go run ./cmd/vigia-bootstrap/main.go
+	go run ./cmd/vigia-bootstrap
 
 integration:
 	go run ./cmd/vigia-integration/main.go

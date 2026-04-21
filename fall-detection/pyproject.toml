@@ -32,7 +32,10 @@ generated-members = ["cv2.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 python_files = ["*_tests.py"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: fluxo HTTP local (TestServer simulando FIWARE)",
+]

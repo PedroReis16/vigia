@@ -9,6 +9,39 @@ from app.integration.models.vigia_attributes import VigiaAttribute
 from app.integration.models.vigia_commands import VigiaCommand
 
 
+def _parse_command(item: Any) -> VigiaCommand:
+    if isinstance(item, VigiaCommand):
+        return item
+    if not isinstance(item, dict):
+        return VigiaCommand(name=str(item))
+
+    # IoT Agent pode devolver comandos com chaves diferentes.
+    command_name = str(
+        item.get("name")
+        or item.get("command")
+        or item.get("object_id")
+        or ""
+    ).strip()
+    if not command_name:
+        raise ValueError(f"Invalid command payload: {item}")
+    return VigiaCommand(name=command_name, type=str(item.get("type", "command")))
+
+
+def _parse_attribute(item: Any) -> VigiaAttribute:
+    if isinstance(item, VigiaAttribute):
+        return item
+    if not isinstance(item, dict):
+        raise ValueError(f"Invalid attribute payload: {item}")
+
+    attr_name = str(item.get("name") or item.get("object_id") or "").strip()
+    if not attr_name:
+        raise ValueError(f"Invalid attribute name in payload: {item}")
+
+    attr_type = str(item.get("type") or "Text")
+    object_id = str(item.get("object_id") or item.get("name") or attr_name)
+    return VigiaAttribute(name=attr_name, type=attr_type, object_id=object_id)
+
+
 def _default_commands() -> list[VigiaCommand]:
     return [
         VigiaCommand(name="stream"),
@@ -56,20 +89,14 @@ class VigiaSettings:
         commands = (
             _default_commands()
             if commands_in is None
-            else [
-                VigiaCommand(**c) if isinstance(c, dict) else c
-                for c in commands_in
-            ]
+            else [_parse_command(c) for c in commands_in]
         )
 
         attrs_in = data.get("attributes")
         attributes = (
             _default_attributes()
             if attrs_in is None
-            else [
-                VigiaAttribute(**a) if isinstance(a, dict) else a
-                for a in attrs_in
-            ]
+            else [_parse_attribute(a) for a in attrs_in]
         )
 
         return cls(

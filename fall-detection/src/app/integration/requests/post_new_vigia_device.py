@@ -3,12 +3,13 @@ from dotenv import load_dotenv
 import aiohttp
 
 from app.integration.models.vigia_settings import VigiaSettings
+from app.integration.requests.fiware_endpoints import iot_agent_url
 
 class PostNewVigiaDevice:
 
     def __init__(self):
         load_dotenv()
-        self.fiware_path = os.getenv("FIWARE_PATH")
+        self.iot_agent_base_url = iot_agent_url()
         self.fiware_service = os.getenv("FIWARE_SERVICE")
 
     async def execute_async(self, device_settings: VigiaSettings) -> None:
@@ -21,7 +22,7 @@ class PostNewVigiaDevice:
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-            f"{self.fiware_path}/iot-agent/iot/devices",
+            f"{self.iot_agent_base_url}/iot/devices",
             headers={
                 "Content-Type": "application/json",
                 "fiware-service": self.fiware_service,

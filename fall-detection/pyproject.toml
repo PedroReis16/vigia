@@ -6,9 +6,19 @@ build-backend = "setuptools.build_meta"
 name = "vigia-fall-detection"
 version = "0.1.0"
 requires-python = ">=3.9"
+dependencies = [
+    "schedule==1.2.1",
+    "aiohttp==3.11.13",
+    "python-dotenv==1.0.1",
+    "paho-mqtt==2.1.0",
+]
 
 [project.optional-dependencies]
 binary = ["pyinstaller>=6.0"]
+dev = [
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -19,3 +29,13 @@ extension-pkg-allow-list = ["cv2"]
 [tool.pylint.typecheck]
 # opencv-python expõe a API nativa de forma dinâmica; evita E1101 (no-member).
 generated-members = ["cv2.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+python_files = ["*_tests.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: fluxo HTTP local (TestServer simulando FIWARE)",
+]

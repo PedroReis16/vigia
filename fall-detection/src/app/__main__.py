@@ -13,7 +13,6 @@ ensure_src_on_path()
 from app.config import Settings
 from app.runtime import run
 
-
 def main() -> None:
     """Configuração via ambiente e execução do runtime."""
     run(Settings.from_env())

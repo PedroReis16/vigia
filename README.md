@@ -1,144 +1,184 @@
-# Older fall
+# VIGIA - Sistema doméstico para o monitoramento de quedas
 
-Boilerplate em Python para um único repositório com três pilares:
 
-- inferência com conceitos de machine learning,
-- pré-processamento para visão computacional,
-- publicação/replicação de eventos para APIs externas.
 
-## Estrutura
+## Dispositivo embarcado
 
-```text
-src/
-	api/           # FastAPI (rotas e factory da aplicação)
-	core/          # Configuração e logging
-	ml/            # Modelos de inferência
-	processor/     # Pipeline que orquestra visão + ML + replicação
-	replication/   # Publicação de eventos para APIs externas
-	schemas/       # Contratos (Pydantic)
-	vision/        # Extração/pré-processamento de features
-	main.py        # Ponto de entrada da aplicação
-```
+O ambiente embarcado esta sendo utilizado uma placa Raspberry PI 5 com 8 GB de memória RAM de processamento, sendo executado com o Raspberry PI OS Lite 64-bits como sistema operacional principal.
 
-## Guia de organização (onde colocar cada coisa)
+### Pré-Requisitos
 
-- `src/vision/`: tudo sobre entrada visual (captura de frame, limpeza da imagem, extração de features).
-- `src/ml/`: modelo e lógica de inferência (carregar pesos, pré/pós-processamento do modelo, score).
-- `src/processor/`: fluxo de negócio principal (recebe entrada, chama visão + ML, decide se gera evento).
-- `src/replication/`: integrações externas (publicar em REST APIs, autenticação, retry, fallback, fila).
-- `src/api/`: endpoints HTTP para consumir o sistema internamente (`inference`, health, observabilidade).
-- `src/schemas/`: contratos de entrada/saída e eventos compartilhados entre camadas.
-- `src/core/`: configurações, logging e utilitários comuns de infraestrutura.
+Antes de iniciar a configuração, certifique-se:
+    - A placa foi configurada pelo Raspberry Pi Imager com usuário e senha definidos
+    - Acesso físico à placa (monitor + teclado) ou acesso remoto via SSH com senha ainda ativo
+    - Conta criada em `login.tailscale.com`
 
-Regra prática: se a mudança envolver modelo, mexa em `ml`; se envolver integração com terceiros, mexa em `replication`; se envolver ordem do fluxo, mexa em `processor`.
+### Configurando o ambiente
 
-## Webcam ao iniciar a aplicação (sem ML)
+- `Hostname e mDNS`
+    O mDNS permite acessar o dispositivo pelo nome em qualquer rede local, sem precisar conhecer o IP da placa
 
-Para o cenário que você descreveu, o código fica em `src/vision/`.
+    ```
+        # Alterar o hostname
+        sudo hostnamectl set-hostname vigia
 
-- Implementação do preview: `src/vision/webcam.py`.
-- Inicialização no ciclo de vida da API: `src/api/app.py`.
-- Configurações do dispositivo/janela: `.env` (campos abaixo).
+        # Garantir que avahi sobre no boot
 
-No seu `.env`:
+        sudo systemctl enable avahi-daemon
+        sudo systemctl start avahi-daemon
 
-```env
-WEBCAM_PREVIEW_ENABLED=true
-WEBCAM_INDEX=0
-WEBCAM_WINDOW_NAME=older-fall webcam
-WEBCAM_FLIP_HORIZONTAL=false
-```
+    ```
 
-Se a imagem estiver espelhada, altere para:
+    Após configurado, o dispotivio poderá ser acessado em qualquer rede local pelo endereço `vigia.local`.
+    ```
+        ssh vigia@vigia.local
+    ``` 
 
-```env
-WEBCAM_FLIP_HORIZONTAL=true
-```
 
-Ao subir o projeto (`python -m src.main`), a janela da webcam abre automaticamente.
-Para fechar, pressione `q` (ou `Esc`) na janela da câmera, ou encerre a aplicação.
+- `SSH`  
+    O SSH esta configurado para ser a única forma de acesso ao sistema, garantindo que apenas dispositivos confiáveis tenham acesso ao terminal da placa.
 
-## Setup rápido (macOS/Linux)
+    - **Habilitar o SSH**
+    
+        ```
+            sudo systemctl enable ssh #Habilita o serviço SSH para iniciar automaticamente
+            sudo systemctl start ssh #Inicia o SSH
+        ```
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-```
+    - **Adicionar a chave pública no Pi**
 
-## Formas de inicialização (simples)
+        ```
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            echo "<CHAVE_PUBLICA>" >> ~/.ssh/authorized_keys   #Substitua `<CHAVE_PUBLICA>` pela sua chave
+            chmod 600 ~/.ssh/authorized_keys
 
-Defina no `.env` o modo de execução:
+            sudo systemctl restart ssh
+        ```
 
-```env
-APP_RUNTIME_MODE=api
-```
+        - Nesse ponto, a chave pública foi configurada e o acesso deve estar habilitado
+            
+            ```
+                exit #Desconectar do ambiente
+                
+                ssh vigia@<IP_PLACA> #Acesse novamente, se não pedir senha, o acesso foi realizado com sucesso via SSH
+            ```
 
-Modos disponíveis:
+    - `Desabilitar autenticação por senha no Pi` **(Execute essa etapa apenas quando tiver certeza que a conexão por SSH esta funcionando)**
 
-- `api`: sobe FastAPI.
-- `local`: roda local sem servidor HTTP.
-- `embedded`: mesmo fluxo local, para placa embarcada.
+        Nessa etapa, etapa iremos configurar a placa de maneira que o acesso fique habilitado apenas chaves SSH
 
-Comando único para todos os modos:
+        - **Edite o arquivo de configuração do cloud-init**
+            O arquivo de cloud-init é utilizado no ambiente para configuração do sistema operacional para ambiente em nuvem, tendo prioridade de execução sobre os demais arquivos de configuração
 
-```bash
-python -m src.main
-```
+            - **Acesse o arquivo**
+                ```
+                    sudo nano /etc/ssh/sshd_config.d/50-cloud-init.conf
+                ```
 
-## Executando a API
+            - **Altere o conteúdo para**
 
-```bash
-python -m src.main
-```
+                ````
+                    PasswordAuthentication no
 
-Opcionalmente, você ainda pode usar Uvicorn direto:
+                ```
+        - **Edite o arquivo sshd_config**
 
-```bash
-uvicorn src.main:app --reload
-```
+            ```
+                sudo nano /etc/ssh/sshd_config #Habilita o modo de edição no arquivo de configurações
+            ```
 
-Endpoints iniciais:
+            - **Ajuste as seguintes linhas**
 
-- `GET /health`
-- `POST /v1/inference`
-- `GET /v1/events`
+                ```
+                    PasswordAuthentication no        # Desabilita a opção de login por senha
+                    PubkeyAuthentication yes         # Habilita a autenticação por chave SSH
+                    PermitRootLogin no               # Usuário root não pode realizar o login remoto
+                    ListenAddress 0.0.0.0            # Habilita o acesso de qualquer IP
+                    ListenAddress :: 
+                    ClientAliveInterval 60           # Tempo em segundos entre verificações de conexão
+                    ClientAliveCountMax 3            # Número de verificações antes de encerrar a sesssão
+                ```
 
-## Exemplo de inferência
+        - **Reiniciar o serviço**
 
-```bash
-curl -X POST http://127.0.0.1:8000/v1/inference \
-	-H "Content-Type: application/json" \
-	-d '{
-		"camera_id": "cam-01",
-		"features": [0.2, 0.9, 0.8, 0.7]
-	}'
-```
+            Reinicie o serviço SSH e verifique se as configurações foram aplicadas
 
-## Replicação para API externa
+            ```
+                sudo systemctl restart ssh
 
-Configure no `.env`:
+                # Confirmar que senha está bloqueada
+                sudo sshd -T | grep passwordauthentication
 
-```env
-REPLICATION_ENABLED=true
-REPLICATION_URL=https://sua-api.com/events
-REPLICATION_URLS=https://api-1.com/events,https://api-2.com/events
-REPLICATION_AUTH_TOKEN=seu_token_opcional
-REPLICATION_TIMEOUT_SECONDS=2.0
-```
+                # Deve retornar: passwordauthentication no
+            ```
 
-Quando uma queda é detectada pelo pipeline, o evento é:
+- `Acesso remoto`
 
-1. armazenado localmente (consultável em `GET /v1/events`),
-2. enviado para todos os endpoints externos configurados.
+    Para permitir que o dispositivo embarcado possa ser acessado de qualquer ambiente, sem a necessidade do terminal e o embarcado estarem conectados a mesma rede, utilizamos o `Tailscale`. O Tailscale cria uma rede VPN entre todos os dispositivos da mesma conta, permitindo acesso remoto de qualquer lugar sem abrir portas no roteador.
 
-Observabilidade da publicação:
 
-- `GET /v1/replication-status`: mostra os targets configurados e últimas tentativas de entrega.
+    - **Instalação** 
+        ```
+            curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
+        ```
 
-## Próximos passos sugeridos
+        Após a execução desse comando, será retornado uma URL para autenticação do usuário dentro do Tailscale, cole-a no navegador do computador e realize a autenticação. Após finalizar, o dispositivo já estará configurado.
 
-- Trocar `BaselineFallDetector` por um modelo real (PyTorch, scikit-learn, ONNX).
-- Ligar `vision` em frames reais de câmera (OpenCV/RTSP).
-- Adicionar autenticação e fila (RabbitMQ/Kafka) na camada de replicação.
+    - **Verificar dispositivos e IPs**
+
+        ```
+            # Listar dispositivos da rede Tailscale
+            tailscale status
+
+            #Ver o IP do dispositivo atual
+            tailscale ip
+        ```
+
+    - **Conectar ao Pi remotamente**
+        ```
+            # Por IP Tailscale
+
+            ssh vigia@100.X.X.X
+
+            $ Por magicDNS (URL fixa para acesso)
+            ssh vigia@<MAGIC_DNS>
+        ```
+
+    Com o Tailscale, os dispositivos (Board | Host) pode ser acessados remotamente de qualquer lugar, desde que estejam conectados a internet e vinculados a mesma conta do tailscale.
+
+- `Gerenciamento de redes Wi-Fi`
+
+    O NetworkManager gerencia as conexões de rede. Cada rede salva recebe uma prioridade - quanto maior o número, maior a preferência. O Pi conecta automaticamente à rede disponível de maior prioridade.
+
+    - **Inteface terminal (nmtui)**
+
+        Para adicionar ou gerenciar redes com uma interface no terminal
+        ```
+            sudo nmtui
+        ```
+            
+        - Active a connection -> Selecionar rede -> digitar senha
+        - Edit a connection -> Gerenciar redes salvar
+
+    - **Comandos rápidos (CLI)**
+
+        ````
+            # Listar redes disponíveis
+
+            nmcli device wifi list
+
+            # Conectar a uma rede salva
+            sudo nmcli device wifi connect "<NOME REDE>"
+
+            # Conectar e salvar uma nova rede
+            sudo nmcli device wifi connect "<NOME REDE>" password "<SENHA DA REDE>"
+
+            # Definir prioridade da rede
+            sudo nmcli connection modify "<NOME REDE>" connection.autoconnect-priority 10
+
+            # Ver todas as redes salvas com prioridade
+            nmcli -f NAME, TYPE, AUTOCONNECT, AUTOCONNECT-PRIORITY connection show
+
+            # Remover uma rede salva
+            sudo nmcli connection delete "<NOME REDE>"
+        ```

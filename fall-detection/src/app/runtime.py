@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 
 from app.capture.runner import run_capture
+from app.config.data_workspace import resolve_data_root
 from app.config import Settings
 from app.core.runner import run_analysis
 from app.integration.device_registration import bootstrap_device_registration
@@ -28,15 +29,16 @@ def _run_integration_process(settings: Settings) -> None:
     asyncio.run(run_integration(settings))
 
 
-async def _bootstrap_device_registration(settings: Settings) -> None:
+async def _bootstrap_device_registration() -> None:
     await bootstrap_device_registration(log_prefix="[runtime]")
     logger.info("dispositivo validado no FIWARE. iniciando modulos.")
 
 
 def run(settings: Settings) -> None:
     """Inicia de forma paralela os processos de captura e análise dos movimentos e quedas."""
-    status_file = Path(settings.data_path or ".") / "module_status.json"
-    posture_file = Path(settings.data_path or ".") / "posture_status.json"
+    data_root = resolve_data_root(settings.data_path)
+    status_file = data_root / "module_status.json"
+    posture_file = data_root / "posture_status.json"
     os.environ["MODULE_STATUS_FILE"] = str(status_file.resolve())
     os.environ["POSTURE_STATUS_FILE"] = str(posture_file.resolve())
     _write_module_status(
@@ -47,7 +49,7 @@ def run(settings: Settings) -> None:
         posture_file,
         {"posture_state": "unknown", "posture_changed_at": ""},
     )
-    asyncio.run(_bootstrap_device_registration(settings))
+    asyncio.run(_bootstrap_device_registration())
 
     # `args` precisa ser uma tupla: `(settings)` em Python é só o valor, não um 1-tuple.
     capture_process = Process(target=run_capture, args=(settings,))

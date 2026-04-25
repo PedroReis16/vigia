@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
+from app.config.data_workspace import device_settings_path_from_env
 from app.fiware.models.vigia_settings import VigiaSettings
 from app.fiware.requests.get_fiware_device_by_id import GetFiwareDeviceById
 
 
-def _device_json_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "device" / "device.json"
+def _device_json_path():
+    return device_settings_path_from_env()
 
 
 def load_or_create_local_device_settings() -> VigiaSettings:
@@ -32,13 +31,14 @@ def load_local_device_settings_required() -> VigiaSettings:
     if not device_json.exists():
         raise RuntimeError(
             "[fiware] dispositivo nao registrado localmente. "
-            "Execute o modulo de integracao primeiro para criar device/device.json."
+            "Execute o modulo de integracao primeiro para criar "
+            "DATA_PATH/device/device.json."
         )
 
     content = device_json.read_text(encoding="utf-8").strip()
     if not content:
         raise RuntimeError(
-            "[fiware] arquivo device/device.json vazio. "
+            "[fiware] arquivo DATA_PATH/device/device.json vazio. "
             "Execute o modulo de integracao novamente para registrar o dispositivo."
         )
 

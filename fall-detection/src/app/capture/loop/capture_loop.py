@@ -65,21 +65,19 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 )
                 first_infer = False
 
-            results = ctx.pose_model.model(frame, verbose=False)[0]
-            annotated = results.plot()
+            result = ctx.pose_model.model(frame, verbose=False)[0]
+            annotated = result.plot()
 
-            if results.keypoints is not None and len(results.keypoints) > 0:
+            if result.keypoints is not None and len(result.keypoints) > 0:
                 # Converte saída do YOLO para o formato do classificador
-                kps = results.keypoints.xy.cpu().numpy()  # (N_pessoas, 17, 2)
-                kconf = results.keypoints.conf.cpu().numpy()
+                kps = result.keypoints.xy.cpu().numpy()  # (N_pessoas, 17, 2)
+                kconf = result.keypoints.conf.cpu().numpy()
                 keypoints = build_keypoints_list(kps, kconf, person_idx=0)
-                resultado = clf.predict(keypoints)
+                result = clf.predict(keypoints)
 
-                if resultado is None:
-                    logger.debug("sem resultados")
-                else:
-                    logger.debug("resultado classificador: {}", resultado)
-                    posture_state = str(resultado.get("label") or "").strip()
+                if result is not None:
+                    logger.debug("resultado classificador: {}", result)
+                    posture_state = str(result.get("label") or "").strip()
                     if posture_state and posture_state != last_posture_state:
                         last_posture_state = posture_state
                         posture_notifier.notify_posture_changed(posture_state)

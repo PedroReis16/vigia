@@ -12,11 +12,11 @@ from app.integration.heartbeat import (
     _sync_heartbeat_schema,
     run_heartbeat_loop,
 )
-from app.integration.models.vigia_settings import VigiaSettings
-from app.integration.requests.post_create_device_heartbeat_entity import (
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.fiware.requests.post_create_device_heartbeat_entity import (
     PostCreateDeviceHeartbeatEntity,
 )
-from app.integration.requests.post_update_device_heartbeat_attrs import (
+from app.fiware.requests.post_update_device_heartbeat_attrs import (
     PostUpdateDeviceHeartbeatAttrs,
 )
 

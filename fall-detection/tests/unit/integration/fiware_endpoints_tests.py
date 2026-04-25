@@ -1,6 +1,6 @@
 import os
 
-from app.integration.requests.fiware_endpoints import (
+from app.fiware.requests.fiware_endpoints import (
     fiware_root_url,
     iot_agent_url,
     orion_url,

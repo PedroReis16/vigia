@@ -8,8 +8,8 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
+from app.fiware.models.vigia_settings import VigiaSettings
 from app.integration.command_bus import build_dispatcher
-from app.integration.models.vigia_settings import VigiaSettings
 from app.integration.types import IntegrationContext
 
 from .integration_settings_helpers import minimal_integration_settings

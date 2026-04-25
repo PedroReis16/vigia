@@ -5,8 +5,8 @@ import json
 from typing import Any
 from uuid import UUID, uuid4
 
-from app.integration.models.vigia_attributes import VigiaAttribute
-from app.integration.models.vigia_commands import VigiaCommand
+from app.fiware.models.vigia_attributes import VigiaAttribute
+from app.fiware.models.vigia_commands import VigiaCommand
 
 
 def _parse_command(item: Any) -> VigiaCommand:
@@ -15,12 +15,8 @@ def _parse_command(item: Any) -> VigiaCommand:
     if not isinstance(item, dict):
         return VigiaCommand(name=str(item))
 
-    # IoT Agent pode devolver comandos com chaves diferentes.
     command_name = str(
-        item.get("name")
-        or item.get("command")
-        or item.get("object_id")
-        or ""
+        item.get("name") or item.get("command") or item.get("object_id") or ""
     ).strip()
     if not command_name:
         raise ValueError(f"Invalid command payload: {item}")
@@ -70,13 +66,10 @@ class VigiaSettings:
 
     def __post_init__(self) -> None:
         id_suffix = str(self.device_id).replace("-", "")[-4:]
-        object.__setattr__(
-            self, "entity_name", f"urn:ngsi-ld:VigiaCam:{id_suffix}"
-        )
+        object.__setattr__(self, "entity_name", f"urn:ngsi-ld:VigiaCam:{id_suffix}")
 
     @classmethod
     def _from_dict(cls, data: dict[str, Any]) -> VigiaSettings:
-        """Reconstrói a partir de JSON/`to_dict`; ignora `entity_name` (derivado de `device_id`)."""
         raw_id = data.get("device_id")
         if raw_id is None:
             device_id = uuid4()
@@ -110,17 +103,12 @@ class VigiaSettings:
 
     @classmethod
     def from_json(cls, s: str) -> VigiaSettings:
-        """"
-        Reconstrói a partir de JSON/`to_json`; ignora `entity_name` (derivado de `device_id`).
-        """
         return cls._from_dict(json.loads(s))
 
     def to_dict(self) -> dict:
-        """Dict JSON-serializável para `requests` (`json=`) e APIs."""
         data = asdict(self)
         data["device_id"] = str(data["device_id"])
         return data
 
     def to_json(self) -> str:
-        """Representação JSON legível (debug/logs)."""
         return json.dumps(self.to_dict(), indent=4, ensure_ascii=False)

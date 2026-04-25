@@ -1,0 +1,23 @@
+[MASTER]
+extension-pkg-allow-list=cv2
+init-hook=import sys; sys.path.insert(0, 'src')
+
+[MESSAGES CONTROL]
+disable=
+    fixme
+
+[TYPECHECK]
+generated-members=cv2.*
+ignored-modules=
+    cv2,
+    numpy,
+    pandas,
+    onnxruntime,
+    sklearn,
+    ultralytics,
+    aiohttp,
+    dotenv,
+    paho.mqtt.client,
+    schedule,
+    loguru,
+    pytest

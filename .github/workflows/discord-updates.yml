@@ -22,6 +22,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.user.login }}",
+            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "🔔 Nova PR Aberta na develop",
@@ -48,6 +50,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.merged_by.login }}",
+            "avatar_url": "${{ github.event.pull_request.merged_by.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "✅ PR Mergeada na develop!",
@@ -65,7 +69,7 @@ jobs:
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
       # ─────────────────────────────────────────
-      # DEVELOP — PR Fechada SEM merge (descartada)
+      # DEVELOP — PR Descartada
       # ─────────────────────────────────────────
       - name: Notificar PR Descartada (develop)
         if: |
@@ -75,6 +79,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.user.login }}",
+            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "❌ PR Descartada na develop",
@@ -100,6 +106,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.user.login }}",
+            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "🔔 Nova PR Aberta na master",
@@ -126,6 +134,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.merged_by.login }}",
+            "avatar_url": "${{ github.event.pull_request.merged_by.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "🚀 PR Mergeada na master! Nova versão disponível!",
@@ -143,7 +153,7 @@ jobs:
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
       # ─────────────────────────────────────────
-      # MASTER — PR Fechada SEM merge (descartada)
+      # MASTER — PR Descartada
       # ─────────────────────────────────────────
       - name: Notificar PR Descartada (master)
         if: |
@@ -153,6 +163,8 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
+            "username": "${{ github.event.pull_request.user.login }}",
+            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
               "title": "❌ PR Descartada na master",

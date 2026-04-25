@@ -43,13 +43,10 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         """Lê `.env` e variáveis de ambiente e monta `Settings`."""
         load_dotenv()
 
-        data_path = (os.getenv("DATA_PATH") or "").strip() or None
+        data_path = (os.getenv("DATA_PATH") or "").strip() or "data"
         frames_dir: str | None
-        if data_path:
-            frames_dir = os.path.join(data_path.rstrip("/"), "frames")
-            os.makedirs(frames_dir, exist_ok=True)
-        else:
-            frames_dir = None
+        frames_dir = os.path.join(data_path.rstrip("/"), "frames")
+        os.makedirs(frames_dir, exist_ok=True)
 
         stream_video = _env_truthy("STREAM_VIDEO")
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.integration.requests.get_orion_entity_by_id import GetOrionEntityById
+from app.fiware.requests.get_orion_entity_by_id import GetOrionEntityById
 
 
 class _FakeResponse:
@@ -41,7 +41,7 @@ class _FakeClientSession:
 @pytest.mark.asyncio
 async def test_execute_async_given_not_found_status_should_return_none(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_orion_entity_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_orion_entity_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=404)),
     )
     result = await GetOrionEntityById().execute_async("urn:test:1")
@@ -51,7 +51,7 @@ async def test_execute_async_given_not_found_status_should_return_none(monkeypat
 @pytest.mark.asyncio
 async def test_execute_async_given_ok_status_should_return_entity(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_orion_entity_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_orion_entity_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=200, body={"id": "urn:test:1"})),
     )
     result = await GetOrionEntityById().execute_async("urn:test:1")
@@ -61,7 +61,7 @@ async def test_execute_async_given_ok_status_should_return_entity(monkeypatch) -
 @pytest.mark.asyncio
 async def test_execute_async_given_non_success_status_should_raise_exception(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_orion_entity_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_orion_entity_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=500, text_body="boom")),
     )
 

@@ -1,0 +1,169 @@
+name: Discord PR Notifications
+
+on:
+  pull_request:
+    types: [opened, closed]
+    branches:
+      - develop
+      - master
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────────
+      # DEVELOP — PR Aberta
+      # ─────────────────────────────────────────
+      - name: Notificar PR Aberta (develop)
+        if: |
+          github.event.action == 'opened' &&
+          github.event.pull_request.base.ref == 'develop'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "🔔 Nova PR Aberta na develop",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 3447003,
+              "fields": [
+                { "name": "👤 Autor",   "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🌿 Branch",  "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
+                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ─────────────────────────────────────────
+      # DEVELOP — PR Mergeada
+      # ─────────────────────────────────────────
+      - name: Notificar PR Mergeada (develop)
+        if: |
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == true &&
+          github.event.pull_request.base.ref == 'develop'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "✅ PR Mergeada na develop!",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 5763719,
+              "fields": [
+                { "name": "👤 Autor",      "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🔀 Merged por", "value": "${{ github.event.pull_request.merged_by.login }}", "inline": true },
+                { "name": "🌿 Branch",     "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
+                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ─────────────────────────────────────────
+      # DEVELOP — PR Fechada SEM merge (descartada)
+      # ─────────────────────────────────────────
+      - name: Notificar PR Descartada (develop)
+        if: |
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == false &&
+          github.event.pull_request.base.ref == 'develop'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "❌ PR Descartada na develop",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 15548997,
+              "fields": [
+                { "name": "👤 Autor",    "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🌿 Branch",   "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
+                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ─────────────────────────────────────────
+      # MASTER — PR Aberta
+      # ─────────────────────────────────────────
+      - name: Notificar PR Aberta (master)
+        if: |
+          github.event.action == 'opened' &&
+          github.event.pull_request.base.ref == 'master'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "🔔 Nova PR Aberta na master",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 15105570,
+              "fields": [
+                { "name": "👤 Autor",   "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🌿 Branch",  "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
+                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ─────────────────────────────────────────
+      # MASTER — PR Mergeada
+      # ─────────────────────────────────────────
+      - name: Notificar PR Mergeada (master)
+        if: |
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == true &&
+          github.event.pull_request.base.ref == 'master'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "🚀 PR Mergeada na master! Nova versão disponível!",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 15844367,
+              "fields": [
+                { "name": "👤 Autor",      "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🔀 Merged por", "value": "${{ github.event.pull_request.merged_by.login }}", "inline": true },
+                { "name": "🌿 Branch",     "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
+                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ─────────────────────────────────────────
+      # MASTER — PR Fechada SEM merge (descartada)
+      # ─────────────────────────────────────────
+      - name: Notificar PR Descartada (master)
+        if: |
+          github.event.action == 'closed' &&
+          github.event.pull_request.merged == false &&
+          github.event.pull_request.base.ref == 'master'
+        run: |
+          curl -s -H "Content-Type: application/json" \
+          -d '{
+            "content": "@everyone",
+            "embeds": [{
+              "title": "❌ PR Descartada na master",
+              "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
+              "color": 15548997,
+              "fields": [
+                { "name": "👤 Autor",    "value": "${{ github.event.pull_request.user.login }}", "inline": true },
+                { "name": "🌿 Branch",   "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
+                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+              ],
+              "footer": { "text": "GitHub Actions • TCC Notificações" }
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}

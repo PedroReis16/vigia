@@ -8,12 +8,12 @@ from uuid import uuid4
 
 import pytest
 
+from app.fiware.models.vigia_settings import VigiaSettings
 from app.integration.command_bus import (
     _CUSTOM_HANDLERS,
     build_dispatcher,
     register_command_handler,
 )
-from app.integration.models.vigia_settings import VigiaSettings
 from app.integration.mqtt_listener import listen_mqtt_commands
 from app.integration.types import IntegrationContext
 

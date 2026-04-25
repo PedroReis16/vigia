@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.integration.models.vigia_settings import VigiaSettings
-from app.integration.requests.put_vigia_device import PutVigiaDevice
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.fiware.requests.put_vigia_device import PutVigiaDevice
 
 
 class _FakeResponse:
@@ -40,7 +40,7 @@ class _FakeClientSession:
 @pytest.mark.asyncio
 async def test_execute_async_given_success_status_should_return_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.put_vigia_device.aiohttp.ClientSession",
+        "app.fiware.requests.put_vigia_device.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=204)),
     )
 
@@ -55,7 +55,7 @@ async def test_execute_async_given_error_status_should_raise_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.put_vigia_device.aiohttp.ClientSession",
+        "app.fiware.requests.put_vigia_device.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=500, body="internal error")),
     )
 

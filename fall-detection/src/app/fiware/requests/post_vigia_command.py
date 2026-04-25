@@ -1,18 +1,15 @@
+from __future__ import annotations
+
 import os
 
 import aiohttp
 from dotenv import load_dotenv
 
-from app.integration.models.vigia_settings import VigiaSettings
-from app.integration.requests.fiware_endpoints import iot_agent_url, orion_url
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.fiware.requests.fiware_endpoints import iot_agent_url, orion_url
 
 
 class PostVigiaCommand:
-    """
-    Context Source Registration no Orion: encaminha comandos/atributos monitorados
-    para o IoT Agent (`provider.http.url`, `legacyForwarding`).
-    """
-
     def __init__(self) -> None:
         load_dotenv()
         self._orion_base_url = orion_url()
@@ -53,4 +50,6 @@ class PostVigiaCommand:
                 timeout=60,
             ) as response:
                 if response.status not in (200, 201, 204):
-                    raise Exception(f"Error posting command to FIWARE: {response.status} {await response.text()}")
+                    raise Exception(
+                        f"Error posting command to FIWARE: {response.status} {await response.text()}"
+                    )

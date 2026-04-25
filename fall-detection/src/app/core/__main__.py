@@ -12,9 +12,11 @@ ensure_src_on_path()
 
 from app.config import Settings
 from app.core.runner import run_analysis
+from app.logging import configure_logging
 
 
 def main() -> None:
+    configure_logging()
     run_analysis(Settings.from_env())
 
 

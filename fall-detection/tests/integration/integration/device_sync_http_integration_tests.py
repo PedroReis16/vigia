@@ -7,20 +7,20 @@ from uuid import uuid4
 import pytest
 from aiohttp.test_utils import TestServer
 
-from app.integration.device_sync import ensure_fiware_device_synced
-from app.integration.models.vigia_settings import VigiaSettings
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.integration.device_registration import sync_device_registration
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_fiware_device_synced_given_missing_remote_device_should_register(
+async def test_sync_device_registration_given_missing_remote_device_should_register(
     fiware_http_integration: tuple[TestServer, dict],
 ) -> None:
     _, state = fiware_http_integration
     state["get_device_status"] = 404
     settings = VigiaSettings(device_id=uuid4())
 
-    await ensure_fiware_device_synced(settings)
+    await sync_device_registration(settings)
 
     paths = [c[1] for c in state["calls"]]
     assert any("/iot/devices/" in p for p in paths)
@@ -30,7 +30,7 @@ async def test_ensure_fiware_device_synced_given_missing_remote_device_should_re
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_fiware_device_synced_given_different_remote_config_should_update(
+async def test_sync_device_registration_given_different_remote_config_should_update(
     fiware_http_integration: tuple[TestServer, dict],
 ) -> None:
     _, state = fiware_http_integration
@@ -46,6 +46,6 @@ async def test_ensure_fiware_device_synced_given_different_remote_config_should_
         ],
     }
 
-    await ensure_fiware_device_synced(settings)
+    await sync_device_registration(settings)
 
     assert any(c[0] == "PUT" for c in state["calls"])

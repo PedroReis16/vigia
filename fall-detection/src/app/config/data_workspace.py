@@ -7,8 +7,26 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 
 from app.config.settings import Settings
+from app.logging import get_logger
+
+logger = get_logger("config")
+DEFAULT_DATA_PATH = "data"
+
+
+def resolve_data_root(data_path: str | None) -> Path:
+    raw_path = (data_path or "").strip()
+    return Path(raw_path or DEFAULT_DATA_PATH)
+
+
+def resolve_data_root_from_env() -> Path:
+    return resolve_data_root(os.getenv("DATA_PATH"))
+
+
+def device_settings_path_from_env() -> Path:
+    return resolve_data_root_from_env() / "device" / "device.json"
 
 
 def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
@@ -21,13 +39,18 @@ def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
     Quando captura e ML rodam em processos paralelos, o processo que **não** deve
     apagar a pasta deve chamar com ``reset=False`` para evitar corrida com o outro.
     """
-    if not settings.data_path:
-        return
+    data_root = resolve_data_root(settings.data_path)
+    coordinates_dir = data_root / "coordinates"
+    frames_dir = Path(settings.frames_dir) if settings.frames_dir else data_root / "frames"
+
     if reset:
-        print(f"Removing data path: {settings.data_path}")
-        if os.path.isdir(settings.data_path):
-            shutil.rmtree(settings.data_path)
-    os.makedirs(settings.data_path, exist_ok=True)
-    os.makedirs(os.path.join(settings.data_path, "coordinates"), exist_ok=True)
-    if settings.frames_dir:
-        os.makedirs(settings.frames_dir, exist_ok=True)
+        # Limpa apenas artefatos de captura/análise para preservar configurações persistentes.
+        logger.debug("removing capture data directories under {}", data_root)
+        if coordinates_dir.is_dir():
+            shutil.rmtree(coordinates_dir)
+        if frames_dir.is_dir():
+            shutil.rmtree(frames_dir)
+
+    data_root.mkdir(parents=True, exist_ok=True)
+    coordinates_dir.mkdir(parents=True, exist_ok=True)
+    frames_dir.mkdir(parents=True, exist_ok=True)

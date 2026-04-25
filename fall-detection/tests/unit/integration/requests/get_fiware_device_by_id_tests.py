@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import pytest
 
-from app.integration.models.vigia_settings import VigiaSettings
-from app.integration.requests.get_fiware_device_by_id import GetFiwareDeviceById
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.fiware.requests.get_fiware_device_by_id import GetFiwareDeviceById
 
 
 class _FakeResponse:
@@ -45,7 +45,7 @@ class _FakeClientSession:
 @pytest.mark.asyncio
 async def test_execute_async_given_not_found_status_should_return_none(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_fiware_device_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_fiware_device_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=404)),
     )
 
@@ -57,7 +57,7 @@ async def test_execute_async_given_not_found_status_should_return_none(monkeypat
 @pytest.mark.asyncio
 async def test_execute_async_given_non_json_response_should_return_none(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_fiware_device_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_fiware_device_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(
             _FakeResponse(status=200, content_type="text/html", text_body="<html/>")
         ),
@@ -72,7 +72,7 @@ async def test_execute_async_given_non_json_response_should_return_none(monkeypa
 async def test_execute_async_given_ok_json_response_should_return_vigia_settings(monkeypatch) -> None:
     device_id = uuid4()
     monkeypatch.setattr(
-        "app.integration.requests.get_fiware_device_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_fiware_device_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(
             _FakeResponse(
                 status=200,
@@ -90,7 +90,7 @@ async def test_execute_async_given_ok_json_response_should_return_vigia_settings
 @pytest.mark.asyncio
 async def test_execute_async_given_non_success_status_should_raise_exception(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.get_fiware_device_by_id.aiohttp.ClientSession",
+        "app.fiware.requests.get_fiware_device_by_id.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=500, text_body="boom")),
     )
 

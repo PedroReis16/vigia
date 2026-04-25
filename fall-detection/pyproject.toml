@@ -25,10 +25,33 @@ where = ["src"]
 
 [tool.pylint.main]
 extension-pkg-allow-list = ["cv2"]
+init-hook = "import sys; sys.path.insert(0, 'src')"
+
+[tool.pylint.messages_control]
+# Evita ruído em pontos planejados para evolução incremental do código.
+disable = [
+    "fixme",
+]
 
 [tool.pylint.typecheck]
 # opencv-python expõe a API nativa de forma dinâmica; evita E1101 (no-member).
 generated-members = ["cv2.*"]
+# Dependências externas nem sempre estão instaladas no ambiente do editor/CI local.
+# Isso reduz falsos positivos de import-error sem esconder erros de módulos internos.
+ignored-modules = [
+    "cv2",
+    "numpy",
+    "pandas",
+    "onnxruntime",
+    "sklearn",
+    "ultralytics",
+    "aiohttp",
+    "dotenv",
+    "paho.mqtt.client",
+    "schedule",
+    "loguru",
+    "pytest",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

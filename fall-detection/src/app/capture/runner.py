@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+import asyncio
+
 import cv2
 
 from app.config import Settings, prepare_data_workspace
 from app.capture.io import FrameSaveWorker, StreamOutWorker, optional_stream_worker
 from app.capture.loop import CaptureLoopContext, run_capture_loop
 from app.capture.pose import PoseModel
+from app.fiware.device_sync import (
+    ensure_fiware_device_registered,
+    load_local_device_settings_required,
+)
+from app.logging import get_logger
+
+logger = get_logger("capture")
 
 
 def run_capture(settings: Settings) -> None:
     """Executa o loop de captura de imagens da câmera."""
+    device_settings = load_local_device_settings_required()
+    asyncio.run(ensure_fiware_device_registered(device_settings))
+
     pose_csv_dir: str | None = None
     if settings.data_path:
         if settings.pose_csv_window_seconds <= 0:
@@ -31,9 +43,20 @@ def run_capture(settings: Settings) -> None:
         saver = FrameSaveWorker()
         saver.start()
 
+    logger.info("abrindo fonte de vídeo…")
     cap = cv2.VideoCapture(settings.video_capture_source)
+    if not cap.isOpened():
+        raise RuntimeError(
+            f"Não foi possível abrir VIDEO_CAPTURE_SOURCE={settings.video_capture_source!r}. "
+            "Experimente outro índice (0, 1, …) ou uma URL válida."
+        )
+    logger.info("fonte de vídeo OK ({!r}).", settings.video_capture_source)
 
+    logger.info(
+        "a carregar modelo YOLO pose (a primeira execução pode descarregar pesos; CPU pode demorar)…"
+    )
     pose_model = PoseModel(model_path=settings.yolo_pose_model, device=settings.yolo_model_device)
+    logger.info("modelo YOLO pose pronto.")
     show_video = settings.show_video
 
     run_capture_loop(

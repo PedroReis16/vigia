@@ -1,4 +1,4 @@
-from app.integration.models.heartbeat_payload import HeartbeatPayload
+from app.fiware.models.heartbeat_payload import HeartbeatPayload
 
 
 def test_to_attrs_payload_given_valid_payload_should_return_expected_shape() -> None:
@@ -9,6 +9,8 @@ def test_to_attrs_payload_given_valid_payload_should_return_expected_shape() -> 
         device_ip="192.168.0.100",
         capture_status="running",
         core_status="running",
+        posture_state="em_pe",
+        posture_changed_at="2026-04-21T19:59:00Z",
     )
 
     assert payload.to_attrs_payload() == {
@@ -16,6 +18,8 @@ def test_to_attrs_payload_given_valid_payload_should_return_expected_shape() -> 
         "deviceIp": {"type": "Text", "value": "192.168.0.100"},
         "captureStatus": {"type": "Text", "value": "running"},
         "coreStatus": {"type": "Text", "value": "running"},
+        "postureState": {"type": "Text", "value": "em_pe"},
+        "postureChangedAt": {"type": "DateTime", "value": "2026-04-21T19:59:00Z"},
     }
 
 
@@ -27,6 +31,8 @@ def test_to_create_payload_given_valid_payload_should_include_identity_fields() 
         device_ip="192.168.0.100",
         capture_status="running",
         core_status="running",
+        posture_state="em_pe",
+        posture_changed_at="2026-04-21T19:59:00Z",
     )
 
     create_payload = payload.to_create_payload()
@@ -42,4 +48,6 @@ def test_expected_schema_given_default_contract_should_return_supported_schema()
         "deviceIp": "Text",
         "captureStatus": "Text",
         "coreStatus": "Text",
+        "postureState": "Text",
+        "postureChangedAt": "DateTime",
     }

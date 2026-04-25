@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from app.integration.heartbeat import _sync_heartbeat_schema
-from app.integration.models.vigia_settings import VigiaSettings
+from app.fiware.models.vigia_settings import VigiaSettings
 
 
 @pytest.mark.asyncio

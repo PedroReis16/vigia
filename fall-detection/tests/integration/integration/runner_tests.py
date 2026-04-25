@@ -28,13 +28,10 @@ async def test_run_integration_given_valid_settings_should_wire_components() -> 
 
     with (
         patch(
-            "app.integration.runner.load_or_create_local_device_settings",
+            "app.integration.runner.bootstrap_device_registration",
             return_value=fake_device_settings,
-        ) as load_mock,
-        patch(
-            "app.integration.runner.ensure_fiware_device_synced",
-            new=AsyncMock(),
-        ) as sync_mock,
+            new_callable=AsyncMock,
+        ) as bootstrap_mock,
         patch(
             "app.integration.runner.build_dispatcher",
             return_value="dispatcher",
@@ -50,8 +47,7 @@ async def test_run_integration_given_valid_settings_should_wire_components() -> 
     ):
         await run_integration(settings)
 
-    load_mock.assert_called_once()
-    sync_mock.assert_awaited_once_with(fake_device_settings)
+    bootstrap_mock.assert_awaited_once()
     dispatcher_mock.assert_called_once()
     heartbeat_mock.assert_awaited_once()
     mqtt_mock.assert_awaited_once_with(fake_device_settings, "dispatcher")

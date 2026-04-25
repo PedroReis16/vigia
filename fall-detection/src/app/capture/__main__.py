@@ -12,9 +12,11 @@ ensure_src_on_path()
 
 from app.config import Settings
 from app.capture.runner import run_capture
+from app.logging import configure_logging
 
 
 def main() -> None:
+    configure_logging()
     run_capture(Settings.from_env())
 
 

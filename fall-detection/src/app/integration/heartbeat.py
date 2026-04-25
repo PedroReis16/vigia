@@ -9,20 +9,23 @@ from pathlib import Path
 from typing import Callable
 
 from app.config import Settings
-from app.integration.models.heartbeat_payload import HeartbeatPayload
-from app.integration.models.vigia_settings import VigiaSettings
-from app.integration.requests.get_orion_entity_by_id import GetOrionEntityById
-from app.integration.requests.post_create_device_heartbeat_entity import (
+from app.fiware.models.heartbeat_payload import HeartbeatPayload
+from app.fiware.models.vigia_settings import VigiaSettings
+from app.fiware.posture_state import read_posture_state
+from app.fiware.requests.get_orion_entity_by_id import GetOrionEntityById
+from app.fiware.requests.post_create_device_heartbeat_entity import (
     CreateDeviceHeartbeatEntityError,
     PostCreateDeviceHeartbeatEntity,
 )
-from app.integration.requests.post_update_device_heartbeat_attrs import (
+from app.fiware.requests.post_update_device_heartbeat_attrs import (
     PostUpdateDeviceHeartbeatAttrs,
     UpdateDeviceHeartbeatAttrsError,
 )
+from app.logging import get_logger
 
 ModuleStatusProvider = Callable[[], str]
 _MODULE_STATUS_PROVIDERS: dict[str, ModuleStatusProvider] = {}
+logger = get_logger("integration")
 
 
 def register_module_status_provider(
@@ -52,7 +55,7 @@ def _module_status(module_name: str) -> str:
     try:
         return str(provider())
     except Exception as exc:  # pragma: no cover
-        print(f"[integration] erro lendo status do modulo {module_name}: {exc}")
+        logger.warning("erro lendo status do modulo {}: {}", module_name, exc)
         return "error"
 
 
@@ -75,12 +78,13 @@ def _module_status_from_file(module_name: str) -> str | None:
             return None
         return str(value)
     except Exception as exc:  # pragma: no cover
-        print(f"[integration] erro lendo MODULE_STATUS_FILE: {exc}")
+        logger.warning("erro lendo MODULE_STATUS_FILE: {}", exc)
         return None
 
 
 def _build_heartbeat_payload(device_settings: VigiaSettings) -> HeartbeatPayload:
     heartbeat_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    posture_state, posture_changed_at = read_posture_state()
     return HeartbeatPayload(
         entity_id=device_settings.entity_name,
         entity_type=device_settings.entity_type,
@@ -88,6 +92,8 @@ def _build_heartbeat_payload(device_settings: VigiaSettings) -> HeartbeatPayload
         device_ip=_resolve_local_ip(),
         capture_status=_module_status("capture"),
         core_status=_module_status("core"),
+        posture_state=posture_state,
+        posture_changed_at=posture_changed_at or heartbeat_at,
     )
 
 
@@ -112,14 +118,14 @@ async def _sync_heartbeat_schema(
 
     if remote_entity is None:
         await create_requester.execute_async(payload.to_create_payload())
-        print("[integration] entidade de heartbeat criada no FIWARE")
+        logger.info("entidade de heartbeat criada no FIWARE")
         return True
 
     if _is_schema_outdated(remote_entity, HeartbeatPayload.expected_schema()):
         await update_requester.execute_async(
             device_settings.entity_name, payload.to_attrs_payload()
         )
-        print("[integration] schema do heartbeat atualizado no FIWARE")
+        logger.info("schema do heartbeat atualizado no FIWARE")
     return True
 
 
@@ -139,7 +145,7 @@ async def run_heartbeat_loop(settings: Settings, device_settings: VigiaSettings)
             device_settings, create_requester, update_requester
         )
     except Exception as exc:
-        print(f"[integration] falha ao sincronizar schema heartbeat: {exc}")
+        logger.warning("falha ao sincronizar schema heartbeat: {}", exc)
 
     while True:
         payload = _build_heartbeat_payload(device_settings)
@@ -148,13 +154,13 @@ async def run_heartbeat_loop(settings: Settings, device_settings: VigiaSettings)
             if not entity_created:
                 await create_requester.execute_async(payload.to_create_payload())
                 entity_created = True
-                print("[integration] entidade de heartbeat criada no FIWARE")
+                logger.info("entidade de heartbeat criada no FIWARE")
             else:
                 await update_requester.execute_async(
                     device_settings.entity_name,
                     attrs_payload,
                 )
-            print("[integration] heartbeat enviado para o FIWARE")
+            logger.debug("heartbeat enviado para o FIWARE")
         except CreateDeviceHeartbeatEntityError as exc:
             if exc.status_code == 422 and "Already Exists" in exc.response_text:
                 entity_created = True
@@ -163,20 +169,19 @@ async def run_heartbeat_loop(settings: Settings, device_settings: VigiaSettings)
                         device_settings.entity_name,
                         attrs_payload,
                     )
-                    print("[integration] heartbeat enviado para o FIWARE")
+                    logger.debug("heartbeat enviado para o FIWARE")
                 except UpdateDeviceHeartbeatAttrsError as update_exc:
-                    print(f"[integration] falha ao enviar heartbeat: {update_exc}")
+                    logger.warning("falha ao enviar heartbeat: {}", update_exc)
             else:
-                print(f"[integration] falha ao enviar heartbeat: {exc}")
+                logger.warning("falha ao enviar heartbeat: {}", exc)
         except UpdateDeviceHeartbeatAttrsError as exc:
             if exc.status_code == 404:
                 entity_created = False
-                print(
-                    "[integration] entidade heartbeat nao encontrada; "
-                    "nova tentativa de criacao no proximo ciclo."
+                logger.warning(
+                    "entidade heartbeat nao encontrada; nova tentativa de criacao no proximo ciclo."
                 )
             else:
-                print(f"[integration] falha ao enviar heartbeat: {exc}")
+                logger.warning("falha ao enviar heartbeat: {}", exc)
         except Exception as exc:
-            print(f"[integration] falha ao enviar heartbeat: {exc}")
+            logger.warning("falha ao enviar heartbeat: {}", exc)
         await asyncio.sleep(interval_seconds)

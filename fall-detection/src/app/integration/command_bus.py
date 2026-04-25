@@ -6,8 +6,10 @@ from pathlib import Path
 import aiohttp
 
 from app.integration.types import CommandHandler, IntegrationContext
+from app.logging import get_logger
 
 _CUSTOM_HANDLERS: dict[str, CommandHandler] = {}
+logger = get_logger("integration")
 
 
 class CommandDispatcher:
@@ -22,7 +24,7 @@ class CommandDispatcher:
         command = command_name.lower()
         handler = self._handlers.get(command)
         if handler is None:
-            print(f"[integration] comando nao suportado: {command_name}")
+            logger.warning("comando nao suportado: {}", command_name)
             return
         await handler(payload)
 
@@ -35,12 +37,12 @@ def register_command_handler(command_name: str, handler: CommandHandler) -> None
 async def _upload_logs_async(payload: dict) -> None:
     logs_api_url = (os.getenv("LOGS_API_URL") or "").strip()
     if not logs_api_url:
-        print("[integration] LOGS_API_URL nao configurada; upload de logs ignorado")
+        logger.warning("LOGS_API_URL nao configurada; upload de logs ignorado")
         return
 
     logs_path = Path((payload.get("path") or "logs/app.log")).resolve()
     if not logs_path.exists() or not logs_path.is_file():
-        print(f"[integration] arquivo de log nao encontrado: {logs_path}")
+        logger.warning("arquivo de log nao encontrado: {}", logs_path)
         return
 
     async with aiohttp.ClientSession() as session:
@@ -53,15 +55,15 @@ async def _upload_logs_async(payload: dict) -> None:
                         f"falha upload logs: {response.status} {await response.text()}"
                     )
 
-    print(f"[integration] upload de logs concluido: {logs_path.name}")
+    logger.info("upload de logs concluido: {}", logs_path.name)
 
 
 async def _default_stream_handler(_: dict) -> None:
-    print("[integration] comando stream recebido (acionar modulo capture)")
+    logger.info("comando stream recebido (acionar modulo capture)")
 
 
 async def _default_restart_core_handler(_: dict) -> None:
-    print("[integration] comando restart_core recebido (reiniciar modulo core)")
+    logger.info("comando restart_core recebido (reiniciar modulo core)")
 
 
 def build_dispatcher(context: IntegrationContext) -> CommandDispatcher:

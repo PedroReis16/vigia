@@ -11,6 +11,8 @@ class HeartbeatPayload:
     device_ip: str
     capture_status: str
     core_status: str
+    posture_state: str
+    posture_changed_at: str
 
     def to_attrs_payload(self) -> dict:
         return {
@@ -30,6 +32,14 @@ class HeartbeatPayload:
                 "type": "Text",
                 "value": self.core_status,
             },
+            "postureState": {
+                "type": "Text",
+                "value": self.posture_state,
+            },
+            "postureChangedAt": {
+                "type": "DateTime",
+                "value": self.posture_changed_at,
+            },
         }
 
     def to_create_payload(self) -> dict:
@@ -45,4 +55,6 @@ class HeartbeatPayload:
             "deviceIp": "Text",
             "captureStatus": "Text",
             "coreStatus": "Text",
+            "postureState": "Text",
+            "postureChangedAt": "DateTime",
         }

@@ -5,30 +5,30 @@ import os
 import aiohttp
 from dotenv import load_dotenv
 
-from app.integration.requests.fiware_endpoints import orion_url
+from app.fiware.requests.fiware_endpoints import orion_url
 
 
-class PostDeviceHeartbeat:
-    """Publica heartbeat do dispositivo no Orion."""
-
+class GetOrionEntityById:
     def __init__(self) -> None:
         load_dotenv()
         self._orion_base_url = orion_url()
         self._fiware_service = os.getenv("FIWARE_SERVICE")
 
-    async def execute_async(self, payload: dict) -> None:
+    async def execute_async(self, entity_id: str) -> dict | None:
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self._orion_base_url}/v2/entities",
+            async with session.get(
+                f"{self._orion_base_url}/v2/entities/{entity_id}",
                 headers={
-                    "Content-Type": "application/json",
+                    "Accept": "application/json",
                     "fiware-service": self._fiware_service,
                     "fiware-servicepath": "/",
                 },
-                json=payload,
                 timeout=30,
             ) as response:
-                if response.status not in (200, 201, 204):
+                if response.status == 404:
+                    return None
+                if response.status != 200:
                     raise Exception(
-                        f"Error posting heartbeat to FIWARE: {response.status} {await response.text()}"
+                        f"Error fetching Orion entity: {response.status} {await response.text()}"
                     )
+                return await response.json()

@@ -6,8 +6,11 @@ import os
 
 import paho.mqtt.client as mqtt
 
+from app.fiware.models.vigia_settings import VigiaSettings
 from app.integration.command_bus import CommandDispatcher
-from app.integration.models.vigia_settings import VigiaSettings
+from app.logging import get_logger
+
+logger = get_logger("integration")
 
 
 async def listen_mqtt_commands(
@@ -15,7 +18,7 @@ async def listen_mqtt_commands(
 ) -> None:
     mqtt_enabled = (os.getenv("FIWARE_MQTT_ENABLED") or "true").strip().lower()
     if mqtt_enabled in ("0", "false", "no", "off"):
-        print("[integration] escuta MQTT desabilitada por FIWARE_MQTT_ENABLED")
+        logger.info("escuta MQTT desabilitada por FIWARE_MQTT_ENABLED")
         while True:
             await asyncio.sleep(60)
 
@@ -41,10 +44,10 @@ async def listen_mqtt_commands(
             _properties: mqtt.Properties | None = None,
         ) -> None:
             if reason_code.is_failure:
-                print(f"[integration] falha ao conectar MQTT: {reason_code}")
+                logger.warning("falha ao conectar MQTT: {}", reason_code)
                 return
             _client.subscribe(mqtt_topic, qos=1)
-            print(f"[integration] ouvindo topico MQTT: {mqtt_topic}")
+            logger.info("ouvindo topico MQTT: {}", mqtt_topic)
 
         def on_message(
             _client: mqtt.Client,
@@ -60,7 +63,7 @@ async def listen_mqtt_commands(
             command_name = str(body.get("command") or body.get("name") or "").strip()
             payload = body.get("payload") if isinstance(body.get("payload"), dict) else body
             if not command_name:
-                print(f"[integration] mensagem MQTT sem comando: {raw}")
+                logger.warning("mensagem MQTT sem comando: {}", raw)
                 return
             loop.call_soon_threadsafe(incoming_queue.put_nowait, (command_name, payload))
 
@@ -75,11 +78,15 @@ async def listen_mqtt_commands(
                 try:
                     await dispatcher.dispatch(command_name, payload)
                 except Exception as exc:
-                    print(f"[integration] erro ao processar comando '{command_name}': {exc}")
+                    logger.warning(
+                        "erro ao processar comando '{}': {}", command_name, exc
+                    )
         except OSError as exc:
-            print(
-                f"[integration] broker MQTT indisponivel em {mqtt_host}:{mqtt_port}: {exc}. "
-                "nova tentativa em 10s."
+            logger.warning(
+                "broker MQTT indisponivel em {}:{}: {}. nova tentativa em 10s.",
+                mqtt_host,
+                mqtt_port,
+                exc,
             )
             await asyncio.sleep(10)
         finally:

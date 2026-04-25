@@ -13,12 +13,16 @@ import cv2
 from app.capture.loop.capture_loop_context import CaptureLoopContext
 from app.capture.pose.pose_process_job import PoseProcessJob
 from app.capture.pose.pose_worker import pose_worker_loop
+from app.fiware.posture_notifier import FiwarePostureNotifier
+from app.logging import get_logger
 
 from app.capture.fall_classifier import FallClassifier, build_keypoints_list
 
+logger = get_logger("capture")
+
 def disparar_alerta() -> None:
     """Dispara o alerta de queda."""
-    print("Alerta de queda disparado")
+    logger.warning("alerta de queda disparado")
 
 def run_capture_loop(ctx: CaptureLoopContext) -> None:
     """Loop contínuo: leitura da câmera, enfileiramento de pose/CSV, stream e preview."""
@@ -46,6 +50,8 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
         pose_worker.start()
 
         clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.onnx")
+        posture_notifier = FiwarePostureNotifier()
+        last_posture_state: str | None = None
 
         first_infer = True
         while True:
@@ -54,9 +60,8 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 break
 
             if first_infer:
-                print(
-                    "Primeira inferência de pose (CPU pode demorar dezenas de segundos)…",
-                    flush=True,
+                logger.info(
+                    "primeira inferência de pose (CPU pode demorar dezenas de segundos)…"
                 )
                 first_infer = False
 
@@ -71,9 +76,13 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 resultado = clf.predict(keypoints)
 
                 if resultado is None:
-                    print("Sem resultados")
+                    logger.debug("sem resultados")
                 else:
-                    print(resultado)
+                    logger.debug("resultado classificador: {}", resultado)
+                    posture_state = str(resultado.get("label") or "").strip()
+                    if posture_state and posture_state != last_posture_state:
+                        last_posture_state = posture_state
+                        posture_notifier.notify_posture_changed(posture_state)
 
             if ctx.stream is not None:
                 ctx.stream.send_frame(annotated)

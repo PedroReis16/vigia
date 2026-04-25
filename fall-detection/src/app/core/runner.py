@@ -1,9 +1,17 @@
 from __future__ import annotations
+import asyncio
 import datetime
 import time
 import schedule
 
 from app.config import Settings, prepare_data_workspace
+from app.fiware.device_sync import (
+    ensure_fiware_device_registered,
+    load_local_device_settings_required,
+)
+from app.logging import get_logger
+
+logger = get_logger("core")
 
 def run_fall_analysis_task() -> None:
     """Executa os processos de análise de queda"""
@@ -33,10 +41,13 @@ def run_fall_analysis_task() -> None:
     # 4.2. Se a queda não for detectada, o dataset de poses deve ser descartado juntamente com a captura do frame 
 
     now = datetime.datetime.now()
-    print(f"My task is running at {now}")
+    logger.debug("task de analise em execucao: {}", now)
 
 def run_analysis(settings: Settings) -> None:
     """Prepara diretório de dados e executa modelos de postura / quedas."""
+    device_settings = load_local_device_settings_required()
+    asyncio.run(ensure_fiware_device_registered(device_settings))
+
     prepare_data_workspace(settings, reset=False)
 
     schedule.every(settings.pose_csv_window_seconds).seconds.do(run_fall_analysis_task)
@@ -44,4 +55,4 @@ def run_analysis(settings: Settings) -> None:
         schedule.run_pending()
         time.sleep(1)
 
-    print("Machine learning process running")
+    logger.info("processo de machine learning em execucao")

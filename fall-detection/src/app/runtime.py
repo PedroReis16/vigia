@@ -12,7 +12,11 @@ import time
 from app.capture.runner import run_capture
 from app.config import Settings
 from app.core.runner import run_analysis
+from app.integration.device_registration import bootstrap_device_registration
 from app.integration.runner import run_integration
+from app.logging import get_logger
+
+logger = get_logger("runtime")
 
 
 def _write_module_status(status_file: Path, payload: dict[str, str]) -> None:
@@ -24,14 +28,26 @@ def _run_integration_process(settings: Settings) -> None:
     asyncio.run(run_integration(settings))
 
 
+async def _bootstrap_device_registration(settings: Settings) -> None:
+    await bootstrap_device_registration(log_prefix="[runtime]")
+    logger.info("dispositivo validado no FIWARE. iniciando modulos.")
+
+
 def run(settings: Settings) -> None:
     """Inicia de forma paralela os processos de captura e análise dos movimentos e quedas."""
     status_file = Path(settings.data_path or ".") / "module_status.json"
+    posture_file = Path(settings.data_path or ".") / "posture_status.json"
     os.environ["MODULE_STATUS_FILE"] = str(status_file.resolve())
+    os.environ["POSTURE_STATUS_FILE"] = str(posture_file.resolve())
     _write_module_status(
         status_file,
         {"capture": "starting", "core": "starting", "integration": "starting"},
     )
+    _write_module_status(
+        posture_file,
+        {"posture_state": "unknown", "posture_changed_at": ""},
+    )
+    asyncio.run(_bootstrap_device_registration(settings))
 
     # `args` precisa ser uma tupla: `(settings)` em Python é só o valor, não um 1-tuple.
     capture_process = Process(target=run_capture, args=(settings,))
@@ -57,7 +73,7 @@ def run(settings: Settings) -> None:
         )
 
         if not capture_process.is_alive() or not analysis_process.is_alive() or not integration_process.is_alive():
-            print("Um processo finalizou. Encerrando os demais processos...")
+            logger.warning("um processo finalizou. encerrando os demais processos...")
             capture_process.terminate()
             analysis_process.terminate()
             integration_process.terminate()
@@ -71,4 +87,4 @@ def run(settings: Settings) -> None:
         status_file,
         {"capture": "stopped", "core": "stopped", "integration": "stopped"},
     )
-    print("Processos finalizados")
+    logger.info("processos finalizados")

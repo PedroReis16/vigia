@@ -22,17 +22,19 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.user.login }}",
-            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.user.login }}",
+                "url": "${{ github.event.pull_request.user.html_url }}",
+                "icon_url": "${{ github.event.pull_request.user.avatar_url }}"
+              },
               "title": "🔔 Nova PR Aberta na develop",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 3447003,
               "fields": [
-                { "name": "👤 Autor",   "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",  "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
-                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]
@@ -50,18 +52,20 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.merged_by.login }}",
-            "avatar_url": "${{ github.event.pull_request.merged_by.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.merged_by.login }}",
+                "url": "${{ github.event.pull_request.merged_by.html_url }}",
+                "icon_url": "${{ github.event.pull_request.merged_by.avatar_url }}"
+              },
               "title": "✅ PR Mergeada na develop!",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 5763719,
               "fields": [
-                { "name": "👤 Autor",      "value": "${{ github.event.pull_request.user.login }}", "inline": true },
-                { "name": "🔀 Merged por", "value": "${{ github.event.pull_request.merged_by.login }}", "inline": true },
+                { "name": "👤 Aberta por", "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",     "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
-                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]
@@ -79,17 +83,19 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.user.login }}",
-            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.user.login }}",
+                "url": "${{ github.event.pull_request.user.html_url }}",
+                "icon_url": "${{ github.event.pull_request.user.avatar_url }}"
+              },
               "title": "❌ PR Descartada na develop",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 15548997,
               "fields": [
-                { "name": "👤 Autor",    "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",   "value": "`${{ github.event.pull_request.head.ref }}` → `develop`", "inline": true },
-                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]
@@ -106,17 +112,19 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.user.login }}",
-            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.user.login }}",
+                "url": "${{ github.event.pull_request.user.html_url }}",
+                "icon_url": "${{ github.event.pull_request.user.avatar_url }}"
+              },
               "title": "🔔 Nova PR Aberta na master",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 15105570,
               "fields": [
-                { "name": "👤 Autor",   "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",  "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
-                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",    "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]
@@ -134,18 +142,20 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.merged_by.login }}",
-            "avatar_url": "${{ github.event.pull_request.merged_by.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.merged_by.login }}",
+                "url": "${{ github.event.pull_request.merged_by.html_url }}",
+                "icon_url": "${{ github.event.pull_request.merged_by.avatar_url }}"
+              },
               "title": "🚀 PR Mergeada na master! Nova versão disponível!",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 15844367,
               "fields": [
-                { "name": "👤 Autor",      "value": "${{ github.event.pull_request.user.login }}", "inline": true },
-                { "name": "🔀 Merged por", "value": "${{ github.event.pull_request.merged_by.login }}", "inline": true },
+                { "name": "👤 Aberta por", "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",     "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
-                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",       "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]
@@ -163,17 +173,19 @@ jobs:
         run: |
           curl -s -H "Content-Type: application/json" \
           -d '{
-            "username": "${{ github.event.pull_request.user.login }}",
-            "avatar_url": "${{ github.event.pull_request.user.avatar_url }}",
             "content": "@everyone",
             "embeds": [{
+              "author": {
+                "name": "${{ github.event.pull_request.user.login }}",
+                "url": "${{ github.event.pull_request.user.html_url }}",
+                "icon_url": "${{ github.event.pull_request.user.avatar_url }}"
+              },
               "title": "❌ PR Descartada na master",
               "description": "**${{ github.event.pull_request.title }}**\n\n${{ github.event.pull_request.body }}",
               "color": 15548997,
               "fields": [
-                { "name": "👤 Autor",    "value": "${{ github.event.pull_request.user.login }}", "inline": true },
                 { "name": "🌿 Branch",   "value": "`${{ github.event.pull_request.head.ref }}` → `master`", "inline": true },
-                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})" }
+                { "name": "🔗 Link",     "value": "[Ver PR](${{ github.event.pull_request.html_url }})", "inline": true }
               ],
               "footer": { "text": "GitHub Actions • TCC Notificações" }
             }]

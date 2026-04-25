@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class VigiaAttribute:
+class VigiaCommand:
     name: str
-    type: str
-    object_id: str
+    type: str = "command"

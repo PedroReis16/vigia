@@ -9,6 +9,9 @@ import os
 import shutil
 
 from app.config.settings import Settings
+from app.logging import get_logger
+
+logger = get_logger("config")
 
 
 def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
@@ -24,7 +27,7 @@ def prepare_data_workspace(settings: Settings, *, reset: bool = True) -> None:
     if not settings.data_path:
         return
     if reset:
-        print(f"Removing data path: {settings.data_path}")
+        logger.debug("removing data path: {}", settings.data_path)
         if os.path.isdir(settings.data_path):
             shutil.rmtree(settings.data_path)
     os.makedirs(settings.data_path, exist_ok=True)

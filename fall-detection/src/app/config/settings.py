@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 from app.config.ingest import tcp_stream_target_from_env
+from app.logging import get_logger
+
+logger = get_logger("config")
 
 
 @dataclass(frozen=True)
@@ -55,10 +58,9 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         stream_target = tcp_stream_target_from_env()
 
         if stream_video and not stream_ingest_url and stream_target is None:
-            print(
-                "Aviso: defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
-                "STREAM_TCP_ADDR=host:porta (TCP :8090).",
-                flush=True,
+            logger.warning(
+                "defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
+                "STREAM_TCP_ADDR=host:porta (TCP :8090)."
             )
 
         show_video = _env_truthy("SHOW_VIDEO")

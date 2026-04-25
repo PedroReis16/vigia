@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.integration.requests.post_create_device_heartbeat_entity import (
+from app.fiware.requests.post_create_device_heartbeat_entity import (
     CreateDeviceHeartbeatEntityError,
     PostCreateDeviceHeartbeatEntity,
 )
@@ -40,7 +40,7 @@ class _FakeClientSession:
 @pytest.mark.asyncio
 async def test_execute_async_given_success_status_should_return_none(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.post_create_device_heartbeat_entity.aiohttp.ClientSession",
+        "app.fiware.requests.post_create_device_heartbeat_entity.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=201)),
     )
 
@@ -50,7 +50,7 @@ async def test_execute_async_given_success_status_should_return_none(monkeypatch
 @pytest.mark.asyncio
 async def test_execute_async_given_error_status_should_raise_create_error(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.integration.requests.post_create_device_heartbeat_entity.aiohttp.ClientSession",
+        "app.fiware.requests.post_create_device_heartbeat_entity.aiohttp.ClientSession",
         lambda: _FakeClientSession(_FakeResponse(status=500, text_body="boom")),
     )
 

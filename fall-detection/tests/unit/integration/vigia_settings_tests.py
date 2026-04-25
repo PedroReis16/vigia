@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.integration.models.vigia_settings import VigiaSettings
+from app.fiware.models.vigia_settings import VigiaSettings
 
 
 def test_from_dict_given_command_with_object_id_should_parse_command_name() -> None:

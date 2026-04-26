@@ -220,7 +220,7 @@ jobs:
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm ci
+        run: npm install
  
       - name: Node - dependency vulnerabilities
         if: needs.validate_environment.outputs.service_type == 'node'
@@ -323,7 +323,7 @@ jobs:
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm ci
+        run: npm install
  
       - name: Node - build
         if: needs.validate_environment.outputs.service_type == 'node'

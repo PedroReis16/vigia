@@ -41,6 +41,7 @@ jobs:
     outputs:
       # Metadados do serviço — consumidos por todos os jobs seguintes
       service_type:     ${{ steps.service_vars.outputs.service_type }}
+      service_slug:     ${{ steps.service_vars.outputs.service_slug }}
       service_path:     ${{ steps.service_vars.outputs.service_path }}
       dockerfile_path:  ${{ steps.service_vars.outputs.dockerfile_path }}
       image_name:       ${{ steps.service_vars.outputs.image_name }}
@@ -72,6 +73,7 @@ jobs:
           case "${SERVICE_NAME}" in
             "Vigia API")
               SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-api"
               SERVICE_PATH="vigia-services/apps/vigia-api"
               DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-api.dockerfile"
               IMAGE_NAME="vigia-api"
@@ -81,6 +83,7 @@ jobs:
               ;;
             "Vigia Stream")
               SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-stream"
               SERVICE_PATH="vigia-services/apps/vigia-stream"
               DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-stream.dockerfile"
               IMAGE_NAME="vigia-stream"
@@ -90,6 +93,7 @@ jobs:
               ;;
             "Vigia Fall Detection")
               SERVICE_TYPE="python"
+              SERVICE_SLUG="vigia-fall-detection"
               SERVICE_PATH="fall-detection"
               DOCKERFILE_PATH="docker-compose/dockerfiles/fall-detection.dockerfile"
               IMAGE_NAME="fall-detection"
@@ -99,6 +103,7 @@ jobs:
               ;;
             "Vigia Frontend")
               SERVICE_TYPE="node"
+              SERVICE_SLUG="vigia-frontend"
               SERVICE_PATH="frontend"
               DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-frontend.dockerfile"
               IMAGE_NAME="vigia-frontend"
@@ -112,6 +117,7 @@ jobs:
               ;;
           esac
           echo "service_type=$SERVICE_TYPE"       >> "$GITHUB_OUTPUT"
+          echo "service_slug=$SERVICE_SLUG"       >> "$GITHUB_OUTPUT"
           echo "service_path=$SERVICE_PATH"       >> "$GITHUB_OUTPUT"
           echo "dockerfile_path=$DOCKERFILE_PATH" >> "$GITHUB_OUTPUT"
           echo "image_name=$IMAGE_NAME"           >> "$GITHUB_OUTPUT"
@@ -124,7 +130,7 @@ jobs:
         id: release_vars
         shell: bash
         run: |
-          TAG_NAME="${{ inputs.service_selection }}@${{ inputs.version }}"
+          TAG_NAME="${{ steps.service_vars.outputs.service_slug }}@${{ inputs.version }}"
           echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
           echo "Tag de release: $TAG_NAME"
 

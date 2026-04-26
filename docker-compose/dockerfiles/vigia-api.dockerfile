@@ -14,7 +14,7 @@ WORKDIR /src/vigia-services/apps/vigia-api
 RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api .
 
 # Etapa de execução (imagem final)
-FROM alpine:latest
+FROM alpine:3.22
 RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app

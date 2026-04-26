@@ -19,6 +19,7 @@ on:
 permissions:
   contents: write
   pull-requests: read
+  security-events: write
 
 # Impede dois deploys simultâneos do mesmo serviço
 concurrency:
@@ -36,7 +37,7 @@ jobs:
   validate_environment:
     name: Set up deployment variables
     runs-on: ubuntu-latest
-    if: github.ref_name == 'pipeline-test' 
+    if: github.ref_name == 'chore/project-pipeline' 
     outputs:
       # Metadados do serviço — consumidos por todos os jobs seguintes
       service_type:     ${{ steps.service_vars.outputs.service_type }}
@@ -254,24 +255,40 @@ jobs:
         if: needs.validate_environment.outputs.service_type == 'go'
         uses: actions/setup-go@v5
         with:
-          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
-          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+          go-version-file: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}/go.mod
+          cache-dependency-path: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}/go.sum
  
       - name: Go - install security tools
         if: needs.validate_environment.outputs.service_type == 'go'
+        env:
+          GOWORK: off
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           go install golang.org/x/vuln/cmd/govulncheck@latest
  
       - name: Go - SAST (gosec)
         if: needs.validate_environment.outputs.service_type == 'go'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: gosec ./...
+        shell: bash
+        env:
+          SERVICE_PATH: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          test -d "$SERVICE_PATH"
+          cd "$SERVICE_PATH"
+          gosec ./...
  
       - name: Go - dependency vulnerabilities (govulncheck)
         if: needs.validate_environment.outputs.service_type == 'go'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: govulncheck ./...
+        shell: bash
+        env:
+          SERVICE_PATH: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          test -d "$SERVICE_PATH"
+          cd "$SERVICE_PATH"
+          govulncheck ./...
  
 
  
@@ -283,7 +300,7 @@ jobs:
   # ─────────────────────────────────────────────
   build:
     name: Build — ${{ inputs.service_selection }}
-    needs: validate_environment
+    needs: [validate_environment,security]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -336,18 +353,23 @@ jobs:
         if: needs.validate_environment.outputs.service_type == 'go'
         uses: actions/setup-go@v5
         with:
-          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
-          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+          go-version-file: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}/go.mod
+          cache-dependency-path: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}/go.sum
  
       - name: Go - build
         if: needs.validate_environment.outputs.service_type == 'go'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          SERVICE_PATH: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}
+          GOWORK: off
+        working-directory: ${{ (needs.validate_environment.outputs.service_path != '' && needs.validate_environment.outputs.service_path) || (inputs.service_selection == 'Vigia API' && 'vigia-services/apps/vigia-api' || 'vigia-services/apps/vigia-stream') }}
         run: |
+          set -euo pipefail
+          test -d .
           BINARY_NAME="${{ needs.validate_environment.outputs.artifact_name }}"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
             go build \
               -trimpath \
-              -ldflags="-s -w -X main.Version=${{ inputs.version }}" \
+              -ldflags="-s -w" \
               -o "$BINARY_NAME" \
               .
  
@@ -419,7 +441,7 @@ jobs:
           output: trivy-results.sarif
  
       - name: Publicar relatório Trivy no GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-results.sarif
@@ -441,13 +463,11 @@ jobs:
   deploy:
     name: Deploy — production
     needs: [validate_environment, publish_docker_image]
-    # Executa mesmo que publish_docker_image tenha sido pulado (serviço sem Docker)
-    # mas garante que não houve falha — "skipped" é tratado como OK aqui.
     if: |
       always() &&
       needs.validate_environment.result == 'success' &&
       needs.validate_environment.outputs.compose_service != '' &&
-      (needs.publish_docker_image.result == 'success' || needs.publish_docker_image.result == 'skipped')
+      needs.publish_docker_image.result == 'success'
     runs-on: ubuntu-latest
     environment: production
     steps:

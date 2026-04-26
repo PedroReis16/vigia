@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	vigiabootstrap "github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal"
-	"github.com/PedroReis16/vigia/vigia-services/pkg/logger"
+	"github.com/PedroReis16/vigia/vigia-services/pkg/shared/logger"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"

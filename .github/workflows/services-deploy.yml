@@ -27,6 +27,8 @@ concurrency:
   group: deploy-${{ inputs.service_selection }}-${{ inputs.version }}
   cancel-in-progress: false   # false = espera o anterior terminar, não cancela
 
+run-name: "${{ inputs.service_selection }} — v${{ inputs.version }}"
+
 #TODO: Acertar a branch de destino após os testes
 jobs:
   # ─────────────────────────────────────────────

@@ -6,9 +6,9 @@ WORKDIR /app
 # Copy the requirements file into the container
 COPY fall-detection/requirements.txt ./
 
-# Install dependencies (upgrade pip first; setuptools>=82 removes vendored jaraco.context 5.3.0 flagged by Trivy)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install dependencies (pin pip version to satisfy DL3013)
+RUN python -m pip install --no-cache-dir "pip==26.0.1" && \
+    python -m pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY . .

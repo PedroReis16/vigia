@@ -1,34 +1,23 @@
-# Build the Go application
+# Build vigia-api from modular workspace (vigia-services/apps/vigia-api)
 FROM golang:1.26.1-alpine AS builder
 
-# Set the working directory in the container
-WORKDIR /app
+WORKDIR /src/vigia-services
 
-# Copy the go.mod and go.sum files to the container
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
+# 1) Copia arquivos do modulo da API para aproveitar cache
+COPY vigia-services/apps/vigia-api/go.mod vigia-services/apps/vigia-api/go.sum ./apps/vigia-api/
 
-# Copy module sources (module root is backend/, not repo root)
-COPY backend/ ./
+# 2) Copia o código-fonte do serviço
+COPY vigia-services/apps/vigia-api/ ./apps/vigia-api/
 
-# Production build: optimized binary, strip debug/symbol tables, reproducible paths
-# (Go has no separate "Release" profile; this is the usual container pattern.)
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o vigia-api ./cmd/vigia-api
+# 3) Build do binário da API
+WORKDIR /src/vigia-services/apps/vigia-api
+RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api .
 
-# Use a minimal base image like 'alpine:latest' or 'scratch' for the smallest possible size
+# Etapa de execução (imagem final)
 FROM alpine:latest
-
-# Refresh Alpine packages (e.g. zlib CVE-2026-22184 fixed in 1.3.2-r0+)
 RUN apk update && apk upgrade --no-cache
 
-# Set the working directory in the container
-WORKDIR /root/
-
-# Copy the binary from the builder stage
-COPY --from=builder /app/vigia-api .
-
-# Expose the port the app will run on
+WORKDIR /app
+COPY --from=builder /bin/vigia-api .
 EXPOSE 8000
-
-# Set the entrypoint to the binary
-CMD ["./vigia-api"]
+ENTRYPOINT ["./vigia-api"]

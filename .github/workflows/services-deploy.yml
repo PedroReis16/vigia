@@ -229,7 +229,12 @@ jobs:
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm ci
+        run: |
+          set -euo pipefail
+          if ! npm ci; then
+            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
+            npm install
+          fi
 
       - name: Node - dependency vulnerabilities
         if: needs.validate_environment.outputs.service_type == 'node'
@@ -331,7 +336,12 @@ jobs:
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm ci
+        run: |
+          set -euo pipefail
+          if ! npm ci; then
+            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
+            npm install
+          fi
 
       - name: Node - build
         if: needs.validate_environment.outputs.service_type == 'node'

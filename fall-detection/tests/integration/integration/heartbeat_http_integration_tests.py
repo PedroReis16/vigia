@@ -81,6 +81,8 @@ async def test_sync_heartbeat_schema_given_entity_matches_schema_should_only_get
         "deviceIp": {"type": "Text", "value": "10.0.0.1"},
         "captureStatus": {"type": "Text", "value": "running"},
         "coreStatus": {"type": "Text", "value": "running"},
+        "postureState": {"type": "Text", "value": "unknown"},
+        "postureChangedAt": {"type": "DateTime", "value": "2026-01-01T00:00:00Z"},
     }
 
     await _sync_heartbeat_schema(

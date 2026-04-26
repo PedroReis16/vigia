@@ -1,0 +1,167 @@
+name: Discord PR Notifications
+
+on:
+  pull_request:
+    types: [opened, closed]
+    branches:
+      - develop
+      - master
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar notificação ao Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          PR_HTML_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          AUTHOR_HTML_URL: ${{ github.event.pull_request.user.html_url }}
+          AUTHOR_AVATAR: ${{ github.event.pull_request.user.avatar_url }}
+          MERGED_BY_LOGIN: ${{ github.event.pull_request.merged_by && github.event.pull_request.merged_by.login || '' }}
+          MERGED_BY_HTML_URL: ${{ github.event.pull_request.merged_by && github.event.pull_request.merged_by.html_url || '' }}
+          MERGED_BY_AVATAR: ${{ github.event.pull_request.merged_by && github.event.pull_request.merged_by.avatar_url || '' }}
+          UPDATED_AT: ${{ github.event.pull_request.updated_at }}
+        run: |
+          set -euo pipefail
+
+          # Cores no estilo GitHub (decimal para Discord)
+          COLOR_OPEN=3863106    # #0969da
+          COLOR_MERGED=1736967  # #1a7f37
+          COLOR_CLOSED=13718831 # #cf222e (fechada sem merge)
+          COLOR_MASTER_OPEN=15158370 # destaque branch master (âmbar)
+
+          action="$ACTION"
+          merged="$MERGED"
+          base="$BASE_REF"
+
+          if [ "$action" = "opened" ]; then
+            if [ "$base" = "master" ]; then
+              color=$COLOR_MASTER_OPEN
+              title="[$REPO] Pull request opened"
+              kind="opened"
+            else
+              color=$COLOR_OPEN
+              title="[$REPO] Pull request opened"
+              kind="opened"
+            fi
+            author_name="$AUTHOR_LOGIN"
+            author_url="$AUTHOR_HTML_URL"
+            author_icon="$AUTHOR_AVATAR"
+            extra_login=""
+          elif [ "$action" = "closed" ] && [ "$merged" = "true" ]; then
+            color=$COLOR_MERGED
+            title="[$REPO] Pull request merged"
+            kind="merged"
+            if [ -n "$MERGED_BY_LOGIN" ]; then
+              author_name="$MERGED_BY_LOGIN"
+              author_url="$MERGED_BY_HTML_URL"
+              author_icon="$MERGED_BY_AVATAR"
+            else
+              author_name="$AUTHOR_LOGIN"
+              author_url="$AUTHOR_HTML_URL"
+              author_icon="$AUTHOR_AVATAR"
+            fi
+            extra_login="$AUTHOR_LOGIN"
+          else
+            color=$COLOR_CLOSED
+            title="[$REPO] Pull request closed"
+            kind="closed"
+            author_name="$AUTHOR_LOGIN"
+            author_url="$AUTHOR_HTML_URL"
+            author_icon="$AUTHOR_AVATAR"
+            extra_login=""
+          fi
+
+          # Descrição: corpo da PR truncado para caber no embed (Discord max 4096 no description)
+          body="${PR_BODY:-}"
+          if [ -z "${body//[$'\t\r\n ']/}" ]; then
+            desc_suffix="_Sem descrição._"
+          else
+            desc_suffix="$body"
+          fi
+
+          jq -n \
+            --arg content "@everyone" \
+            --arg title "$title" \
+            --arg url "$PR_HTML_URL" \
+            --arg repo "$REPO" \
+            --arg pr_url "$PR_HTML_URL" \
+            --arg pr_num "$PR_NUMBER" \
+            --arg pr_title "$PR_TITLE" \
+            --arg desc "$desc_suffix" \
+            --argjson color "$color" \
+            --arg author_name "$author_name" \
+            --arg author_url "$author_url" \
+            --arg author_icon "$author_icon" \
+            --arg head "$HEAD_REF" \
+            --arg base "$BASE_REF" \
+            --arg ts "$UPDATED_AT" \
+            --arg extra "$extra_login" \
+            --arg opened_by_url "$AUTHOR_HTML_URL" \
+            --arg kind "$kind" \
+            '
+            def truncate(s; n):
+              if (s | length) <= n then s else (s[0:n] + "…") end;
+
+            ($desc | truncate(.; 350)) as $d |
+            ("#" + $pr_num + " " + $pr_title) as $lineTitle |
+            ($lineTitle | truncate(.; 240)) as $safeLine |
+
+            {
+              content: $content,
+              embeds: [{
+                author: {
+                  name: $author_name,
+                  url: $author_url,
+                  icon_url: $author_icon
+                },
+                provider: { name: "GitHub", url: "https://github.com" },
+                title: $title,
+                url: $url,
+                description: ("**" + $safeLine + "**\n\n" + $d),
+                color: $color,
+                timestamp: $ts,
+                fields: (
+                  [
+                    {
+                      name: "Repository",
+                      value: ("[`" + $repo + "`](https://github.com/" + $repo + ")"),
+                      inline: true
+                    },
+                    {
+                      name: "Compare",
+                      value: ("`" + $head + "` → `" + $base + "`"),
+                      inline: true
+                    },
+                    {
+                      name: "Pull request",
+                      value: ("[#" + $pr_num + "](" + $pr_url + ")"),
+                      inline: true
+                    }
+                  ]
+                  + (if ($kind == "merged" and ($extra | length) > 0) then
+                      [{
+                        name: "Opened by",
+                        value: ("[`" + $extra + "](" + $opened_by_url + ")"),
+                        inline: true
+                      }]
+                    else
+                      []
+                    end)
+                ),
+                footer: {
+                  text: ($repo + " • Pull request #" + $pr_num),
+                  icon_url: "https://github.githubassets.com/favicons/favicon.png"
+                }
+              }]
+            }
+            ' | curl -sS -H "Content-Type: application/json" -d @- "$WEBHOOK_URL"

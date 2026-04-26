@@ -1,0 +1,701 @@
+name: Services Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_selection:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - Vigia API
+          - Vigia Stream
+          - Vigia Frontend
+          - Vigia Fall Detection
+          - Vigia Bootstrap
+      version:
+        description: "Version to deploy"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  security-events: write
+
+# Impede dois deploys simultâneos do mesmo serviço
+concurrency:
+  group: deploy-${{ inputs.service_selection }}-${{ inputs.version }}
+  cancel-in-progress: false   # false = espera o anterior terminar, não cancela
+
+#TODO: Acertar a branch de destino após os testes
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. VALIDAÇÃO DE AMBIENTE E PRÉ-CONDIÇÕES
+  # Resolve as variáveis do serviço selecionado e
+  # valida changelog + unicidade da tag antes de
+  # qualquer build ou scan.
+  # ─────────────────────────────────────────────
+  validate_environment:
+    name: Set up deployment variables
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'master'
+    outputs:
+      service_type:     ${{ steps.service_vars.outputs.service_type }}
+      service_slug:     ${{ steps.service_vars.outputs.service_slug }}
+      service_path:     ${{ steps.service_vars.outputs.service_path }}
+      dockerfile_path:  ${{ steps.service_vars.outputs.dockerfile_path }}
+      image_name:       ${{ steps.service_vars.outputs.image_name }}
+      artifact_name:    ${{ steps.service_vars.outputs.artifact_name }}
+      compose_service:  ${{ steps.service_vars.outputs.compose_service }}
+      has_docker:       ${{ steps.service_vars.outputs.has_docker }}
+      tag_name:         ${{ steps.release_vars.outputs.tag_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve service variables
+        id: service_vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${{ inputs.service_selection }}" in
+            "Vigia API")
+              SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-api"
+              SERVICE_PATH="vigia-services/apps/vigia-api"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-api.dockerfile"
+              IMAGE_NAME="vigia-api"
+              ARTIFACT_NAME="vigia-api"
+              COMPOSE_SERVICE="vigia"
+              HAS_DOCKER="true"
+              ;;
+            "Vigia Stream")
+              SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-stream"
+              SERVICE_PATH="vigia-services/apps/vigia-stream"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-stream.dockerfile"
+              IMAGE_NAME="vigia-stream"
+              ARTIFACT_NAME="vigia-stream"
+              COMPOSE_SERVICE="vigia-stream"
+              HAS_DOCKER="true"
+              ;;
+            "Vigia Fall Detection")
+              SERVICE_TYPE="python"
+              SERVICE_SLUG="vigia-fall-detection"
+              SERVICE_PATH="fall-detection"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/fall-detection.dockerfile"
+              IMAGE_NAME="fall-detection"
+              ARTIFACT_NAME="fall-detection"
+              COMPOSE_SERVICE="fall-detection"
+              HAS_DOCKER="true"
+              ;;
+            "Vigia Frontend")
+              SERVICE_TYPE="node"
+              SERVICE_SLUG="vigia-frontend"
+              SERVICE_PATH="frontend"
+              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-frontend.dockerfile"
+              IMAGE_NAME="vigia-frontend"
+              ARTIFACT_NAME="vigia-frontend"
+              COMPOSE_SERVICE="vigia-frontend"
+              HAS_DOCKER="true"
+              ;;
+            "Vigia Bootstrap")
+              SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-bootstrap"
+              SERVICE_PATH="vigia-services/apps/vigia-bootstrap"
+              DOCKERFILE_PATH=""
+              IMAGE_NAME=""
+              ARTIFACT_NAME="vigia-bootstrap"
+              COMPOSE_SERVICE=""
+              HAS_DOCKER="false"
+              ;;
+            *)
+              echo "::error::Serviço desconhecido: ${{ inputs.service_selection }}"
+              exit 1
+              ;;
+          esac
+
+          echo "service_type=$SERVICE_TYPE"       >> "$GITHUB_OUTPUT"
+          echo "service_slug=$SERVICE_SLUG"       >> "$GITHUB_OUTPUT"
+          echo "service_path=$SERVICE_PATH"       >> "$GITHUB_OUTPUT"
+          echo "dockerfile_path=$DOCKERFILE_PATH" >> "$GITHUB_OUTPUT"
+          echo "image_name=$IMAGE_NAME"           >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$ARTIFACT_NAME"     >> "$GITHUB_OUTPUT"
+          echo "compose_service=$COMPOSE_SERVICE" >> "$GITHUB_OUTPUT"
+          echo "has_docker=$HAS_DOCKER"           >> "$GITHUB_OUTPUT"
+
+      - name: Definir variáveis de release
+        id: release_vars
+        shell: bash
+        run: |
+          TAG_NAME="${{ steps.service_vars.outputs.service_slug }}@${{ inputs.version }}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "Tag de release: $TAG_NAME"
+
+      # ── Validação 1: CHANGELOG ───────────────────────────────
+      # Garante que a versão foi documentada antes do deploy.
+      # Aceita os formatos:
+      #   ## [1.2.3] — Keep a Changelog
+      #   # **[1.2.3]** — formato customizado
+      - name: Validar CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ inputs.version }}"
+          SERVICE_PATH="${{ steps.service_vars.outputs.service_path }}"
+          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+
+          echo "Verificando versão '$VERSION' em '$CHANGELOG_PATH'..."
+
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
+            echo "Crie o CHANGELOG.md em '$SERVICE_PATH' antes de fazer o release."
+            exit 1
+          fi
+
+          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG_PATH"; then
+            echo "✓ Versão $VERSION encontrada no CHANGELOG."
+          else
+            echo "::error::Versão $VERSION NÃO encontrada em $CHANGELOG_PATH."
+            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes do release."
+            exit 1
+          fi
+
+      # ── Validação 2: unicidade da tag ────────────────────────
+      # Impede sobrescrever um release que já foi publicado.
+      - name: Validar unicidade da tag de release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="${{ steps.release_vars.outputs.tag_name }}"
+          echo "Verificando se a tag '$TAG_NAME' já existe..."
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "::error::A tag '$TAG_NAME' já existe no repositório."
+            echo "Use uma versão diferente ou delete a tag existente manualmente."
+            exit 1
+          fi
+
+          echo "✓ Tag '$TAG_NAME' está disponível."
+
+  # ─────────────────────────────────────────────
+  # 2. SEGURANÇA
+  # SAST, SCA e lint do Dockerfile.
+  #
+  # ─────────────────────────────────────────────
+  security:
+    name: Segurança — SAST, SCA, secrets, Dockerfile
+    needs: validate_environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint do Dockerfile
+        if: needs.validate_environment.outputs.has_docker == 'true'
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ needs.validate_environment.outputs.dockerfile_path }}
+          failure-threshold: error
+
+      # ── Node ─────────────────────────────────────────────────
+      - name: Set up Node.js
+        if: needs.validate_environment.outputs.service_type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
+
+      - name: Set up npm
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          corepack enable
+          corepack prepare npm@11.6.2 --activate
+          npm --version
+
+      - name: Node - install dependencies
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+          if ! npm ci; then
+            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
+            npm install
+          fi
+
+      - name: Node - dependency vulnerabilities
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: npm audit --audit-level=critical --omit=dev
+
+      # ── Python ───────────────────────────────────────────────
+      - name: Set up Python
+        if: needs.validate_environment.outputs.service_type == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: |
+            ${{ needs.validate_environment.outputs.service_path }}/requirements.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-debug.txt
+
+      - name: Python - install dependencies
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bandit pip-audit
+
+      - name: Python - SAST (bandit)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: bandit -r src/app -ll
+
+      - name: Python - dependency vulnerabilities (pip-audit)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: pip-audit --strict -r requirements.txt
+
+      # ── Go ───────────────────────────────────────────────────
+      - name: Set up Go
+        if: needs.validate_environment.outputs.service_type == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+
+      - name: Go - install security tools
+        if: needs.validate_environment.outputs.service_type == 'go'
+        env:
+          GOWORK: off
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Go - SAST (gosec)
+        if: needs.validate_environment.outputs.service_type == 'go'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          GOWORK: off
+        run: gosec ./...
+
+      - name: Go - dependency vulnerabilities (govulncheck)
+        if: needs.validate_environment.outputs.service_type == 'go'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          GOWORK: off
+        run: govulncheck ./...
+
+  # ─────────────────────────────────────────────
+  # 3. BUILD DO ARTEFATO
+  # Compila o projeto e exporta o artefato para
+  # o job de publicação Docker.
+  #
+  # PARALELISMO: depende apenas de validate_environment,
+  # igual ao job security — os dois rodam ao mesmo tempo.
+  # ─────────────────────────────────────────────
+  build:
+    name: Build — ${{ inputs.service_selection }}
+    needs: validate_environment
+    if: needs.validate_environment.outputs.service_slug != 'vigia-bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Node ─────────────────────────────────────────────────
+      - name: Set up Node.js
+        if: needs.validate_environment.outputs.service_type == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
+
+      - name: Set up npm
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          corepack enable
+          corepack prepare npm@11.6.2 --activate
+          npm --version
+
+      - name: Node - install dependencies
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+          if ! npm ci; then
+            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
+            npm install
+          fi
+
+      - name: Node - build
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: npm run build -- --configuration=production
+
+      - name: Node - exportar dist
+        if: needs.validate_environment.outputs.service_type == 'node'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ${{ needs.validate_environment.outputs.service_path }}/dist/
+          retention-days: 1
+
+      # ── Python ───────────────────────────────────────────────
+      # O build real acontece dentro do Docker (pip install no Dockerfile).
+      # Validamos aqui que o requirements.txt está íntegro.
+      - name: Set up Python
+        if: needs.validate_environment.outputs.service_type == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Python - validar requirements
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --dry-run
+
+      # ── Go ───────────────────────────────────────────────────
+      - name: Set up Go
+        if: needs.validate_environment.outputs.service_type == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+
+      - name: Go - build
+        if: needs.validate_environment.outputs.service_type == 'go'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          BINARY_NAME="${{ needs.validate_environment.outputs.artifact_name }}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "$BINARY_NAME" \
+              .
+
+      - name: Go - exportar binário
+        if: needs.validate_environment.outputs.service_type == 'go'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ${{ needs.validate_environment.outputs.service_path }}/${{ needs.validate_environment.outputs.artifact_name }}
+          retention-days: 1
+
+  # ─────────────────────────────────────────────
+  # 4. PUBLICAÇÃO DA IMAGEM DOCKER
+  # Aguarda security E build (paralelos entre si).
+  #
+  # ─────────────────────────────────────────────
+  publish_docker_image:
+    name: Publicar imagem Docker
+    needs: [validate_environment, security, build]
+    # vigia-bootstrap não tem imagem Docker
+    if: needs.validate_environment.outputs.has_docker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+ 
+      - name: Baixar artefato de build
+        if: needs.validate_environment.outputs.service_type != 'python'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ./artifact
+ 
+      # Binários Go precisam de permissão de execução após o download
+      - name: Ajustar permissões do artefato (Go)
+        if: needs.validate_environment.outputs.service_type == 'go'
+        run: chmod +x ./artifact/${{ needs.validate_environment.outputs.artifact_name }}
+ 
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+ 
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+ 
+      # Build local primeiro — o Trivy precisa da imagem antes do push
+      - name: Build local da imagem (para scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ needs.validate_environment.outputs.dockerfile_path }}
+          platforms: ${{ needs.validate_environment.outputs.image_name == 'fall-detection' && 'linux/arm64' || 'linux/amd64' }}
+          load: true
+          push: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:latest
+          build-args: |
+            VERSION=${{ inputs.version }}
+ 
+      - name: Trivy — gerar relatório SARIF
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+          format: sarif
+          output: trivy-results.sarif
+ 
+      - name: Publicar relatório Trivy no GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      # Gate de segurança com saída legível no log do job
+      - name: Trivy — bloquear build em CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          format: table
+          ignore-unfixed: true
+ 
+      # Só publica depois que Trivy aprova
+      - name: Push da imagem
+        run: |
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:latest"
+ 
+  # ─────────────────────────────────────────────
+  # 5. DEPLOY NA VM
+  # Aciona somente após a imagem ser publicada.
+  # ─────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: [validate_environment, publish_docker_image]
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      needs.validate_environment.outputs.service_slug != 'vigia-fall-detection' &&
+      needs.validate_environment.outputs.compose_service != '' &&
+      needs.publish_docker_image.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host:     ${{ secrets.EC2_SERVER_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key:      ${{ secrets.EC2_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            SERVICE="${{ needs.validate_environment.outputs.compose_service }}"
+            VERSION="${{ inputs.version }}"
+            DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
+
+            echo "==> Deploy de '$SERVICE' v$VERSION"
+            cd "$DEPLOY_PATH"
+
+            if [ -f .env ] && grep -q "^IMAGE_TAG=" .env; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$VERSION/" .env
+              echo "==> IMAGE_TAG atualizado para $VERSION"
+            fi
+
+            echo "==> Baixando nova imagem..."
+            docker compose pull "$SERVICE"
+
+            echo "==> Subindo nova versão..."
+            docker compose up -d --remove-orphans "$SERVICE"
+
+            echo "==> Aguardando estabilização (15s)..."
+            sleep 15
+
+            STATUS=$(docker inspect \
+              --format='{{.State.Status}}' \
+              "$(docker compose ps -q "$SERVICE")" 2>/dev/null || echo "not_found")
+
+            echo "Status do container: $STATUS"
+
+            if [[ "$STATUS" != "running" ]]; then
+              echo "::error::Container '$SERVICE' não está running após o deploy."
+              echo "==> Últimas 50 linhas de log:"
+              docker compose logs --tail=50 "$SERVICE"
+              exit 1
+            fi
+
+            echo "==> Limpando imagens obsoletas..."
+            docker image prune -f
+
+            echo "==> Deploy de '$SERVICE' v$VERSION concluído com sucesso."
+
+  # ─────────────────────────────────────────────
+  # 5.1 DEPLOY BOOTSTRAP (SEM DOCKER)
+  # Gera o executável para distribuição ao usuário.
+  # ─────────────────────────────────────────────
+  deploy_bootstrap:
+    name: Deploy Bootstrap (gerar executável)
+    needs: [validate_environment, security]
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+
+      - name: Build executável Linux arm64
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          mkdir -p ./dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "./dist/vigia-bootstrap-linux-arm64" \
+              ./cmd
+
+      - name: Exportar executável do bootstrap
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ${{ needs.validate_environment.outputs.service_path }}/dist/vigia-bootstrap-linux-arm64
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # 6. TAG DE RELEASE
+  # Cria a git tag no repositório após deploy
+  # bem-sucedido. Serve como registro imutável
+  # de que aquela versão foi para produção.
+  # ─────────────────────────────────────────────
+  tag_release:
+    name: Criar tag de release
+    needs: [validate_environment, publish_docker_image, deploy, deploy_bootstrap]
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      (
+        (
+          needs.validate_environment.outputs.service_slug == 'vigia-bootstrap' &&
+          needs.deploy_bootstrap.result == 'success'
+        ) ||
+        (
+          needs.validate_environment.outputs.service_slug != 'vigia-bootstrap' &&
+          needs.publish_docker_image.result == 'success' &&
+          (
+            needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' ||
+            needs.validate_environment.outputs.compose_service == '' ||
+            needs.deploy.result == 'success'
+          )
+        )
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Baixar executável do bootstrap
+        if: needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ./release-assets
+ 
+      - name: Criar e publicar tag
+        env:
+          TAG_NAME: ${{ needs.validate_environment.outputs.tag_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+ 
+          git tag -a "$TAG_NAME" \
+            -m "Release ${{ inputs.service_selection }} v${{ inputs.version }} → production"
+ 
+          git push origin "$TAG_NAME"
+ 
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Extrair release notes do CHANGELOG
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          SERVICE_PATH: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+
+          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+          echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
+
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
+            exit 1
+          fi
+
+          awk -v version="$VERSION" '
+            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
+            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
+            capture { print }
+          ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Nao foi possivel extrair release notes para versao $VERSION em $CHANGELOG_PATH."
+            exit 1
+          fi
+
+          echo "Release notes extraidas com sucesso."
+
+      - name: Criar GitHub Release (bootstrap com executável)
+        if: needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          files: ./release-assets/vigia-bootstrap-linux-arm64
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Criar GitHub Release (demais serviços)
+        if: needs.validate_environment.outputs.service_slug != 'vigia-bootstrap'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

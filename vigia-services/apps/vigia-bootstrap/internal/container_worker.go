@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"vigia/internal/vigia-bootstrap/models"
-	"vigia/pkg/utils"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/models"
+	"github.com/PedroReis16/vigia/vigia-services/pkg/shared/utils"
 
 	"github.com/goccy/go-yaml"
 	"go.uber.org/zap"
@@ -25,7 +25,7 @@ import (
 
 const (
 	dockerRegistry = "registry-1.docker.io"
-	authTokenURL   = "https://auth.docker.io/token"
+	authTokenURL   = "https://auth.docker.io/token" // #nosec G101 -- fixed public Docker auth endpoint, not a credential
 	duration = 5 * time.Minute
 )
 
@@ -119,23 +119,23 @@ func ensureFileExists(logger *zap.Logger, filePath string, fileContent []byte) e
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logger.Info("File not found. Creating file")
-			if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(filePath), 0750); err != nil {
 				return err
 			}
-			if err := os.WriteFile(filePath, fileContent, 0644); err != nil {
+			if err := os.WriteFile(filePath, fileContent, 0600); err != nil {
 				return err
 			}
 			return nil
 		}
 	}
 
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(filePath) // #nosec G304 -- path is controlled by bootstrap data-dir and fixed file names
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(content, fileContent) {
 		logger.Info("File content differs from embedded content. Updating file.")
-		if err := os.WriteFile(filePath, fileContent, 0644); err != nil {
+		if err := os.WriteFile(filePath, fileContent, 0600); err != nil {
 			return err
 		}
 	}
@@ -144,7 +144,7 @@ func ensureFileExists(logger *zap.Logger, filePath string, fileContent []byte) e
 }
 
 func searchForUpdates(logger *zap.Logger, composeFilePath string) (bool, error) {
-	data, err := os.ReadFile(composeFilePath)
+	data, err := os.ReadFile(composeFilePath) // #nosec G304 -- compose path comes from managed bootstrap data-dir configuration
 
 	if err != nil {
 		return false, err
@@ -274,7 +274,9 @@ func registryManifestDigest(ctx context.Context, client *http.Client, repository
 		return "", err
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 8192))
+	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, 8192)); err != nil {
+		return "", fmt.Errorf("draining manifest response body: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return "", fmt.Errorf("HEAD manifest %d: %s", resp.StatusCode, string(b))
@@ -287,8 +289,16 @@ func registryManifestDigest(ctx context.Context, client *http.Client, repository
 }
 
 func getLocalImageRepoDigest(ctx context.Context, imageRef string) (string, error) {
+	repoPath, tag, err := splitRepositoryAndTag(imageRef)
+	if err != nil {
+		return "", err
+	}
+	safeImageRef := repoPath + ":" + tag
+
+	// Executed with a sanitized image reference parsed by splitRepositoryAndTag.
+	// #nosec G204
 	cmd := exec.CommandContext(ctx, "docker", "image", "inspect",
-		"--format", "{{index .RepoDigests 0}}", imageRef)
+		"--format", "{{index .RepoDigests 0}}", safeImageRef)
 	out, err := cmd.CombinedOutput()
 	s := strings.TrimSpace(string(out))
 	if err != nil {
@@ -331,11 +341,15 @@ func trimSHA(digest string) string {
 func applyComposeUpdates(ctx context.Context, composeFilePath string) error {
 	composeFilePath = filepath.Clean(composeFilePath)
 	dir := filepath.Dir(composeFilePath)
+	// composeFilePath is locally managed by bootstrap; argument is not user-shell-expanded.
+	// #nosec G204
 	pull := exec.CommandContext(ctx, "docker-compose", "-f", composeFilePath, "pull")
 	pull.Dir = dir
 	if out, err := pull.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker compose pull: %w\n%s", err, out)
 	}
+	// composeFilePath is locally managed by bootstrap; argument is not user-shell-expanded.
+	// #nosec G204
 	up := exec.CommandContext(ctx, "docker-compose", "-f", composeFilePath, "up", "-d")
 	up.Dir = dir
 	if out, err := up.CombinedOutput(); err != nil {

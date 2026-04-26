@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"vigia/pkg/utils"
+	"github.com/PedroReis16/vigia/vigia-services/pkg/shared/utils"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

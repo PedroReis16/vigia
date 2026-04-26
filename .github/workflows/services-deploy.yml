@@ -38,7 +38,7 @@ jobs:
   validate_environment:
     name: Set up deployment variables
     runs-on: ubuntu-latest
-    if: github.ref_name == 'chore/project-pipeline'
+    if: github.ref_name == 'master'
     outputs:
       service_type:     ${{ steps.service_vars.outputs.service_type }}
       service_slug:     ${{ steps.service_vars.outputs.service_slug }}

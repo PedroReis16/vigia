@@ -8,6 +8,7 @@ import struct
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -63,6 +64,10 @@ class StreamOutWorker:
 
     def start_http(self, url: str, token: str) -> None:
         """Inicia POST de JPEG para URL de ingest (com token opcional no header)."""
+        parsed_url = urllib.parse.urlparse(url)
+        if parsed_url.scheme not in ("http", "https"):
+            raise ValueError("stream ingest URL must use http or https")
+
         self._start_queue(maxsize=2)
         assert self._q is not None
 

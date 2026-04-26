@@ -76,7 +76,11 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		os.Getenv("VIGIA_BOOTSTRAP_DATA_DIR"), os.Getenv("VIGIA_LOG_DIR"))
 
 	log := logger.NewLogger("vigia-bootstrap")
-	defer log.Sync()
+	defer func() {
+		if err := log.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "vigia-bootstrap: failed to sync logger: %v\n", err)
+		}
+	}()
 
 	log.Info("Starting vigia-bootstrap")
 

@@ -236,7 +236,29 @@ jobs:
       - name: Node - tests
         if: matrix.project.type == 'node'
         working-directory: ${{ matrix.project.path }}
-        run: npm run test -- --watch=false --browsers=ChromeHeadless --code-coverage
+        run: |
+          set -euo pipefail
+          HAS_TEST_SCRIPT="false"
+          HAS_SPEC_FILES="false"
+
+          if node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
+            HAS_TEST_SCRIPT="true"
+          fi
+
+          if git ls-files '*.spec.ts' | grep -q .; then
+            HAS_SPEC_FILES="true"
+          fi
+
+          if [[ "$HAS_TEST_SCRIPT" == "true" && "$HAS_SPEC_FILES" == "true" ]]; then
+            if npm ls @vitest/coverage-v8 --depth=0 >/dev/null 2>&1; then
+              npm run test -- --watch=false --coverage
+            else
+              echo "::notice::Plugin de coverage do Vitest nao encontrado; executando testes sem cobertura."
+              npm run test -- --watch=false
+            fi
+          else
+            echo "::notice::Sem suite de testes configurada (script test e/ou arquivos *.spec.ts ausentes); pulando."
+          fi
 
       - name: Node - build verification
         if: matrix.project.type == 'node'

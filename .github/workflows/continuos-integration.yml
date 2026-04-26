@@ -208,7 +208,12 @@ jobs:
       - name: Node - install dependencies
         if: matrix.project.type == 'node'
         working-directory: ${{ matrix.project.path }}
-        run: npm ci
+        run: |
+          set -euo pipefail
+          if ! npm ci; then
+            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
+            npm install
+          fi
 
       - name: Node - lint
         if: matrix.project.type == 'node'

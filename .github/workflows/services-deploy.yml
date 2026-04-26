@@ -431,12 +431,12 @@ jobs:
           build-args: |
             VERSION=${{ inputs.version }}
  
-      - name: Trivy — scan de vulnerabilidades da imagem
+      - name: Trivy — gerar relatório SARIF
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
           severity: "CRITICAL,HIGH"
-          exit-code: "1"
+          exit-code: "0"
           format: sarif
           output: trivy-results.sarif
  
@@ -445,6 +445,15 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-results.sarif
+
+      # Gate de segurança com saída legível no log do job
+      - name: Trivy — bloquear build em CRITICAL/HIGH
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.validate_environment.outputs.image_name }}:${{ inputs.version }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          format: table
  
       # Só publica depois que Trivy aprova
       - name: Push da imagem

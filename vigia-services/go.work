@@ -1,0 +1,9 @@
+go 1.26.1
+
+use (
+	./apps/vigia-api
+	./apps/vigia-bootstrap
+	./apps/vigia-stream
+	./pkg/logger
+	./pkg/utils
+)

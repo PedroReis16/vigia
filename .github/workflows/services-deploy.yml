@@ -254,7 +254,7 @@ jobs:
       - name: Python - dependency vulnerabilities (pip-audit)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: pip-audit --strict
+        run: pip-audit --strict -r requirements.txt
  
       # ── Go — gosec + govulncheck ─────────────────────────────
       - name: Set up Go
@@ -429,6 +429,7 @@ jobs:
         with:
           context: .
           file: ${{ needs.validate_environment.outputs.dockerfile_path }}
+          platforms: ${{ needs.validate_environment.outputs.image_name == 'fall-detection' && 'linux/arm64' || 'linux/amd64' }}
           load: true
           push: false
           tags: |
@@ -545,8 +546,15 @@ jobs:
   # ─────────────────────────────────────────────
   tag_release:
     name: Criar tag de release
-    needs: [validate_environment, deploy]
-    if: needs.deploy.result == 'success'
+    needs: [validate_environment, publish_docker_image, deploy]
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      needs.publish_docker_image.result == 'success' &&
+      (
+        needs.validate_environment.outputs.compose_service == '' ||
+        needs.deploy.result == 'success'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

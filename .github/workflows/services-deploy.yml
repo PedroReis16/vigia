@@ -456,6 +456,7 @@ jobs:
     if: |
       always() &&
       needs.validate_environment.result == 'success' &&
+      needs.validate_environment.outputs.service_slug != 'vigia-fall-detection' &&
       needs.validate_environment.outputs.compose_service != '' &&
       needs.publish_docker_image.result == 'success'
     runs-on: ubuntu-latest
@@ -523,6 +524,7 @@ jobs:
       needs.validate_environment.result == 'success' &&
       needs.publish_docker_image.result == 'success' &&
       (
+        needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' ||
         needs.validate_environment.outputs.compose_service == '' ||
         needs.deploy.result == 'success'
       )

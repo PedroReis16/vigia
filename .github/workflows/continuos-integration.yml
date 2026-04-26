@@ -36,22 +36,28 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            frontend:
+            frontend_non_md:
               - 'frontend/**'
+              - '!frontend/**/*.md'
               - 'docker-compose/dockerfiles/vigia-frontend.dockerfile'
-            fall_detection:
+            fall_detection_non_md:
               - 'fall-detection/**'
+              - '!fall-detection/**/*.md'
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
-            vigia_api:
+            vigia_api_non_md:
               - 'vigia-services/apps/vigia-api/**'
+              - '!vigia-services/apps/vigia-api/**/*.md'
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
-            vigia_stream:
+            vigia_stream_non_md:
               - 'vigia-services/apps/vigia-stream/**'
+              - '!vigia-services/apps/vigia-stream/**/*.md'
               - 'docker-compose/dockerfiles/vigia-stream.dockerfile'
-            vigia_bootstrap:
+            vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
-            vigia_shared:
+              - '!vigia-services/apps/vigia-bootstrap/**/*.md'
+            vigia_shared_non_md:
               - 'vigia-services/pkg/shared/**'
+              - '!vigia-services/pkg/shared/**/*.md'
             vigia_common:
               - 'vigia-services/go.work'
               - 'vigia-services/go.work.sum'
@@ -64,7 +70,7 @@ jobs:
           set -euo pipefail
           PROJECTS='[]'
 
-          if [[ "${{ steps.filter.outputs.frontend }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.frontend_non_md }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "frontend",
               "type":       "node",
@@ -74,7 +80,7 @@ jobs:
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "${{ steps.filter.outputs.fall_detection }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.fall_detection_non_md }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "fall-detection",
               "type":       "python",
@@ -85,10 +91,10 @@ jobs:
           fi
 
           # Variáveis auxiliares para deixar as condições legíveis
-          VIGIA_API_CHANGED="${{ steps.filter.outputs.vigia_api }}"
-          VIGIA_STREAM_CHANGED="${{ steps.filter.outputs.vigia_stream }}"
-          VIGIA_BOOTSTRAP_CHANGED="${{ steps.filter.outputs.vigia_bootstrap }}"
-          SHARED_CHANGED="${{ steps.filter.outputs.vigia_shared }}"
+          VIGIA_API_CHANGED="${{ steps.filter.outputs.vigia_api_non_md }}"
+          VIGIA_STREAM_CHANGED="${{ steps.filter.outputs.vigia_stream_non_md }}"
+          VIGIA_BOOTSTRAP_CHANGED="${{ steps.filter.outputs.vigia_bootstrap_non_md }}"
+          SHARED_CHANGED="${{ steps.filter.outputs.vigia_shared_non_md }}"
           COMMON_CHANGED="${{ steps.filter.outputs.vigia_common }}"
 
           # vigia-api entra se o próprio app, o pacote shared ou os arquivos

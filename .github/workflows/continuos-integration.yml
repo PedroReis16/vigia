@@ -178,6 +178,14 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.project.path }}/package-lock.json
 
+      - name: Set up npm
+        if: matrix.project.type == 'node'
+        working-directory: ${{ matrix.project.path }}
+        run: |
+          corepack enable
+          corepack prepare npm@11.6.2 --activate
+          npm --version
+
       - name: Set up Python
         if: matrix.project.type == 'python'
         uses: actions/setup-python@v5

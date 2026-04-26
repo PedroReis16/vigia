@@ -218,6 +218,14 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
 
+      - name: Set up npm
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          corepack enable
+          corepack prepare npm@11.6.2 --activate
+          npm --version
+
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
@@ -311,6 +319,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
+
+      - name: Set up npm
+        if: needs.validate_environment.outputs.service_type == 'node'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          corepack enable
+          corepack prepare npm@11.6.2 --activate
+          npm --version
 
       - name: Node - install dependencies
         if: needs.validate_environment.outputs.service_type == 'node'

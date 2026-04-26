@@ -3,8 +3,7 @@ module github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap
 go 1.26.1
 
 require (
-	github.com/PedroReis16/vigia/vigia-services/pkg/logger v0.0.0
-	github.com/PedroReis16/vigia/vigia-services/pkg/utils v0.0.0
+	github.com/PedroReis16/vigia/vigia-services/pkg/shared v0.0.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/zap v1.27.1
@@ -17,6 +16,4 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
 
-replace github.com/PedroReis16/vigia/vigia-services/pkg/logger => ../../pkg/logger
-
-replace github.com/PedroReis16/vigia/vigia-services/pkg/utils => ../../pkg/utils
+replace github.com/PedroReis16/vigia/vigia-services/pkg/shared => ../../pkg/shared

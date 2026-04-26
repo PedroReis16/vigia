@@ -4,6 +4,5 @@ use (
 	./apps/vigia-api
 	./apps/vigia-bootstrap
 	./apps/vigia-stream
-	./pkg/logger
-	./pkg/utils
+	./pkg/shared
 )

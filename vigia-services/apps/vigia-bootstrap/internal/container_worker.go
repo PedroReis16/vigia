@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/models"
-	"github.com/PedroReis16/vigia/vigia-services/pkg/utils"
+	"github.com/PedroReis16/vigia/vigia-services/pkg/shared/utils"
 
 	"github.com/goccy/go-yaml"
 	"go.uber.org/zap"

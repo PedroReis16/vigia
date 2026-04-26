@@ -20,7 +20,7 @@ help:
 	@echo "  tidy | clean"
 
 tidy:
-	@for d in $(API_DIR) $(STREAM_DIR) pkg/utils pkg/logger $(BOOTSTRAP_DIR); do \
+	@for d in $(API_DIR) $(STREAM_DIR) pkg/shared $(BOOTSTRAP_DIR); do \
 		echo "==> go mod tidy $$d"; \
 		(cd $$d && go mod tidy); \
 	done
@@ -59,7 +59,7 @@ build-stream:
 
 build-bootstrap:
 	@mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/vigia-bootstrap ./$(BOOTSTRAP_DIR)
+	go build -o $(BIN_DIR)/vigia-bootstrap ./$(BOOTSTRAP_DIR)/cmd
 
 build-all: build-api build-stream build-bootstrap
 
@@ -73,7 +73,7 @@ build-linux-arm64-stream:
 
 build-linux-arm64-bootstrap:
 	@mkdir -p $(BIN_DIR)
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(BIN_DIR)/vigia-bootstrap-linux-arm64 ./$(BOOTSTRAP_DIR)
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(BIN_DIR)/vigia-bootstrap-linux-arm64 ./$(BOOTSTRAP_DIR)/cmd
 
 clean:
 	rm -rf $(BIN_DIR)

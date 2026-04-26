@@ -73,10 +73,10 @@ func PrepareBootstrapDataDirs(dataDir string) error {
 	if dataDir == "" || dataDir == "." {
 		return fmt.Errorf("invalid data directory")
 	}
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0750); err != nil {
 		return err
 	}
-	return os.MkdirAll(filepath.Join(dataDir, "logs"), 0755)
+	return os.MkdirAll(filepath.Join(dataDir, "logs"), 0750)
 }
 
 // InstallSystemdUnit writes the unit file and runs systemctl. Requires root. Linux only.
@@ -102,29 +102,22 @@ func InstallSystemdUnit(dataDir string, startNow bool) error {
 	}
 
 	unit := SystemdUnitContent(dataDir, execPath)
-	if err := os.WriteFile(SystemdUnitInstallPath, []byte(unit), 0644); err != nil {
+	if err := os.WriteFile(SystemdUnitInstallPath, []byte(unit), 0600); err != nil {
 		return fmt.Errorf("write %s: %w", SystemdUnitInstallPath, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(systemdDropInWorkdirPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(systemdDropInWorkdirPath), 0750); err != nil {
 		return fmt.Errorf("mkdir drop-in dir: %w", err)
 	}
-	if err := os.WriteFile(systemdDropInWorkdirPath, []byte(DropInResetWorkingDirectory()), 0644); err != nil {
+	if err := os.WriteFile(systemdDropInWorkdirPath, []byte(DropInResetWorkingDirectory()), 0600); err != nil {
 		return fmt.Errorf("write %s: %w", systemdDropInWorkdirPath, err)
 	}
 
-	steps := []struct {
-		name string
-		args []string
-	}{
-		{"daemon-reload", []string{"systemctl", "daemon-reload"}},
-		{"enable", []string{"systemctl", "enable", SystemdUnitName}},
+	if out, err := exec.Command("systemctl", "daemon-reload").CombinedOutput(); err != nil {
+		return fmt.Errorf("daemon-reload: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
-	for _, step := range steps {
-		out, err := exec.Command(step.args[0], step.args[1:]...).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("%s: %w\n%s", step.name, err, strings.TrimSpace(string(out)))
-		}
+	if out, err := exec.Command("systemctl", "enable", SystemdUnitName).CombinedOutput(); err != nil {
+		return fmt.Errorf("enable: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
 	if startNow {
 		out, err := exec.Command("systemctl", "start", SystemdUnitName).CombinedOutput()

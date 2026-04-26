@@ -67,10 +67,10 @@ func WriteEtcBootstrapDataDir(dataDir string) error {
 	if dataDir == "" || dataDir == "." {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(EtcBootstrapDataDirPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(EtcBootstrapDataDirPath), 0750); err != nil {
 		return err
 	}
-	return os.WriteFile(EtcBootstrapDataDirPath, []byte(dataDir+"\n"), 0644)
+	return os.WriteFile(EtcBootstrapDataDirPath, []byte(dataDir+"\n"), 0600)
 }
 
 // RemoveEtcBootstrapDataDir removes the fallback file (best-effort).

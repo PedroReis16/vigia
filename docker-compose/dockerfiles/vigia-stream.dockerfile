@@ -1,5 +1,5 @@
 # Build vigia-stream from modular workspace (vigia-services/apps/vigia-stream)
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.26.2-alpine AS builder
 
 WORKDIR /src/vigia-services
 

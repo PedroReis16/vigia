@@ -264,17 +264,12 @@ jobs:
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
       - name: Go - lint
         if: matrix.project.type == 'go'
-        uses: golangci/golangci-lint-action@v6
-        with:
-          working-directory: ${{ matrix.project.path }}
-          args: --timeout=5m
-          # Usa o Go já instalado pelo setup-go acima, evitando conflito
-          # de versão que ocorre quando o golangci-lint tenta instalar o
-          # próprio Go internamente.
-          skip-go-installation: true
+        working-directory: ${{ matrix.project.path }}
+        run: golangci-lint run --timeout=5m
 
       - name: Go - SAST
         if: matrix.project.type == 'go'

@@ -82,6 +82,7 @@ class StreamOutWorker:
                         req.add_header("Content-Type", "application/octet-stream")
                         if token:
                             req.add_header("X-Vigia-Ingest-Token", token)
+                        # nosec B310: URL scheme is validated in start_http (http/https only).
                         with urllib.request.urlopen(req, timeout=20) as resp:
                             if resp.status not in (200, 204):
                                 time.sleep(0.25)

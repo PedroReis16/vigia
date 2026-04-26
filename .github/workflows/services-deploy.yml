@@ -1,0 +1,39 @@
+name: Services Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_selection:
+        description: "Service to deploy"
+        required: true
+        type: choice
+        options:
+          - Vigia API
+          - Vigia Stream
+          - Vigia Bootstrap
+          - Vigia Frontend
+          - Vigia Notification
+          - Vigia Webhook
+          - Vigia Webhook
+      version:
+        description: "Version to deploy"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate_environment:
+    name: Deployment context
+    runs-on: ubuntu-latest
+    outputs:
+      go_package: ${{ steps.deployment_vars.outputs.go_package }}
+      binary_name: ${{ steps.deployment_vars.outputs.binary_name }}
+      dockerfile_path: ${{ steps.deployment_vars.outputs.dockerfile_path }}
+      image_name: ${{ steps.deployment_vars.outputs.image_name }}
+      compose_service: ${{ steps.deployment_vars.outputs.compose_service }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0

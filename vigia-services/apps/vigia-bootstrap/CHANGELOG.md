@@ -1,3 +1,4 @@
 # [1.0.0] 
 
-- Alguma alteração relevante
+- Preparação do ambiente para execução do ambiente docker para detecção de quedas
+- Rotina de consulta e atualização das imagens docker

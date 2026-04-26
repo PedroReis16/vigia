@@ -1,3 +1,3 @@
 # [1.0.0] 
 
-- Alguma alteração relevante
+- Interface para visualização em tempo real das imagens capturadas pelo dispositivo embarcado

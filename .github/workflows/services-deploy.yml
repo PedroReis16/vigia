@@ -12,6 +12,7 @@ on:
           - Vigia Stream
           - Vigia Frontend
           - Vigia Fall Detection
+          - Vigia Bootstrap
       version:
         description: "Version to deploy"
         required: true
@@ -100,6 +101,16 @@ jobs:
               ARTIFACT_NAME="vigia-frontend"
               COMPOSE_SERVICE="vigia-frontend"
               HAS_DOCKER="true"
+              ;;
+            "Vigia Bootstrap")
+              SERVICE_TYPE="go"
+              SERVICE_SLUG="vigia-bootstrap"
+              SERVICE_PATH="vigia-services/apps/vigia-bootstrap"
+              DOCKERFILE_PATH=""
+              IMAGE_NAME=""
+              ARTIFACT_NAME="vigia-bootstrap"
+              COMPOSE_SERVICE=""
+              HAS_DOCKER="false"
               ;;
             *)
               echo "::error::Serviço desconhecido: ${{ inputs.service_selection }}"
@@ -287,6 +298,7 @@ jobs:
   build:
     name: Build — ${{ inputs.service_selection }}
     needs: validate_environment
+    if: needs.validate_environment.outputs.service_slug != 'vigia-bootstrap'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -511,6 +523,49 @@ jobs:
             echo "==> Deploy de '$SERVICE' v$VERSION concluído com sucesso."
 
   # ─────────────────────────────────────────────
+  # 5.1 DEPLOY BOOTSTRAP (SEM DOCKER)
+  # Gera o executável para distribuição ao usuário.
+  # ─────────────────────────────────────────────
+  deploy_bootstrap:
+    name: Deploy Bootstrap (gerar executável)
+    needs: [validate_environment, security]
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ needs.validate_environment.outputs.service_path }}/go.mod
+          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/go.sum
+
+      - name: Build executável Linux arm64
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          GOWORK: off
+        run: |
+          set -euo pipefail
+          mkdir -p ./dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build \
+              -trimpath \
+              -ldflags="-s -w" \
+              -o "./dist/vigia-bootstrap-linux-arm64" \
+              ./cmd
+
+      - name: Exportar executável do bootstrap
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ${{ needs.validate_environment.outputs.service_path }}/dist/vigia-bootstrap-linux-arm64
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
   # 6. TAG DE RELEASE
   # Cria a git tag no repositório após deploy
   # bem-sucedido. Serve como registro imutável
@@ -518,21 +573,37 @@ jobs:
   # ─────────────────────────────────────────────
   tag_release:
     name: Criar tag de release
-    needs: [validate_environment, publish_docker_image, deploy]
+    needs: [validate_environment, publish_docker_image, deploy, deploy_bootstrap]
     if: |
       always() &&
       needs.validate_environment.result == 'success' &&
-      needs.publish_docker_image.result == 'success' &&
       (
-        needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' ||
-        needs.validate_environment.outputs.compose_service == '' ||
-        needs.deploy.result == 'success'
+        (
+          needs.validate_environment.outputs.service_slug == 'vigia-bootstrap' &&
+          needs.deploy_bootstrap.result == 'success'
+        ) ||
+        (
+          needs.validate_environment.outputs.service_slug != 'vigia-bootstrap' &&
+          needs.publish_docker_image.result == 'success' &&
+          (
+            needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' ||
+            needs.validate_environment.outputs.compose_service == '' ||
+            needs.deploy.result == 'success'
+          )
+        )
       )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Baixar executável do bootstrap
+        if: needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ./release-assets
  
       - name: Criar e publicar tag
         env:
@@ -578,7 +649,21 @@ jobs:
 
           echo "Release notes extraidas com sucesso."
 
-      - name: Criar GitHub Release
+      - name: Criar GitHub Release (bootstrap com executável)
+        if: needs.validate_environment.outputs.service_slug == 'vigia-bootstrap'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          files: ./release-assets/vigia-bootstrap-linux-arm64
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Criar GitHub Release (demais serviços)
+        if: needs.validate_environment.outputs.service_slug != 'vigia-bootstrap'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate_environment.outputs.tag_name }}

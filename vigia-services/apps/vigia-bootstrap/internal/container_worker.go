@@ -274,7 +274,9 @@ func registryManifestDigest(ctx context.Context, client *http.Client, repository
 		return "", err
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, io.LimitReader(resp.Body, 8192))
+	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, 8192)); err != nil {
+		return "", fmt.Errorf("draining manifest response body: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return "", fmt.Errorf("HEAD manifest %d: %s", resp.StatusCode, string(b))

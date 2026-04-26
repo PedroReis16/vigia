@@ -1,6 +1,6 @@
 module github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap
 
-go 1.26.1
+go 1.26.2
 
 require (
 	github.com/PedroReis16/vigia/vigia-services/pkg/shared v0.0.0

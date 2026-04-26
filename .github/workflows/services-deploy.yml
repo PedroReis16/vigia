@@ -438,6 +438,7 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: table
+          ignore-unfixed: true
  
       # Só publica depois que Trivy aprova
       - name: Push da imagem

@@ -1,7 +1,12 @@
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 # Set the working directory in the container
 WORKDIR /app
+
+# Apply latest Debian security patches available at build time.
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file into the container
 COPY fall-detection/requirements.txt ./

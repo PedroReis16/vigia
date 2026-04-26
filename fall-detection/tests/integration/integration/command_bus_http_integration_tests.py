@@ -73,8 +73,15 @@ async def test_dispatch_given_upload_logs_without_logs_api_should_noop(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_dispatch_given_stream_command_should_invoke_default_handler(
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    logged_messages: list[str] = []
+
+    def fake_info(message: str, *_args: object) -> None:
+        logged_messages.append(message)
+
+    monkeypatch.setattr("app.integration.command_bus.logger.info", fake_info)
+
     ctx = IntegrationContext(
         settings=minimal_integration_settings(),
         device_settings=VigiaSettings(device_id=uuid4()),
@@ -83,15 +90,21 @@ async def test_dispatch_given_stream_command_should_invoke_default_handler(
 
     await dispatcher.dispatch("stream", {})
 
-    captured = capsys.readouterr()
-    assert "stream" in captured.out.lower()
+    assert any("stream" in message.lower() for message in logged_messages)
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_dispatch_given_unknown_command_should_not_raise(
-    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    logged_messages: list[str] = []
+
+    def fake_warning(message: str, *_args: object) -> None:
+        logged_messages.append(message)
+
+    monkeypatch.setattr("app.integration.command_bus.logger.warning", fake_warning)
+
     ctx = IntegrationContext(
         settings=minimal_integration_settings(),
         device_settings=VigiaSettings(device_id=uuid4()),
@@ -100,5 +113,4 @@ async def test_dispatch_given_unknown_command_should_not_raise(
 
     await dispatcher.dispatch("unknown_command_xyz", {})
 
-    captured = capsys.readouterr()
-    assert "nao suportado" in captured.out.lower()
+    assert any("nao suportado" in message.lower() for message in logged_messages)

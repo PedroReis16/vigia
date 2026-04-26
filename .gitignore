@@ -217,3 +217,5 @@ docker-compose/mongo*
 .DS_Store
 
 fall-detection/device/
+.DS_Store
+*/bin/

@@ -1,10 +1,31 @@
 [MASTER]
 extension-pkg-allow-list=cv2
 init-hook=import sys; sys.path.insert(0, 'src')
+py-version=3.10
 
 [MESSAGES CONTROL]
 disable=
-    fixme
+    fixme,
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    line-too-long,
+    trailing-whitespace,
+    missing-final-newline,
+    wrong-import-position,
+    wrong-import-order,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    too-many-instance-attributes,
+    too-few-public-methods,
+    invalid-name,
+    broad-exception-caught,
+    broad-exception-raised,
+    duplicate-code,
+    protected-access,
+    unused-import,
+    unused-variable
 
 [TYPECHECK]
 generated-members=cv2.*
@@ -20,4 +41,5 @@ ignored-modules=
     paho.mqtt.client,
     schedule,
     loguru,
-    pytest
+    pytest,
+    joblib

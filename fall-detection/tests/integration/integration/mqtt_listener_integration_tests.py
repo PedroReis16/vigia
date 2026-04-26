@@ -121,10 +121,16 @@ async def test_listen_mqtt_given_name_field_should_dispatch(
 @pytest.mark.asyncio
 async def test_listen_mqtt_given_invalid_json_should_log_without_dispatch(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("FIWARE_MQTT_ENABLED", "true")
     monkeypatch.setenv("FIWARE_MQTT_TOPIC", "/integration/cmd")
+
+    logged_warnings: list[str] = []
+
+    def fake_warning(message: str, *_args: object) -> None:
+        logged_warnings.append(message)
+
+    monkeypatch.setattr("app.integration.mqtt_listener.logger.warning", fake_warning)
 
     captured: list[dict] = []
 
@@ -151,5 +157,4 @@ async def test_listen_mqtt_given_invalid_json_should_log_without_dispatch(
             await task
 
     assert not captured
-    out = capsys.readouterr().out
-    assert "sem comando" in out.lower() or "mqtt" in out.lower()
+    assert any("sem comando" in message.lower() for message in logged_warnings)

@@ -1,0 +1,17 @@
+[MASTER]
+init-hook=import sys; sys.path.insert(0, 'fall-detection/src')
+
+[TYPECHECK]
+ignored-modules=
+    aiohttp,
+    dotenv,
+    cv2,
+    numpy,
+    pandas,
+    onnxruntime,
+    sklearn,
+    ultralytics,
+    paho.mqtt.client,
+    schedule,
+    loguru,
+    pytest

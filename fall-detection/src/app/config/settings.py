@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 from app.config.ingest import tcp_stream_target_from_env
+from app.logging import get_logger
+
+logger = get_logger("config")
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     yolo_pose_model: str | None
     yolo_model_device: str | None
     pose_csv_window_seconds: float
+    integration_interval_seconds: int
 
     @property
     def capture_interval(self) -> float | None:
@@ -39,13 +43,10 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         """Lê `.env` e variáveis de ambiente e monta `Settings`."""
         load_dotenv()
 
-        data_path = (os.getenv("DATA_PATH") or "").strip() or None
+        data_path = (os.getenv("DATA_PATH") or "").strip() or "data"
         frames_dir: str | None
-        if data_path:
-            frames_dir = os.path.join(data_path.rstrip("/"), "frames")
-            os.makedirs(frames_dir, exist_ok=True)
-        else:
-            frames_dir = None
+        frames_dir = os.path.join(data_path.rstrip("/"), "frames")
+        os.makedirs(frames_dir, exist_ok=True)
 
         stream_video = _env_truthy("STREAM_VIDEO")
 
@@ -54,10 +55,9 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         stream_target = tcp_stream_target_from_env()
 
         if stream_video and not stream_ingest_url and stream_target is None:
-            print(
-                "Aviso: defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
-                "STREAM_TCP_ADDR=host:porta (TCP :8090).",
-                flush=True,
+            logger.warning(
+                "defina STREAM_INGEST_URL=https://…/ingest (via Traefik) ou "
+                "STREAM_TCP_ADDR=host:porta (TCP :8090)."
             )
 
         show_video = _env_truthy("SHOW_VIDEO")
@@ -68,7 +68,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         yolo_pose_model = os.getenv("YOLO_POSE_MODEL")
         yolo_model_device = os.getenv("YOLO_MODEL_DEVICE")
         pose_csv_window_seconds = float(os.getenv("POSE_CSV_WINDOW_SECONDS", "3"))
-
+        integration_interval_seconds = int(os.getenv("INTEGRATION_INTERVAL_SECONDS", "3"))
+        
         return cls(
             data_path=data_path,
             frames_dir=frames_dir,
@@ -83,6 +84,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             yolo_pose_model=yolo_pose_model,
             yolo_model_device=yolo_model_device,
             pose_csv_window_seconds=pose_csv_window_seconds,
+            integration_interval_seconds=integration_interval_seconds,
         )
 
 

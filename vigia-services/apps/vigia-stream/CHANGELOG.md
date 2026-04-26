@@ -1,3 +1,3 @@
 # [1.0.0] 
 
-- Alguma alteração relevante
+- Serviço para recebimento e transmissão das imagens vindas do dispositivo embarcado a para a interface web

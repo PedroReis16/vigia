@@ -11,11 +11,12 @@ from app.path_setup import ensure_src_on_path
 ensure_src_on_path()
 
 from app.config import Settings
+from app.logging import configure_logging
 from app.runtime import run
-
 
 def main() -> None:
     """Configuração via ambiente e execução do runtime."""
+    configure_logging()
     run(Settings.from_env())
 
 

@@ -18,16 +18,17 @@ COPY --from=builder /app/dist/frontend/browser /usr/share/nginx/html
 
 # SPA fallback for Angular Router
 RUN rm /etc/nginx/conf.d/default.conf && \
-  printf '%s\n' \
-  'server {' \
-  '  listen 80;' \
-  '  server_name localhost;' \
-  '  root /usr/share/nginx/html;' \
-  '  index index.html;' \
-  '  location / {' \
-  '    try_files $uri $uri/ /index.html;' \
-  '  }' \
-  '}' > /etc/nginx/conf.d/default.conf
+  cat > /etc/nginx/conf.d/default.conf <<'EOF'
+server {
+  listen 80;
+  server_name localhost;
+  root /usr/share/nginx/html;
+  index index.html;
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+EOF
 
 EXPOSE 80
 

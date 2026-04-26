@@ -550,6 +550,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
  
       - name: Criar e publicar tag
         env:
@@ -565,3 +567,43 @@ jobs:
           git push origin "$TAG_NAME"
  
           echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Extrair release notes do CHANGELOG
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          SERVICE_PATH: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+
+          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+          echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
+
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
+            exit 1
+          fi
+
+          awk -v version="$VERSION" '
+            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
+            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
+            capture { print }
+          ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Nao foi possivel extrair release notes para versao $VERSION em $CHANGELOG_PATH."
+            exit 1
+          fi
+
+          echo "Release notes extraidas com sucesso."
+
+      - name: Criar GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

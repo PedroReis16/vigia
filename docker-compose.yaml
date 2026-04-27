@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # ─── VIGIA API ────────────────────────────────────────────────────────────
   vigia-api:
     build:
       context: .
@@ -17,6 +18,7 @@ services:
     networks:
       - vigia-network
 
+  # ─── VIGIA STREAM ──────────────────────────────────────────────────────────
   vigia-stream:
     build:
       context: .
@@ -33,6 +35,7 @@ services:
     networks:
       - vigia-network
 
+  # ─── VIGIA FRONTEND ──────────────────────────────────────────────────────────
   vigia-frontend:
     container_name: vigia-frontend
     build:
@@ -46,7 +49,30 @@ services:
     networks:
       - vigia-network
 
-  # MongoDB HISTÓRICO (com autenticação) - usado pelo STH Comet
+  # ─── MediaMTX (baixa latencia para testes) ─────────────────────────────────────
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: vigia-mediamtx
+    profiles: ["stream-test"]
+    restart: unless-stopped
+    volumes:
+      - ./docker-compose/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      # Ingest RTMP (ex.: ffmpeg -> rtmp://localhost:1936/live/cam1)
+      - "1935:1935"
+      # Reproducao RTSP (ex.: rtsp://localhost:8554/live/cam1)
+      - "8554:8554"
+      # Player WebRTC/HLS (http://localhost:8889/live/cam1)
+      - "8889:8889"
+      - "8888:8888"
+      # ICE/UDP do WebRTC para reduzir latencia ponta-a-ponta
+      - "8189:8189/udp"
+      # Fallback ICE/TCP quando UDP nao fecha conexao
+      - "8189:8189/tcp"
+    networks:
+      - vigia-network
+
+  # ─── MONGO HISTÓRICO (com autenticação) - usado pelo STH Comet ────────────────
   mongo-db-historical:
     image: mongo:4.4
     container_name: fiware-mongo-historical
@@ -64,7 +90,7 @@ services:
     networks:
       - vigia-network
 
-  # MongoDB INTERNO (sem autenticação) - usado pelo Orion e IoT Agent
+  # ─── MONGO INTERNO (sem autenticação) - usado pelo Orion e IoT Agent ────────────
   mongo-db-internal:
     image: mongo:4.4
     container_name: fiware-mongo-internal
@@ -81,7 +107,7 @@ services:
     networks:
       - vigia-network
 
-  # Orion – Context Broker (usando mongo-db-internal, sem auth)
+  # ─── ORION – Context Broker (usando mongo-db-internal, sem auth) ────────────────
   orion:
     image: fiware/orion:3.11.0
     restart: always
@@ -103,7 +129,7 @@ services:
     networks:
       - vigia-network
 
-  # STH Comet – Armazena dados históricos (usando mongo-db-historical, com auth)
+  # ─── STH Comet – Armazena dados históricos (usando mongo-db-historical, com auth) ──────
   fiware-sth-comet:
     image: telefonicaiot/fiware-sth-comet
     restart: always
@@ -126,7 +152,7 @@ services:
 
     networks:
       - vigia-network
-  # MQTT Broker – Mosquitto
+  # ─── MQTT BROKER – Mosquitto ────────────────────────────────────────────────
   mosquitto:
     image: eclipse-mosquitto:latest
     restart: always
@@ -142,7 +168,7 @@ services:
     networks:
       - vigia-network
 
-  # IoT Agent – UL (usando mongo-db-internal, sem auth)
+  # ─── IOT AGENT – UL (usando mongo-db-internal, sem auth) ──────────────────────
   iot-agent:
     image: fiware/iotagent-ul:latest
     restart: always

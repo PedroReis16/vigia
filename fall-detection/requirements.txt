@@ -7,4 +7,5 @@ aiohttp==3.13.4
 paho-mqtt==2.1.0
 scikit-learn==1.8.0
 onnxruntime==1.22.0
-loguru
+loguru==0.7.3
+vidgear==0.3.4

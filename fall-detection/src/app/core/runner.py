@@ -1,12 +1,10 @@
 from __future__ import annotations
-import asyncio
 import datetime
 import time
 import schedule
 
 from app.config import Settings, prepare_data_workspace
 from app.fiware.device_sync import (
-    ensure_fiware_device_registered,
     load_local_device_settings_required,
 )
 from app.logging import get_logger
@@ -45,8 +43,7 @@ def run_fall_analysis_task() -> None:
 
 def run_analysis(settings: Settings) -> None:
     """Prepara diretório de dados e executa modelos de postura / quedas."""
-    device_settings = load_local_device_settings_required()
-    asyncio.run(ensure_fiware_device_registered(device_settings))
+    load_local_device_settings_required()
 
     prepare_data_workspace(settings, reset=False)
 

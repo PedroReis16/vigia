@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 import cv2
 
 from app.config import Settings, prepare_data_workspace
@@ -9,7 +7,6 @@ from app.capture.io import FrameSaveWorker, StreamOutWorker, optional_stream_wor
 from app.capture.loop import CaptureLoopContext, run_capture_loop
 from app.capture.pose import PoseModel
 from app.fiware.device_sync import (
-    ensure_fiware_device_registered,
     load_local_device_settings_required,
 )
 from app.logging import get_logger
@@ -19,8 +16,7 @@ logger = get_logger("capture")
 
 def run_capture(settings: Settings) -> None:
     """Executa o loop de captura de imagens da câmera."""
-    device_settings = load_local_device_settings_required()
-    asyncio.run(ensure_fiware_device_registered(device_settings))
+    load_local_device_settings_required()
 
     pose_csv_dir: str | None = None
     if settings.data_path:

@@ -17,6 +17,7 @@ from app.fiware.posture_notifier import FiwarePostureNotifier
 from app.logging import get_logger
 
 from app.capture.fall_classifier import FallClassifier, build_keypoints_list
+from app.streaming.stream_video import stream_video
 
 logger = get_logger("capture")
 
@@ -65,28 +66,30 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 )
                 first_infer = False
 
-            result = ctx.pose_model.model(frame, verbose=False)[0]
-            annotated = result.plot()
+            stream_video(frame)
 
-            if result.keypoints is not None and len(result.keypoints) > 0:
-                # Converte saída do YOLO para o formato do classificador
-                kps = result.keypoints.xy.cpu().numpy()  # (N_pessoas, 17, 2)
-                kconf = result.keypoints.conf.cpu().numpy()
-                keypoints = build_keypoints_list(kps, kconf, person_idx=0)
-                result = clf.predict(keypoints)
+            # result = ctx.pose_model.model(frame, verbose=False)[0]
+            # annotated = result.plot()
 
-                if result is not None:
-                    logger.debug("resultado classificador: {}", result)
-                    posture_state = str(result.get("label") or "").strip()
-                    if posture_state and posture_state != last_posture_state:
-                        last_posture_state = posture_state
-                        posture_notifier.notify_posture_changed(posture_state)
+            # if result.keypoints is not None and len(result.keypoints) > 0:
+            #     # Converte saída do YOLO para o formato do classificador
+            #     kps = result.keypoints.xy.cpu().numpy()  # (N_pessoas, 17, 2)
+            #     kconf = result.keypoints.conf.cpu().numpy()
+            #     keypoints = build_keypoints_list(kps, kconf, person_idx=0)
+            #     result = clf.predict(keypoints)
 
-            if ctx.stream is not None:
-                ctx.stream.send_frame(annotated)
+            #     if result is not None:
+            #         logger.debug("resultado classificador: {}", result)
+            #         posture_state = str(result.get("label") or "").strip()
+            #         if posture_state and posture_state != last_posture_state:
+            #             last_posture_state = posture_state
+            #             posture_notifier.notify_posture_changed(posture_state)
+
+            # if ctx.stream is not None:
+            #     ctx.stream.send_frame(annotated)
 
             if ctx.show_video:
-                display = cv2.flip(annotated, 1)
+                display = cv2.flip(frame, 1)
                 cv2.imshow("Detection", display)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):

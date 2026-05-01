@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from multiprocessing import Process
+from multiprocessing import Event, Process
 import os
 from pathlib import Path
 import time
@@ -13,7 +13,7 @@ from app.capture.runner import run_capture
 from app.config.data_workspace import resolve_data_root
 from app.config import Settings
 from app.core.runner import run_analysis
-from app.integration.device_registration import bootstrap_device_registration
+from app.fiware.device_sync import load_or_create_local_device_settings
 from app.integration.runner import run_integration
 from app.logging import get_logger
 
@@ -25,13 +25,12 @@ def _write_module_status(status_file: Path, payload: dict[str, str]) -> None:
     status_file.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _run_integration_process(settings: Settings) -> None:
+def _run_integration_process(settings: Settings, startup_ready: Event) -> None:
+    # A integração prepara a configuração local (cria device.json se necessário)
+    # antes de liberar os demais módulos.
+    load_or_create_local_device_settings()
+    startup_ready.set()
     asyncio.run(run_integration(settings))
-
-
-async def _bootstrap_device_registration() -> None:
-    await bootstrap_device_registration(log_prefix="[runtime]")
-    logger.info("dispositivo validado no FIWARE. iniciando modulos.")
 
 
 def run(settings: Settings) -> None:
@@ -43,22 +42,36 @@ def run(settings: Settings) -> None:
     os.environ["POSTURE_STATUS_FILE"] = str(posture_file.resolve())
     _write_module_status(
         status_file,
-        {"capture": "starting", "core": "starting", "integration": "starting"},
+        {"capture": "waiting", "core": "waiting", "integration": "starting"},
     )
     _write_module_status(
         posture_file,
         {"posture_state": "unknown", "posture_changed_at": ""},
     )
-    asyncio.run(_bootstrap_device_registration())
+
+    integration_startup_ready = Event()
+    integration_process = Process(
+        target=_run_integration_process,
+        args=(settings, integration_startup_ready),
+    )
+    integration_process.start()
+
+    integration_ready = integration_startup_ready.wait(timeout=10)
+    if not integration_ready:
+        integration_process.terminate()
+        integration_process.join()
+        raise RuntimeError(
+            "falha ao inicializar o modulo de integracao no tempo esperado. "
+            "verifique a configuracao local do dispositivo."
+        )
+    logger.info("integracao inicializada; iniciando captura e core.")
 
     # `args` precisa ser uma tupla: `(settings)` em Python é só o valor, não um 1-tuple.
     capture_process = Process(target=run_capture, args=(settings,))
     analysis_process = Process(target=run_analysis, args=(settings,))
-    integration_process = Process(target=_run_integration_process, args=(settings,))
 
     capture_process.start()
     analysis_process.start()
-    integration_process.start()
 
     # Verificação de status dos processos
     while True:

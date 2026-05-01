@@ -13,7 +13,7 @@ from app.capture.runner import run_capture
 from app.config.data_workspace import resolve_data_root
 from app.config import Settings
 from app.core.runner import run_analysis
-from app.integration.device_registration import bootstrap_device_registration
+from app.fiware.device_sync import load_local_device_settings_required
 from app.integration.runner import run_integration
 from app.logging import get_logger
 
@@ -30,8 +30,8 @@ def _run_integration_process(settings: Settings) -> None:
 
 
 async def _bootstrap_device_registration() -> None:
-    await bootstrap_device_registration(log_prefix="[runtime]")
-    logger.info("dispositivo validado no FIWARE. iniciando modulos.")
+    load_local_device_settings_required()
+    logger.info("configuracao local do dispositivo validada. iniciando modulos.")
 
 
 def run(settings: Settings) -> None:

@@ -15,30 +15,6 @@ services:
     networks:
       - vigia-network
 
-  # ─── VIGIA STREAM ────────────────────────────────────────────────────────
-
-  vigia-stream:
-    image: pedroreis16/vigia-stream:latest
-    container_name: vigia-stream
-    restart: always
-    ports:
-      # Expor no host se o cliente de vídeo (ex.: fall-detection) estiver fora do Docker
-      - "8090:8090"
-    environment:
-      - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
-      - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
-      - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vigia-stream.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && (PathPrefix(`/stream`) || PathPrefix(`/ingest`))"
-      - "traefik.http.routers.vigia-stream.entrypoints=websecure"
-      - "traefik.http.routers.vigia-stream.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vigia-stream.loadbalancer.server.port=8091"
-      - "traefik.http.routers.vigia-stream.middlewares=cors@file"
-    networks:
-      - vigia-network
-
-
   # ─── VIGIA FRONTEND ──────────────────────────────────────────────────────
   vigia-frontend:
     image: pedroreis16/vigia-frontend:latest
@@ -55,7 +31,6 @@ services:
     networks:
       - vigia-network
 
-
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
     image: traefik:v3.0
@@ -64,7 +39,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "1883:1883"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
@@ -237,35 +211,28 @@ services:
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: vigia-mediamtx
-    profiles: ["stream-test"]
     restart: unless-stopped
-    ports:
-      # Ingest RTMP (ex.: ffmpeg -> rtmp://localhost:1936/live/cam1)
-      - "1935:1935"
-      # Reproducao RTSP (ex.: rtsp://localhost:8554/live/cam1)
-      - "8554:8554"
-      # Player WebRTC/HLS (http://localhost:8889/live/cam1)
-      - "8889:8889"
-      - "8888:8888"
-      # ICE/UDP do WebRTC para reduzir latencia ponta-a-ponta
-      - "8189:8189/udp"
-      # Fallback ICE/TCP quando UDP nao fecha conexao
-      - "8189:8189/tcp"
     labels:
       - "traefik.enable=true"
-      # Router HTTP(S) para playback
+      # Playback via HTTPS
       - "traefik.http.routers.mediamtx-play.rule=(Host(`www.vigia-deteccoes.duckdns.org`) || Host(`vigia-deteccoes.duckdns.org`)) && PathPrefix(`/live`)"
       - "traefik.http.routers.mediamtx-play.entrypoints=websecure"
       - "traefik.http.routers.mediamtx-play.tls=true"
       - "traefik.http.routers.mediamtx-play.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.mediamtx-play.service=mediamtx-play-svc"
       - "traefik.http.routers.mediamtx-play.priority=100"
-      # Service para WebRTC API/player (porta 8889)
-      - "traefik.http.services.mediamtx-play-svc.loadbalancer.server.port=8889"
+      - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
+
+      # Ingest RTMPS em 443 (host separado recomendado)
+      - "traefik.tcp.routers.mediamtx-ingest.rule=HostSNI(`ingest-vigia-deteccoes.duckdns.org`)"
+      - "traefik.tcp.routers.mediamtx-ingest.entrypoints=websecure"
+      - "traefik.tcp.routers.mediamtx-ingest.tls=true"
+      - "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt"
+      - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     networks:
       - vigia-network
+
 
 volumes:
   mongo-historical-data:

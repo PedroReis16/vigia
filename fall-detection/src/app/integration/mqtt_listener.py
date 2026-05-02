@@ -77,7 +77,7 @@ def _load_mqtt_config(device_settings: VigiaSettings) -> _MqttListenConfig:
     return _MqttListenConfig(
         host=(os.getenv("FIWARE_MQTT_HOST") or "localhost").strip(),
         port=port,
-        topic=os.getenv("FIWARE_MQTT_TOPIC") or f"/{device_settings.entity_name}/cmd",
+        topic=_default_mqtt_cmd_topic(device_settings),
         username=(os.getenv("FIWARE_MQTT_USERNAME") or "").strip(),
         password=(os.getenv("FIWARE_MQTT_PASSWORD") or "").strip(),
         transport=transport,
@@ -86,7 +86,29 @@ def _load_mqtt_config(device_settings: VigiaSettings) -> _MqttListenConfig:
     )
 
 
-def _parse_command_json(raw: str) -> tuple[str, dict] | None:
+def _default_mqtt_cmd_topic(device_settings: VigiaSettings) -> str:
+    """
+    IoT Agent Ultralight (MQTT): comandos em /<apiKey>/<deviceId>/cmd
+    (sem prefixo /ul no publish southbound). Ver manual iotagent-ul.
+    """
+    env_topic = (os.getenv("FIWARE_MQTT_TOPIC") or "").strip()
+    if env_topic:
+        return env_topic
+    env_key = (os.getenv("FIWARE_IOT_API_KEY") or "").strip()
+    api_key = env_key or (device_settings.api_key or "").strip()
+    if api_key:
+        return f"/{api_key}/{device_settings.device_id}/cmd"
+    legacy = f"/{device_settings.entity_name}/cmd"
+    logger.warning(
+        "MQTT sem api_key (adicione ao device.json via reinício da integração ou "
+        "defina FIWARE_IOT_API_KEY). IoT Agent Ultralight publica em /<apiKey>/<deviceId>/cmd; "
+        "assinatura alternativa pode não receber comandos: {}",
+        legacy,
+    )
+    return legacy
+
+
+def _parse_command_json_body(raw: str) -> tuple[str, dict] | None:
     try:
         body = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
@@ -98,6 +120,34 @@ def _parse_command_json(raw: str) -> tuple[str, dict] | None:
         logger.warning("mensagem MQTT sem comando: {}", raw)
         return None
     return command_name, payload
+
+
+def _parse_ultralight_command(raw: str) -> tuple[str, dict] | None:
+    """Formato IoT Agent UL: ``<deviceId>@<cmd>|<valor>``."""
+    if "@" not in raw:
+        return None
+    _, tail = raw.split("@", 1)
+    if "|" in tail:
+        cmd, val = tail.split("|", 1)
+    else:
+        cmd, val = tail, ""
+    cmd = cmd.strip()
+    if not cmd:
+        return None
+    return cmd, {"value": val}
+
+
+def _parse_command_payload(raw: str) -> tuple[str, dict] | None:
+    raw = raw.strip()
+    if not raw:
+        return None
+    if raw.startswith("{"):
+        return _parse_command_json_body(raw)
+    parsed_ul = _parse_ultralight_command(raw)
+    if parsed_ul is not None:
+        return parsed_ul
+    logger.warning("mensagem MQTT com formato desconhecido: {}", raw)
+    return None
 
 
 def _build_client(cfg: _MqttListenConfig) -> mqtt.Client:
@@ -157,7 +207,7 @@ async def listen_mqtt_commands(
             msg: mqtt.MQTTMessage,
         ) -> None:
             raw = msg.payload.decode("utf-8", errors="ignore")
-            parsed = _parse_command_json(raw)
+            parsed = _parse_command_payload(raw)
             if parsed is None:
                 return
             command_name, payload = parsed

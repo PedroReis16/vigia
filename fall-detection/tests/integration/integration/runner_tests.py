@@ -10,17 +10,11 @@ from app.integration.runner import run_integration
 async def test_run_integration_given_valid_settings_should_wire_components() -> None:
     settings = Settings(
         data_path="data",
-        frames_dir="data/frames",
-        stream_video=False,
         stream_ingest_url="",
-        stream_ingest_token="",
-        stream_target=None,
         captures_per_second=10,
         video_capture_source=0,
         show_video=False,
-        yolo_model="yolo26s",
         yolo_pose_model="yolo26s-pose",
-        yolo_model_device="cpu",
         pose_csv_window_seconds=3,
         integration_interval_seconds=3,
     )

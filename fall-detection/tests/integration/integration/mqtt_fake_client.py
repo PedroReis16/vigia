@@ -43,6 +43,9 @@ class FakeMQTTClient:
     def tls_set_context(self, *_a: Any, **_k: Any) -> None:
         return None
 
+    def ws_set_options(self, *_a: Any, **_k: Any) -> None:
+        return None
+
     def connect(self, *_a: Any, **_k: Any) -> None:
         return None
 

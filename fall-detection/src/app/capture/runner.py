@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import cv2
 
-from app.config import Settings, prepare_data_workspace
-from app.capture.io import FrameSaveWorker, StreamOutWorker, optional_stream_worker
+from app.config import Settings
 from app.capture.loop import CaptureLoopContext, run_capture_loop
 from app.capture.pose import PoseModel
 from app.fiware.device_sync import (

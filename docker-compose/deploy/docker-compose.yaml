@@ -57,6 +57,8 @@ services:
     restart: always
     hostname: mongo-db-historical
     profiles: ["fiware"]
+    ports:
+      - "27077:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin123
@@ -73,6 +75,8 @@ services:
     restart: always
     hostname: mongo-db-internal
     profiles: ["fiware"]
+    ports:
+      - "27067:27017"
     command: ["mongod", "--nojournal"]
     volumes:
       - mongo-internal-data:/data/db

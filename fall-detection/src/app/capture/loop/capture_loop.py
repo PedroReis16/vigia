@@ -9,6 +9,8 @@ import threading
 import time
 
 import cv2
+import zmq
+import pickle
 
 from app.capture.loop.capture_loop_context import CaptureLoopContext
 from app.capture.pose.pose_process_job import PoseProcessJob
@@ -55,6 +57,12 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
         last_posture_state: str | None = None
 
         first_infer = True
+
+        context = zmq.Context()
+        socket = context.socket(zmq.PUB)
+        socket.bind("ipc:///tmp/frames.ipc")
+        time.sleep(0.5)
+
         while True:
             ret, frame = ctx.cap.read()
             if not ret:
@@ -66,7 +74,8 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 )
                 first_infer = False
 
-            stream_video(frame)
+            payload = pickle.dumps(frame, protocol=pickle.HIGHEST_PROTOCOL)
+            socket.send_multipart([b"frame", payload])
 
             # result = ctx.pose_model.model(frame, verbose=False)[0]
             # annotated = result.plot()
@@ -106,3 +115,5 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
             ctx.stream.stop()
         if ctx.saver is not None:
             ctx.saver.stop()
+        socket.close()
+        context.term()

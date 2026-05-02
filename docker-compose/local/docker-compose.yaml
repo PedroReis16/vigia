@@ -56,7 +56,7 @@ services:
     profiles: ["stream-test"]
     restart: unless-stopped
     volumes:
-      - ./docker-compose/mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     ports:
       # Ingest RTMP (ex.: ffmpeg -> rtmp://localhost:1936/live/cam1)
       - "1935:1935"

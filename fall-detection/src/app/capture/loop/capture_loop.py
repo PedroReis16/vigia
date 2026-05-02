@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-import queue
-import threading
 import time
 
 import cv2
@@ -13,13 +9,8 @@ import zmq
 import pickle
 
 from app.capture.loop.capture_loop_context import CaptureLoopContext
-from app.capture.pose.pose_process_job import PoseProcessJob
-from app.capture.pose.pose_worker import pose_worker_loop
-from app.fiware.posture_notifier import FiwarePostureNotifier
 from app.logging import get_logger
 
-from app.capture.fall_classifier import FallClassifier, build_keypoints_list
-from app.streaming.stream_video import stream_video
 
 logger = get_logger("capture")
 
@@ -30,33 +21,33 @@ def disparar_alerta() -> None:
 def run_capture_loop(ctx: CaptureLoopContext) -> None:
     """Loop contínuo: leitura da câmera, enfileiramento de pose/CSV, stream e preview."""
 
-    pose_work_q: queue.Queue[PoseProcessJob | None] | None = None
-    pose_worker: threading.Thread | None = None
+    # pose_work_q: queue.Queue[PoseProcessJob | None] | None = None
+    # pose_worker: threading.Thread | None = None
     try:
-        if ctx.capture_per_second <= 0:
-            raise ValueError("capture_per_second must be greater than 0")
+        # if ctx.capture_per_second <= 0:
+        #     raise ValueError("capture_per_second must be greater than 0")
 
-        capture_interval = 1.0 / ctx.capture_per_second
-        _last_auto_capture = time.monotonic()
-        _csv_segment_start: float | None = None
-        _csv_segment_index = 0
-        _pose_capture_seq = 0
+        # capture_interval = 1.0 / ctx.capture_per_second
+        # _last_auto_capture = time.monotonic()
+        # _csv_segment_start: float | None = None
+        # _csv_segment_index = 0
+        # _pose_capture_seq = 0
 
         # Fila acoplada: se o worker atrasar, a captura espera em put() (evita fila infinita).
-        pose_work_q = queue.Queue(maxsize=4)
-        pose_worker = threading.Thread(
-            target=pose_worker_loop,
-            args=(ctx.pose_model, pose_work_q),
-            name="pose-csv-worker",
-            daemon=True,
-        )
-        pose_worker.start()
+        # pose_work_q = queue.Queue(maxsize=4)
+        # pose_worker = threading.Thread(
+        #     target=pose_worker_loop,
+        #     args=(ctx.pose_model, pose_work_q),
+        #     name="pose-csv-worker",
+        #     daemon=True,
+        # )
+        # pose_worker.start()
 
-        clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.onnx")
-        posture_notifier = FiwarePostureNotifier()
-        last_posture_state: str | None = None
+        # clf = FallClassifier(Path(__file__).resolve().parents[4]/"model"/"classifier_svm.onnx")
+        # posture_notifier = FiwarePostureNotifier()
+        # last_posture_state: str | None = None
 
-        first_infer = True
+        # first_infer = True
 
         context = zmq.Context()
         socket = context.socket(zmq.PUB)
@@ -68,11 +59,11 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
             if not ret:
                 break
 
-            if first_infer:
-                logger.info(
-                    "primeira inferência de pose (CPU pode demorar dezenas de segundos)…"
-                )
-                first_infer = False
+            # if first_infer:
+            #     logger.info(
+            #         "primeira inferência de pose (CPU pode demorar dezenas de segundos)…"
+            #     )
+            #     first_infer = False
 
             payload = pickle.dumps(frame, protocol=pickle.HIGHEST_PROTOCOL)
             socket.send_multipart([b"frame", payload])
@@ -105,15 +96,15 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                     break
 
     finally:
-        if pose_work_q is not None:
-            pose_work_q.put(None)
-        if pose_worker is not None:
-            pose_worker.join(timeout=120.0)
+        # if pose_work_q is not None:
+        #     pose_work_q.put(None)
+        # if pose_worker is not None:
+        #     pose_worker.join(timeout=120.0)
         ctx.cap.release()
         cv2.destroyAllWindows()
-        if ctx.stream is not None:
-            ctx.stream.stop()
-        if ctx.saver is not None:
-            ctx.saver.stop()
+        # if ctx.stream is not None:
+        #     ctx.stream.stop()
+        # if ctx.saver is not None:
+        #     ctx.saver.stop()
         socket.close()
         context.term()

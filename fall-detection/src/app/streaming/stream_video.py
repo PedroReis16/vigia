@@ -1,11 +1,11 @@
 import subprocess
 import numpy as np
+from uuid import UUID
 
 _process = None
 _frame_size = None  # (w, h)
 
-def _start_ffmpeg(width: int, height: int) -> subprocess.Popen:
-    rtmp_url = "rtmp://localhost:1935/live/cam1"
+def _start_ffmpeg(width: int, height: int, rtmp_url: str) -> subprocess.Popen:
     cmd = [
         "ffmpeg", "-y",
         "-f", "rawvideo",
@@ -23,13 +23,13 @@ def _start_ffmpeg(width: int, height: int) -> subprocess.Popen:
     ]
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
-def stream_video(frame: np.ndarray) -> None:
+def stream_video(frame: np.ndarray, rtmp_url: str) -> None:
     global _process, _frame_size
 
     h, w = frame.shape[:2]
 
     if _process is None:
-        _process = _start_ffmpeg(w, h)
+        _process = _start_ffmpeg(w, h, rtmp_url)
         _frame_size = (w, h)
 
     # Segurança: evita corrupção se frame vier com stride/layout diferente

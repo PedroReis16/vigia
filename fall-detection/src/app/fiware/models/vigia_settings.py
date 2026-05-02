@@ -63,6 +63,8 @@ class VigiaSettings:
     transport: str = "MQTT"
     commands: list[VigiaCommand] = field(default_factory=_default_commands)
     attributes: list[VigiaAttribute] = field(default_factory=_default_attributes)
+    # Retornado pelo IoT Agent (GET /iot/devices); necessário para o tópico MQTT de comandos UL.
+    api_key: str | None = None
 
     def __post_init__(self) -> None:
         id_suffix = str(self.device_id).replace("-", "")[-4:]
@@ -92,6 +94,9 @@ class VigiaSettings:
             else [_parse_attribute(a) for a in attrs_in]
         )
 
+        raw_api = data.get("api_key") or data.get("apiKey")
+        api_key = str(raw_api).strip() if raw_api not in (None, "") else None
+
         return cls(
             device_id=device_id,
             entity_type=data.get("entity_type", "VigiaCam"),
@@ -99,6 +104,7 @@ class VigiaSettings:
             transport=data.get("transport", "MQTT"),
             commands=commands,
             attributes=attributes,
+            api_key=api_key,
         )
 
     @classmethod
@@ -108,6 +114,8 @@ class VigiaSettings:
     def to_dict(self) -> dict:
         data = asdict(self)
         data["device_id"] = str(data["device_id"])
+        if data.get("api_key") is None:
+            data.pop("api_key", None)
         return data
 
     def to_json(self) -> str:

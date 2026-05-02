@@ -1,62 +1,17 @@
-# Host público: apex + www (ambos no certificado; DuckDNS deve resolver para o IP da VM).
-
 services:
   # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
-    image: pedroreis16/vigia:latest
-    container_name: vigia
+    image: pedroreis16/vigia-api:latest
+    container_name: vigia-api
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/api`)"
       - "traefik.http.routers.vigia.entrypoints=websecure"
       - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia.loadbalancer.server.port=8000"
       - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
       - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
-    networks:
-      - vigia-network
-
-  # GET /stream (WS) + POST /ingest (JPEG) via Traefik :443; TCP :8090 opcional (LAN / legado)
-  vigia-stream:
-    image: pedroreis16/vigia-stream:latest
-    container_name: vigia-stream
-    restart: always
-    ports:
-      # Remova esta secção se só usar ingestão HTTPS (POST /ingest) — não precisa abrir 8090 no firewall
-      - "8090:8090"
-    environment:
-      - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
-      - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
-      - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
-    labels:
-      - "traefik.enable=true"
-      # WS: router dedicado sem CORS — o middleware headers pode quebrar o upgrade.
-      - "traefik.http.routers.vigia-stream-ws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/stream`)"
-      - "traefik.http.routers.vigia-stream-ws.entrypoints=websecure"
-      - "traefik.http.routers.vigia-stream-ws.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.vigia-stream-ws.service=vigia-stream"
-      - "traefik.http.routers.vigia-stream-ingest.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/ingest`)"
-      - "traefik.http.routers.vigia-stream-ingest.entrypoints=websecure"
-      - "traefik.http.routers.vigia-stream-ingest.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.vigia-stream-ingest.service=vigia-stream"
-      - "traefik.http.routers.vigia-stream-ingest.middlewares=cors@file"
-      - "traefik.http.services.vigia-stream.loadbalancer.server.port=8091"
-    networks:
-      - vigia-network
-
-  vigia-frontend:
-    image: pedroreis16/vigia-frontend:latest
-    container_name: vigia-frontend
-    restart: always
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vigia-frontend.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`))"
-      - "traefik.http.routers.vigia-frontend.entrypoints=websecure"
-      - "traefik.http.routers.vigia-frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vigia-frontend.loadbalancer.server.port=80"
-      - "traefik.http.routers.vigia-frontend.middlewares=cors@file"
-      - "traefik.http.routers.vigia-frontend.priority=1"
     networks:
       - vigia-network
 
@@ -68,7 +23,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "1883:1883"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
@@ -85,13 +39,13 @@ services:
     container_name: fiware-mongo-historical
     restart: always
     hostname: mongo-db-historical
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=admin123
     profiles: ["fiware"]
     ports:
       - "27077:27017"
-    command: ["mongod", "--nojournal", "--auth"]
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+    command: ["mongod", "--nojournal", "--auth"] 
     volumes:
       - mongo-historical-data:/data/db
     networks:
@@ -103,6 +57,8 @@ services:
     container_name: fiware-mongo-internal
     restart: always
     hostname: mongo-db-internal
+    ports:
+      - "27067:27017"
     profiles: ["fiware"]
     command: ["mongod", "--nojournal"]
     volumes:
@@ -130,12 +86,13 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/orion`)"
+      - "traefik.http.routers.orion.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/orion`)"
       - "traefik.http.routers.orion.entrypoints=websecure"
+      - "traefik.http.routers.orion.tls=true"
       - "traefik.http.routers.orion.tls.certresolver=letsencrypt"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
-      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/orion"
+      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/fiware/orion"
     networks:
       - vigia-network
 
@@ -161,12 +118,13 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/sth-comet`)"
+      - "traefik.http.routers.sth.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/sth-comet`)"
       - "traefik.http.routers.sth.entrypoints=websecure"
+      - "traefik.http.routers.sth.tls=true"
       - "traefik.http.routers.sth.tls.certresolver=letsencrypt"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
-      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/sth-comet"
+      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/fiware/sth-comet"
     networks:
       - vigia-network
 
@@ -197,12 +155,14 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/iot-agent`)"
+      - "traefik.http.routers.iot.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/iot-agent`)"
       - "traefik.http.routers.iot.entrypoints=websecure"
+      - "traefik.http.routers.iot.tls=true"
       - "traefik.http.routers.iot.tls.certresolver=letsencrypt"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
-      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/iot-agent"
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware/iot-agent"
+
     networks:
       - vigia-network
 
@@ -220,17 +180,40 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      # Roteamento TCP para MQTT puro (1883) — TCP não suporta PathPrefix, mantém HostSNI
-      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
-      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
-      # Roteamento HTTP para MQTT sobre WebSocket (9001)
-      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=websecure"
+      - "traefik.http.routers.mqttws.tls=true"
       - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.routers.mqttws.middlewares=strip-mosquitto"
-      - "traefik.http.middlewares.strip-mosquitto.stripprefix.prefixes=/mosquitto"
+      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
+      - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
+    networks:
+      - vigia-network
+
+#  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: vigia-mediamtx
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # Playback via HTTPS
+      - "traefik.http.routers.mediamtx-play.rule=(Host(`www.vigia-deteccoes.duckdns.org`) || Host(`vigia-deteccoes.duckdns.org`)) && PathPrefix(`/live`)"
+      - "traefik.http.routers.mediamtx-play.entrypoints=websecure"
+      - "traefik.http.routers.mediamtx-play.tls=true"
+      - "traefik.http.routers.mediamtx-play.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mediamtx-play.priority=100"
+      - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
+
+      # Ingest RTMPS em 443 (host separado recomendado)
+      - "traefik.tcp.routers.mediamtx-ingest.rule=HostSNI(`ingest-vigia-deteccoes.duckdns.org`)"
+      - "traefik.tcp.routers.mediamtx-ingest.entrypoints=websecure"
+      - "traefik.tcp.routers.mediamtx-ingest.tls=true"
+      - "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt"
+      - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     networks:
       - vigia-network
 

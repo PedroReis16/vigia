@@ -40,6 +40,9 @@ class FakeMQTTClient:
     def username_pw_set(self, *_a: Any, **_k: Any) -> None:
         return None
 
+    def tls_set_context(self, *_a: Any, **_k: Any) -> None:
+        return None
+
     def connect(self, *_a: Any, **_k: Any) -> None:
         return None
 

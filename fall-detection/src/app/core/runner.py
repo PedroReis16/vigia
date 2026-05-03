@@ -14,6 +14,8 @@ from app.logging import get_logger
 
 from .frame_consumer import run_frame_consumer
 from .action_classifier import run_classifier
+import datetime
+
 
 logger = get_logger("core")
 
@@ -31,6 +33,8 @@ def run_analysis(settings: Settings) -> None:
     if settings.captures_per_second <= 0:
         raise ValueError("Captures por segundo deve ser maior que 0")
 
+
+    print(f"Iniciando processo de captura de frames e classificação de ações... {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     buffer_queue = Queue(maxsize=10)
 
     receive_process = Process(

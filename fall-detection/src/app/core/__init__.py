@@ -6,5 +6,6 @@ Pacote para tratamento das informações capturadas pelo sistema de movimento, a
 
 from .frame_consumer import run_frame_consumer
 from .runner import run_analysis
+from .action_classifier import run_classifier
 
-__all__ = ["run_analysis", "run_frame_consumer"]
+__all__ = ["run_analysis", "run_frame_consumer", "run_classifier"]

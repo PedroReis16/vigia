@@ -1,6 +1,10 @@
+"""Envio de frames BGR em bruto para FFmpeg (RTMP/FLV)."""
+
+from __future__ import annotations
+
 import subprocess
+
 import numpy as np
-from uuid import UUID
 
 _process = None
 _frame_size = None  # (w, h)

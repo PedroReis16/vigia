@@ -90,6 +90,7 @@ def _feed_buffers(
 
             try:
                 buffer_queue.put_nowait((person_id, window))
+                last_inference[person_id] = now
             except multiprocessing.queues.Full:
                 logger.warning(f"Buffer de processamento cheio, descartando janela do ID '{person_id}'")
 

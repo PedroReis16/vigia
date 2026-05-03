@@ -14,7 +14,6 @@ from ultralytics import YOLO
 
 from app.config.ipc import configure_frame_sub_socket
 from app.logging import get_logger
-from queue import Queue
 
 logger = get_logger("frame_consumer")
 
@@ -101,10 +100,6 @@ def _feed_buffers(
             last_inference.pop(pid, None)
             last_seen.pop(pid, None)
             logger.debug(f"buffer do ID '{pid}' removido por inatividade")
-
-
-
-   
 
 def run_frame_consumer(
     pose_model: YOLO, captures_per_second: int, buffer_queue: Queue

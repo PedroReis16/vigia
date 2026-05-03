@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - Vigia API
-          - Vigia Stream
           - Vigia Frontend
           - Vigia Fall Detection
           - Vigia Bootstrap
@@ -72,16 +71,6 @@ jobs:
               IMAGE_NAME="vigia-api"
               ARTIFACT_NAME="vigia-api"
               COMPOSE_SERVICE="vigia"
-              HAS_DOCKER="true"
-              ;;
-            "Vigia Stream")
-              SERVICE_TYPE="go"
-              SERVICE_SLUG="vigia-stream"
-              SERVICE_PATH="vigia-services/apps/vigia-stream"
-              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-stream.dockerfile"
-              IMAGE_NAME="vigia-stream"
-              ARTIFACT_NAME="vigia-stream"
-              COMPOSE_SERVICE="vigia-stream"
               HAS_DOCKER="true"
               ;;
             "Vigia Fall Detection")

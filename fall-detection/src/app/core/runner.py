@@ -1,55 +1,28 @@
 from __future__ import annotations
-from multiprocessing import Process
-import pickle
+
 import signal
 import sys
-import time
+from multiprocessing import Process
 
 from app.config import Settings, prepare_data_workspace
 from app.fiware.device_sync import (
     load_local_device_settings_required,
 )
 from app.logging import get_logger
-import zmq
-import numpy as np
+
+from .frame_consumer import run_frame_consumer
 
 logger = get_logger("core")
 
 
-def _consume_frames()-> None:
-    context = zmq.Context()
-    socket = context.socket(zmq.SUB)
-    socket.connect("ipc:///tmp/frames.ipc")
-    socket.setsockopt(zmq.SUBSCRIBE, b"frame")
-
-    # Mantém apenas o frame mais recente - descarta os intermediários
-    socket.setsockopt(zmq.CONFLATE, 1)
-
-    try:
-        while True:
-            _, payload = socket.recv_multipart()
-            frame = pickle.loads(payload)
-            frame = np.array(frame)
-
-
-            print("frame recebido")
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        logger.error(f"erro ao consumir frames: {e}")
-    finally:
-        socket.close()
-        context.term()
-
-
 def run_analysis(settings: Settings) -> None:
-    """Prepara diretório de dados e executa modelos de postura / quedas."""
+    """Prepara diretório de dados e consome frames para análise (pose / quedas)."""
     load_local_device_settings_required()
 
     prepare_data_workspace(settings, reset=False)
 
     receive_process = Process(
-        target=_consume_frames,
+        target=run_frame_consumer,
         daemon=True,
     )
     receive_process.start()

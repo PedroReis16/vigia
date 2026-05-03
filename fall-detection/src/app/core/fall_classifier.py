@@ -82,6 +82,101 @@ def extract_features(keypoints_data: list) -> dict | None:
     }
 
 
+def _features_matrix_from_kpts_batch(k: np.ndarray) -> np.ndarray:
+    """
+    Mesmas features que extract_features, para todos os instantes de uma vez.
+
+    k: (T, 17, 3) — x, y, conf por joint COCO.
+    Retorna (T, 6); linha toda NaN se faltar ombro/quadil obrigatório (5,6,11,12).
+    """
+    t = k.shape[0]
+    out = np.full((t, len(FEATURE_COLS)), np.nan, dtype=np.float64)
+
+    conf_ok = k[:, :, 2] > CONF_THRESHOLD
+    required_ok = conf_ok[:, 5] & conf_ok[:, 6] & conf_ok[:, 11] & conf_ok[:, 12]
+    if not np.any(required_ok):
+        return out
+
+    ls_x, ls_y = k[:, 5, 0], k[:, 5, 1]
+    rs_x, rs_y = k[:, 6, 0], k[:, 6, 1]
+    lh_x, lh_y = k[:, 11, 0], k[:, 11, 1]
+    rh_x, rh_y = k[:, 12, 0], k[:, 12, 1]
+
+    sc_x = (ls_x + rs_x) * 0.5
+    sc_y = (ls_y + rs_y) * 0.5
+    hc_x = (lh_x + rh_x) * 0.5
+    hc_y = (lh_y + rh_y) * 0.5
+
+    dx = hc_x - sc_x
+    dy = hc_y - sc_y
+    raw_angle = np.degrees(np.arctan2(dy, dx))
+    angle_from_vertical = np.abs(90.0 - np.abs(raw_angle))
+
+    y_vis = np.where(conf_ok, k[:, :, 1], np.nan)
+    x_vis = np.where(conf_ok, k[:, :, 0], np.nan)
+    body_h = np.nanmax(y_vis, axis=1) - np.nanmin(y_vis, axis=1)
+    body_w = np.nanmax(x_vis, axis=1) - np.nanmin(x_vis, axis=1)
+    aspect_ratio = np.zeros(t, dtype=np.float64)
+    np.divide(body_w, body_h, out=aspect_ratio, where=(body_h > 1e-6) & required_ok)
+
+    trunk_len = np.hypot(dx, dy)
+    shoulder_w = np.hypot(ls_x - rs_x, ls_y - rs_y)
+    hip_w = np.hypot(lh_x - rh_x, lh_y - rh_y)
+    avg_lateral_w = (shoulder_w + hip_w) * 0.5 + 1e-6
+    trunk_ratio = trunk_len / avg_lateral_w
+
+    trunk_height = np.abs(sc_y - hc_y) + 1e-6
+    nose_ok = conf_ok[:, 0]
+    head_hip_ratio = np.full(t, np.nan, dtype=np.float64)
+    np.divide(hc_y - k[:, 0, 1], trunk_height, out=head_hip_ratio, where=nose_ok & required_ok)
+
+    vert_alignment = np.divide(
+        dy,
+        trunk_len + 1e-6,
+        out=np.zeros(t, dtype=np.float64),
+        where=required_ok,
+    )
+
+    knee_ok = conf_ok[:, 11] & conf_ok[:, 13] & conf_ok[:, 15]
+    p1 = k[:, 11, :2] - k[:, 13, :2]
+    p2 = k[:, 15, :2] - k[:, 13, :2]
+    dot = p1[:, 0] * p2[:, 0] + p1[:, 1] * p2[:, 1]
+    n1 = np.linalg.norm(p1, axis=1) + 1e-6
+    n2 = np.linalg.norm(p2, axis=1) + 1e-6
+    cos_a = np.clip(dot / (n1 * n2), -1.0, 1.0)
+    knee_angle = np.degrees(np.arccos(cos_a))
+    knee_angle = np.where(knee_ok & required_ok, knee_angle, np.nan)
+
+    idx_angle, idx_ar, idx_trunk, idx_head, idx_vert, idx_knee = range(6)
+    out[:, idx_angle] = np.where(required_ok, angle_from_vertical, np.nan)
+    out[:, idx_ar] = np.where(required_ok, aspect_ratio, np.nan)
+    out[:, idx_trunk] = np.where(required_ok, trunk_ratio, np.nan)
+    out[:, idx_head] = np.where(required_ok, head_hip_ratio, np.nan)
+    out[:, idx_vert] = np.where(required_ok, vert_alignment, np.nan)
+    out[:, idx_knee] = np.where(required_ok, knee_angle, np.nan)
+
+    return out
+
+
+def aggregate_window_features(window: np.ndarray) -> np.ndarray | None:
+    """
+    Agrega uma janela (T, 51) em um vetor de features (6,) via nanmean temporal,
+    reduzindo ruído e custo (uma inferência ONNX por janela).
+
+    Retorna None se não houver nenhum instante com ombros/quadis válidos.
+    """
+    w = np.asarray(window, dtype=np.float64)
+    if w.ndim != 2 or w.shape[1] != FLAT_DIM:
+        raise ValueError(f"janela esperada (T, {FLAT_DIM}), recebido {w.shape}")
+
+    k = w.reshape(w.shape[0], NUM_KEYPOINTS, 3)
+    feat_t = _features_matrix_from_kpts_batch(k)
+    agg = np.nanmean(feat_t, axis=0)
+    if np.all(np.isnan(agg)):
+        return None
+    return agg
+
+
 def kpts_flat_to_keypoints_list(kpts_flat: np.ndarray) -> list[dict[str, Any]]:
     """
     Converte o vetor (51,) produzido pelo frame_consumer — 17 keypoints × (x, y, conf)
@@ -127,8 +222,8 @@ def build_keypoints_list(kps_array, kconf_array, person_idx: int = 0) -> list:
 
 class FallClassifier:
     """
-    Wrapper completo: recebe keypoints brutos do YOLO e retorna
-    a predição. É o único objeto que o colega precisa usar.
+    Classificador de queda: lista de joints, vetor (51,) ou janela (T, 51).
+    Janelas são agregadas em NumPy (uma passagem ONNX por janela).
     """
 
     def __init__(self):
@@ -137,20 +232,40 @@ class FallClassifier:
 
     def predict(self, keypoints_data: list | np.ndarray) -> dict | None:
         if isinstance(keypoints_data, np.ndarray):
-            keypoints_data = kpts_flat_to_keypoints_list(keypoints_data)
-
-        feats = extract_features(keypoints_data)
-        if feats is None:
-            return None
-
-        X = np.array([[
-            feats.get("angle_from_vertical", 0),
-            feats.get("aspect_ratio", 0),
-            feats.get("trunk_ratio", 0),
-            feats.get("head_hip_ratio", 0),
-            feats.get("vert_alignment", 0),
-            feats.get("knee_angle", 0),
-        ]], dtype=np.float32)
+            arr = np.asarray(keypoints_data, dtype=np.float64)
+            if arr.ndim == 2 and arr.shape[1] == FLAT_DIM:
+                vec = aggregate_window_features(arr)
+                if vec is None:
+                    return None
+                X = np.asarray(vec, dtype=np.float32).reshape(1, -1)
+            elif arr.ndim == 1 and arr.size == FLAT_DIM:
+                feats = extract_features(kpts_flat_to_keypoints_list(arr))
+                if feats is None:
+                    return None
+                X = np.array([[
+                    feats.get("angle_from_vertical", 0),
+                    feats.get("aspect_ratio", 0),
+                    feats.get("trunk_ratio", 0),
+                    feats.get("head_hip_ratio", 0),
+                    feats.get("vert_alignment", 0),
+                    feats.get("knee_angle", 0),
+                ]], dtype=np.float32)
+            else:
+                raise ValueError(
+                    f"array deve ser (T, {FLAT_DIM}) ou ({FLAT_DIM},), recebido {arr.shape}"
+                )
+        else:
+            feats = extract_features(keypoints_data)
+            if feats is None:
+                return None
+            X = np.array([[
+                feats.get("angle_from_vertical", 0),
+                feats.get("aspect_ratio", 0),
+                feats.get("trunk_ratio", 0),
+                feats.get("head_hip_ratio", 0),
+                feats.get("vert_alignment", 0),
+                feats.get("knee_angle", 0),
+            ]], dtype=np.float32)
 
         # NaN vira 0 (mesmo comportamento do SimpleImputer com median≈0)
         X = np.nan_to_num(X, nan=0.0)

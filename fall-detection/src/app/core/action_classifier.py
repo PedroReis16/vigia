@@ -23,7 +23,7 @@ def run_classifier(buffer_queue: queue.Queue) -> None:
             try:
                 pid, window = buffer_queue.get(timeout=1.0)
 
-                pred = fall_classifier.predict(window[0])
+                pred = fall_classifier.predict(window)
                 if pred is not None:
                     print(f"Predição para o ID '{pid}': {pred['label']} com probabilidade {pred['prob_deitado']}")
                     _send_notification()

@@ -5,10 +5,11 @@ from __future__ import annotations
 import time
 
 import cv2
-import zmq
 import pickle
+import zmq
 
 from app.capture.loop.capture_loop_context import CaptureLoopContext
+from app.config.ipc import FRAMES_TOPIC, bind_frame_pub_socket
 from app.logging import get_logger
 
 
@@ -24,7 +25,7 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
     try:
         context = zmq.Context()
         socket = context.socket(zmq.PUB)
-        socket.bind("ipc:///tmp/frames.ipc")
+        bind_frame_pub_socket(socket)
         time.sleep(0.5)
 
         while True:
@@ -33,7 +34,7 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
                 break
 
             payload = pickle.dumps(frame, protocol=pickle.HIGHEST_PROTOCOL)
-            socket.send_multipart([b"frame", payload])
+            socket.send_multipart([FRAMES_TOPIC, payload])
 
             if ctx.show_video:
                 display = cv2.flip(frame, 1)

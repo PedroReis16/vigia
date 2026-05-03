@@ -8,4 +8,6 @@ from .frame_consumer import run_frame_consumer
 from .runner import run_analysis
 from .action_classifier import run_classifier
 
-__all__ = ["run_analysis", "run_frame_consumer", "run_classifier"]
+from .fall_classifier import FallClassifier
+
+__all__ = ["run_analysis", "run_frame_consumer", "run_classifier", "FallClassifier"]

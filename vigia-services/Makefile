@@ -19,14 +19,14 @@ help:
 	@echo "  tidy | clean"
 
 tidy:
-	@for d in $(API_DIR) $(STREAM_DIR) pkg/shared $(BOOTSTRAP_DIR); do \
+	@for d in $(API_DIR) pkg/shared $(BOOTSTRAP_DIR); do \
 		echo "==> go mod tidy $$d"; \
 		(cd $$d && go mod tidy); \
 	done
 	go work sync
 
 run-api:
-	go run ./$(API_DIR)
+	go run ./$(API_DIR)/cmd
 
 run-bootstrap:
 	go run ./$(BOOTSTRAP_DIR)
@@ -44,7 +44,7 @@ test-all: test-api test-internal test-bootstrap
 
 build-api:
 	@mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/vigia-api ./$(API_DIR)
+	go build -o $(BIN_DIR)/vigia-api ./$(API_DIR)/cmd
 
 build-bootstrap:
 	@mkdir -p $(BIN_DIR)
@@ -54,7 +54,7 @@ build-all: build-api build-bootstrap
 
 build-linux-arm64-api:
 	@mkdir -p $(BIN_DIR)
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(BIN_DIR)/vigia-api-linux-arm64 ./$(API_DIR)
+	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(BIN_DIR)/vigia-api-linux-arm64 ./$(API_DIR)/cmd
 
 build-linux-arm64-bootstrap:
 	@mkdir -p $(BIN_DIR)

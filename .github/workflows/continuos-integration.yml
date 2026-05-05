@@ -48,10 +48,6 @@ jobs:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
-            vigia_stream_non_md:
-              - 'vigia-services/apps/vigia-stream/**'
-              - '!vigia-services/apps/vigia-stream/**/*.md'
-              - 'docker-compose/dockerfiles/vigia-stream.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
               - '!vigia-services/apps/vigia-bootstrap/**/*.md'
@@ -107,18 +103,6 @@ jobs:
               "go_mod":     "vigia-services/apps/vigia-api/go.mod",
               "go_sum":     "vigia-services/apps/vigia-api/go.sum",
               "dockerfile": "docker-compose/dockerfiles/vigia-api.dockerfile",
-              "has_docker": "true"
-            }]' <<< "$PROJECTS")
-          fi
-
-          if [[ "$VIGIA_STREAM_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$COMMON_CHANGED" == "true" ]]; then
-            PROJECTS=$(jq -c '. + [{
-              "name":       "vigia-stream",
-              "type":       "go",
-              "path":       "vigia-services/apps/vigia-stream",
-              "go_mod":     "vigia-services/apps/vigia-stream/go.mod",
-              "go_sum":     "vigia-services/apps/vigia-stream/go.sum",
-              "dockerfile": "docker-compose/dockerfiles/vigia-stream.dockerfile",
               "has_docker": "true"
             }]' <<< "$PROJECTS")
           fi

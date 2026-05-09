@@ -158,3 +158,45 @@ async def test_listen_mqtt_given_invalid_json_should_log_without_dispatch(
 
     assert not captured
     assert any("sem comando" in message.lower() for message in logged_warnings)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_listen_mqtt_given_ultralight_payload_should_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FIWARE_MQTT_ENABLED", "true")
+    monkeypatch.setenv("FIWARE_MQTT_TOPIC", "/integration/cmd")
+
+    received: list[dict] = []
+
+    async def probe(payload: dict) -> None:
+        received.append(payload)
+
+    register_command_handler("stream", probe)
+
+    FakeMQTTClient.reset([b"5be5d41e-5ac6-4a6c-b54f-becaf3b58594@stream|"])
+
+    ctx = IntegrationContext(
+        settings=minimal_integration_settings(),
+        device_settings=VigiaSettings(device_id=uuid4()),
+    )
+    dispatcher = build_dispatcher(ctx)
+
+    with patch("app.integration.mqtt_listener.mqtt.Client", FakeMQTTClient):
+        task = asyncio.create_task(
+            listen_mqtt_commands(ctx.device_settings, dispatcher)
+        )
+
+        async def wait_dispatch() -> None:
+            while not received:
+                await asyncio.sleep(0.01)
+
+        try:
+            await asyncio.wait_for(wait_dispatch(), timeout=2.0)
+        finally:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+    assert received and received[0].get("value") == ""

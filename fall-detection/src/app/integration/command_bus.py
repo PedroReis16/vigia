@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import os
 from multiprocessing import Process, get_context
 from pathlib import Path
@@ -17,7 +18,8 @@ logger = get_logger("integration")
 # spawn evita fork com asyncio (macOS); mesmo contexto para arranque do streaming.
 _spawn_ctx = get_context("spawn")
 
-_streaming_process: Process | None = None
+# Lista de um elemento evita ``global`` ao atualizar a referência do processo.
+_streaming_proc_ref: list[Process | None] = [None]
 _streaming_lock = asyncio.Lock()
 
 
@@ -28,19 +30,17 @@ def _payload_requests_stream_stop(payload: dict) -> bool:
 
 def _run_streaming_worker(settings: Settings) -> None:
     """Import pesado (numpy/OpenCV) só no processo filho."""
-    from app.streaming.runner import run_streaming
-
+    run_streaming = importlib.import_module("app.streaming.runner").run_streaming
     run_streaming(settings)
 
 
 async def _stop_streaming_subprocess() -> None:
-    global _streaming_process
-    proc = _streaming_process
+    proc = _streaming_proc_ref[0]
     if proc is None:
         logger.info("streaming ja estava parado")
         return
     if not proc.is_alive():
-        _streaming_process = None
+        _streaming_proc_ref[0] = None
         return
     proc.terminate()
 
@@ -55,7 +55,7 @@ async def _stop_streaming_subprocess() -> None:
             proc.join(timeout=8)
 
     await asyncio.to_thread(_join_and_force_kill)
-    _streaming_process = None
+    _streaming_proc_ref[0] = None
     logger.info("streaming encerrado")
 
 
@@ -118,8 +118,6 @@ def build_dispatcher(context: IntegrationContext) -> CommandDispatcher:
         Payload FIWARE/UL: value em off/false/0/stop para parar; vazio ou on para iniciar.
         Requer captura a correr (``python -m app``) para haver frames em ipc:///tmp/frames.ipc.
         """
-        global _streaming_process
-
         if _payload_requests_stream_stop(payload):
             async with _streaming_lock:
                 await _stop_streaming_subprocess()
@@ -133,7 +131,8 @@ def build_dispatcher(context: IntegrationContext) -> CommandDispatcher:
             return
 
         async with _streaming_lock:
-            if _streaming_process is not None and _streaming_process.is_alive():
+            existing = _streaming_proc_ref[0]
+            if existing is not None and existing.is_alive():
                 logger.info("streaming ja em execucao; ignorando comando duplicado")
                 return
 
@@ -143,7 +142,7 @@ def build_dispatcher(context: IntegrationContext) -> CommandDispatcher:
                 name="vigia-streaming",
             )
             proc.start()
-            _streaming_process = proc
+            _streaming_proc_ref[0] = proc
             logger.info("processo de streaming iniciado (pid={})", proc.pid)
 
     dispatcher.register("stream", stream_handler)

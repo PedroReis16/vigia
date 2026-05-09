@@ -12,6 +12,7 @@ import pytest
 from app.config.frame_codec import encode_numpy_frame
 from app.core.frame_consumer import (
     WINDOW_SIZE,
+    _BufferFeedContext,
     _capture_frame,
     _feed_buffers,
     run_frame_consumer,
@@ -63,18 +64,17 @@ def test_feed_buffers_given_full_window_and_interval_should_put_window() -> None
     buffers = defaultdict[int, deque](lambda: deque(maxlen=WINDOW_SIZE))
     last_inference: dict[int, float] = {}
     last_seen: dict[int, float] = {}
+    ctx = _BufferFeedContext(
+        buffers=buffers,
+        last_inference=last_inference,
+        last_seen=last_seen,
+        buffer_queue=buffer_queue,
+    )
 
     kpt = np.zeros(51, dtype=np.float32)
     t0 = 1000.0
     for i in range(WINDOW_SIZE):
-        _feed_buffers(
-            [(1, kpt)],
-            buffers,
-            last_inference,
-            last_seen,
-            buffer_queue,
-            t0 + i * 0.01,
-        )
+        _feed_buffers([(1, kpt)], ctx, t0 + i * 0.01)
 
     assert not buffer_queue.empty()
     pid, window = buffer_queue.get_nowait()
@@ -88,16 +88,22 @@ def test_feed_buffers_given_recent_inference_should_not_enqueue_again() -> None:
     buffers = defaultdict[int, deque](lambda: deque(maxlen=WINDOW_SIZE))
     last_inference: dict[int, float] = {}
     last_seen: dict[int, float] = {}
+    ctx = _BufferFeedContext(
+        buffers=buffers,
+        last_inference=last_inference,
+        last_seen=last_seen,
+        buffer_queue=buffer_queue,
+    )
 
     kpt = np.zeros(51, dtype=np.float32)
     base = 2000.0
     for i in range(WINDOW_SIZE):
-        _feed_buffers([(1, kpt)], buffers, last_inference, last_seen, buffer_queue, base + i * 0.01)
+        _feed_buffers([(1, kpt)], ctx, base + i * 0.01)
 
     assert not buffer_queue.empty()
     buffer_queue.get_nowait()
 
-    _feed_buffers([(1, kpt)], buffers, last_inference, last_seen, buffer_queue, base + WINDOW_SIZE * 0.01)
+    _feed_buffers([(1, kpt)], ctx, base + WINDOW_SIZE * 0.01)
 
     assert buffer_queue.empty()
 
@@ -110,7 +116,13 @@ def test_feed_buffers_given_inactive_person_should_drop_buffer_after_grace() -> 
 
     buffers[7].extend([np.zeros(51, dtype=np.float32)] * 5)
 
-    _feed_buffers([], buffers, last_inference, last_seen, buffer_queue, 4.0)
+    ctx = _BufferFeedContext(
+        buffers=buffers,
+        last_inference=last_inference,
+        last_seen=last_seen,
+        buffer_queue=buffer_queue,
+    )
+    _feed_buffers([], ctx, 4.0)
 
     assert 7 not in buffers
     assert 7 not in last_inference

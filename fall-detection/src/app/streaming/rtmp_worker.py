@@ -20,7 +20,8 @@ def run_rtmp_worker(rtmp_url: str) -> None:
 
     try:
         while True:
-            _, payload = socket.recv_multipart()
+            parts = socket.recv_multipart()
+            _, payload = parts[0], parts[1]
             frame = decode_numpy_frame(payload)
             stream_video(frame, rtmp_url)
     except KeyboardInterrupt:

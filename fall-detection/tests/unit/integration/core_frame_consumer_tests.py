@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pickle
 import queue
 from collections import defaultdict, deque
 from unittest.mock import MagicMock, patch
@@ -10,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from app.config.frame_codec import encode_numpy_frame
 from app.core.frame_consumer import (
     WINDOW_SIZE,
     _capture_frame,
@@ -121,7 +121,7 @@ def test_run_frame_consumer_given_one_frame_should_track_and_feed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     arr = np.zeros((8, 8, 3), dtype=np.uint8)
-    payload = pickle.dumps(arr)
+    payload = encode_numpy_frame(arr)
 
     mock_socket = MagicMock()
     mock_socket.recv_multipart.side_effect = [

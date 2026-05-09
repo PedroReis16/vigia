@@ -5,13 +5,13 @@ from __future__ import annotations
 from multiprocessing import Queue
 from collections import defaultdict, deque
 import multiprocessing
-import pickle
 
 import numpy as np
 import zmq
 import time
 from ultralytics import YOLO
 
+from app.config.frame_codec import decode_numpy_frame
 from app.config.ipc import configure_frame_sub_socket
 from app.logging import get_logger
 
@@ -122,8 +122,7 @@ def run_frame_consumer(
         while True:
             # Recebe o frame do socket (vindo do App.Capture)
             _, payload = socket.recv_multipart()
-            frame = pickle.loads(payload)
-            frame = np.array(frame)
+            frame = decode_numpy_frame(payload)
 
             now = time.monotonic()
 

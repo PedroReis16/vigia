@@ -8,7 +8,7 @@
 PRODUCT_NAME = vigia_ui
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.vigiaUi
+PRODUCT_BUNDLE_IDENTIFIER = com.vigia.vigiaUi
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.vigia. All rights reserved.

@@ -1,0 +1,32 @@
+logLevel: info
+
+# Protocolos habilitados para teste de latencia
+rtsp: yes
+rtmp: yes
+hls: yes
+webrtc: yes
+
+# Lista reduzida para evitar negociacoes desnecessarias
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+# Em Docker local (macOS), anunciar hosts explicitos evita candidatos ICE invalidos.
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts:
+  - localhost
+  - 127.0.0.1
+  - host.docker.internal
+
+# Fallback ICE por TCP para cenarios onde UDP local falha.
+webrtcLocalTCPAddress: :8189
+
+# Parametros com foco em baixa latencia no HLS (LL-HLS)
+hlsVariant: lowLatency
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsSegmentCount: 6
+
+paths:
+  all:
+    # Permite publicar qualquer stream, ex.: /live/cam1
+    source: publisher

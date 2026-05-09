@@ -12,11 +12,12 @@ import app.streaming.stream_video as stream_video_module
 
 @pytest.fixture(autouse=True)
 def reset_stream_video_globals() -> None:
-    stream_video_module._process = None
-    stream_video_module._frame_size = None
+    state = stream_video_module._rtmp_stream_state
+    state.process = None
+    state.frame_size = None
     yield
-    stream_video_module._process = None
-    stream_video_module._frame_size = None
+    state.process = None
+    state.frame_size = None
 
 
 def test_stream_video_given_first_frame_should_spawn_ffmpeg_with_matching_geometry() -> None:

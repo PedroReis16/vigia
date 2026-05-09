@@ -6,8 +6,16 @@ import subprocess
 
 import numpy as np
 
-_process = None
-_frame_size = None  # (w, h)
+class _RtmpStreamState:
+    __slots__ = ("process", "frame_size")
+
+    def __init__(self) -> None:
+        self.process: subprocess.Popen | None = None
+        self.frame_size: tuple[int, int] | None = None
+
+
+_rtmp_stream_state = _RtmpStreamState()
+
 
 def _start_ffmpeg(width: int, height: int, rtmp_url: str) -> subprocess.Popen:
     cmd = [
@@ -28,18 +36,17 @@ def _start_ffmpeg(width: int, height: int, rtmp_url: str) -> subprocess.Popen:
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 def stream_video(frame: np.ndarray, rtmp_url: str) -> None:
-    global _process, _frame_size
-
     h, w = frame.shape[:2]
+    state = _rtmp_stream_state
 
-    if _process is None:
-        _process = _start_ffmpeg(w, h, rtmp_url)
-        _frame_size = (w, h)
+    if state.process is None:
+        state.process = _start_ffmpeg(w, h, rtmp_url)
+        state.frame_size = (w, h)
 
     # Segurança: evita corrupção se frame vier com stride/layout diferente
     frame = np.ascontiguousarray(frame)
 
-    if _process.stdin is None:
+    if state.process.stdin is None:
         raise RuntimeError("FFmpeg stdin indisponível")
 
-    _process.stdin.write(frame.tobytes())
+    state.process.stdin.write(frame.tobytes())

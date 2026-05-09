@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import pickle
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from app.config import Settings
+from app.config.frame_codec import encode_numpy_frame
 from app.streaming.runner import _consume_frames, run_streaming
 
 
@@ -16,7 +16,7 @@ def test_consume_frames_given_multipart_frame_should_call_stream_video(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     arr = np.zeros((8, 8, 3), dtype=np.uint8)
-    payload = pickle.dumps(arr)
+    payload = encode_numpy_frame(arr)
     stream_mock = MagicMock()
 
     mock_socket = MagicMock()
@@ -29,11 +29,11 @@ def test_consume_frames_given_multipart_frame_should_call_stream_video(
     mock_context.socket.return_value = mock_socket
 
     monkeypatch.setattr(
-        "app.streaming.runner.zmq.Context",
+        "app.streaming.rtmp_worker.zmq.Context",
         lambda *args: mock_context,
     )
 
-    with patch("app.streaming.runner.stream_video", stream_mock):
+    with patch("app.streaming.rtmp_worker.stream_video", stream_mock):
         _consume_frames("rtmp://unit/test")
 
     stream_mock.assert_called_once()
@@ -49,13 +49,15 @@ def test_consume_frames_given_stream_video_error_should_log_and_reraise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_socket = MagicMock()
-    mock_socket.recv_multipart.side_effect = [[b"frame", pickle.dumps(np.zeros((2, 2, 3)))]]
+    mock_socket.recv_multipart.side_effect = [
+        [b"frame", encode_numpy_frame(np.zeros((2, 2, 3), dtype=np.uint8))]
+    ]
 
     mock_context = MagicMock()
     mock_context.socket.return_value = mock_socket
 
     monkeypatch.setattr(
-        "app.streaming.runner.zmq.Context",
+        "app.streaming.rtmp_worker.zmq.Context",
         lambda *args: mock_context,
     )
 
@@ -64,11 +66,11 @@ def test_consume_frames_given_stream_video_error_should_log_and_reraise(
     def fake_error(msg: str, *args: object) -> None:
         logged.append(msg)
 
-    monkeypatch.setattr("app.streaming.runner.logger.error", fake_error)
+    monkeypatch.setattr("app.streaming.rtmp_worker.logger.error", fake_error)
 
     with (
         patch(
-            "app.streaming.runner.stream_video",
+            "app.streaming.rtmp_worker.stream_video",
             side_effect=RuntimeError("boom"),
         ),
         pytest.raises(RuntimeError, match="boom"),

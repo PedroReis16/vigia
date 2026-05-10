@@ -2,17 +2,38 @@ package services
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/dtos"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/entities"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/repositories"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/repositories/cache"
+	"golang.org/x/mod/semver"
+	"gorm.io/gorm"
 )
 
+// versionURLCache exposes URL caching used by VersionService (implemented by *cache.VersionUrlRepositoryCache).
+type versionURLCache interface {
+	GetVersionUrl(version string) (*string, error)
+	SetVersionUrl(version string, url string) error
+}
+
+// versionStore persists and reads version rows (implemented by *repositories.VersionRepository).
+type versionStore interface {
+	FindVersion(version string) (*entities.Version, error)
+	FindLatestVersion() (*entities.Version, error)
+	RegisterVersion(newVersion *entities.Version) error
+}
+
+// presignedURLProvider generates download URLs (implemented by *BucketService).
+type presignedURLProvider interface {
+	GetVersionPreSignedUrl(version string) (*string, error)
+}
+
 type VersionService struct {
-	versionUrlRepositoryCache *cache.VersionUrlRepositoryCache
-	versionRepository         *repositories.VersionRepository
-	bucketService             *BucketService
+	versionUrlRepositoryCache versionURLCache
+	versionRepository         versionStore
+	bucketService             presignedURLProvider
 }
 
 func NewVersionService(
@@ -41,9 +62,47 @@ func (s *VersionService) RegisterNewVigiaVersion(newVersionDTO *dtos.NewVersionD
 	return nil
 }
 
-func (s *VersionService) FindForUpdates(currentVersion string) (*string, error) {
+// FindForUpdates returns download metadata for the newest published version.
+// currentVersion empty: always returns the latest build.
+// currentVersion set: returns the latest only if it is newer than currentVersion (semver); if already up to date, returns (nil, nil).
+func (s *VersionService) FindForUpdates(currentVersion string) (*dtos.VersionDTO, error) {
+	latest, err := s.versionRepository.FindLatestVersion()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("nenhuma versão disponível")
+		}
+		return nil, err
+	}
 
-	return nil, nil
+	currentVersion = strings.TrimSpace(currentVersion)
+	if currentVersion == "" {
+		return s.GetVigiaVersion(latest.Version)
+	}
+
+	if versionIsUpToDate(currentVersion, latest.Version) {
+		return nil, nil
+	}
+	return s.GetVigiaVersion(latest.Version)
+}
+
+func versionIsUpToDate(current, latest string) bool {
+	c := semverCanonical(current)
+	l := semverCanonical(latest)
+	if semver.IsValid(c) && semver.IsValid(l) {
+		return semver.Compare(c, l) >= 0
+	}
+	return strings.EqualFold(strings.TrimSpace(current), strings.TrimSpace(latest))
+}
+
+func semverCanonical(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	if !strings.HasPrefix(v, "v") {
+		return "v" + v
+	}
+	return v
 }
 
 func (s *VersionService) GetVigiaVersion(version string) (*dtos.VersionDTO, error) {
@@ -53,7 +112,7 @@ func (s *VersionService) GetVigiaVersion(version string) (*dtos.VersionDTO, erro
 
 	if url == nil {
 		result, err := s.versionRepository.FindVersion(version)
-		if err != nil {
+		if err != nil || result == nil {
 			return nil, errors.New("version not found")
 		}
 

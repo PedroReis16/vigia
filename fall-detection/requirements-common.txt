@@ -1,0 +1,12 @@
+# Dependências compartilhadas (dev e build de binário).
+# OpenCV: requirements.txt (GUI) ou requirements-headless.txt (deploy).
+python-dotenv==1.2.2
+ultralytics==8.4.33
+pandas==2.2.3
+schedule==1.2.1
+aiohttp==3.13.4
+paho-mqtt==2.1.0
+scikit-learn==1.8.0
+onnxruntime==1.22.0
+loguru==0.7.3
+pyzmq==27.1.0

@@ -31,6 +31,12 @@ for pkg in ("jaraco.text", "jaraco.functools", "jaraco.context"):
         pass
 
 hiddenimports += [
+    # Streaming só é importado via importlib no subprocesso (command_bus); PyInstaller não rastreia isso.
+    "app.streaming",
+    "app.streaming.runner",
+    "app.streaming.rtmp_worker",
+    "app.streaming.stream_video",
+    "app.streaming.monitor",
     *collect_submodules("ultralytics"),
     "pkg_resources",
     "cv2",

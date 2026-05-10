@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "241599132191",
-    "project_id": "vigia-fall-detection",
-    "storage_bucket": "vigia-fall-detection.firebasestorage.app"
+    "project_number": "YOUR_PROJECT_NUMBER",
+    "project_id": "your-firebase-project-id",
+    "storage_bucket": "your-firebase-project-id.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:241599132191:android:397eca31b6a2d66d18db2a",
+        "mobilesdk_app_id": "YOUR_ANDROID_APP_ID_VARIANT_1",
         "android_client_info": {
           "package_name": "com.example.vigia_ui"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBo2eV2ggtGkryO94L45wsVBMQyPH-LqyQ"
+          "current_key": "PASTE_ANDROID_API_KEY_FROM_FIREBASE_CONSOLE"
         }
       ],
       "services": {
@@ -26,7 +26,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:241599132191:android:b51569c4c48da9ea18db2a",
+        "mobilesdk_app_id": "YOUR_ANDROID_APP_ID_VARIANT_2",
         "android_client_info": {
           "package_name": "com.vigia.vigia_ui"
         }
@@ -34,7 +34,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBo2eV2ggtGkryO94L45wsVBMQyPH-LqyQ"
+          "current_key": "PASTE_ANDROID_API_KEY_FROM_FIREBASE_CONSOLE"
         }
       ],
       "services": {

@@ -1,6 +1,6 @@
 module github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap
 
-go 1.26.2
+go 1.26.3
 
 replace github.com/PedroReis16/vigia/vigia-services/pkg/shared => ../../pkg/shared
 

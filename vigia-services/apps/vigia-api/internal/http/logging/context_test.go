@@ -53,8 +53,8 @@ func TestContextWithRequestID_emptyNoOp(t *testing.T) {
 	}
 }
 
-func TestRequestIDFromContext_nil(t *testing.T) {
-	if RequestIDFromContext(nil) != "" {
+func TestRequestIDFromContext_backgroundWithoutRequestID(t *testing.T) {
+	if RequestIDFromContext(context.Background()) != "" {
 		t.Fatal("want empty")
 	}
 }

@@ -84,7 +84,7 @@ func (h *VersionHandler) GetVigiaVersion(c *gin.Context) {
 	}
 
 	if version == nil {
-		err := errors.New("Versão não encontrada")
+		err := errors.New("versão não encontrada")
 		_ = c.Error(err)
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return

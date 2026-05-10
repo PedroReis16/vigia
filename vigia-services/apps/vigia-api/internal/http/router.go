@@ -7,18 +7,18 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
-func SetRoutes(router *gin.Engine) {
+func SetRoutes(router *gin.Engine, handlers *handlers.Handlers) {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	router.GET("/health", handlers.HealthCheckHandler)
+	router.GET("/health", handlers.HealthCheckHandler.Handle)
 
 	v1 := router.Group("/v1")
 	{
-		devices := v1.Group("/devices")
+		group := v1.Group("/devices")
 		{
-			devices.POST("/register", handlers.NewDevicesHandler().RegisterUserDevice)
-			devices.GET("/", handlers.NewDevicesHandler().GetDevices)
-			devices.GET("/download", handlers.NewDevicesHandler().DownloadVigiaVersion)
+			group.POST("/register", handlers.DevicesHandler.RegisterUserDevice)
+			group.GET("/", handlers.DevicesHandler.GetDevices)
+			group.GET("/download", handlers.DevicesHandler.DownloadVigiaVersion)
 		}
 	}
 }

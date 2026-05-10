@@ -39,7 +39,7 @@ jobs:
   validate_environment:
     name: Set up deployment variables
     runs-on: ubuntu-latest
-    if: github.ref_name == 'master'
+    if: github.ref_name == 'release/api-1.1.0'
     outputs:
       service_type:     ${{ steps.service_vars.outputs.service_type }}
       service_slug:     ${{ steps.service_vars.outputs.service_slug }}
@@ -50,6 +50,7 @@ jobs:
       compose_service:  ${{ steps.service_vars.outputs.compose_service }}
       has_docker:       ${{ steps.service_vars.outputs.has_docker }}
       tag_name:         ${{ steps.release_vars.outputs.tag_name }}
+      runner_label:     ${{ steps.runner_pick.outputs.runner_label }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,11 +78,11 @@ jobs:
               SERVICE_TYPE="python"
               SERVICE_SLUG="vigia-fall-detection"
               SERVICE_PATH="fall-detection"
-              DOCKERFILE_PATH="docker-compose/dockerfiles/fall-detection.dockerfile"
-              IMAGE_NAME="fall-detection"
+              DOCKERFILE_PATH=""
+              IMAGE_NAME=""
               ARTIFACT_NAME="fall-detection"
-              COMPOSE_SERVICE="fall-detection"
-              HAS_DOCKER="true"
+              COMPOSE_SERVICE=""
+              HAS_DOCKER="false"
               ;;
             "Vigia Bootstrap")
               SERVICE_TYPE="go"
@@ -117,6 +118,19 @@ jobs:
           echo "artifact_name=$ARTIFACT_NAME"     >> "$GITHUB_OUTPUT"
           echo "compose_service=$COMPOSE_SERVICE" >> "$GITHUB_OUTPUT"
           echo "has_docker=$HAS_DOCKER"           >> "$GITHUB_OUTPUT"
+
+      # Fall Detection: binário alvo é linux/arm64 — usar runner ARM nativo (ubuntu-24.04-arm).
+      # Repositório privado pode exigir runner ARM pago se o gratuito não estiver disponível.
+      - name: Resolver runner (ARM64 para Fall Detection)
+        id: runner_pick
+        shell: bash
+        run: |
+          SLUG="${{ steps.service_vars.outputs.service_slug }}"
+          if [ "$SLUG" = "vigia-fall-detection" ]; then
+            echo "runner_label=ubuntu-24.04-arm" >> "$GITHUB_OUTPUT"
+          else
+            echo "runner_label=ubuntu-latest" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Definir variáveis de release
         id: release_vars
@@ -176,13 +190,13 @@ jobs:
 
   # ─────────────────────────────────────────────
   # 2. SEGURANÇA
-  # SAST, SCA e lint do Dockerfile.
+  # SAST, SCA e lint do Dockerfile (só quando há imagem Docker no deploy).
   #
   # ─────────────────────────────────────────────
   security:
     name: Segurança — SAST, SCA, secrets, Dockerfile
     needs: validate_environment
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -200,34 +214,82 @@ jobs:
           dockerfile: ${{ needs.validate_environment.outputs.dockerfile_path }}
           failure-threshold: error
 
-      # ── Python ───────────────────────────────────────────────
+      # ── Python (Fall Detection: igual ao estágio builder de
+      #    deploy/Dockerfile.linux-arm64-binary + ferramentas de QA)
+      # ─────────────────────────────────────────────────────────
       - name: Set up Python
         if: needs.validate_environment.outputs.service_type == 'python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.11'
           cache: pip
           cache-dependency-path: |
-            ${{ needs.validate_environment.outputs.service_path }}/requirements.txt
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-debug.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-common.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-headless.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-binary.txt
+            ${{ needs.validate_environment.outputs.service_path }}/pyproject.toml
 
-      - name: Python - install dependencies
+      - name: Install system deps (equiv. Dockerfile.linux-arm64-binary)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ffmpeg \
+            libglib2.0-0 \
+            libgomp1 \
+            libgl1 \
+            libsm6 \
+            libxext6
+
+      # Mesma ordem que no Dockerfile: torch CPU → headless → binary → editable;
+      # depois remove opencv GUI e fixa headless (ultralytics).
+      # Sem --no-cache-dir: permite popular ~/.cache/pip para o job `build` reutilizar.
+      - name: Python - install dependencies (equiv. Makefile / Docker build)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install bandit pip-audit
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -r requirements-binary.txt
+          python -m pip install -e .
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install \
+            "pylint>=3,<4" \
+            "bandit>=1.8,<2" \
+            "pip-audit>=2.9,<3" \
+            "pytest>=8.2,<9" \
+            "pytest-asyncio>=0.26,<0.27"
+
+      - name: Python - lint (pylint)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: python -m pylint src/app
 
       - name: Python - SAST (bandit)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: bandit -r src/app -ll
+        run: python -m bandit -r src/app -ll
 
+      # Mesmos ignores que o CI (pip sem fix; pytest/async stack).
       - name: Python - dependency vulnerabilities (pip-audit)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: pip-audit --strict -r requirements.txt
+        run: |
+          python -m pip_audit --strict \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2025-71176
+
+      - name: Python - tests (pytest)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: python -m pytest -q
 
       # ── Go ───────────────────────────────────────────────────
       - name: Set up Go
@@ -292,32 +354,97 @@ jobs:
   # Compila o projeto e exporta o artefato para
   # o job de publicação Docker.
   #
-  # PARALELISMO: depende apenas de validate_environment,
-  # igual ao job security — os dois rodam ao mesmo tempo.
+  # Corre depois de `security` para: (1) não compilar se os checks falharem;
+  # (2) reutilizar o cache pip populado no job anterior (setup-python + ~/.cache/pip).
   # ─────────────────────────────────────────────
   build:
     name: Build — ${{ inputs.service_selection }}
-    needs: validate_environment
+    needs:
+      - validate_environment
+      - security
     if: needs.validate_environment.outputs.service_slug != 'vigia-bootstrap'
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
     steps:
       - uses: actions/checkout@v4
 
-      # ── Python ───────────────────────────────────────────────
-      # O build real acontece dentro do Docker (pip install no Dockerfile).
-      # Validamos aqui que o requirements.txt está íntegro.
+      # ── Python — Fall Detection: mesmo ambiente que Dockerfile.linux-arm64-binary,
+      #    runner ubuntu-24.04-arm → wheels e binário PyInstaller em aarch64.
       - name: Set up Python
         if: needs.validate_environment.outputs.service_type == 'python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-common.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-headless.txt
+            ${{ needs.validate_environment.outputs.service_path }}/requirements-binary.txt
+            ${{ needs.validate_environment.outputs.service_path }}/pyproject.toml
 
-      - name: Python - validar requirements
+      - name: Install system deps (equiv. Dockerfile.linux-arm64-binary)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ffmpeg \
+            libglib2.0-0 \
+            libgomp1 \
+            libgl1 \
+            libsm6 \
+            libxext6
+
+      # Repete a pilha do estágio builder; com `needs: security` + cache pip acerta na maior parte das wheels.
+      - name: Python - dependências de runtime + PyInstaller (equiv. estágio builder Docker)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements.txt --dry-run
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -r requirements-binary.txt
+          python -m pip install -e .
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+
+      - name: Python - PyInstaller (onedir, linux/arm64 nativo)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        env:
+          PYINSTALLER_ONEDIR: "1"
+        run: pyinstaller --clean --noconfirm vigia-fall-detection.spec
+
+      - name: Python - empacotar tarball (layout compatível com Makefile)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+          test -d dist/vigia-fall-detection
+          rm -rf dist/vigia-fall-detection-linux-arm64
+          mv dist/vigia-fall-detection dist/vigia-fall-detection-linux-arm64
+          tar -czf "vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz" \
+            -C dist vigia-fall-detection-linux-arm64
+
+      # Artefato na raiz do workspace: ao baixar no job tag_release o .tar.gz fica
+      # em ./release-assets/<nome>.tar.gz e o GitHub Release anexa sem caminhos aninhados.
+      - name: Python - copiar tarball para a raiz (upload plano)
+        if: needs.validate_environment.outputs.service_type == 'python'
+        run: |
+          cp "${{ needs.validate_environment.outputs.service_path }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz" \
+            "${{ github.workspace }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz"
+
+      - name: Python - exportar artefato ARM64
+        if: needs.validate_environment.outputs.service_type == 'python'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
       # ── Go ───────────────────────────────────────────────────
       - name: Set up Go
@@ -389,7 +516,7 @@ jobs:
 
   # ─────────────────────────────────────────────
   # 4. PUBLICAÇÃO DA IMAGEM DOCKER
-  # Aguarda security E build (paralelos entre si).
+  # Aguarda security e build (build corre após security).
   #
   # ─────────────────────────────────────────────
   publish_docker_image:
@@ -428,7 +555,7 @@ jobs:
         with:
           context: .
           file: ${{ needs.validate_environment.outputs.dockerfile_path }}
-          platforms: ${{ needs.validate_environment.outputs.image_name == 'fall-detection' && 'linux/arm64' || 'linux/amd64' }}
+          platforms: linux/amd64
           load: true
           push: false
           tags: |
@@ -604,11 +731,16 @@ jobs:
           needs.build.result == 'success'
         ) ||
         (
+          needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' &&
+          needs.security.result == 'success' &&
+          needs.build.result == 'success'
+        ) ||
+        (
           needs.validate_environment.outputs.service_slug != 'vigia-bootstrap' &&
           needs.validate_environment.outputs.service_slug != 'vigia-ui' &&
+          needs.validate_environment.outputs.service_slug != 'vigia-fall-detection' &&
           needs.publish_docker_image.result == 'success' &&
           (
-            needs.validate_environment.outputs.service_slug == 'vigia-fall-detection' ||
             needs.validate_environment.outputs.compose_service == '' ||
             needs.deploy.result == 'success'
           )
@@ -633,6 +765,33 @@ jobs:
         with:
           name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
           path: ./release-assets
+
+      - name: Baixar artefato Fall Detection (Linux ARM64)
+        if: needs.validate_environment.outputs.service_slug == 'vigia-fall-detection'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ./release-assets
+
+      - name: Confirmar tarball Fall Detection para anexar ao release
+        if: needs.validate_environment.outputs.service_slug == 'vigia-fall-detection'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          EXPECT="./release-assets/vigia-fall-detection-linux-arm64-${VERSION}.tar.gz"
+          if [ -f "$EXPECT" ]; then
+            ls -la "$EXPECT"
+            exit 0
+          fi
+          FOUND="$(find release-assets -type f -name 'vigia-fall-detection-linux-arm64-*.tar.gz' -print -quit || true)"
+          if [ -z "${FOUND}" ]; then
+            echo "::error::Tarball Fall Detection não encontrado em release-assets."
+            find release-assets -ls 2>/dev/null || ls -la release-assets || true
+            exit 1
+          fi
+          cp -f "$FOUND" "$EXPECT"
+          ls -la "$EXPECT"
  
       - name: Criar e publicar tag
         env:
@@ -704,10 +863,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Criar GitHub Release (Fall Detection — Linux ARM64)
+        if: needs.validate_environment.outputs.service_slug == 'vigia-fall-detection'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          files: ./release-assets/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Criar GitHub Release (demais serviços)
         if: |
           needs.validate_environment.outputs.service_slug != 'vigia-bootstrap' &&
-          needs.validate_environment.outputs.service_slug != 'vigia-ui'
+          needs.validate_environment.outputs.service_slug != 'vigia-ui' &&
+          needs.validate_environment.outputs.service_slug != 'vigia-fall-detection'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate_environment.outputs.tag_name }}

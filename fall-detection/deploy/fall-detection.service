@@ -9,6 +9,7 @@
 #   sudo systemctl daemon-reload && sudo systemctl enable --now fall-detection.service
 #
 # Câmera: o usuário do serviço precisa ler /dev/video* (ex.: grupo `video`).
+# O binário é gerado com requirements-headless.txt (sem libGL na placa).
 
 [Unit]
 Description=Vigia Fall Detection

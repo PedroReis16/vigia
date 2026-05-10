@@ -2,7 +2,6 @@ package install_test
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/install"
@@ -21,14 +20,15 @@ func TestResolveDataDir_flag(t *testing.T) {
 
 func TestBinaryPath(t *testing.T) {
 	p := install.BinaryPath("/data/vigia")
-	if !strings.HasSuffix(p, filepath.Join("bin", "fall-detection")) {
-		t.Fatalf("unexpected path %q", p)
+	want := filepath.Join("/data/vigia", "fall-detection", "vigia-fall-detection")
+	if p != want {
+		t.Fatalf("got %q want %q", p, want)
 	}
 }
 
-func TestBinDir(t *testing.T) {
-	got := install.BinDir("/var/lib/v")
-	want := filepath.Join("/var/lib/v", "bin")
+func TestAppDir(t *testing.T) {
+	got := install.AppDir("/var/lib/v")
+	want := filepath.Join("/var/lib/v", "fall-detection")
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}

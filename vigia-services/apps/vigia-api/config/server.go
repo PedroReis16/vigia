@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 
@@ -32,12 +33,19 @@ func Server(lc fx.Lifecycle, log *zap.Logger, handlers *handlers.Handlers) *gin.
 				log.Error("failed to start HTTP server", zap.String("addr", srv.Addr), zap.Error(err))
 				return err
 			}
-			go srv.Serve(ln)
+			go func() {
+				if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					log.Error("HTTP server stopped unexpectedly", zap.Error(err))
+				}
+			}()
 			log.Info("HTTP server listening", zap.String("addr", srv.Addr))
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			srv.Shutdown(ctx)
+			if err := srv.Shutdown(ctx); err != nil {
+				log.Error("HTTP server shutdown", zap.Error(err))
+				return err
+			}
 			log.Info("HTTP server stopped")
 			return nil
 		},

@@ -1,0 +1,43 @@
+package internal
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/api"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/config"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/install"
+)
+
+// RequireAPIClient returns an api.Client using ResolvedAPIBaseURL.
+func RequireAPIClient() (*api.Client, error) {
+	base := config.ResolvedAPIBaseURL()
+	if base == "" {
+		return nil, fmt.Errorf("--api-base-url ou VIGIA_API_BASE_URL é obrigatório")
+	}
+	return api.NewClient(base)
+}
+
+// RequireInstalledFallDetection ensures install.json exists and the recorded binary is present.
+func RequireInstalledFallDetection() (*install.State, string, error) {
+	dataDir, err := install.ResolveDataDir(config.DataDir)
+	if err != nil {
+		return nil, "", err
+	}
+	statePath := install.StatePath(dataDir)
+	st, err := install.LoadState(statePath)
+	if err != nil {
+		return nil, dataDir, err
+	}
+	if st == nil {
+		return nil, dataDir, fmt.Errorf("fall-detection não está instalado (ausente %s)", statePath)
+	}
+	bin := st.BinaryPath
+	if bin == "" {
+		bin = install.BinaryPath(dataDir)
+	}
+	if _, err := os.Stat(bin); err != nil {
+		return nil, dataDir, fmt.Errorf("binário do fall-detection não encontrado em %q: %w", bin, err)
+	}
+	return st, dataDir, nil
+}

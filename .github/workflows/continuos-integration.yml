@@ -234,7 +234,12 @@ jobs:
         # - CVE-2026-3219 (pip): no fixed version available in index yet.
         # - CVE-2025-71176 (pytest): fixed in pytest 9, but current async test stack
         #   depends on pytest-asyncio which constrains pytest<9.
-        run: python -m pip_audit --strict --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2025-71176
+        # Sem --strict: torch (+cpu, índice PyTorch) não é auditável como pacote PyPI puro.
+        run: |
+          python -m pip_audit \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2025-71176
 
       - name: Python - tests
         if: matrix.project.type == 'python'

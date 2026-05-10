@@ -27,26 +27,39 @@ jobs:
     outputs:
       projects_matrix: ${{ steps.compute_matrix.outputs.projects_matrix }}
     steps:
+      # shallow clone (fetch-depth: 1) impede o merge-base da PR; o paths-filter
+      # então considera *todos* os arquivos como novos e aciona todos os filtros.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
+      # Sem `token`, o paths-filter em pull_request usa git em vez da API; o diff local
+      # costuma divergir do conjunto real de ficheiros da PR e pode marcar todos os filtros.
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          token: ${{ github.token }}
+          # "every": um ficheiro só conta se corresponder a *todos* os padrões do filtro
+          # (ex.: path do projeto E não-*.md). "some" com '!' em linhas separadas trata
+          # cada '!' como OR e dispara falsos positivos no repositório inteiro.
+          # O quantificador é global: dockerfiles e ficheiros comuns ficam em filtros à parte.
+          predicate-quantifier: every
           filters: |
-            frontend_non_md:
+            frontend_src:
               - 'frontend/**'
               - '!frontend/**/*.md'
+            frontend_docker:
               - 'docker-compose/dockerfiles/vigia-frontend.dockerfile'
-            fall_detection_non_md:
+            fall_detection_src:
               - 'fall-detection/**'
               - '!fall-detection/**/*.md'
+            fall_detection_docker:
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
-            vigia_api_non_md:
+            vigia_api_src:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
+            vigia_api_docker:
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
@@ -54,9 +67,11 @@ jobs:
             vigia_shared_non_md:
               - 'vigia-services/pkg/shared/**'
               - '!vigia-services/pkg/shared/**/*.md'
-            vigia_common:
+            vigia_go_work:
               - 'vigia-services/go.work'
+            vigia_go_sum:
               - 'vigia-services/go.work.sum'
+            vigia_makefile:
               - 'vigia-services/Makefile'
 
       - name: Build projects matrix
@@ -66,7 +81,7 @@ jobs:
           set -euo pipefail
           PROJECTS='[]'
 
-          if [[ "${{ steps.filter.outputs.frontend_non_md }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.frontend_src }}" == "true" || "${{ steps.filter.outputs.frontend_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "frontend",
               "type":       "node",
@@ -76,7 +91,7 @@ jobs:
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "${{ steps.filter.outputs.fall_detection_non_md }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.fall_detection_src }}" == "true" || "${{ steps.filter.outputs.fall_detection_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "fall-detection",
               "type":       "python",
@@ -87,15 +102,17 @@ jobs:
           fi
 
           # Variáveis auxiliares para deixar as condições legíveis
-          VIGIA_API_CHANGED="${{ steps.filter.outputs.vigia_api_non_md }}"
-          VIGIA_STREAM_CHANGED="${{ steps.filter.outputs.vigia_stream_non_md }}"
+          VIGIA_API_SRC="${{ steps.filter.outputs.vigia_api_src }}"
+          VIGIA_API_DOCKER="${{ steps.filter.outputs.vigia_api_docker }}"
           VIGIA_BOOTSTRAP_CHANGED="${{ steps.filter.outputs.vigia_bootstrap_non_md }}"
           SHARED_CHANGED="${{ steps.filter.outputs.vigia_shared_non_md }}"
-          COMMON_CHANGED="${{ steps.filter.outputs.vigia_common }}"
+          GO_WORK_CHANGED="${{ steps.filter.outputs.vigia_go_work }}"
+          GO_SUM_CHANGED="${{ steps.filter.outputs.vigia_go_sum }}"
+          MAKEFILE_CHANGED="${{ steps.filter.outputs.vigia_makefile }}"
 
           # vigia-api entra se o próprio app, o pacote shared ou os arquivos
           # comuns do workspace Go foram alterados.
-          if [[ "$VIGIA_API_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$COMMON_CHANGED" == "true" ]]; then
+          if [[ "$VIGIA_API_SRC" == "true" || "$VIGIA_API_DOCKER" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "vigia-api",
               "type":       "go",
@@ -107,7 +124,7 @@ jobs:
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "$VIGIA_BOOTSTRAP_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$COMMON_CHANGED" == "true" ]]; then
+          if [[ "$VIGIA_BOOTSTRAP_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "vigia-bootstrap",
               "type":       "go",

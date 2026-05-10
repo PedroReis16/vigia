@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import math
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnxruntime as ort
+
+from app.bundle_paths import classifier_onnx_path
 
 # Alinhado ao _capture_frame em frame_consumer (keypoints com conf < 0.25 são zerados).
 CONF_THRESHOLD = 0.25
@@ -227,7 +228,10 @@ class FallClassifier:
     """
 
     def __init__(self):
-        self._session = ort.InferenceSession(Path(__file__).resolve().parents[3]/"model"/"classifier_svm.onnx")
+        onnx_path = classifier_onnx_path()
+        if not onnx_path.is_file():
+            raise FileNotFoundError(f"modelo ONNX nao encontrado: {onnx_path}")
+        self._session = ort.InferenceSession(onnx_path)
         self._input_name = self._session.get_inputs()[0].name
 
     def predict(self, keypoints_data: list | np.ndarray) -> dict | None:

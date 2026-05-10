@@ -12,7 +12,9 @@ func SetRoutes(router *gin.Engine) {
 	{
 		devices := v1.Group("/devices")
 		{
-			devices.GET("/", )
+			devices.POST("/register", handlers.NewDevicesHandler().RegisterUserDevice)
+			devices.GET("/", handlers.NewDevicesHandler().GetDevices)
+			devices.GET("/download", handlers.NewDevicesHandler().DownloadVigiaVersion)
 		}
 	}
 }

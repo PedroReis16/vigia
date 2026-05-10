@@ -143,7 +143,8 @@ func extractTarGz(archivePath, destDir string) error {
 			if err := os.MkdirAll(cleanTarget, mode.Perm()); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		// 0 é o typeflag legado de ficheiro regular (antigo tar.TypeRegA); não usar TypeRegA (SA1019).
+		case tar.TypeReg, 0:
 			if err := os.MkdirAll(filepath.Dir(cleanTarget), 0o755); err != nil {
 				return err
 			}

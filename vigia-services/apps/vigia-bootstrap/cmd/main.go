@@ -1,36 +1,16 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal"
+	_ "github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/commands"
 )
 
 func main() {
-	var rootCommand = &cobra.Command{}
-
-	var projectName, projectPath string
-
-	var cmd = &cobra.Command{
-		Use:   "create",
-		Short: "Create boilerplate for a new project",
-		Run: func(cmd *cobra.Command, args []string) {
-			// validations
-			if projectName == "" {
-				fmt.Println("You must supply a project name.")
-				return
-			}
-			if projectPath == "" {
-				fmt.Println("You must supply a project path.")
-				return
-			}
-			fmt.Println("Creating project...")
-		},
+	if err := internal.Execute(); err != nil {
+		log.Println(err)
+		os.Exit(1)
 	}
-
-	cmd.Flags().StringVarP(&projectName, "name", "n", "", "Name of the project")
-	cmd.Flags().StringVarP(&projectPath, "path", "p", "", "Path where the project will be created")
-
-	rootCommand.AddCommand(cmd)
-	rootCommand.Execute()
 }

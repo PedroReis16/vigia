@@ -1,11 +1,5 @@
+# Ambiente local / debug: OpenCV com GUI (cv2.imshow).
+# Para gerar o executável ARM64, o Docker usa requirements-headless.txt.
+# Se você tinha headless: pip uninstall -y opencv-python-headless && pip install -r requirements.txt
+-r requirements-common.txt
 opencv-python==4.12.0.88
-python-dotenv==1.2.2
-ultralytics==8.4.33
-pandas==2.2.3
-schedule==1.2.1
-aiohttp==3.13.4
-paho-mqtt==2.1.0
-scikit-learn==1.8.0
-onnxruntime==1.22.0
-loguru==0.7.3
-pyzmq==27.1.0

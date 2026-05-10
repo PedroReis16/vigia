@@ -23,15 +23,15 @@ RUN apt-get update \
 
 # ── Camada de cache: só dependências ─────────────────────────────────────────
 # Copiados antes do código para que o Docker reutilize o cache desta camada
-# enquanto requirements.txt / pyproject.toml não mudarem.
-COPY requirements.txt requirements-binary.txt pyproject.toml ./
+# enquanto requirements-*.txt / pyproject.toml não mudarem.
+COPY requirements-common.txt requirements-headless.txt requirements-binary.txt pyproject.toml ./
 
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
       --extra-index-url https://pypi.org/simple \
       "torch>=2.6,<2.12" "torchvision>=0.21,<0.27" \
- && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir -r requirements-headless.txt \
  && pip install --no-cache-dir -r requirements-binary.txt
 
 # ── Camada de código: invalidada a cada mudança no fonte ─────────────────────
@@ -40,7 +40,10 @@ COPY model ./model
 COPY src   ./src
 
 # Instala o próprio pacote em modo editável (depois de copiar src/)
-RUN pip install --no-cache-dir -e .
+# ultralytics puxa `opencv-python` (GUI → libGL). Garantimos só headless antes do PyInstaller.
+RUN pip install --no-cache-dir -e . \
+ && pip uninstall -y opencv-python 2>/dev/null || true \
+ && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.12.0.88"
 
 # onedir: menor pico de RAM que onefile (evita OOM / exit 137 em Docker).
 # Sem isto, o spec cai no modo onefile e o artefato em /vigia-fall-detection deixa de ser pasta onedir.

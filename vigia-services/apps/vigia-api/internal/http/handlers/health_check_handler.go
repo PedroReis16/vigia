@@ -6,6 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type HealthCheckHandler struct{}
+
+func NewHealthCheckHandler() *HealthCheckHandler {
+	return &HealthCheckHandler{}
+}
+
 // HealthCheckResponse é o corpo JSON do health check.
 type HealthCheckResponse struct {
 	Message string `json:"message"`
@@ -18,6 +24,6 @@ type HealthCheckResponse struct {
 // @Produce      json
 // @Success      200  {object}  HealthCheckResponse
 // @Router       /health [get]
-func HealthCheckHandler(c *gin.Context) {
+func (h *HealthCheckHandler) Handle(c *gin.Context) {
 	c.JSON(http.StatusOK, HealthCheckResponse{Message: "Bem vindo ao Vigia! Sua plataforma para o cuidado de quem você mais ama"})
 }

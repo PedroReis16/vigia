@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	
+
 	routes "github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/handlers"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
 )
 
-func Server(lc fx.Lifecycle) *gin.Engine {
+func Server(lc fx.Lifecycle, handlers *handlers.Handlers) *gin.Engine {
 	router := gin.Default()
 
-
-	routes.SetRoutes(router)
+	routes.SetRoutes(router, handlers)
 	srv := &http.Server{
 		Addr:    ":8000",
 		Handler: router,

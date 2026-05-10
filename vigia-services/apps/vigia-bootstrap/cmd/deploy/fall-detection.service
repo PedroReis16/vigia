@@ -1,0 +1,23 @@
+# Exemplo de unit systemd para o executável fall-detection instalado pelo vigia-bootstrap.
+# Ajuste os caminhos abaixo para coincidir com --data-dir (ex.: /var/lib/vigia).
+#
+#   sudo install -m 644 cmd/deploy/fall-detection.service /etc/systemd/system/fall-detection.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable fall-detection.service
+#
+# O binário fica em ${DATA_DIR}/bin/fall-detection (por omissão ~/.vigia/bin/fall-detection).
+
+[Unit]
+Description=Vigia Fall Detection
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/lib/vigia
+ExecStart=/var/lib/vigia/bin/fall-detection
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,11 @@ from .rtmp_worker import run_rtmp_worker
 
 logger = get_logger("streaming")
 
+
+def _consume_frames(rtmp_url: str) -> None:
+    """Delega ao worker RTMP (nome estável para testes)."""
+    run_rtmp_worker(rtmp_url)
+
 _MONITOR_INTERVAL_SECONDS = 3
 _SCHEDULE_POLL_SECONDS = 0.5
 

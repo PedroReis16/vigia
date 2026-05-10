@@ -1,0 +1,55 @@
+# =============================================================================
+# Dockerfile.linux-arm64-binary
+# Gera `dist/vigia-fall-detection` (onedir) para Linux ARM64.
+# Uso: a partir da raiz de fall-detection — ver `make build-linux-arm64`.
+# =============================================================================
+
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 python:3.11-bookworm AS builder
+
+WORKDIR /build
+
+# Dependências de sistema
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ffmpeg \
+      libglib2.0-0 \
+      libgomp1 \
+      libgl1 \
+      libsm6 \
+      libxext6 \
+ && rm -rf /var/lib/apt/lists/*
+
+# ── Camada de cache: só dependências ─────────────────────────────────────────
+# Copiados antes do código para que o Docker reutilize o cache desta camada
+# enquanto requirements.txt / pyproject.toml não mudarem.
+COPY requirements.txt requirements-binary.txt pyproject.toml ./
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple \
+      "torch>=2.6,<2.12" "torchvision>=0.21,<0.27" \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir -r requirements-binary.txt
+
+# ── Camada de código: invalidada a cada mudança no fonte ─────────────────────
+COPY main.py vigia-fall-detection.spec ./
+COPY model ./model
+COPY src   ./src
+
+# Instala o próprio pacote em modo editável (depois de copiar src/)
+RUN pip install --no-cache-dir -e .
+
+# onedir: menor pico de RAM que onefile (evita OOM / exit 137 em Docker).
+# Sem isto, o spec cai no modo onefile e o artefato em /vigia-fall-detection deixa de ser pasta onedir.
+ENV PYINSTALLER_ONEDIR=1
+RUN pyinstaller --clean --noconfirm vigia-fall-detection.spec
+
+# ── Stage 2: imagem mínima — apenas o artefato ───────────────────────────────
+# Não use `scratch` aqui: `docker create <imagem>` exige CMD/ENTRYPOINT definidos;
+# imagens scratch sem comando geram "no command specified" e quebram o Makefile.
+FROM alpine:3.19 AS artifact
+COPY --from=builder /build/dist/vigia-fall-detection /vigia-fall-detection
+CMD ["/bin/true"]

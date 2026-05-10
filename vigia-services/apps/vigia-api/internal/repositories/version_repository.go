@@ -26,7 +26,7 @@ func (r *VersionRepository) RegisterVersion(newVersion *entities.Version) error 
 
 	var oldVersion entities.Version
 	// Busca a versão marcada como is_latest
-	err := r.db.Where("is_latest = true").First(&oldVersion).Error
+	err := r.db.Where("is_latest = ?", true).First(&oldVersion).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
@@ -53,7 +53,11 @@ func (r *VersionRepository) RegisterVersion(newVersion *entities.Version) error 
 	return nil
 }
 
-func (r *VersionRepository) FindNewerVersion(version string) (*entities.Version, error) {
-
-	return nil, nil
+func (r *VersionRepository) FindLatestVersion() (*entities.Version, error) {
+	var result entities.Version
+	err := r.db.Where("is_latest = ?", true).First(&result).Error
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

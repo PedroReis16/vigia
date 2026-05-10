@@ -1,15 +1,21 @@
 package handlers
 
 type Handlers struct {
-	DevicesHandler *DevicesHandler
+	DevicesHandler     *DevicesHandler
 	HealthCheckHandler *HealthCheckHandler
-	FiwareHandler *FiwareHandler
+	FiwareHandler      *FiwareHandler
+	VersionHandler     *VersionHandler
 }
 
-func NewHandlers(devicesHandler *DevicesHandler, healthCheckHandler *HealthCheckHandler, fiwareHandler *FiwareHandler) *Handlers {
+func NewHandlers(
+	devicesHandler *DevicesHandler, 
+	healthCheckHandler *HealthCheckHandler, 
+	fiwareHandler *FiwareHandler,
+	versionHandler *VersionHandler) *Handlers {
 	return &Handlers{
-		DevicesHandler: devicesHandler,
+		DevicesHandler:     devicesHandler,
 		HealthCheckHandler: healthCheckHandler,
-		FiwareHandler: fiwareHandler,
+		FiwareHandler:      fiwareHandler,
+		VersionHandler:     versionHandler,
 	}
 }

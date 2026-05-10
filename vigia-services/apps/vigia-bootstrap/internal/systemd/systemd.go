@@ -34,6 +34,8 @@ func (r *Runner) run(ctx context.Context, args ...string) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
+	// Sem shell: argumentos são sempre subcomandos literais + nome da unit validado em serviceName().
+	// #nosec G204 -- não há concatenação com entrada arbitrária nem execução via sh -c
 	cmd := exec.CommandContext(ctx, "systemctl", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

@@ -6,16 +6,22 @@ import (
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/logging"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/dtos"
-	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/services"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-type VersionHandler struct {
-	service *services.VersionService
+// VersionHandlerService is the behavior required by VersionHandler (implemented by *services.VersionService).
+type VersionHandlerService interface {
+	RegisterNewVigiaVersion(*dtos.NewVersionDTO) error
+	FindForUpdates(currentVersion string) (*dtos.VersionDTO, error)
+	GetVigiaVersion(version string) (*dtos.VersionDTO, error)
 }
 
-func NewVersionHandler(service *services.VersionService) *VersionHandler {
+type VersionHandler struct {
+	service VersionHandlerService
+}
+
+func NewVersionHandler(service VersionHandlerService) *VersionHandler {
 	return &VersionHandler{service: service}
 }
 
@@ -44,9 +50,25 @@ func (h *VersionHandler) RegisterNewVigiaVersion(c *gin.Context) {
 }
 
 func (h *VersionHandler) FindForUpdates(c *gin.Context) {
-	// Encontra se há atualizações para o Vigia
+	currentVersion := c.Query("currentVersion")
+	dto, err := h.service.FindForUpdates(currentVersion)
+	if err != nil {
+		_ = c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if dto == nil {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Hello, World!"})
+	logging.LoggerFromGin(c).Info("atualização disponível ou última versão consultada",
+		zap.String("event", "version_find_for_updates"),
+		zap.String("current_version_query", currentVersion),
+		zap.String("offered_version", dto.Version),
+	)
+
+	c.JSON(http.StatusOK, dto)
 }
 
 func (h *VersionHandler) GetVigiaVersion(c *gin.Context) {

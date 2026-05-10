@@ -2,19 +2,22 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 
 	routes "github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/handlers"
+	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
-func Server(lc fx.Lifecycle, handlers *handlers.Handlers) *gin.Engine {
-	router := gin.Default()
+func Server(lc fx.Lifecycle, log *zap.Logger, handlers *handlers.Handlers) *gin.Engine {
+	router := gin.New()
+	router.Use(middleware.RequestContext(log))
+	router.Use(middleware.ZapRecovery())
 
 	routes.SetRoutes(router, handlers)
 	srv := &http.Server{
@@ -24,18 +27,18 @@ func Server(lc fx.Lifecycle, handlers *handlers.Handlers) *gin.Engine {
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			ln, err := net.Listen("tcp", srv.Addr) // the web server starts listening on 8080
+			ln, err := net.Listen("tcp", srv.Addr)
 			if err != nil {
-				fmt.Println("[Vigia API] Failed to start HTTP Server at", srv.Addr)
+				log.Error("failed to start HTTP server", zap.String("addr", srv.Addr), zap.Error(err))
 				return err
 			}
-			go srv.Serve(ln) // process an incoming request in a go routine
-			fmt.Println("[Vigia API]Succeeded to start HTTP Server at", srv.Addr)
+			go srv.Serve(ln)
+			log.Info("HTTP server listening", zap.String("addr", srv.Addr))
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			srv.Shutdown(ctx) // stop the web server
-			fmt.Println("[Vigia API] HTTP Server is stopped")
+			srv.Shutdown(ctx)
+			log.Info("HTTP server stopped")
 			return nil
 		},
 	})

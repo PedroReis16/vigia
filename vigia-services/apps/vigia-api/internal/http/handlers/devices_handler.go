@@ -28,11 +28,3 @@ func (h *DevicesHandler) GetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Hello, World!"})
 }
 
-func (h *DevicesHandler) DownloadVigiaVersion(c *gin.Context) {
-
-	// Baixa a versão do Vigia para o dispositivo
-
-	// Se for passado o parâmetro de uma versão específica, será retornado a versão, se não a última versão disponível
-
-	c.JSON(http.StatusOK, gin.H{"message": "Hello, World!"})
-}

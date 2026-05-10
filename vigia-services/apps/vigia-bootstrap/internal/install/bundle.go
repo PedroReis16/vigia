@@ -18,7 +18,7 @@ const bundleDownloadSuffix = ".bundle-download.tar.gz.partial"
 // InstallFallDetectionBundle downloads the PyInstaller onedir tarball from url into vigiaRoot,
 // matching the manual deploy flow: extract → single top-level dir → rename to fall-detection → chmod vigia-fall-detection.
 func InstallFallDetectionBundle(ctx context.Context, downloadURL, vigiaRoot string) error {
-	if err := os.MkdirAll(vigiaRoot, 0o755); err != nil {
+	if err := os.MkdirAll(vigiaRoot, 0o750); err != nil {
 		return err
 	}
 
@@ -45,7 +45,9 @@ func InstallFallDetectionBundle(ctx context.Context, downloadURL, vigiaRoot stri
 	if _, err := os.Stat(bin); err != nil {
 		return fmt.Errorf("após extrair, executável não encontrado em %s: %w", bin, err)
 	}
-	if err := os.Chmod(bin, 0o755); err != nil {
+	// Executável do serviço: requer bits de execução; 0o600 bloquearia o fall-detection.
+	// #nosec G302
+	if err := os.Chmod(bin, 0o750); err != nil {
 		return err
 	}
 	return nil
@@ -68,31 +70,51 @@ func downloadTarball(ctx context.Context, downloadURL, destPath string) error {
 		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
 	}
 
-	tmp := destPath + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	parent := filepath.Dir(destPath)
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(parent)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	base := filepath.Base(destPath)
+	tmpName := base + ".tmp"
+
+	f, err := root.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		f.Close()
-		_ = os.Remove(tmp)
+		_ = f.Close()
+		_ = root.Remove(tmpName)
 		return err
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
+		_ = root.Remove(tmpName)
 		return err
 	}
 
-	if err := os.Rename(tmp, destPath); err != nil {
-		_ = os.Remove(tmp)
+	if err := root.Rename(tmpName, base); err != nil {
+		_ = root.Remove(tmpName)
 		return err
 	}
 	return nil
 }
 
 func extractTarGz(archivePath, destDir string) error {
-	f, err := os.Open(archivePath)
+	arParent := filepath.Dir(archivePath)
+	arBase := filepath.Base(archivePath)
+	arRoot, err := os.OpenRoot(arParent)
+	if err != nil {
+		return err
+	}
+	defer arRoot.Close()
+
+	f, err := arRoot.Open(arBase)
 	if err != nil {
 		return err
 	}
@@ -110,6 +132,12 @@ func extractTarGz(archivePath, destDir string) error {
 	if err != nil {
 		return err
 	}
+
+	destRoot, err := os.OpenRoot(absDest)
+	if err != nil {
+		return err
+	}
+	defer destRoot.Close()
 
 	for {
 		hdr, err := tr.Next()
@@ -138,22 +166,34 @@ func extractTarGz(archivePath, destDir string) error {
 
 		mode := hdr.FileInfo().Mode()
 
+		rel, err := filepath.Rel(absDest, cleanTarget)
+		if err != nil {
+			return err
+		}
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("caminho ilegal no arquivo: %q", hdr.Name)
+		}
+
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(cleanTarget, mode.Perm()); err != nil {
+			if err := destRoot.MkdirAll(rel, 0o750); err != nil {
 				return err
 			}
 		// 0 é o typeflag legado de ficheiro regular (antigo tar.TypeRegA); não usar TypeRegA (SA1019).
 		case tar.TypeReg, 0:
-			if err := os.MkdirAll(filepath.Dir(cleanTarget), 0o755); err != nil {
-				return err
+			parentRel := filepath.Dir(rel)
+			if parentRel != "." {
+				if err := destRoot.MkdirAll(parentRel, 0o750); err != nil {
+					return err
+				}
 			}
-			out, err := os.OpenFile(cleanTarget, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode.Perm()&0o777)
+			outPerm := filePermFromTar(mode)
+			out, err := destRoot.OpenFile(rel, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, outPerm)
 			if err != nil {
 				return err
 			}
 			if _, err := io.CopyN(out, tr, hdr.Size); err != nil {
-				out.Close()
+				_ = out.Close()
 				return err
 			}
 			if err := out.Close(); err != nil {
@@ -163,6 +203,14 @@ func extractTarGz(archivePath, destDir string) error {
 			return fmt.Errorf("tipo de entrada não suportado no tarball (%c): %q", hdr.Typeflag, hdr.Name)
 		}
 	}
+}
+
+func filePermFromTar(mode os.FileMode) os.FileMode {
+	p := mode.Perm()
+	if p&0111 != 0 {
+		return 0o750
+	}
+	return 0o600
 }
 
 func promoteStagingBundle(stagingRoot, vigiaRoot string) error {

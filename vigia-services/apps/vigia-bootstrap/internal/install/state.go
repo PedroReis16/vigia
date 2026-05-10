@@ -15,7 +15,17 @@ type State struct {
 
 // LoadState reads install.json. If missing, returns (nil, nil).
 func LoadState(path string) (*State, error) {
-	b, err := os.ReadFile(path)
+	if filepath.Base(path) != stateFile {
+		return nil, fmt.Errorf("estado: esperado ficheiro %q", stateFile)
+	}
+	dir := filepath.Dir(path)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	b, err := root.ReadFile(stateFile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -31,6 +41,9 @@ func LoadState(path string) (*State, error) {
 
 // SaveState writes install.json atomically.
 func SaveState(path string, s *State) error {
+	if filepath.Base(path) != stateFile {
+		return fmt.Errorf("estado: esperado ficheiro %q", stateFile)
+	}
 	if s == nil {
 		return fmt.Errorf("state is nil")
 	}
@@ -39,12 +52,18 @@ func SaveState(path string, s *State) error {
 		return err
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	defer root.Close()
+
+	tmp := stateFile + ".tmp"
+	if err := root.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	return root.Rename(tmp, stateFile)
 }

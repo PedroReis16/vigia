@@ -68,6 +68,9 @@ jobs:
               - 'vigia-services/go.work.sum'
             vigia_makefile:
               - 'vigia-services/Makefile'
+            vigia_ui_src:
+              - 'vigia_ui/**'
+              - '!vigia_ui/**/*.md'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -75,6 +78,15 @@ jobs:
         run: |
           set -euo pipefail
           PROJECTS='[]'
+
+          if [[ "${{ steps.filter.outputs.vigia_ui_src }}" == "true" ]]; then
+            PROJECTS=$(jq -c '. + [{
+              "name":       "vigia_ui",
+              "type":       "flutter",
+              "path":       "vigia_ui",
+              "has_docker": "false"
+            }]' <<< "$PROJECTS")
+          fi
 
           if [[ "${{ steps.filter.outputs.fall_detection_src }}" == "true" || "${{ steps.filter.outputs.fall_detection_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
@@ -179,6 +191,13 @@ jobs:
           go-version-file: ${{ matrix.project.go_mod }}
           cache-dependency-path: ${{ matrix.project.go_sum }}
 
+      - name: Set up Flutter
+        if: matrix.project.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
       # ── Python ──────────────────────────────────────────────
 
       - name: Python - install dependencies
@@ -221,6 +240,28 @@ jobs:
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
         run: python -m pytest -q
+
+      # ── Flutter (vigia_ui) ────────────────────────────────────
+
+      - name: Flutter - pub get
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter pub get
+
+      - name: Flutter - format (obrigatório)
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter - analyze
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter analyze --fatal-warnings
+
+      - name: Flutter - test
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter test
 
       # ── Go ──────────────────────────────────────────────────
 

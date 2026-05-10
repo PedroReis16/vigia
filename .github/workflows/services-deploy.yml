@@ -356,8 +356,8 @@ jobs:
   # Compila o projeto e exporta o artefato para
   # o job de publicação Docker.
   #
-  # Corre depois de `security` para: (1) não compilar se os checks falharem;
-  # (2) reutilizar o cache pip populado no job anterior (setup-python + ~/.cache/pip).
+  # Corre depois de `security` para não compilar se os checks falharem.
+  # Fall Detection: mesmo fluxo que `make build-linux-arm64` (Dockerfile no repo).
   # ─────────────────────────────────────────────
   build:
     name: Build — ${{ inputs.service_selection }}
@@ -368,78 +368,31 @@ jobs:
     runs-on: ${{ needs.validate_environment.outputs.runner_label }}
     steps:
       - uses: actions/checkout@v4
-
-      # ── Python — Fall Detection: mesmo ambiente que Dockerfile.linux-arm64-binary,
-      #    runner ubuntu-24.04-arm → wheels e binário PyInstaller em aarch64.
-      - name: Set up Python
-        if: needs.validate_environment.outputs.service_type == 'python'
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: |
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-common.txt
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-headless.txt
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-binary.txt
-            ${{ needs.validate_environment.outputs.service_path }}/pyproject.toml
+          fetch-depth: 0
 
-      - name: Install system deps (equiv. Dockerfile.linux-arm64-binary)
+      # ── Python — Fall Detection: `make build-linux-arm64` (= Docker + Dockerfile.linux-arm64-binary)
+      - name: Set up Docker Buildx
         if: needs.validate_environment.outputs.service_type == 'python'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            ffmpeg \
-            libglib2.0-0 \
-            libgomp1 \
-            libgl1 \
-            libsm6 \
-            libxext6
+        uses: docker/setup-buildx-action@v3
 
-      # Repete a pilha do estágio builder; com `needs: security` + cache pip acerta na maior parte das wheels.
-      - name: Python - dependências de runtime + PyInstaller (equiv. estágio builder Docker)
+      - name: Fall Detection — make build-linux-arm64 
+        if: needs.validate_environment.outputs.service_type == 'python'
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: make build-linux-arm64
+
+      # Makefile gera dist/vigia-fall-detection-linux-arm64.tar.gz; versionamos para o release.
+      - name: Fall Detection — preparar tarball para artefacto / GitHub Release
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
-          python -m pip install -r requirements-headless.txt
-          python -m pip install -r requirements-binary.txt
-          python -m pip install -e .
-          python -m pip uninstall -y opencv-python 2>/dev/null || true
-          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-
-      - name: Python - PyInstaller (onedir, linux/arm64 nativo)
-        if: needs.validate_environment.outputs.service_type == 'python'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        env:
-          PYINSTALLER_ONEDIR: "1"
-        run: pyinstaller --clean --noconfirm vigia-fall-detection.spec
-
-      - name: Python - empacotar tarball (layout compatível com Makefile)
-        if: needs.validate_environment.outputs.service_type == 'python'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          test -d dist/vigia-fall-detection
-          rm -rf dist/vigia-fall-detection-linux-arm64
-          mv dist/vigia-fall-detection dist/vigia-fall-detection-linux-arm64
-          tar -czf "vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz" \
-            -C dist vigia-fall-detection-linux-arm64
-
-      # Artefato na raiz do workspace: ao baixar no job tag_release o .tar.gz fica
-      # em ./release-assets/<nome>.tar.gz e o GitHub Release anexa sem caminhos aninhados.
-      - name: Python - copiar tarball para a raiz (upload plano)
-        if: needs.validate_environment.outputs.service_type == 'python'
-        run: |
-          cp "${{ needs.validate_environment.outputs.service_path }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz" \
+          test -f dist/vigia-fall-detection-linux-arm64.tar.gz
+          cp dist/vigia-fall-detection-linux-arm64.tar.gz \
             "${{ github.workspace }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz"
+          ls -la "${{ github.workspace }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz"
 
-      - name: Python - exportar artefato ARM64
+      - name: Fall Detection — exportar artefato
         if: needs.validate_environment.outputs.service_type == 'python'
         uses: actions/upload-artifact@v4
         with:

@@ -100,7 +100,7 @@ func TestRequireInstalledFallDetection_missingBinary(t *testing.T) {
 	config.DataDir = dir
 	if err := install.SaveState(install.StatePath(dir), &install.State{
 		Version:    "1.0.0",
-		BinaryPath: filepath.Join(dir, "bin", "missing"),
+		BinaryPath: filepath.Join(dir, "fall-detection", "missing-binary"),
 	}); err != nil {
 		t.Fatal(err)
 	}

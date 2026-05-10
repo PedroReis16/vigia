@@ -3,20 +3,20 @@
 	test-api test-bootstrap test-internal \
 	build-api build-bootstrap \
 	build-linux-arm64-api build-linux-arm64-bootstrap \
-	run-api run-bootstrap \
-	test-api test-bootstrap test-internal \
-	build-api build-bootstrap \
-	build-linux-arm64-api build-linux-arm64-bootstrap \
 	clean
 
 BIN_DIR := bin
-API_DIR := apps/vigia-api
+API_DIR := apps/vigia-api/cmd
 BOOTSTRAP_MOD := apps/vigia-bootstrap
 BOOTSTRAP_CMD := apps/vigia-bootstrap/cmd
 INTERNAL_BOOTSTRAP_DIR := apps/vigia-bootstrap/internal
 
-# Args after the target go to the CLI, e.g. make run-bootstrap install
+# Extra words only when run-bootstrap is invoked: make run-bootstrap install
+ifneq ($(filter run-bootstrap,$(MAKECMDGOALS)),)
 BOOTSTRAP_CLI_ARGS := $(filter-out run-bootstrap,$(MAKECMDGOALS))
+else
+BOOTSTRAP_CLI_ARGS :=
+endif
 
 help:
 	@echo "Targets disponiveis:"
@@ -54,7 +54,6 @@ test-bootstrap:
 test-internal:
 	go test ./$(INTERNAL_BOOTSTRAP_DIR)/...
 
-test-all: test-api test-internal test-bootstrap
 test-all: test-api test-internal test-bootstrap
 
 build-api:

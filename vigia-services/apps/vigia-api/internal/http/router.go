@@ -18,7 +18,13 @@ func SetRoutes(router *gin.Engine, handlers *handlers.Handlers) {
 		{
 			group.POST("/register", handlers.DevicesHandler.RegisterUserDevice)
 			group.GET("/", handlers.DevicesHandler.GetDevices)
-			group.GET("/download", handlers.DevicesHandler.DownloadVigiaVersion)
+
+		}
+		versionGroup := v1.Group("/devices/version")
+		{
+			versionGroup.POST("/register", handlers.VersionHandler.RegisterNewVigiaVersion)
+			versionGroup.GET("/find-for-updates", handlers.VersionHandler.FindForUpdates)
+			versionGroup.GET("/:version/download", handlers.VersionHandler.GetVigiaVersion)
 		}
 	}
 }

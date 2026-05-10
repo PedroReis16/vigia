@@ -1,53 +1,43 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # # ─── VIGIA API ────────────────────────────────────────────────────────────
-  # vigia-api:
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
-  #   ports:
-  #     - 8000:8000
-  #   environment:
-  #     - APP_RUNTIME_MODE=api
-  #     - LOG_LEVEL=INFO
-  #     - APP_NAME=vigia-api
-  #     - APP_VERSION=1.0.0
-  #     # Omissão do binário escuta só em 127.0.0.1 (gosec); no container é preciso expor na interface publicada.
-  #     - VIGIA_API_ADDR=0.0.0.0:8000
-  #   networks:
-  #     - vigia-network
+  # ─── POSTGRES ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: vigia-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin123
+      - POSTGRES_DB=vigia
+    ports:
+      - "5432:5432"
+    networks:
+      - vigia-network
 
-  # # ─── VIGIA STREAM ──────────────────────────────────────────────────────────
-  # vigia-stream:
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-stream.dockerfile
-  #   container_name: vigia-stream
-  #   ports:
-  #     - 8090:8090
-  #     - 8091:8091
-  #   environment:
-  #     - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
-  #     - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
-  #     - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
-  #   restart: always
-  #   networks:
-  #     - vigia-network
+  # ─── REDIS ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:latest
+    container_name: vigia-redis
+    profiles: ["redis"]
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - vigia-network
 
-  # # ─── VIGIA FRONTEND ──────────────────────────────────────────────────────────
-  # vigia-frontend:
-  #   container_name: vigia-frontend
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-frontend.dockerfile
-  #   # Nginx escuta na 80 no container; 4200 é só a porta no host (como no ng serve)
-  #   depends_on:
-  #     - vigia-stream
-  #   ports:
-  #     - 4200:80
-  #   networks:
-  #     - vigia-network
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: vigia-redisinsight
+    profiles: ["redis"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - vigia-network
 
   # ─── MediaMTX (baixa latencia para testes) ─────────────────────────────────────
   mediamtx:
@@ -84,7 +74,7 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=admin123
     command: ["mongod", "--nojournal", "--auth"]
     ports:
-      - "27017:27017"  # <-- Exposto externamente, se necessário
+      - "27017:27017" # <-- Exposto externamente, se necessário
     volumes:
       - ./docker-compose/mongo-db-historical/data:/data/db
     networks:
@@ -125,7 +115,7 @@ services:
       -dbAuthDb admin
       -corsOrigin __ALL
       -corsMaxAge 600
-    
+
     networks:
       - vigia-network
 
@@ -144,7 +134,7 @@ services:
       - STH_HOST=0.0.0.0
       - STH_PORT=8666
       - DB_PREFIX=sth_
-      - DB_URI=mongo-db-historical:27017  # <-- Aponte para o serviço renomeado
+      - DB_URI=mongo-db-historical:27017 # <-- Aponte para o serviço renomeado
       - DB_USERNAME=admin
       - DB_PASSWORD=admin123
       - DB_AUTH_SOURCE=admin
@@ -164,7 +154,7 @@ services:
       - "9001:9001"
     volumes:
       - ./docker-compose/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-    
+
     networks:
       - vigia-network
 

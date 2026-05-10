@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	bootroot "github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/config"
@@ -107,6 +111,7 @@ func TestCLI_update_upgradesWithFakeSystemctl(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	artifact := cliMinimalFallDetectionTarGz(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := "http://" + r.Host
 		if strings.Contains(r.URL.Path, "find-for-updates") {
@@ -116,7 +121,7 @@ func TestCLI_update_upgradesWithFakeSystemctl(t *testing.T) {
 		}
 		if r.URL.Path == "/artifact" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("#!/bin/sh\ntrue\n"))
+			_, _ = w.Write(artifact)
 			return
 		}
 		http.NotFound(w, r)
@@ -238,6 +243,7 @@ func TestCLI_install_startServiceWithFakeSystemctl(t *testing.T) {
 
 func newAPIAndArtifactServer(t *testing.T) *httptest.Server {
 	t.Helper()
+	artifact := cliMinimalFallDetectionTarGz(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := "http://" + r.Host
 		if strings.Contains(r.URL.Path, "/v1/devices/version/find-for-updates") {
@@ -247,13 +253,41 @@ func newAPIAndArtifactServer(t *testing.T) *httptest.Server {
 		}
 		if r.URL.Path == "/artifact" {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("#!/bin/sh\ntrue\n"))
+			_, _ = w.Write(artifact)
 			return
 		}
 		http.NotFound(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+func cliMinimalFallDetectionTarGz(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	payload := []byte("#!/bin/sh\ntrue\n")
+	hdr := &tar.Header{
+		Name:     "vigia-fall-detection-linux-arm64/vigia-fall-detection",
+		Mode:     0o755,
+		Size:     int64(len(payload)),
+		ModTime:  time.Now(),
+		Typeflag: tar.TypeReg,
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func resetCLIState() {

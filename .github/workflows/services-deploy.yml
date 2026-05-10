@@ -278,11 +278,14 @@ jobs:
         run: python -m bandit -r src/app -ll
 
       # Mesmos ignores que o CI (pip sem fix; pytest/async stack).
+      # Sem --strict: torch/torchvision vindos de download.pytorch.org usam versão local (+cpu)
+      # e o pip-audit não as encontra no índice PyPI para auditoria OSV — com --strict o job falha.
       - name: Python - dependency vulnerabilities (pip-audit)
         if: needs.validate_environment.outputs.service_type == 'python'
         working-directory: ${{ needs.validate_environment.outputs.service_path }}
         run: |
-          python -m pip_audit --strict \
+          python -m pip_audit \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
             --ignore-vuln CVE-2026-3219 \
             --ignore-vuln CVE-2025-71176
 

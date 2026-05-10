@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 
 import cv2
-import pickle
 import zmq
 
 from app.capture.loop.capture_loop_context import CaptureLoopContext
+from app.config.frame_codec import encode_numpy_frame
 from app.config.ipc import FRAMES_TOPIC, bind_frame_pub_socket
 from app.logging import get_logger
 
@@ -33,7 +33,7 @@ def run_capture_loop(ctx: CaptureLoopContext) -> None:
             if not ret:
                 break
 
-            payload = pickle.dumps(frame, protocol=pickle.HIGHEST_PROTOCOL)
+            payload = encode_numpy_frame(frame)
             socket.send_multipart([FRAMES_TOPIC, payload])
 
             if ctx.show_video:

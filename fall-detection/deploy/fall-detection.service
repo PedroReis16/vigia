@@ -1,0 +1,30 @@
+# Unit systemd para o bundle PyInstaller (onedir) em /opt/vigia/fall-detection/.
+# Após extrair o .tar.gz: /opt/vigia/fall-detection/vigia-fall-detection
+# Copie um .env para /opt/vigia/.env ou defina EnvironmentFile abaixo.
+#
+#   sudo install -d -m 755 /opt/vigia
+#   tar -xzf vigia-fall-detection-linux-arm64.tar.gz -C /opt/vigia
+#   sudo mv /opt/vigia/vigia-fall-detection-linux-arm64 /opt/vigia/fall-detection
+#   sudo install -m 644 deploy/fall-detection.service /etc/systemd/system/fall-detection.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now fall-detection.service
+#
+# Câmera: o usuário do serviço precisa ler /dev/video* (ex.: grupo `video`).
+# O binário é gerado com requirements-headless.txt (sem libGL na placa).
+
+[Unit]
+Description=Vigia Fall Detection
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vigia/fall-detection
+EnvironmentFile=-/opt/vigia/.env
+ExecStart=/opt/vigia/fall-detection/vigia-fall-detection
+Restart=on-failure
+RestartSec=5
+# Descomente e ajuste se precisar de acesso explícito à V4L2:
+# SupplementaryGroups=video
+
+[Install]
+WantedBy=multi-user.target

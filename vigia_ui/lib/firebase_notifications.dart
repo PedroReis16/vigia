@@ -65,7 +65,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
   await plugin
       .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
+        AndroidFlutterLocalNotificationsPlugin
+      >()
       ?.createNotificationChannel(channel);
 
   await plugin.show(
@@ -146,7 +147,8 @@ Future<void> initializeFirebaseNotifications({
     _handleNotificationOpened(initial);
   }
 
-  final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+  final launchDetails = await _localNotifications
+      .getNotificationAppLaunchDetails();
   if (launchDetails?.didNotificationLaunchApp == true) {
     final payload = launchDetails!.notificationResponse?.payload;
     _dispatchLocalPayload(payload, reason: 'cold_start_local');
@@ -169,8 +171,10 @@ Future<void> _ensureAndroidChannel() async {
     description: _androidChannelDescription,
     importance: Importance.high,
   );
-  final android = _localNotifications.resolvePlatformSpecificImplementation<
-      AndroidFlutterLocalNotificationsPlugin>();
+  final android = _localNotifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
   await android?.createNotificationChannel(channel);
 }
 
@@ -187,9 +191,7 @@ void _dispatchLocalPayload(String? payload, {required String reason}) {
 
 void _handleNotificationOpened(RemoteMessage message) {
   if (kDebugMode) {
-    debugPrint(
-      'Aberto via FCM: id=${message.messageId} data=${message.data}',
-    );
+    debugPrint('Aberto via FCM: id=${message.messageId} data=${message.data}');
   }
   onFcmNotificationOpened?.call(message);
 }
@@ -205,8 +207,7 @@ Future<void> _onForegroundMessage(RemoteMessage message) async {
     return;
   }
 
-  final payload =
-      message.data.isEmpty ? null : message.data.toString();
+  final payload = message.data.isEmpty ? null : message.data.toString();
 
   switch (defaultTargetPlatform) {
     case TargetPlatform.android:
@@ -300,7 +301,8 @@ class _DisplayPayload {
 
 /// ID estável e positivo para o canal local / [`AndroidNotificationDetails`].
 int notificationIdFrom(RemoteMessage message) {
-  final raw = message.messageId?.hashCode ??
+  final raw =
+      message.messageId?.hashCode ??
       Object.hash(
         message.notification?.title,
         message.notification?.body,

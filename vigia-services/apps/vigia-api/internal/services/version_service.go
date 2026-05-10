@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/dtos"
@@ -122,7 +123,9 @@ func (s *VersionService) GetVigiaVersion(version string) (*dtos.VersionDTO, erro
 			return nil, err
 		}
 
-		s.versionUrlRepositoryCache.SetVersionUrl(result.Version, *url)
+		if err := s.versionUrlRepositoryCache.SetVersionUrl(result.Version, *url); err != nil {
+			return nil, fmt.Errorf("cache version URL: %w", err)
+		}
 		return &dtos.VersionDTO{
 			Version:     result.Version,
 			DownloadURL: *url,

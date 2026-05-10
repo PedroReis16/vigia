@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/api"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-bootstrap/internal/config"
@@ -18,7 +17,7 @@ func RequireAPIClient() (*api.Client, error) {
 	return api.NewClient(base)
 }
 
-// RequireInstalledFallDetection ensures install.json exists and the recorded binary is present.
+// RequireInstalledFallDetection ensures install.json exists and the installed bundle executable is present.
 func RequireInstalledFallDetection() (*install.State, string, error) {
 	dataDir, err := install.ResolveDataDir(config.DataDir)
 	if err != nil {
@@ -32,12 +31,8 @@ func RequireInstalledFallDetection() (*install.State, string, error) {
 	if st == nil {
 		return nil, dataDir, fmt.Errorf("fall-detection não está instalado (ausente %s)", statePath)
 	}
-	bin := st.BinaryPath
-	if bin == "" {
-		bin = install.BinaryPath(dataDir)
-	}
-	if _, err := os.Stat(bin); err != nil {
-		return nil, dataDir, fmt.Errorf("binário do fall-detection não encontrado em %q: %w", bin, err)
+	if _, err := install.EffectiveBinaryPath(st, dataDir); err != nil {
+		return nil, dataDir, err
 	}
 	return st, dataDir, nil
 }

@@ -16,8 +16,8 @@ var startAfterInstall bool
 
 var installCommand = &cobra.Command{
 	Use:   "install",
-	Short: "Instala o binário fall-detection a partir da vigia-api",
-	Long:  "Consulta a última versão na API, baixa o executável para o diretório de dados e grava install.json.",
+	Short: "Instala o bundle fall-detection (tar.gz PyInstaller) a partir da vigia-api",
+	Long:  "Consulta a última versão na API, descarrega o tarball onedir, extrai para {data-dir}/fall-detection/ (como no DEPLOY.md) e grava install.json.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
@@ -40,11 +40,11 @@ var installCommand = &cobra.Command{
 			return fmt.Errorf("nenhuma versão disponível para instalar")
 		}
 
-		binPath := install.BinaryPath(dataDir)
-		if err := install.DownloadExecutable(ctx, dto.DownloadURL, binPath); err != nil {
-			return fmt.Errorf("download: %w", err)
+		if err := install.InstallFallDetectionBundle(ctx, dto.DownloadURL, dataDir); err != nil {
+			return err
 		}
 
+		binPath := install.BinaryPath(dataDir)
 		ver := dto.Version
 		if ver == "" {
 			ver = "unknown"

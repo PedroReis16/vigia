@@ -3,6 +3,10 @@
 	test-api test-bootstrap test-internal \
 	build-api build-bootstrap \
 	build-linux-arm64-api build-linux-arm64-bootstrap \
+	run-api run-bootstrap \
+	test-api test-bootstrap test-internal \
+	build-api build-bootstrap \
+	build-linux-arm64-api build-linux-arm64-bootstrap \
 	clean
 
 BIN_DIR := bin
@@ -51,6 +55,7 @@ test-internal:
 	go test ./$(INTERNAL_BOOTSTRAP_DIR)/...
 
 test-all: test-api test-internal test-bootstrap
+test-all: test-api test-internal test-bootstrap
 
 build-api:
 	@mkdir -p $(BIN_DIR)
@@ -60,7 +65,7 @@ build-bootstrap:
 	@mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/vigia-bootstrap ./$(BOOTSTRAP_CMD)
 
-build-all: build-api build-stream build-bootstrap
+build-all: build-api build-bootstrap
 
 build-linux-arm64-api:
 	@mkdir -p $(BIN_DIR)

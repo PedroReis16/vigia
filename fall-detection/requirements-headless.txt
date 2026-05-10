@@ -1,0 +1,5 @@
+# Build PyInstaller / Linux embarcado: sem libGL na placa (sem cv2.imshow).
+# Nota: ultralytics depende de opencv-python; o Dockerfile remove opencv-python e
+# força opencv-python-headless depois de todas as instalações.
+-r requirements-common.txt
+opencv-python-headless==4.12.0.88

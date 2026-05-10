@@ -14,7 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Só na raiz do repo (evita ignorar vigia_ui/lib/ do Flutter).
+/lib/
 lib64/
 parts/
 sdist/

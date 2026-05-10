@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"time"
 
 	routes "github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/handlers"
@@ -24,6 +25,11 @@ func Server(lc fx.Lifecycle, log *zap.Logger, handlers *handlers.Handlers) *gin.
 	srv := &http.Server{
 		Addr:    ":8000",
 		Handler: router,
+		// G112 / Slowloris: tempo máximo para ler cabeçalhos antes do corpo (Go exige para mitigar).
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	lc.Append(fx.Hook{

@@ -15,7 +15,7 @@ import (
 var updateCommand = &cobra.Command{
 	Use:   "update",
 	Short: "Atualiza o fall-detection para a última versão da API",
-	Long:  "Compara a versão instalada com a API; se houver atualização, para o serviço, substitui o binário e inicia novamente.",
+	Long:  "Compara a versão instalada com a API; se houver atualização, para o serviço, substitui o bundle (tar.gz onedir em data-dir/fall-detection) e inicia novamente.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancel()
@@ -44,14 +44,11 @@ var updateCommand = &cobra.Command{
 			return fmt.Errorf("systemctl stop: %w", err)
 		}
 
-		binPath := st.BinaryPath
-		if binPath == "" {
-			binPath = install.BinaryPath(dataDir)
-		}
-		if err := install.DownloadExecutable(ctx, dto.DownloadURL, binPath); err != nil {
-			return fmt.Errorf("download: %w", err)
+		if err := install.InstallFallDetectionBundle(ctx, dto.DownloadURL, dataDir); err != nil {
+			return err
 		}
 
+		binPath := install.BinaryPath(dataDir)
 		ver := dto.Version
 		if ver == "" {
 			ver = "unknown"

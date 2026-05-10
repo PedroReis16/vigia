@@ -32,7 +32,7 @@ func TestLoadState_invalidJSON(t *testing.T) {
 func TestSaveState_roundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "install.json")
-	want := &install.State{Version: "1.2.3", BinaryPath: filepath.Join(dir, "bin", "fall-detection")}
+	want := &install.State{Version: "1.2.3", BinaryPath: filepath.Join(dir, "fall-detection", "vigia-fall-detection")}
 	if err := install.SaveState(path, want); err != nil {
 		t.Fatal(err)
 	}

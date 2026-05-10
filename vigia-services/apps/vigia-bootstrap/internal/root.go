@@ -31,7 +31,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&config.APIBaseURL, "api-base-url", defaultAPI,
 		"URL base da vigia-api (env VIGIA_API_BASE_URL)")
 	RootCmd.PersistentFlags().StringVar(&config.DataDir, "data-dir", "",
-		"Diretório de dados: binário e install.json (env VIGIA_DATA_DIR; padrão ~/.vigia)")
+		"Raiz Vigia: install.json, pasta fall-detection/ (bundle onedir). Ex.: /opt/vigia (env VIGIA_DATA_DIR; padrão ~/.vigia)")
 	RootCmd.PersistentFlags().StringVar(&config.SystemdUnit, "systemd-unit", "",
 		"Nome da unit systemd sem .service (env VIGIA_SYSTEMD_UNIT; padrão fall-detection)")
 

@@ -1,0 +1,28 @@
+basePath: /
+definitions:
+  internal_http_handlers.HealthCheckResponse:
+    properties:
+      message:
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: API do Vigia Services.
+  title: Vigia API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Verifica se a API está em execução.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_http_handlers.HealthCheckResponse'
+      summary: Health check
+      tags:
+      - health
+swagger: "2.0"

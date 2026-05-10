@@ -8,12 +8,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 
-# Copy only dependency manifest first to maximize Docker layer cache.
-COPY fall-detection/requirements.txt ./requirements.txt
+# Manifests: headless OpenCV (sem libGL no container).
+COPY fall-detection/requirements-common.txt fall-detection/requirements-headless.txt ./
 
-# Install dependencies (pin pip version to satisfy DL3013)
+# Install dependencies (pin pip version to satisfy DL3013).
+# ultralytics puxa opencv-python; remover e fixar headless (sem libGL no container).
 RUN python -m pip install --no-cache-dir "pip==26.0.1" && \
-    python -m pip install --no-cache-dir -r requirements.txt
+    python -m pip install --no-cache-dir -r requirements-headless.txt && \
+    python -m pip uninstall -y opencv-python 2>/dev/null || true && \
+    python -m pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.12.0.88"
 
 # Copy only fall-detection service files (avoid shipping whole monorepo).
 COPY fall-detection/ ./

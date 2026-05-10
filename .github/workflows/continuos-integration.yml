@@ -46,11 +46,6 @@ jobs:
           # O quantificador é global: dockerfiles e ficheiros comuns ficam em filtros à parte.
           predicate-quantifier: every
           filters: |
-            frontend_src:
-              - 'frontend/**'
-              - '!frontend/**/*.md'
-            frontend_docker:
-              - 'docker-compose/dockerfiles/vigia-frontend.dockerfile'
             fall_detection_src:
               - 'fall-detection/**'
               - '!fall-detection/**/*.md'
@@ -80,16 +75,6 @@ jobs:
         run: |
           set -euo pipefail
           PROJECTS='[]'
-
-          if [[ "${{ steps.filter.outputs.frontend_src }}" == "true" || "${{ steps.filter.outputs.frontend_docker }}" == "true" ]]; then
-            PROJECTS=$(jq -c '. + [{
-              "name":       "frontend",
-              "type":       "node",
-              "path":       "frontend",
-              "dockerfile": "docker-compose/dockerfiles/vigia-frontend.dockerfile",
-              "has_docker": "true"
-            }]' <<< "$PROJECTS")
-          fi
 
           if [[ "${{ steps.filter.outputs.fall_detection_src }}" == "true" || "${{ steps.filter.outputs.fall_detection_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
@@ -177,22 +162,6 @@ jobs:
 
       # ── Setup de runtime por linguagem ──────────────────────
 
-      - name: Set up Node.js
-        if: matrix.project.type == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ matrix.project.path }}/package-lock.json
-
-      - name: Set up npm
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          corepack enable
-          corepack prepare npm@11.6.2 --activate
-          npm --version
-
       - name: Set up Python
         if: matrix.project.type == 'python'
         uses: actions/setup-python@v5
@@ -209,68 +178,6 @@ jobs:
         with:
           go-version-file: ${{ matrix.project.go_mod }}
           cache-dependency-path: ${{ matrix.project.go_sum }}
-
-      # ── Node (Angular) ───────────────────────────────────────
-
-      - name: Node - install dependencies
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          set -euo pipefail
-          if ! npm ci; then
-            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
-            npm install
-          fi
-
-      - name: Node - lint
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          if node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(p.scripts && p.scripts.lint ? 0 : 1)"; then
-            npm run lint
-          else
-            echo "::notice::Sem script de lint em package.json; pulando."
-          fi
-
-      - name: Node - dependency vulnerabilities
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        # --omit=dev exclui dependências de build (webpack, esbuild, etc.)
-        # que frequentemente têm CVEs sem vetor real de exploração.
-        # Troque por --audit-level=high se quiser cobertura total.
-        run: npm audit --audit-level=critical --omit=dev
-
-      - name: Node - tests
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          set -euo pipefail
-          HAS_TEST_SCRIPT="false"
-          HAS_SPEC_FILES="false"
-
-          if node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
-            HAS_TEST_SCRIPT="true"
-          fi
-
-          if git ls-files '*.spec.ts' | grep -q .; then
-            HAS_SPEC_FILES="true"
-          fi
-
-          if [[ "$HAS_TEST_SCRIPT" == "true" && "$HAS_SPEC_FILES" == "true" ]]; then
-            if npm ls @vitest/coverage-v8 --depth=0 >/dev/null 2>&1; then
-              npm run test -- --watch=false --coverage
-            else
-              echo "::notice::Plugin de coverage do Vitest nao encontrado; executando testes sem cobertura."
-              npm run test -- --watch=false
-            fi
-          else
-            echo "::notice::Sem suite de testes configurada (script test e/ou arquivos *.spec.ts ausentes); pulando."
-          fi
-
-      - name: Node - build verification
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: npm run build -- --configuration=production
 
       # ── Python ──────────────────────────────────────────────
 

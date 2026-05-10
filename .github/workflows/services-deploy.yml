@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - Vigia API
-          - Vigia Frontend
           - Vigia Fall Detection
           - Vigia Bootstrap
       version:
@@ -81,16 +80,6 @@ jobs:
               IMAGE_NAME="fall-detection"
               ARTIFACT_NAME="fall-detection"
               COMPOSE_SERVICE="fall-detection"
-              HAS_DOCKER="true"
-              ;;
-            "Vigia Frontend")
-              SERVICE_TYPE="node"
-              SERVICE_SLUG="vigia-frontend"
-              SERVICE_PATH="frontend"
-              DOCKERFILE_PATH="docker-compose/dockerfiles/vigia-frontend.dockerfile"
-              IMAGE_NAME="vigia-frontend"
-              ARTIFACT_NAME="vigia-frontend"
-              COMPOSE_SERVICE="vigia-frontend"
               HAS_DOCKER="true"
               ;;
             "Vigia Bootstrap")
@@ -186,7 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Secret scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
@@ -199,38 +188,6 @@ jobs:
         with:
           dockerfile: ${{ needs.validate_environment.outputs.dockerfile_path }}
           failure-threshold: error
-
-      # ── Node ─────────────────────────────────────────────────
-      - name: Set up Node.js
-        if: needs.validate_environment.outputs.service_type == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
-
-      - name: Set up npm
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          corepack enable
-          corepack prepare npm@11.6.2 --activate
-          npm --version
-
-      - name: Node - install dependencies
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          if ! npm ci; then
-            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
-            npm install
-          fi
-
-      - name: Node - dependency vulnerabilities
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm audit --audit-level=critical --omit=dev
 
       # ── Python ───────────────────────────────────────────────
       - name: Set up Python
@@ -306,46 +263,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # ── Node ─────────────────────────────────────────────────
-      - name: Set up Node.js
-        if: needs.validate_environment.outputs.service_type == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ needs.validate_environment.outputs.service_path }}/package-lock.json
-
-      - name: Set up npm
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          corepack enable
-          corepack prepare npm@11.6.2 --activate
-          npm --version
-
-      - name: Node - install dependencies
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          if ! npm ci; then
-            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
-            npm install
-          fi
-
-      - name: Node - build
-        if: needs.validate_environment.outputs.service_type == 'node'
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: npm run build -- --configuration=production
-
-      - name: Node - exportar dist
-        if: needs.validate_environment.outputs.service_type == 'node'
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
-          path: ${{ needs.validate_environment.outputs.service_path }}/dist/
-          retention-days: 1
 
       # ── Python ───────────────────────────────────────────────
       # O build real acontece dentro do Docker (pip install no Dockerfile).

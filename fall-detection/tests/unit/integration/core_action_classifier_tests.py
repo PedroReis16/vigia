@@ -20,10 +20,14 @@ def test_run_classifier_given_window_should_process_until_stop() -> None:
     window = np.zeros((30, 51), dtype=np.float32)
     buffer.get.side_effect = [(42, window), _StopClassifierLoop()]
 
+    fake_pred = {"label": "deitado", "pred": 1, "prob_deitado": 0.85}
+
     with (
         patch("app.core.action_classifier._send_notification") as notify,
+        patch("app.core.action_classifier.FallClassifier") as fall_cls,
         pytest.raises(_StopClassifierLoop),
     ):
+        fall_cls.return_value.predict.return_value = fake_pred
         run_classifier(buffer)
 
     buffer.get.assert_called()

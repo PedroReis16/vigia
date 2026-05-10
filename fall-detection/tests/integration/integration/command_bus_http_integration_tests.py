@@ -19,9 +19,9 @@ from .integration_settings_helpers import minimal_integration_settings
 
 @pytest.fixture(autouse=True)
 def reset_streaming_process_state() -> None:
-    command_bus_module._streaming_process = None
+    command_bus_module._streaming_proc_ref[0] = None
     yield
-    command_bus_module._streaming_process = None
+    command_bus_module._streaming_proc_ref[0] = None
 
 
 @pytest.mark.integration

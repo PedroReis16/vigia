@@ -254,6 +254,37 @@ services:
       - "5432:5432"
     networks:
       - vigia-network
+  
+
+  # ─── MiniIO ────────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio
+    container_name: minio
+    profiles: ["storage"]
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: vigia
+      MINIO_ROOT_PASSWORD: vigia123
+    labels:
+      - "traefik.enable=true"
+      # API S3
+      - "traefik.http.routers.minio-api.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/minio/api`)"
+      - "traefik.http.routers.minio-api.entrypoints=websecure"
+      - "traefik.http.routers.minio-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.minio-api.service=minio-api"
+      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
+      # Console web
+      - "traefik.http.routers.minio-console.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/minio/console`)"
+      - "traefik.http.routers.minio-console.entrypoints=websecure"
+      - "traefik.http.routers.minio-console.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.minio-console.service=minio-console"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+    networks:
+      - vigia-network
 
 volumes:
   mongo-historical-data:

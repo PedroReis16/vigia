@@ -286,6 +286,79 @@ services:
     networks:
       - vigia-network
 
+  # ─── Keycloak ────────────────────────────────────────────────────────────────
+  init-keycloak-db:
+    image: postgres:15-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      sh -c '
+        UE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_roles WHERE rolname='\''keycloak'\''")
+        if [ "$UE" = "1" ]; then
+          echo "[init] Usuário keycloak já existe; ajustando senha..."
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "ALTER USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
+        else
+          echo "[init] Criando usuário keycloak..."
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
+        fi
+        DE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_database WHERE datname='\''keycloakdb'\''")
+        if [ "$DE" = "1" ]; then
+          echo "[init] Database keycloakdb já existe."
+        else
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE DATABASE keycloakdb OWNER keycloak";
+        fi
+        psql -h postgres -U ${POSTGRES_USER} -d keycloakdb -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS keycloak AUTHORIZATION keycloak";
+        echo "[init] OK"
+      '
+    networks:
+      - vigia-network
+
+  keycloak:
+    image: keycloak/keycloak:24.0
+    container_name: vigia-keycloak
+    environment:
+      # Banco
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloakdb
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_DB_SCHEMA: keycloak
+
+      # Admin
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+      # Produção com proxy reverso
+      KC_HOSTNAME: vigia-deteccoes.duckdns.org
+      KC_HOSTNAME_PATH: /auth
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY: edge                        # Traefik termina o TLS
+      KC_PROXY_HEADERS: xforwarded          # Aceita X-Forwarded-* do Traefik
+
+    command: ["start"]                      # modo produção (não start-dev)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-keycloak-db:
+        condition: service_completed_successfully
+    networks:
+      - vigia-network
+    labels:
+      - "traefik.enable=true"
+
+      # Roteamento: tudo em /auth vai para o Keycloak
+      - "traefik.http.routers.keycloak.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
+
+      # Porta interna do Keycloak
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
 volumes:
   mongo-historical-data:
   mongo-internal-data:

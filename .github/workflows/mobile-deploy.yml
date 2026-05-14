@@ -1,33 +1,267 @@
 name: Mobile Deploy
 
-# Impede dois deploys simultâneos do mesmo serviço
+# Impede dois deploys simultâneos (Vigia UI / Flutter)
 concurrency:
-    group: deploy-Mobile-${{ inputs.version }}
-    cancel-in-progress: false   # false = espera o anterior terminar, não cancela
-  
-run-name: "Mobile deploy - v${{ inputs.version }}"
+  group: deploy-vigia-ui-${{ inputs.version }}
+  cancel-in-progress: false # false = espera o anterior terminar, não cancela
+
+run-name: "Vigia UI — v${{ inputs.version }}"
 
 on:
-    workflow_dispatch:
-        inputs:
-            version:
-                description: "Version to deploy"
-                required: true
-                type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to deploy"
+        required: true
+        type: string
 
 permissions:
-    contents: write
-    pull-requests: read
-    security-events: write
-    
+  contents: write
+  pull-requests: read
+  security-events: write
 
 jobs:
-    validate_environment:
-        name: Validate environment
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-              with:
-                fetch-depth: 0
+  # ─────────────────────────────────────────────
+  # 1. VALIDAÇÃO — equivalente a "Vigia UI" em services-deploy.yml
+  # ─────────────────────────────────────────────
+  validate_environment:
+    name: Validate environment
+    runs-on: ubuntu-latest
+    outputs:
+      service_type: ${{ steps.service_vars.outputs.service_type }}
+      service_slug: ${{ steps.service_vars.outputs.service_slug }}
+      service_path: ${{ steps.service_vars.outputs.service_path }}
+      artifact_name: ${{ steps.service_vars.outputs.artifact_name }}
+      tag_name: ${{ steps.release_vars.outputs.tag_name }}
+      runner_label: ${{ steps.runner_pick.outputs.runner_label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      - name: Resolve service variables (Vigia UI)
+        id: service_vars
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "service_type=flutter" >> "$GITHUB_OUTPUT"
+          echo "service_slug=vigia-ui" >> "$GITHUB_OUTPUT"
+          echo "service_path=vigia_ui" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=vigia-ui" >> "$GITHUB_OUTPUT"
+
+      - name: Resolver runner
+        id: runner_pick
+        shell: bash
+        run: echo "runner_label=ubuntu-latest" >> "$GITHUB_OUTPUT"
+
+      - name: Definir variáveis de release
+        id: release_vars
+        shell: bash
+        run: |
+          TAG_NAME="vigia-ui@${{ inputs.version }}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "Tag de release: $TAG_NAME"
+
+      - name: Validar CHANGELOG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ inputs.version }}"
+          SERVICE_PATH="${{ steps.service_vars.outputs.service_path }}"
+          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+
+          echo "Verificando versão '$VERSION' em '$CHANGELOG_PATH'..."
+
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
+            echo "Crie o CHANGELOG.md em '$SERVICE_PATH' antes de fazer o release."
+            exit 1
+          fi
+
+          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG_PATH"; then
+            echo "✓ Versão $VERSION encontrada no CHANGELOG."
+          else
+            echo "::error::Versão $VERSION NÃO encontrada em $CHANGELOG_PATH."
+            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes do release."
+            exit 1
+          fi
+
+      - name: Validar unicidade da tag de release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${{ steps.release_vars.outputs.tag_name }}"
+          echo "Verificando se a tag '$TAG_NAME' já existe..."
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "::error::A tag '$TAG_NAME' já existe no repositório."
+            echo "Use uma versão diferente ou delete a tag existente manualmente."
+            exit 1
+          fi
+          echo "✓ Tag '$TAG_NAME' está disponível."
+
+  # ─────────────────────────────────────────────
+  # 2. SEGURANÇA — Flutter (alinhado ao continuos-integration.yml)
+  # ─────────────────────────────────────────────
+  security:
+    name: Segurança — secrets, análise e testes Flutter
+    needs: validate_environment
+    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter - pub get
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: flutter pub get
+
+      - name: Flutter - format (obrigatório)
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter - analyze
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: flutter analyze --fatal-warnings
+
+      - name: Flutter - test
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: flutter test
+
+  # ─────────────────────────────────────────────
+  # 3. BUILD — Linux release + tarball (sem Docker)
+  # ─────────────────────────────────────────────
+  build:
+    name: Build — Vigia UI
+    needs:
+      - validate_environment
+      - security
+    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux build dependencies (Flutter)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Set up Flutter (build)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter - build Linux release
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter build linux --release
+
+      - name: Flutter - empacotar artefato
+        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+          tar -czvf "vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz" -C build/linux/x64/release bundle
+
+      - name: Flutter - exportar tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ${{ needs.validate_environment.outputs.service_path }}/vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz
+          retention-days: 7
+
+  # ─────────────────────────────────────────────
+  # 4. TAG + GitHub Release (sem Docker / sem deploy VM)
+  # ─────────────────────────────────────────────
+  tag_release:
+    name: Criar tag de release
+    needs:
+      - validate_environment
+      - security
+      - build
+    if: |
+      always() &&
+      needs.validate_environment.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Baixar artefato Vigia UI
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
+          path: ./release-assets
+
+      - name: Criar e publicar tag
+        env:
+          TAG_NAME: ${{ needs.validate_environment.outputs.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG_NAME" \
+            -m "Release Vigia UI v${{ inputs.version }} → production"
+
+          git push origin "$TAG_NAME"
+
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Extrair release notes do CHANGELOG
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          SERVICE_PATH: ${{ needs.validate_environment.outputs.service_path }}
+        run: |
+          set -euo pipefail
+
+          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+          echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
+
+          if [ ! -f "$CHANGELOG_PATH" ]; then
+            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
+            exit 1
+          fi
+
+          awk -v version="$VERSION" '
+            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
+            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
+            capture { print }
+          ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Nao foi possivel extrair release notes para versao $VERSION em $CHANGELOG_PATH."
+            exit 1
+          fi
+
+          echo "Release notes extraidas com sucesso."
+
+      - name: Criar GitHub Release (Vigia UI — bundle Linux)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          files: ./release-assets/vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz
+          draft: false
+          generate_release_notes: false
+          skip_duplicate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

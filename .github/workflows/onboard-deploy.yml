@@ -1,9 +1,40 @@
-name: Onboard Deploy
+name: Vigia Fall Detection — Onboard Deploy
 
-# Impede dois deploys simultâneos (Fall Detection / onboard)
+# ─────────────────────────────────────────────────────────────────────────────
+# VISÃO GERAL
+#
+# Este workflow valida, testa e prepara o release do Vigia Fall Detection.
+# É o portão de qualidade antes de qualquer deploy ao dispositivo embarcado.
+#
+# FLUXO:
+#   onboard-deploy.yml  →  cria a GitHub Release (tag + artefatos)
+#   deploy-trigger.yml  →  (futuro) consome a Release, faz o build do binário
+#                          ARM64 e instala na Raspberry Pi 5
+#
+# JOBS (ordem de execução):
+#   validate            ← validações leves, fail-fast (sem instalação pesada)
+#       ↓ needs
+#   ┌───┴──────────────────────────────┐
+#   security  quality  test_unit  test_integration
+#   (gitleaks (pylint  (pytest -m  (pytest -m
+#   pip-audit) bandit)  not integ)  integration)
+#   └───┬──────────────────────────────┘
+#       ↓ todos devem passar
+#   tag_release         ← cria tag + GitHub Release (sem deploy embarcado)
+#
+# NOTAS:
+#   - Todos os jobs pesados rodam em ubuntu-latest (x86_64).
+#     O runner ARM64 é necessário apenas para o build do binário (deploy-trigger.yml).
+#   - DAST: não aplicável — a aplicação é um binário embarcado sem interface HTTP
+#     exposta durante a CI. Realizar testes de campo manualmente na Raspberry Pi 5.
+#   - Hardware tests: estrutura preparada como job comentado (self-hosted ARM).
+#     Não bloqueia a pipeline até um runner ser configurado.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Impede dois deploys simultâneos para a mesma versão.
 concurrency:
   group: deploy-vigia-fall-detection-${{ inputs.version }}
-  cancel-in-progress: false # false = espera o anterior terminar, não cancela
+  cancel-in-progress: false
 
 run-name: "Vigia Fall Detection — v${{ inputs.version }}"
 
@@ -11,108 +42,131 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to deploy"
+        description: "Versão para release (ex: 1.2.3)"
         required: true
         type: string
 
 permissions:
   contents: write
-  pull-requests: read
   security-events: write
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Variáveis compartilhadas entre jobs
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  SERVICE_PATH: fall-detection
+  SERVICE_SLUG: vigia-fall-detection
+  PYTHON_VERSION: "3.11"
+
 jobs:
-  # ─────────────────────────────────────────────
-  # 1. VALIDAÇÃO — equivalente a "Vigia Fall Detection" em services-deploy.yml
-  # ─────────────────────────────────────────────
-  validate_environment:
-    name: Validate environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. VALIDATE
+  #    Validações leves que não requerem instalação de dependências.
+  #    Executa primeiro para falhar rapidamente e poupar recursos.
+  #    Todos os jobs pesados dependem deste via `needs: validate`.
+  # ═══════════════════════════════════════════════════════════════════════════
+  validate:
+    name: Validate — version, branch, files, changelog, tag
     runs-on: ubuntu-latest
     outputs:
-      service_slug: ${{ steps.service_vars.outputs.service_slug }}
-      service_path: ${{ steps.service_vars.outputs.service_path }}
-      artifact_name: ${{ steps.service_vars.outputs.artifact_name }}
-      tag_name: ${{ steps.release_vars.outputs.tag_name }}
-      runner_label: ${{ steps.runner_pick.outputs.runner_label }}
+      tag_name: ${{ steps.set_tag.outputs.tag_name }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Resolve service variables (Fall Detection)
-        id: service_vars
-        shell: bash
+      # ── Formato de versão ──────────────────────────────────────────────────
+      - name: Validate version format (MAJOR.MINOR.PATCH)
         run: |
-          set -euo pipefail
-          echo "service_slug=vigia-fall-detection" >> "$GITHUB_OUTPUT"
-          echo "service_path=fall-detection" >> "$GITHUB_OUTPUT"
-          echo "image_name=" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=fall-detection" >> "$GITHUB_OUTPUT"
-
-      # Binário alvo é linux/arm64 — runner ARM nativo (ubuntu-24.04-arm).
-      - name: Resolver runner (ARM64)
-        id: runner_pick
-        shell: bash
-        run: echo "runner_label=ubuntu-24.04-arm" >> "$GITHUB_OUTPUT"
-
-      - name: Definir variáveis de release
-        id: release_vars
-        shell: bash
-        run: |
-          TAG_NAME="vigia-fall-detection@${{ inputs.version }}"
-          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-          echo "Tag de release: $TAG_NAME"
-
-      - name: Validar CHANGELOG
-        shell: bash
-        run: |
-          set -euo pipefail
-
           VERSION="${{ inputs.version }}"
-          SERVICE_PATH="${{ steps.service_vars.outputs.service_path }}"
-          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
-
-          echo "Verificando versão '$VERSION' em '$CHANGELOG_PATH'..."
-
-          if [ ! -f "$CHANGELOG_PATH" ]; then
-            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
-            echo "Crie o CHANGELOG.md em '$SERVICE_PATH' antes de fazer o release."
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Versão '$VERSION' inválida. Use o formato MAJOR.MINOR.PATCH (ex: 1.2.3)."
             exit 1
           fi
+          echo "✓ Formato de versão válido: $VERSION"
 
-          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG_PATH"; then
+      # ── Branch de origem ───────────────────────────────────────────────────
+      - name: Validate source branch (master or main only)
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" != "master" && "$BRANCH" != "main" ]]; then
+            echo "::error::Este workflow deve ser executado a partir de 'master' ou 'main'. Branch atual: '$BRANCH'."
+            exit 1
+          fi
+          echo "✓ Branch válida: $BRANCH"
+
+      # ── Arquivos essenciais ────────────────────────────────────────────────
+      # Verifica apenas arquivos do fall-detection, sem tocar em outros projetos.
+      - name: Validate essential files (fall-detection scope only)
+        run: |
+          set -euo pipefail
+          MISSING=""
+          for f in \
+            fall-detection/pyproject.toml \
+            fall-detection/CHANGELOG.md \
+            fall-detection/main.py \
+            fall-detection/requirements-common.txt \
+            fall-detection/requirements-headless.txt \
+            fall-detection/requirements-binary.txt \
+            fall-detection/Makefile \
+            fall-detection/deploy/Dockerfile.linux-arm64-binary \
+            fall-detection/src/app/__init__.py; do
+            if [ ! -f "$f" ]; then
+              MISSING="${MISSING}\n  ✗ $f"
+            fi
+          done
+          if [ -n "$MISSING" ]; then
+            printf "::error::Arquivos essenciais ausentes do fall-detection:%b\n" "$MISSING"
+            exit 1
+          fi
+          echo "✓ Todos os arquivos essenciais do projeto estão presentes."
+
+      # ── CHANGELOG ─────────────────────────────────────────────────────────
+      - name: Validate CHANGELOG entry for this version
+        run: |
+          VERSION="${{ inputs.version }}"
+          CHANGELOG="fall-detection/CHANGELOG.md"
+          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG"; then
             echo "✓ Versão $VERSION encontrada no CHANGELOG."
           else
-            echo "::error::Versão $VERSION NÃO encontrada em $CHANGELOG_PATH."
-            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes do release."
+            echo "::error::Versão '$VERSION' não encontrada em $CHANGELOG."
+            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes de executar este workflow."
             exit 1
           fi
 
-      - name: Validar unicidade da tag de release
-        shell: bash
+      # ── Unicidade da tag ───────────────────────────────────────────────────
+      - name: Validate tag uniqueness
         run: |
-          set -euo pipefail
-          TAG_NAME="${{ steps.release_vars.outputs.tag_name }}"
-          echo "Verificando se a tag '$TAG_NAME' já existe..."
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
-            echo "::error::A tag '$TAG_NAME' já existe no repositório."
-            echo "Use uma versão diferente ou delete a tag existente manualmente."
+          TAG="vigia-fall-detection@${{ inputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::A tag '$TAG' já existe. Use uma versão diferente ou delete a tag manualmente."
             exit 1
           fi
-          echo "✓ Tag '$TAG_NAME' está disponível."
+          echo "✓ Tag '$TAG' está disponível."
 
-  # ─────────────────────────────────────────────
-  # 2. SEGURANÇA — Python (Fall Detection)
-  # ─────────────────────────────────────────────
+      - name: Set tag name output
+        id: set_tag
+        run: echo "tag_name=vigia-fall-detection@${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. SECURITY
+  #    Secrets scan + auditoria de dependências vulneráveis.
+  #    Scopo: somente fall-detection (pip-audit via requirements file, não global).
+  #    Runner: ubuntu-latest (x86_64) — não precisa de ARM para análise estática.
+  # ═══════════════════════════════════════════════════════════════════════════
   security:
-    name: Segurança — SAST, SCA, secrets
-    needs: validate_environment
-    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
+    name: Security — secrets scan & dependency audit
+    needs: validate
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      # Gitleaks varre todo o histórico visível do checkout.
       - name: Secret scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -121,28 +175,113 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-common.txt
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-headless.txt
-            ${{ needs.validate_environment.outputs.service_path }}/requirements-binary.txt
-            ${{ needs.validate_environment.outputs.service_path }}/pyproject.toml
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
 
-      - name: Install system deps (equiv. Dockerfile.linux-arm64-binary)
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip "pip-audit>=2.9,<3"
+
+      # Auditoria via requirements file — não precisa instalar torch/ultralytics.
+      # Isso limita a auditoria às dependências declaradas do fall-detection.
+      - name: Dependency vulnerability audit (pip-audit — fall-detection only)
+        working-directory: fall-detection
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            ffmpeg \
-            libglib2.0-0 \
-            libgomp1 \
-            libgl1 \
-            libsm6 \
-            libxext6
+          python -m pip_audit \
+            -r requirements-headless.txt \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2025-71176
 
-      - name: Python - install dependencies (equiv. Makefile / Docker build)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. QUALITY
+  #    Lint (pylint) + SAST (bandit) escopados ao fall-detection/src/app.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  quality:
+    name: Quality — lint (pylint) & SAST (bandit)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps (opencv headless requirements)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # torch CPU wheel — ultralytics exige torch mas não precisamos de GPU em CI
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -e .
+          # Garante opencv-headless (ultralytics instala opencv-python que conflita no embedded)
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install "pylint>=3,<4" "bandit>=1.8,<2"
+
+      # Lint escopo: src/app (somente código do fall-detection)
+      - name: Lint (pylint) — fall-detection/src/app
+        working-directory: fall-detection
+        run: python -m pylint src/app
+
+      # SAST escopo: src/app (somente código do fall-detection)
+      - name: SAST (bandit) — fall-detection/src/app
+        working-directory: fall-detection
+        run: python -m bandit -r src/app -ll
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4. TEST — UNIT
+  #    Testes sem dependências externas (usam mocks).
+  #    Separados dos testes de integração via marker: `not integration`.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  test_unit:
+    name: Tests — unit (pytest -m "not integration")
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
@@ -151,168 +290,161 @@ jobs:
             --extra-index-url https://pypi.org/simple \
             "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
           python -m pip install -r requirements-headless.txt
-          python -m pip install -r requirements-binary.txt
           python -m pip install -e .
           python -m pip uninstall -y opencv-python 2>/dev/null || true
           python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install \
-            "pylint>=3,<4" \
-            "bandit>=1.8,<2" \
-            "pip-audit>=2.9,<3" \
-            "pytest>=8.2,<9" \
-            "pytest-asyncio>=0.26,<0.27"
+          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
 
-      - name: Python - lint (pylint)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: python -m pylint src/app
+      - name: Run unit tests
+        working-directory: fall-detection
+        run: python -m pytest -q -m "not integration" --tb=short
 
-      - name: Python - SAST (bandit)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: python -m bandit -r src/app -ll
-
-      - name: Python - dependency vulnerabilities (pip-audit)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          python -m pip_audit \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2025-71176
-
-      - name: Python - tests (pytest)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: python -m pytest -q
-
-  # ─────────────────────────────────────────────
-  # 3. BUILD — make build-linux-arm64 + tarball
-  # ─────────────────────────────────────────────
-  build:
-    name: Build — Vigia Fall Detection
-    needs:
-      - validate_environment
-      - security
-    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Fall Detection — make build-linux-arm64
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: make build-linux-arm64
-
-      - name: Fall Detection — preparar tarball para artefacto / GitHub Release
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          test -f dist/vigia-fall-detection-linux-arm64.tar.gz
-          cp dist/vigia-fall-detection-linux-arm64.tar.gz \
-            "${{ github.workspace }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz"
-          ls -la "${{ github.workspace }}/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz"
-
-      - name: Fall Detection — exportar artefato
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
-          path: vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-
-  # ─────────────────────────────────────────────
-  # 4. TAG + GitHub Release (sem Docker / sem deploy VM)
-  # ─────────────────────────────────────────────
-  tag_release:
-    name: Criar tag de release
-    needs:
-      - validate_environment
-      - security
-      - build
-    if: |
-      always() &&
-      needs.validate_environment.result == 'success' &&
-      needs.security.result == 'success' &&
-      needs.build.result == 'success'
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 5. TEST — INTEGRATION
+  #    Testes marcados com @pytest.mark.integration.
+  #    Usam aiohttp TestServer como fake FIWARE — sem dependência de hardware real.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  test_integration:
+    name: Tests — integration (fake FIWARE, pytest -m integration)
+    needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -e .
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
+
+      - name: Run integration tests (fake FIWARE — no real hardware required)
+        working-directory: fall-detection
+        run: python -m pytest -q -m integration --tb=short
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 6. TEST — HARDWARE (OPCIONAL / NÃO BLOQUEANTE)
+  #    Executa smoke tests no binário real em Raspberry Pi 5.
+  #    Requer runner self-hosted configurado com as labels abaixo.
+  #    Descomente quando o runner estiver disponível.
+  #
+  #    Labels esperadas no runner:
+  #      [self-hosted, linux, arm64, raspberry-pi]
+  #
+  #    TODO: implementar testes de hardware em fall-detection/tests/hardware/
+  #          Sugestão de escopo:
+  #            - smoke: binário inicia sem erro
+  #            - camera: câmera é detectada pelo sistema operacional
+  #            - model: modelo ONNX carrega corretamente
+  # ═══════════════════════════════════════════════════════════════════════════
+  # test_hardware:
+  #   name: Tests — hardware (Raspberry Pi 5, self-hosted ARM64)
+  #   needs: validate
+  #   runs-on: [self-hosted, linux, arm64, raspberry-pi]
+  #   continue-on-error: true   # não bloqueia o release enquanto runner não estiver pronto
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Run hardware smoke tests
+  #       working-directory: fall-detection
+  #       run: |
+  #         # TODO: implementar fall-detection/tests/hardware/smoke_tests.sh
+  #         echo "::warning::Hardware tests não implementados ainda."
+  #         echo "Consulte fall-detection/docs/CI-PIPELINE.md para orientações."
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 7. TAG & RELEASE
+  #    Cria a tag Git e a GitHub Release.
+  #    Executado somente quando TODOS os gates anteriores passam.
+  #    NÃO faz deploy ao dispositivo — isso é responsabilidade do deploy-trigger.yml.
+  # ═══════════════════════════════════════════════════════════════════════════
+  tag_release:
+    name: Release — create tag & GitHub release
+    needs:
+      - validate
+      - security
+      - quality
+      - test_unit
+      - test_integration
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.quality.result == 'success' &&
+      needs.test_unit.result == 'success' &&
+      needs.test_integration.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Baixar artefato Fall Detection (Linux ARM64)
-        uses: actions/download-artifact@v4
-        with:
-          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
-          path: ./release-assets
-
-      - name: Confirmar tarball Fall Detection para anexar ao release
+      # Extrai apenas as notas da versão solicitada do CHANGELOG do fall-detection.
+      - name: Extract release notes from CHANGELOG
         env:
           VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          EXPECT="./release-assets/vigia-fall-detection-linux-arm64-${VERSION}.tar.gz"
-          if [ -f "$EXPECT" ]; then
-            ls -la "$EXPECT"
-            exit 0
-          fi
-          FOUND="$(find release-assets -type f -name 'vigia-fall-detection-linux-arm64-*.tar.gz' -print -quit || true)"
-          if [ -z "${FOUND}" ]; then
-            echo "::error::Tarball Fall Detection não encontrado em release-assets."
-            find release-assets -ls 2>/dev/null || ls -la release-assets || true
-            exit 1
-          fi
-          cp -f "$FOUND" "$EXPECT"
-          ls -la "$EXPECT"
-
-      - name: Criar e publicar tag
-        env:
-          TAG_NAME: ${{ needs.validate_environment.outputs.tag_name }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git tag -a "$TAG_NAME" \
-            -m "Release Vigia Fall Detection v${{ inputs.version }} → production"
-
-          git push origin "$TAG_NAME"
-
-          echo "✓ Tag '$TAG_NAME' criada e publicada."
-
-      - name: Extrair release notes do CHANGELOG
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-          SERVICE_PATH: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-
-          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
-          echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
-
-          if [ ! -f "$CHANGELOG_PATH" ]; then
-            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
-            exit 1
-          fi
-
+          CHANGELOG="./fall-detection/CHANGELOG.md"
           awk -v version="$VERSION" '
             $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
             capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
             capture { print }
-          ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
+          ' "$CHANGELOG" > RELEASE_NOTES.md
 
           if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Nao foi possivel extrair release notes para versao $VERSION em $CHANGELOG_PATH."
+            echo "::error::Não foi possível extrair release notes para v$VERSION em $CHANGELOG."
             exit 1
           fi
+          echo "Release notes extraídas com sucesso:"
+          cat RELEASE_NOTES.md
 
-          echo "Release notes extraidas com sucesso."
+      - name: Create and push release tag
+        env:
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" \
+            -m "Release Vigia Fall Detection v${{ inputs.version }}"
+          git push origin "$TAG_NAME"
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
 
-      - name: Criar GitHub Release (Fall Detection — Linux ARM64)
+      # Release sem binário anexado — o build do binário ARM64 é responsabilidade
+      # do deploy-trigger.yml que consome esta release como sinal de "pronto para deploy".
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          tag_name: ${{ needs.validate.outputs.tag_name }}
           body_path: ./RELEASE_NOTES.md
-          files: ./release-assets/vigia-fall-detection-linux-arm64-${{ inputs.version }}.tar.gz
           draft: false
           generate_release_notes: false
           skip_duplicate: true

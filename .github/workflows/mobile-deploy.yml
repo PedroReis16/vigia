@@ -1,9 +1,18 @@
-name: Mobile Deploy
+name: Vigia UI — Mobile Deploy
 
-# Impede dois deploys simultâneos (Vigia UI / Flutter)
+# ─────────────────────────────────────────────────────────────────────────────
+# Como este workflow se encaixa no pipeline de release:
+#
+#   mobile-deploy.yml   →  valida, testa, analisa segurança e prepara release
+#   deploy-trigger.yml  →  consome a release, gera APK e distribui para Android
+#
+# Este workflow NÃO gera APK final nem faz deploy.
+# O APK oficial é gerado e distribuído pelo deploy-trigger.yml.
+# ─────────────────────────────────────────────────────────────────────────────
+
 concurrency:
   group: deploy-vigia-ui-${{ inputs.version }}
-  cancel-in-progress: false # false = espera o anterior terminar, não cancela
+  cancel-in-progress: false
 
 run-name: "Vigia UI — v${{ inputs.version }}"
 
@@ -11,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to deploy"
+        description: "Versão para release (semver X.Y.Z — ex: 1.0.0)"
         required: true
         type: string
 
@@ -20,103 +29,105 @@ permissions:
   pull-requests: read
   security-events: write
 
+env:
+  SERVICE_PATH: vigia_ui
+
 jobs:
-  # ─────────────────────────────────────────────
-  # 1. VALIDAÇÃO — equivalente a "Vigia UI" em services-deploy.yml
-  # ─────────────────────────────────────────────
-  validate_environment:
-    name: Validate environment
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. PREFLIGHT — validações leves e rápidas (fail-fast)
+  #
+  #    Nenhuma ferramenta pesada (Flutter, Gradle, scanners) é instalada aqui.
+  #    Todos os outros jobs dependem deste. Uma falha aqui aborta tudo.
+  #
+  #    Valida: formato da versão · pubspec · CHANGELOG · unicidade da tag
+  #            branch de origem · estrutura mínima do projeto
+  # ═══════════════════════════════════════════════════════════════════════════
+  preflight:
+    name: Preflight — versão, CHANGELOG, tag, branch e estrutura
     runs-on: ubuntu-latest
     outputs:
-      service_type: ${{ steps.service_vars.outputs.service_type }}
-      service_slug: ${{ steps.service_vars.outputs.service_slug }}
-      service_path: ${{ steps.service_vars.outputs.service_path }}
-      artifact_name: ${{ steps.service_vars.outputs.artifact_name }}
-      tag_name: ${{ steps.release_vars.outputs.tag_name }}
-      runner_label: ${{ steps.runner_pick.outputs.runner_label }}
+      tag_name: ${{ steps.vars.outputs.tag_name }}
+      version:  ${{ inputs.version }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Resolve service variables (Vigia UI)
-        id: service_vars
-        shell: bash
+      - name: Exportar variáveis de release
+        id: vars
         run: |
-          set -euo pipefail
-          echo "service_type=flutter" >> "$GITHUB_OUTPUT"
-          echo "service_slug=vigia-ui" >> "$GITHUB_OUTPUT"
-          echo "service_path=vigia_ui" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=vigia-ui" >> "$GITHUB_OUTPUT"
+          TAG="vigia-ui@${{ inputs.version }}"
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Tag de release: $TAG"
 
-      - name: Resolver runner
-        id: runner_pick
-        shell: bash
-        run: echo "runner_label=ubuntu-latest" >> "$GITHUB_OUTPUT"
-
-      - name: Definir variáveis de release
-        id: release_vars
-        shell: bash
+      - name: Validar versão e CHANGELOG
         run: |
-          TAG_NAME="vigia-ui@${{ inputs.version }}"
-          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-          echo "Tag de release: $TAG_NAME"
-
-      - name: Validar CHANGELOG
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ inputs.version }}"
-          SERVICE_PATH="${{ steps.service_vars.outputs.service_path }}"
-          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
-
-          echo "Verificando versão '$VERSION' em '$CHANGELOG_PATH'..."
-
-          if [ ! -f "$CHANGELOG_PATH" ]; then
-            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
-            echo "Crie o CHANGELOG.md em '$SERVICE_PATH' antes de fazer o release."
-            exit 1
-          fi
-
-          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG_PATH"; then
-            echo "✓ Versão $VERSION encontrada no CHANGELOG."
-          else
-            echo "::error::Versão $VERSION NÃO encontrada em $CHANGELOG_PATH."
-            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes do release."
-            exit 1
-          fi
+          chmod +x "$SERVICE_PATH/tool/ci/validate_version.sh"
+          "$SERVICE_PATH/tool/ci/validate_version.sh" "${{ inputs.version }}" "$SERVICE_PATH"
 
       - name: Validar unicidade da tag de release
-        shell: bash
         run: |
           set -euo pipefail
-          TAG_NAME="${{ steps.release_vars.outputs.tag_name }}"
-          echo "Verificando se a tag '$TAG_NAME' já existe..."
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
-            echo "::error::A tag '$TAG_NAME' já existe no repositório."
-            echo "Use uma versão diferente ou delete a tag existente manualmente."
+          TAG="vigia-ui@${{ inputs.version }}"
+          echo "Verificando se a tag '$TAG' já existe..."
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::A tag '$TAG' já existe no repositório."
+            echo "Use uma versão diferente ou remova a tag existente manualmente."
             exit 1
           fi
-          echo "✓ Tag '$TAG_NAME' está disponível."
+          echo "✓ Tag '$TAG' disponível."
 
-  # ─────────────────────────────────────────────
-  # 2. SEGURANÇA — Flutter (alinhado ao continuos-integration.yml)
-  # ─────────────────────────────────────────────
-  security:
-    name: Segurança — secrets, análise e testes Flutter
-    needs: validate_environment
-    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
+      - name: Validar branch de origem
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.ref_name }}"
+          echo "Branch de origem: $BRANCH"
+          if [[ "$BRANCH" != "master" && ! "$BRANCH" =~ ^release/ ]]; then
+            echo "::error::Pipeline de release deve ser disparada a partir de 'master' ou 'release/*'."
+            echo "Branch atual: '$BRANCH'"
+            exit 1
+          fi
+          echo "✓ Branch '$BRANCH' válida para release."
+
+      - name: Validar estrutura mínima do projeto
+        run: |
+          chmod +x "$SERVICE_PATH/tool/ci/validate_structure.sh"
+          "$SERVICE_PATH/tool/ci/validate_structure.sh" "$SERVICE_PATH"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. SECURITY — varredura de secrets em todo o repositório
+  #
+  #    Roda em paralelo com os demais jobs pós-preflight.
+  #    Secrets podem aparecer em qualquer arquivo do monorepo.
+  # ═══════════════════════════════════════════════════════════════════════════
+  security_secrets:
+    name: Security — GitLeaks
+    needs: preflight
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Secret scan (gitleaks)
+      - name: GitLeaks — secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. SETUP VALIDATION — Flutter, Firebase e coerência de configuração Android
+  #
+  #    Valida a coerência das configurações sem instalar Gradle nem gerar APK.
+  #    Detecta problemas de configuração cedo, antes das etapas pesadas.
+  # ═══════════════════════════════════════════════════════════════════════════
+  setup_validation:
+    name: Setup validation — Flutter, Firebase e Android config
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -124,122 +135,271 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Flutter - pub get
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
+      - name: Flutter — pub get
+        working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
 
-      - name: Flutter - format (obrigatório)
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Flutter — versão do SDK
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: |
+          flutter --version
+          dart --version
 
-      - name: Flutter - analyze
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: flutter analyze --fatal-warnings
+      - name: Validar firebase.json
+        run: |
+          set -euo pipefail
+          FIREBASE_JSON="$SERVICE_PATH/firebase.json"
 
-      - name: Flutter - test
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: flutter test
+          jq empty "$FIREBASE_JSON" 2>/dev/null || {
+            echo "::error::$FIREBASE_JSON não é um JSON válido."
+            exit 1
+          }
 
-  # ─────────────────────────────────────────────
-  # 3. BUILD — Linux release + tarball (sem Docker)
-  # ─────────────────────────────────────────────
-  build:
-    name: Build — Vigia UI
-    needs:
-      - validate_environment
-      - security
-    runs-on: ${{ needs.validate_environment.outputs.runner_label }}
+          ANDROID_APP_ID=$(jq -r '.flutter.platforms.android.default.appId // empty' "$FIREBASE_JSON")
+          if [ -z "$ANDROID_APP_ID" ]; then
+            echo "::error::firebase.json não contém .flutter.platforms.android.default.appId."
+            exit 1
+          fi
+
+          PROJECT_ID=$(jq -r '.flutter.platforms.android.default.projectId // empty' "$FIREBASE_JSON")
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::error::firebase.json não contém projectId para Android."
+            exit 1
+          fi
+
+          echo "✓ firebase.json válido — projectId: $PROJECT_ID | Android appId: $ANDROID_APP_ID"
+
+      - name: Validar estratégia google-services.json
+        run: |
+          set -euo pipefail
+          REAL_FILE="$SERVICE_PATH/android/app/google-services.json"
+          EXAMPLE_FILE="$SERVICE_PATH/android/app/google-services.json.example"
+
+          if [ -f "$REAL_FILE" ]; then
+            echo "::error::$REAL_FILE encontrado no repositório."
+            echo "Arquivo sensível não deve ser versionado — adicione ao .gitignore."
+            exit 1
+          fi
+          echo "✓ google-services.json ausente no repositório (correto)"
+
+          if [ ! -f "$EXAMPLE_FILE" ]; then
+            echo "::warning::google-services.json.example não encontrado."
+            echo "Recomendado: versionar um exemplo sem chaves reais para documentar a estrutura."
+          else
+            echo "✓ google-services.json.example presente"
+          fi
+
+      - name: Dependências desatualizadas (informativo)
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: |
+          echo "==> Dependências com versões mais novas disponíveis:"
+          flutter pub outdated --no-color || true
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4. QUALITY — formatação e análise estática (SAST)
+  #
+  #    dart format: garante consistência de estilo (falha em diff)
+  #    flutter analyze: análise estática com --fatal-warnings (SAST estático)
+  # ═══════════════════════════════════════════════════════════════════════════
+  quality:
+    name: Quality — format e analyze
+    needs: preflight
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Install Linux build dependencies (Flutter)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
-
-      - name: Set up Flutter (build)
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Flutter - build Linux release
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          flutter pub get
-          flutter build linux --release
+      - name: Flutter — pub get
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter pub get
 
-      - name: Flutter - empacotar artefato
-        working-directory: ${{ needs.validate_environment.outputs.service_path }}
-        run: |
-          set -euo pipefail
-          tar -czvf "vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz" -C build/linux/x64/release bundle
+      - name: Dart — format (obrigatório)
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: dart format --output=none --set-exit-if-changed lib test
 
-      - name: Flutter - exportar tarball
-        uses: actions/upload-artifact@v4
+      - name: Flutter — analyze (SAST estático)
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter analyze --fatal-warnings
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 5. TESTS — testes unitários e de widget
+  #
+  #    Executa flutter test, que cobre unit tests e widget tests.
+  #    Os testes em test/ não inicializam Firebase (importam app.dart diretamente),
+  #    portanto não requerem google-services.json.
+  # ═══════════════════════════════════════════════════════════════════════════
+  tests:
+    name: Tests — unit e widget
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
-          path: ${{ needs.validate_environment.outputs.service_path }}/vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz
-          retention-days: 7
+          channel: stable
+          cache: true
 
-  # ─────────────────────────────────────────────
-  # 4. TAG + GitHub Release (sem Docker / sem deploy VM)
-  # ─────────────────────────────────────────────
-  tag_release:
-    name: Criar tag de release
+      - name: Flutter — pub get
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter pub get
+
+      - name: Flutter — test
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter test --reporter=expanded
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 6. ANDROID SECURITY — AndroidManifest, permissões e configuração de build
+  #
+  #    Valida configurações críticas de segurança sem instalar Gradle.
+  #    Falhas críticas (ex: debuggable no manifest principal) bloqueiam o release.
+  #    Avisos (ex: debug signing) são registrados mas não bloqueiam.
+  # ═══════════════════════════════════════════════════════════════════════════
+  android_security:
+    name: Android security — manifest, permissões e build config
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar segurança Android
+        run: |
+          chmod +x "$SERVICE_PATH/tool/ci/validate_android_security.sh"
+          "$SERVICE_PATH/tool/ci/validate_android_security.sh" "$SERVICE_PATH"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 7. DEPENDENCY SECURITY — OSV Scanner no pubspec.lock
+  #
+  #    Verifica vulnerabilidades conhecidas nas dependências Dart/Flutter
+  #    usando o banco de dados OSV (Open Source Vulnerabilities) do Google.
+  #    Não requer Flutter SDK — apenas o pubspec.lock.
+  # ═══════════════════════════════════════════════════════════════════════════
+  dependency_security:
+    name: Dependency security — OSV Scanner (pubspec.lock)
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar osv-scanner
+        run: |
+          OSV_VERSION="v1.9.2"
+          curl -sSfL \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64" \
+            -o /tmp/osv-scanner
+          chmod +x /tmp/osv-scanner
+          sudo mv /tmp/osv-scanner /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      - name: OSV Scanner — dependências Dart/Flutter
+        run: |
+          osv-scanner --lockfile="$SERVICE_PATH/pubspec.lock"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. INTEGRATION TESTS (evolutivo — ativado automaticamente)
+  #
+  #    Este job verifica se integration_test/ existe com arquivos .dart.
+  #    Se não existir, registra um aviso informativo e conclui com sucesso.
+  #    Quando integration_test/ for criado, os testes passam a executar
+  #    automaticamente sem nenhuma mudança no workflow.
+  #
+  #    Pré-requisitos para ativar:
+  #      1. Criar vigia_ui/integration_test/ com testes Flutter
+  #      2. Para testes em dispositivo real, adicionar emulador Android ao runner
+  #         (ver documentação em vigia_ui/docs/mobile-pipeline.md)
+  # ═══════════════════════════════════════════════════════════════════════════
+  integration_tests:
+    name: Integration tests (evolutivo)
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verificar existência de integration tests
+        id: check
+        run: |
+          if [ -d "$SERVICE_PATH/integration_test" ] && \
+             find "$SERVICE_PATH/integration_test" -name "*.dart" -print -quit | grep -q .; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+            echo "✓ integration_test/ encontrada — prosseguindo com execução."
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::integration_test/ não encontrada no projeto."
+            echo "Para habilitar: crie vigia_ui/integration_test/ com testes Flutter."
+            echo "Consulte: vigia_ui/docs/mobile-pipeline.md"
+          fi
+
+      - name: Set up Flutter
+        if: steps.check.outputs.has_tests == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter — pub get
+        if: steps.check.outputs.has_tests == 'true'
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter pub get
+
+      # Nota: flutter test integration_test/ requer emulador Android em execução
+      # para testes que interagem com a UI nativa. Para testes sem UI, funciona
+      # no runner ubuntu-latest. Ver documentação para setup com emulador.
+      - name: Flutter — integration tests
+        if: steps.check.outputs.has_tests == 'true'
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter test integration_test/
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 9. RELEASE PREPARATION — tag e GitHub Release
+  #
+  #    Executado apenas após todos os jobs de validação passarem.
+  #    Cria a tag de release e uma GitHub Release com:
+  #      - Release notes extraídas do CHANGELOG
+  #      - Metadados de release (JSON) para consumo pelo deploy-trigger.yml
+  #
+  #    NÃO gera APK. O APK oficial é responsabilidade do deploy-trigger.yml.
+  # ═══════════════════════════════════════════════════════════════════════════
+  release_preparation:
+    name: Release preparation — tag e GitHub Release
     needs:
-      - validate_environment
-      - security
-      - build
+      - preflight
+      - security_secrets
+      - setup_validation
+      - quality
+      - tests
+      - android_security
+      - dependency_security
+      - integration_tests
     if: |
       always() &&
-      needs.validate_environment.result == 'success' &&
-      needs.security.result == 'success' &&
-      needs.build.result == 'success'
+      needs.preflight.result           == 'success' &&
+      needs.security_secrets.result    == 'success' &&
+      needs.setup_validation.result    == 'success' &&
+      needs.quality.result             == 'success' &&
+      needs.tests.result               == 'success' &&
+      needs.android_security.result    == 'success' &&
+      needs.dependency_security.result == 'success' &&
+      needs.integration_tests.result   == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Baixar artefato Vigia UI
-        uses: actions/download-artifact@v4
-        with:
-          name: build-${{ needs.validate_environment.outputs.artifact_name }}-${{ inputs.version }}
-          path: ./release-assets
-
-      - name: Criar e publicar tag
-        env:
-          TAG_NAME: ${{ needs.validate_environment.outputs.tag_name }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git tag -a "$TAG_NAME" \
-            -m "Release Vigia UI v${{ inputs.version }} → production"
-
-          git push origin "$TAG_NAME"
-
-          echo "✓ Tag '$TAG_NAME' criada e publicada."
-
       - name: Extrair release notes do CHANGELOG
-        shell: bash
         env:
           VERSION: ${{ inputs.version }}
-          SERVICE_PATH: ${{ needs.validate_environment.outputs.service_path }}
         run: |
           set -euo pipefail
-
-          CHANGELOG_PATH="./${SERVICE_PATH}/CHANGELOG.md"
+          CHANGELOG_PATH="$SERVICE_PATH/CHANGELOG.md"
           echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
-
-          if [ ! -f "$CHANGELOG_PATH" ]; then
-            echo "::error::Arquivo $CHANGELOG_PATH não encontrado."
-            exit 1
-          fi
 
           awk -v version="$VERSION" '
             $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
@@ -248,20 +408,113 @@ jobs:
           ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
 
           if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Nao foi possivel extrair release notes para versao $VERSION em $CHANGELOG_PATH."
+            echo "::error::Não foi possível extrair release notes para versão $VERSION em $CHANGELOG_PATH."
             exit 1
           fi
 
-          echo "Release notes extraidas com sucesso."
+          echo "==> Release notes extraídas:"
+          cat RELEASE_NOTES.md
 
-      - name: Criar GitHub Release (Vigia UI — bundle Linux)
+      - name: Montar corpo completo da release
+        run: |
+          set -euo pipefail
+          COMMIT_SHA="${{ github.sha }}"
+          BRANCH="${{ github.ref_name }}"
+          ACTOR="${{ github.actor }}"
+          VERSION="${{ inputs.version }}"
+
+          cat >> RELEASE_NOTES.md <<EOF
+
+          ---
+          ## Metadados
+
+          | Campo | Valor |
+          |-------|-------|
+          | Versão | \`${VERSION}\` |
+          | Commit | \`${COMMIT_SHA}\` |
+          | Branch | \`${BRANCH}\` |
+          | Flutter | stable |
+          | Disparado por | ${ACTOR} |
+
+          > **APK não incluído nesta release.**
+          > O artefato Android oficial é gerado e distribuído pelo workflow \`deploy-trigger.yml\`.
+          > Acione-o selecionando a versão \`${VERSION}\` após esta release ser criada.
+          EOF
+
+      - name: Gerar metadados de release (JSON)
+        run: |
+          set -euo pipefail
+          PUBSPEC_VERSION=$(grep -E "^version:" "$SERVICE_PATH/pubspec.yaml" \
+            | sed 's/version:[[:space:]]*//' | tr -d '[:space:]')
+
+          cat > release-metadata.json <<EOF
+          {
+            "service": "vigia-ui",
+            "version": "${{ inputs.version }}",
+            "pubspec_version": "${PUBSPEC_VERSION}",
+            "tag": "${{ needs.preflight.outputs.tag_name }}",
+            "commit_sha": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "flutter_channel": "stable",
+            "released_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "released_by": "${{ github.actor }}",
+            "apk_status": "pending_deploy_trigger"
+          }
+          EOF
+
+          echo "==> Metadados de release:"
+          cat release-metadata.json
+
+      - name: Criar e publicar tag de release
+        env:
+          TAG_NAME: ${{ needs.preflight.outputs.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG_NAME" \
+            -m "Release Vigia UI v${{ inputs.version }}"
+
+          git push origin "$TAG_NAME"
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Criar GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.validate_environment.outputs.tag_name }}
+          tag_name: ${{ needs.preflight.outputs.tag_name }}
+          name: "Vigia UI v${{ inputs.version }}"
           body_path: ./RELEASE_NOTES.md
-          files: ./release-assets/vigia-ui-linux-amd64-${{ inputs.version }}.tar.gz
+          files: ./release-metadata.json
           draft: false
           generate_release_notes: false
           skip_duplicate: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FUTURO — Device Farm (opcional, não implementado)
+  #
+  #  Este job está documentado mas não ativo. Para habilitar testes em
+  #  dispositivos Android reais, veja vigia_ui/docs/mobile-pipeline.md.
+  #
+  #  Opções avaliadas:
+  #    - Firebase Test Lab (integrado ao Firebase do projeto)
+  #    - AWS Device Farm
+  #    - Runner dedicado com dispositivo físico conectado
+  #
+  #  Pré-requisitos mínimos:
+  #    1. Gerar APK de debug (requer google-services.json via secret)
+  #    2. Configurar credenciais do serviço de device farm como secrets
+  #    3. Definir suite de testes de integração/E2E
+  # ═══════════════════════════════════════════════════════════════════════════
+  # optional_device_farm:
+  #   name: Device farm (Firebase Test Lab) — FUTURO
+  #   needs: [preflight, tests, integration_tests]
+  #   if: false  # Remover esta linha quando estiver pronto para ativar
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Build APK de debug para device farm
+  #       ...
+  #     - name: Firebase Test Lab — executar testes em dispositivos reais
+  #       ...

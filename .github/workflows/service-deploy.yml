@@ -386,17 +386,6 @@ jobs:
           # Append deployment metadata so the release body is self-contained.
           cat >> RELEASE_NOTES.md <<EOF
 
----
-| Campo | Valor |
-|-------|-------|
-| **Versão** | \`$VERSION\` |
-| **Imagem Docker** | \`${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:$VERSION\` |
-| **Commit SHA** | \`${{ github.sha }}\` |
-| **Branch** | \`${{ github.ref_name }}\` |
-| **Data** | $(date -u +"%Y-%m-%d %H:%M UTC") |
-
-> Para fazer deploy desta versão, execute o workflow **Vigia API — Deploy Trigger** com version \`$VERSION\`.
-EOF
           echo "Release notes extraídas com sucesso."
 
       - name: Create GitHub Release

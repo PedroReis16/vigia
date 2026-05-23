@@ -1,7 +1,7 @@
 services:
   # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
-    image: pedroreis16/vigia-api:latest
+    image: ${DOCKERHUB_USERNAME:-pedroreis16}/vigia-api:${VIGIA_API_IMAGE_TAG:-latest}
     container_name: vigia-api
     restart: always
     labels:

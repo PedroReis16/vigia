@@ -49,16 +49,19 @@ jobs:
             fall_detection_src:
               - 'fall-detection/**'
               - '!fall-detection/**/*.md'
+              - '!fall-detection/docs/**'
             fall_detection_docker:
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
             vigia_api_src:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
+              - '!vigia-services/apps/vigia-api/docs/**'
             vigia_api_docker:
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
               - '!vigia-services/apps/vigia-bootstrap/**/*.md'
+              - '!vigia-services/apps/vigia-bootstrap/docs/**'
             vigia_shared_non_md:
               - 'vigia-services/pkg/shared/**'
               - '!vigia-services/pkg/shared/**/*.md'
@@ -71,6 +74,7 @@ jobs:
             vigia_ui_src:
               - 'vigia_ui/**'
               - '!vigia_ui/**/*.md'
+              - '!vigia_ui/docs/**'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -214,7 +218,8 @@ jobs:
             "bandit>=1.8,<2" \
             "pip-audit>=2.9,<3" \
             "pytest>=8.2,<9" \
-            "pytest-asyncio>=0.26,<0.27"
+            "pytest-asyncio>=0.26,<0.27" \
+            "pytest-cov>=5,<6"
 
       - name: Python - lint
         if: matrix.project.type == 'python'
@@ -241,10 +246,22 @@ jobs:
             --ignore-vuln CVE-2026-3219 \
             --ignore-vuln CVE-2025-71176
 
-      - name: Python - tests
+      - name: Python - tests with coverage
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q \
+            --cov=src/app \
+            --cov-report=xml \
+            --cov-report=term-missing
+
+      - name: Python - export coverage report
+        if: matrix.project.type == 'python'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.project.name }}
+          path: ${{ matrix.project.path }}/coverage.xml
+          retention-days: 7
 
       # ── Flutter (vigia_ui) ────────────────────────────────────
 
@@ -262,6 +279,12 @@ jobs:
         if: matrix.project.type == 'flutter'
         working-directory: ${{ matrix.project.path }}
         run: flutter analyze --fatal-warnings
+
+      - name: Flutter - dependency audit
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        # dart pub audit verifica advisories de segurança publicados no pub.dev
+        run: dart pub audit
 
       - name: Flutter - test
         if: matrix.project.type == 'flutter'

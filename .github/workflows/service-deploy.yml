@@ -371,6 +371,9 @@ jobs:
         run: |
           set -euo pipefail
           CHANGELOG="./${SERVICE_PATH}/CHANGELOG.md"
+          COMMIT_SHA="${{ github.sha }}"
+          BRANCH="${{ github.ref_name }}"
+          ACTOR="${{ github.actor }}"
 
           awk -v version="$VERSION" '
             $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
@@ -383,8 +386,18 @@ jobs:
             exit 1
           fi
 
-          # Append deployment metadata so the release body is self-contained.
           cat >> RELEASE_NOTES.md <<EOF
+
+          ---
+          ## Deploy metadata
+
+          | Field | Value |
+          |-------|-------|
+          | Version     | \`${VERSION}\` |
+          | Commit      | \`${COMMIT_SHA}\` |
+          | Branch      | \`${BRANCH}\` |
+          | Released by | ${ACTOR} |
+          EOF
 
           echo "Release notes extraídas com sucesso."
 

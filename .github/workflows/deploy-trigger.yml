@@ -8,60 +8,77 @@ concurrency:
 run-name: "Vigia API — deploy v${{ inputs.version }} → production"
 
 # ─────────────────────────────────────────────────────────────────
-# How this workflow fits into the release pipeline:
+# Como este workflow se encaixa no pipeline de release:
 #
-#   service-deploy.yml  →  creates GitHub Release (vigia-api@X.Y.Z)
-#   deploy-trigger.yml  →  validates release exists, deploys to VM
+#   service-deploy.yml  →  valida, testa, analisa segurança, faz o
+#                          build e push da imagem Docker para o Hub,
+#                          e cria a GitHub Release (vigia-api@X.Y.Z)
+#   deploy-trigger.yml  →  valida que a release existe (imagem já no
+#                          Hub), atualiza a versão no servidor via SSH
 #
-# The GitHub Release is the contract: a release exists only when all
-# quality gates (tests, security, Docker scan) have passed and the
-# image is live on Docker Hub. This workflow trusts that contract.
+# A GitHub Release é o contrato: ela só existe quando todos os gates
+# de qualidade passaram e a imagem está publicada. Este workflow
+# confia nesse contrato — não reconstrói nem re-publica a imagem.
 # ─────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to deploy — must have a GitHub Release (e.g. 1.2.3)"
+        description: "Versão para deploy — deve ter uma GitHub Release (ex: 1.2.3)"
         required: true
         type: string
 
 permissions:
   contents: read
-  deployments: write  # create and update GitHub Deployments for audit trail
+  deployments: write  # registro de Deployments no GitHub para audit trail
+
+env:
+  TAG: vigia-api@${{ inputs.version }}
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/vigia-api
+  SERVICE: vigia  # nome do serviço no docker-compose.yaml de produção
 
 jobs:
 
   # ═══════════════════════════════════════════════════════════════
   # 1. VALIDATE DEPLOY
-  # Ensures the version is ready: GitHub Release exists (proof that
-  # all CI/CD gates passed) and the Docker image is available.
-  # Creates a GitHub Deployment record for the audit trail.
+  #    Garante que a versão está pronta para deploy:
+  #      - GitHub Release existe (prova que todos os gates CI/CD passaram)
+  #      - Imagem Docker disponível no Docker Hub
+  #    Cria um registro de Deployment no GitHub para audit trail.
   # ═══════════════════════════════════════════════════════════════
   validate_deploy:
-    name: Validate — release exists & image available
+    name: Validate — release e imagem disponíveis
     runs-on: ubuntu-latest
     outputs:
       deployment_id: ${{ steps.create_deployment.outputs.deployment_id }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAG: vigia-api@${{ inputs.version }}
     steps:
-      # A GitHub Release (vigia-api@X.Y.Z) is created by service-deploy.yml
-      # only after all tests, security scans, and Docker publish succeed.
-      # Its existence is the authoritative "ready for deploy" signal.
-      - name: Check GitHub Release exists
+      # A GitHub Release só existe após service-deploy.yml concluir com sucesso
+      # (testes, segurança, build Docker, push para Hub). É o sinal de "pronto".
+      - name: Verificar GitHub Release existe
         run: |
           set -euo pipefail
-          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "::error::Release '$TAG' não encontrada."
-            echo "Execute o workflow 'Vigia API — Service Deploy' com version '${{ inputs.version }}' primeiro."
+          if ! gh release view "${{ env.TAG }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "::error::Release '${{ env.TAG }}' não encontrada."
+            echo "Execute 'Vigia API — Service Deploy' com version '${{ inputs.version }}' primeiro."
             exit 1
           fi
-          echo "✓ Release '$TAG' encontrada — versão pronta para deploy."
+          echo "✓ Release '${{ env.TAG }}' encontrada — versão pronta para deploy."
 
-      # Register the deploy in GitHub's native Deployments system.
-      # This creates a visible audit trail under the repository's "Environments" tab.
-      - name: Create GitHub Deployment record
+      - name: Verificar imagem disponível no Docker Hub
+        run: |
+          set -euo pipefail
+          if ! docker manifest inspect "${{ env.IMAGE }}:${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "::error::Imagem '${{ env.IMAGE }}:${{ inputs.version }}' não encontrada no Docker Hub."
+            echo "Verifique se o job 'publish' do service-deploy.yml concluiu com sucesso."
+            exit 1
+          fi
+          echo "✓ Imagem '${{ env.IMAGE }}:${{ inputs.version }}' disponível."
+
+      # Registra o deploy no sistema nativo de Deployments do GitHub.
+      # Cria audit trail visível na aba "Environments" do repositório.
+      - name: Criar registro de Deployment no GitHub
         id: create_deployment
         run: |
           set -euo pipefail
@@ -75,27 +92,32 @@ jobs:
             -F required_contexts='[]' \
             --jq '.id')
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
-          echo "✓ GitHub Deployment criado: ID=$DEPLOYMENT_ID"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
 
   # ═══════════════════════════════════════════════════════════════
   # 2. DEPLOY
-  # SSHs into the production VM and updates the running service.
-  # Includes basic rollback: restores previous IMAGE_TAG if the
-  # container fails to start after the update.
-  # Updates GitHub Deployment status on success or failure.
+  #    Conecta via SSH ao servidor de produção e atualiza o serviço.
+  #    Fluxo:
+  #      1. Salva versão anterior para possível rollback
+  #      2. Atualiza VIGIA_API_IMAGE_TAG no .env
+  #      3. Faz pull da nova imagem
+  #      4. Reinicia o serviço via docker compose
+  #      5. Aguarda estabilização e valida via health check HTTP
+  #      6. Rollback automático se o serviço não responder
+  #    Atualiza o status do Deployment no GitHub em caso de sucesso ou falha.
   # ═══════════════════════════════════════════════════════════════
   deploy:
-    name: Deploy → production VM
+    name: Deploy → production
     needs: validate_deploy
     runs-on: ubuntu-latest
-    # The "production" environment enables environment-specific secrets
-    # and optional required reviewers in GitHub repository settings.
+    # O ambiente "production" permite secrets específicos de ambiente
+    # e revisores obrigatórios nas configurações do repositório.
     environment: production
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       DEPLOYMENT_ID: ${{ needs.validate_deploy.outputs.deployment_id }}
     steps:
-      - name: Mark deployment as in-progress
+      - name: Marcar deployment como em andamento
         run: |
           gh api \
             --method POST \
@@ -118,57 +140,63 @@ jobs:
             VERSION="${{ inputs.version }}"
             DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/vigia-api"
+            HEALTH_URL="http://localhost:8000/health"
 
-            echo "==> Deploy de '$SERVICE' v$VERSION"
+            echo "==> Deploy de vigia-api v$VERSION"
             cd "$DEPLOY_PATH"
 
-            # Save previous version for rollback.
-            PREV_VERSION=$(grep "^IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "unknown")
-            echo "==> Versão anterior: $PREV_VERSION"
+            # ── Salvar versão anterior para rollback ──────────────────────────
+            PREV_VERSION=$(grep "^VIGIA_API_IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "")
+            echo "==> Versão anterior: ${PREV_VERSION:-<não registrada>}"
 
-            # Update IMAGE_TAG in .env — docker compose reads this variable.
-            if [ -f .env ] && grep -q "^IMAGE_TAG=" .env; then
-              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$VERSION/" .env
+            # ── Atualizar versão no .env ──────────────────────────────────────
+            # docker-compose.yaml lê VIGIA_API_IMAGE_TAG para montar a tag da imagem.
+            if [ -f .env ] && grep -q "^VIGIA_API_IMAGE_TAG=" .env; then
+              sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$VERSION/" .env
             else
-              echo "IMAGE_TAG=$VERSION" >> .env
+              echo "VIGIA_API_IMAGE_TAG=$VERSION" >> .env
             fi
-            echo "==> IMAGE_TAG → $VERSION"
+            echo "==> VIGIA_API_IMAGE_TAG → $VERSION"
 
-            echo "==> Baixando nova imagem..."
+            # ── Pull da nova imagem ───────────────────────────────────────────
+            echo "==> Baixando imagem $IMAGE:$VERSION ..."
             docker pull "$IMAGE:$VERSION"
 
-            echo "==> Subindo nova versão..."
+            # ── Subir nova versão ─────────────────────────────────────────────
+            echo "==> Reiniciando serviço '$SERVICE' ..."
             docker compose up -d --remove-orphans "$SERVICE"
 
-            echo "==> Aguardando estabilização (15s)..."
-            sleep 15
+            # ── Health check HTTP ─────────────────────────────────────────────
+            echo "==> Aguardando serviço responder em $HEALTH_URL ..."
+            HEALTHY=false
+            for i in $(seq 1 12); do
+              if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+                HEALTHY=true
+                echo "✓ Serviço respondeu após $((i * 5))s."
+                break
+              fi
+              echo "  tentativa $i/12 — aguardando 5s ..."
+              sleep 5
+            done
 
-            # Health check: inspect container status.
-            CONTAINER_ID=$(docker compose ps -q "$SERVICE" 2>/dev/null || echo "")
+            if [ "$HEALTHY" = "false" ]; then
+              echo "::error::Serviço não respondeu em 60s. Iniciando rollback ..."
+              docker compose logs --tail=100 "$SERVICE" || true
 
-            if [ -z "$CONTAINER_ID" ]; then
-              echo "::error::Container '$SERVICE' não encontrado após o deploy."
-              STATUS="not_found"
-            else
-              STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "not_found")
-            fi
-
-            echo "==> Status do container: $STATUS"
-
-            if [[ "$STATUS" != "running" ]]; then
-              echo "::error::Container '$SERVICE' não está running. Iniciando rollback..."
-              docker compose logs --tail=50 "$SERVICE" || true
-
-              # Rollback: restore previous version in .env and restart.
-              if [ "$PREV_VERSION" != "unknown" ]; then
-                echo "==> Revertendo para $PREV_VERSION..."
-                sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$PREV_VERSION/" .env
+              # ── Rollback ──────────────────────────────────────────────────
+              if [ -n "$PREV_VERSION" ]; then
+                echo "==> Revertendo para $PREV_VERSION ..."
+                sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$PREV_VERSION/" .env
                 docker compose up -d --remove-orphans "$SERVICE"
-                sleep 10
-                ROLLBACK_STATUS=$(docker compose ps -q "$SERVICE" \
-                  | xargs -r docker inspect --format='{{.State.Status}}' 2>/dev/null || echo "not_found")
-                echo "==> Status após rollback: $ROLLBACK_STATUS"
-                echo "::warning::Rollback concluído para v$PREV_VERSION. Verifique os logs acima."
+
+                for i in $(seq 1 6); do
+                  if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+                    echo "✓ Rollback concluído — serviço estável em v$PREV_VERSION."
+                    break
+                  fi
+                  sleep 5
+                done
+                echo "::warning::Rollback executado para v$PREV_VERSION. Verifique os logs acima."
               else
                 echo "::warning::Sem versão anterior registrada — rollback não executado."
               fi
@@ -176,25 +204,29 @@ jobs:
               exit 1
             fi
 
-            echo "==> Limpando imagens obsoletas..."
-            docker image prune -f
+            # ── Limpeza de imagens obsoletas ──────────────────────────────────
+            echo "==> Removendo imagens antigas de vigia-api ..."
+            docker images "$IMAGE" --format "{{.Tag}}" \
+              | grep -v "^$VERSION$" \
+              | grep -v "^latest$" \
+              | xargs -r -I{} docker rmi "$IMAGE:{}" 2>/dev/null || true
 
-            echo "==> Deploy de '$SERVICE' v$VERSION concluído com sucesso."
+            echo "==> Deploy de vigia-api v$VERSION concluído com sucesso."
 
-      - name: Mark deployment as success
+      - name: Marcar deployment como sucesso
         if: success()
         run: |
           gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-api v${{ inputs.version }} deployed successfully"
+            -f description="vigia-api v${{ inputs.version }} em produção"
 
-      - name: Mark deployment as failure
+      - name: Marcar deployment como falha
         if: failure()
         run: |
           gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="failure" \
-            -f description="Deploy vigia-api v${{ inputs.version }} failed — check workflow logs"
+            -f description="Deploy vigia-api v${{ inputs.version }} falhou — verifique os logs"

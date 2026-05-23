@@ -388,17 +388,6 @@ jobs:
 
           cat >> RELEASE_NOTES.md <<EOF
 
-          ---
-          ## Deploy metadata
-
-          | Field | Value |
-          |-------|-------|
-          | Version     | \`${VERSION}\` |
-          | Commit      | \`${COMMIT_SHA}\` |
-          | Branch      | \`${BRANCH}\` |
-          | Released by | ${ACTOR} |
-          EOF
-
           echo "Release notes extraídas com sucesso."
 
       - name: Create GitHub Release

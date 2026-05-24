@@ -96,7 +96,7 @@ jobs:
       - name: Validate source branch (master or main only)
         run: |
           BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" != "refactor/project-release" ]]; then
+          if [[ "$BRANCH" != "refactor/project-deploy" ]]; then
             echo "::error::Este workflow deve ser executado a partir de 'master' ou 'main'. Branch atual: '$BRANCH'."
             exit 1
           fi

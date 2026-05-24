@@ -399,20 +399,39 @@ jobs:
             DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
 
             echo "==> Deploy de vigia-api v$VERSION"
-            # cd "$DEPLOY_PATH"
+
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "::error::EC2_DEPLOY_PATH não configurado nos secrets do environment production."
+              exit 1
+            fi
+            if ! cd "$DEPLOY_PATH"; then
+              echo "::error::Não foi possível acessar DEPLOY_PATH='$DEPLOY_PATH'."
+              exit 1
+            fi
+            if [ ! -f docker-compose.yaml ] && [ ! -f docker-compose.yml ]; then
+              echo "::error::docker-compose.yaml não encontrado em '$DEPLOY_PATH'."
+              exit 1
+            fi
+            echo "==> Diretório de deploy: $(pwd)"
 
             # ── Save the running version for rollback ───────────────────────
-            PREV_VERSION=$(grep "^VIGIA_API_IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "")
+            PREV_VERSION=""
+            if [ -f .env ]; then
+              PREV_VERSION=$(grep -E "^VIGIA_API_IMAGE_TAG=" .env | head -n1 | cut -d= -f2- || true)
+            fi
             echo "==> Versão anterior: ${PREV_VERSION:-<não registrada>}"
 
             # ── Update tag in .env ──────────────────────────────────────────
             # docker-compose.yaml reads VIGIA_API_IMAGE_TAG to build the image tag.
-            if [ -f .env ] && grep -q "^VIGIA_API_IMAGE_TAG=" .env; then
+            if [ ! -f .env ]; then
+              touch .env
+            fi
+            if grep -qE "^VIGIA_API_IMAGE_TAG=" .env; then
               sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$VERSION/" .env
             else
               echo "VIGIA_API_IMAGE_TAG=$VERSION" >> .env
             fi
-            echo "==> VIGIA_API_IMAGE_TAG → $VERSION"
+            echo "==> VIGIA_API_IMAGE_TAG -> $VERSION"
 
             echo "==> Baixando nova imagem..."
             docker compose pull "$SERVICE"
@@ -429,7 +448,7 @@ jobs:
             sleep 15
 
             STATUS=$(docker inspect \
-              --format='{{.State.Status}}' \
+              --format='${{ '{{' }}.State.Status${{ '}}' }}' \
               "$(docker compose ps -q "$SERVICE")" 2>/dev/null || echo "not_found")
 
             echo "Status do container: $STATUS"
@@ -448,7 +467,7 @@ jobs:
 
                 sleep 10
                 ROLLBACK_STATUS=$(docker inspect \
-                  --format='{{.State.Status}}' \
+                  --format='${{ '{{' }}.State.Status${{ '}}' }}' \
                   "$(docker compose ps -q "$SERVICE")" 2>/dev/null || echo "not_found")
                 echo "Status após rollback: $ROLLBACK_STATUS"
                 echo "::warning::Rollback executado para v$PREV_VERSION. Verifique os logs acima."

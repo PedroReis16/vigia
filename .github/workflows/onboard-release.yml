@@ -1,14 +1,14 @@
-name: Vigia Fall Detection — Onboard Deploy
+name: Vigia Fall Detection — Onboard Release
 
 # ─────────────────────────────────────────────────────────────────────────────
 # VISÃO GERAL
 #
 # Este workflow valida, testa e prepara o release do Vigia Fall Detection.
-# É o portão de qualidade antes de qualquer deploy ao dispositivo embarcado.
+# É o portão de qualidade antes de qualquer release ao dispositivo embarcado.
 #
 # FLUXO:
-#   onboard-deploy.yml  →  build ARM64 + publica na vigia-api + cria GitHub Release
-#   deploy-trigger.yml  →  (futuro) consome a Release e instala na Raspberry Pi 5
+#   onboard-release.yml  →  build ARM64 + publica na vigia-api + cria GitHub Release
+#   release-trigger.yml  →  (futuro) consome a Release e instala na Raspberry Pi 5
 #
 # JOBS (ordem de execução):
 #   validate            ← validações leves, fail-fast (sem instalação pesada)
@@ -26,16 +26,16 @@ name: Vigia Fall Detection — Onboard Deploy
 #
 # NOTAS:
 #   - Todos os jobs pesados rodam em ubuntu-latest (x86_64).
-#     O runner ARM64 é necessário apenas para o build do binário (deploy-trigger.yml).
+#     O runner ARM64 é necessário apenas para o build do binário (release-trigger.yml).
 #   - DAST: não aplicável — a aplicação é um binário embarcado sem interface HTTP
 #     exposta durante a CI. Realizar testes de campo manualmente na Raspberry Pi 5.
 #   - Hardware tests: estrutura preparada como job comentado (self-hosted ARM).
 #     Não bloqueia a pipeline até um runner ser configurado.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Impede dois deploys simultâneos para a mesma versão.
+# Impede dois releases simultâneos para a mesma versão.
 concurrency:
-  group: deploy-vigia-fall-detection-${{ inputs.version }}
+  group: release-vigia-fall-detection-${{ inputs.version }}
   cancel-in-progress: false
 
 run-name: "Vigia Fall Detection — v${{ inputs.version }}"
@@ -93,7 +93,7 @@ jobs:
       - name: Validate source branch (master or main only)
         run: |
           BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" != "refactor/project-deploy" ]]; then
+          if [[ "$BRANCH" != "refactor/project-release" ]]; then
             echo "::error::Este workflow deve ser executado a partir de 'master' ou 'main'. Branch atual: '$BRANCH'."
             exit 1
           fi
@@ -113,7 +113,7 @@ jobs:
             fall-detection/requirements-headless.txt \
             fall-detection/requirements-binary.txt \
             fall-detection/Makefile \
-            fall-detection/deploy/Dockerfile.linux-arm64-binary \
+            fall-detection/release/Dockerfile.linux-arm64-binary \
             fall-detection/src/app/__init__.py; do
             if [ ! -f "$f" ]; then
               MISSING="${MISSING}\n  ✗ $f"
@@ -426,7 +426,7 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/arm64 \
-            --file deploy/Dockerfile.linux-arm64-binary \
+            --file release/Dockerfile.linux-arm64-binary \
             --tag vigia-fall-detection:linux-arm64 \
             --load \
             .
@@ -465,7 +465,7 @@ jobs:
   #    isto é, build ARM64, extração do artefato e publicação na vigia-api.
   #    Caso o publish_release falhe, NENHUMA release é criada, evitando
   #    tags/releases órfãs sem artefato correspondente publicado.
-  #    NÃO faz deploy ao dispositivo — isso é responsabilidade do deploy-trigger.yml.
+  #    NÃO faz release ao dispositivo — isso é responsabilidade do release-trigger.yml.
   # ═══════════════════════════════════════════════════════════════════════════
   tag_release:
     name: Release — create tag & GitHub release

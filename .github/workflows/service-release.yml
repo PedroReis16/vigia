@@ -1,7 +1,7 @@
-name: Vigia API — Service Deploy
+name: Vigia API — Service Release
 
 concurrency:
-  group: service-deploy-vigia-api-${{ inputs.version }}
+  group: service-release-vigia-api-${{ inputs.version }}
   cancel-in-progress: false
 
 run-name: "Vigia API — release v${{ inputs.version }}"
@@ -321,7 +321,7 @@ jobs:
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
-          if [[ "${{ github.ref_name }}" == "refactor/project-deploy" ]]; then
+          if [[ "${{ github.ref_name }}" == "refactor/project-release" ]]; then
             docker tag \
               "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}" \
               "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
@@ -335,8 +335,8 @@ jobs:
   # 6. RELEASE
   # Creates git tag + GitHub Release with CHANGELOG-based notes.
   # Only runs after the Docker image is published successfully.
-  # The GitHub Release is the "ready for deploy" signal consumed
-  # by deploy-trigger.yml.
+  # The GitHub Release is the "ready for release" signal consumed
+  # by release-trigger.yml.
   # ═══════════════════════════════════════════════════════════════
   release:
     name: Release — git tag & GitHub Release
@@ -354,7 +354,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" \
-            -m "Release Vigia API v${{ inputs.version }} — ready for deploy"
+            -m "Release Vigia API v${{ inputs.version }} — ready for release"
           git push origin "$TAG"
           echo "✓ Tag '$TAG' criada e publicada."
 

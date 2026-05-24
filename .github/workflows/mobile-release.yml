@@ -35,6 +35,9 @@ permissions:
 
 env:
   SERVICE_PATH: vigia_ui
+  # Versão pinada do osv-scanner — também usada como parte da chave de
+  # cache do binário (evita download de ~30 MB a cada run).
+  OSV_SCANNER_VERSION: v1.9.2
 
 jobs:
 
@@ -292,14 +295,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar osv-scanner
+      # Cache do binário osv-scanner. Versão pinada via env.OSV_SCANNER_VERSION
+      # garante chave estável; bump na env invalida o cache.
+      - name: Cache osv-scanner binary
+        id: cache_osv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/osv-scanner/osv-scanner
+          key: osv-scanner-${{ runner.os }}-${{ env.OSV_SCANNER_VERSION }}
+
+      - name: Download osv-scanner (only on cache miss)
+        if: steps.cache_osv.outputs.cache-hit != 'true'
         run: |
-          OSV_VERSION="v1.9.2"
+          set -euo pipefail
+          mkdir -p "$HOME/.cache/osv-scanner"
           curl -sSfL \
-            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64" \
-            -o /tmp/osv-scanner
-          chmod +x /tmp/osv-scanner
-          sudo mv /tmp/osv-scanner /usr/local/bin/osv-scanner
+            "https://github.com/google/osv-scanner/releases/download/${{ env.OSV_SCANNER_VERSION }}/osv-scanner_linux_amd64" \
+            -o "$HOME/.cache/osv-scanner/osv-scanner"
+          chmod +x "$HOME/.cache/osv-scanner/osv-scanner"
+
+      - name: Install osv-scanner from cache
+        run: |
+          set -euo pipefail
+          sudo cp "$HOME/.cache/osv-scanner/osv-scanner" /usr/local/bin/osv-scanner
           osv-scanner --version
 
       - name: OSV Scanner — dependências Dart/Flutter
@@ -447,11 +465,16 @@ jobs:
           echo "✓ key.properties gerado."
 
       # ── Toolchain ───────────────────────────────────────────────────────────
+      # setup-java cobre o cache de dependências Gradle (~/.gradle/caches +
+      # ~/.gradle/wrapper) automaticamente quando `cache: gradle` é definido.
+      # Esse é o maior ganho do APK build: o primeiro build baixa ~200 MB de
+      # AGP/Kotlin/AndroidX; com cache, restauração leva alguns segundos.
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -462,6 +485,21 @@ jobs:
       - name: Flutter — pub get
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
+
+      # Cache adicional do diretório de build do Gradle no projeto Android.
+      # Cobre intermediates/transforms gerados a partir do AGP — não
+      # ficam em ~/.gradle e por isso precisam de cache próprio.
+      # Chave amarrada aos arquivos que mudam a estrutura de build.
+      - name: Cache Gradle project build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.SERVICE_PATH }}/android/.gradle
+            ${{ env.SERVICE_PATH }}/android/app/build
+            ${{ env.SERVICE_PATH }}/build
+          key: gradle-build-${{ runner.os }}-${{ hashFiles(format('{0}/android/**/*.gradle*', env.SERVICE_PATH), format('{0}/android/**/gradle-wrapper.properties', env.SERVICE_PATH), format('{0}/pubspec.lock', env.SERVICE_PATH)) }}
+          restore-keys: |
+            gradle-build-${{ runner.os }}-
 
       # ── Build do APK assinado ───────────────────────────────────────────────
       - name: Build APK (release, signed)

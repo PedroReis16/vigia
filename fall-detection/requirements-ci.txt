@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────────────────
+# CI/CD tooling for fall-detection
+#
+# Este arquivo lista as ferramentas usadas APENAS pelos workflows do GitHub
+# Actions (linter, SAST, auditor de dependências, runner de testes).
+# Não é instalado em desenvolvimento local nem no runtime do dispositivo.
+#
+# Por que existe um arquivo dedicado?
+#   actions/setup-python com `cache: pip` gera a chave do cache a partir
+#   do hash dos arquivos em `cache-dependency-path`. Centralizando as
+#   ferramentas de CI aqui garantimos que:
+#     1. A chave do cache cobre TODAS as dependências instaladas em CI.
+#     2. Bumps de versão dessas ferramentas invalidam o cache automaticamente.
+#     3. Todos os jobs de CI usam exatamente as mesmas versões.
+#
+# Para forçar invalidação do cache, basta alterar qualquer linha abaixo.
+# ──────────────────────────────────────────────────────────────────────────
+
+pip-audit>=2.9,<3
+pylint>=3,<4
+bandit>=1.8,<2
+pytest>=8.2,<9
+pytest-asyncio>=0.26,<0.27

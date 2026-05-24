@@ -182,12 +182,19 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          # Inclui requirements-ci.txt para que o pip cache cubra também
+          # as ferramentas de CI (pip-audit, pylint, bandit, pytest).
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
+            fall-detection/requirements-ci.txt
 
-      - name: Install pip-audit
-        run: python -m pip install --upgrade pip "pip-audit>=2.9,<3"
+      - name: Install pip-audit (via requirements-ci.txt)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt
 
       # Auditoria via requirements file — não precisa instalar torch/ultralytics.
       # Isso limita a auditoria às dependências declaradas do fall-detection.
@@ -223,9 +230,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          # Inclui requirements-ci.txt para que pylint/bandit fiquem cacheados
+          # junto das deps de runtime.
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
+            fall-detection/requirements-ci.txt
             fall-detection/pyproject.toml
 
       - name: Install Python dependencies (fall-detection)
@@ -243,7 +253,7 @@ jobs:
           # Garante opencv-headless (ultralytics instala opencv-python que conflita no embedded)
           python -m pip uninstall -y opencv-python 2>/dev/null || true
           python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install "pylint>=3,<4" "bandit>=1.8,<2"
+          python -m pip install -r requirements-ci.txt
 
       # Lint escopo: src/app (somente código do fall-detection)
       - name: Lint (pylint) — fall-detection/src/app
@@ -283,6 +293,7 @@ jobs:
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
+            fall-detection/requirements-ci.txt
             fall-detection/pyproject.toml
 
       - name: Install Python dependencies (fall-detection)
@@ -298,7 +309,7 @@ jobs:
           python -m pip install -e .
           python -m pip uninstall -y opencv-python 2>/dev/null || true
           python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
+          python -m pip install -r requirements-ci.txt
 
       - name: Run unit tests
         working-directory: fall-detection
@@ -332,6 +343,7 @@ jobs:
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
+            fall-detection/requirements-ci.txt
             fall-detection/pyproject.toml
 
       - name: Install Python dependencies (fall-detection)
@@ -347,7 +359,7 @@ jobs:
           python -m pip install -e .
           python -m pip uninstall -y opencv-python 2>/dev/null || true
           python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
+          python -m pip install -r requirements-ci.txt
 
       - name: Run integration tests (fake FIWARE — no real hardware required)
         working-directory: fall-detection

@@ -397,8 +397,6 @@ jobs:
             SERVICE="vigia"
             VERSION="${{ inputs.version }}"
             DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
-            HEALTH_URL="http://localhost:8000/health"
 
             echo "==> Deploy de vigia-api v$VERSION"
             cd "$DEPLOY_PATH"
@@ -416,42 +414,43 @@ jobs:
             fi
             echo "==> VIGIA_API_IMAGE_TAG → $VERSION"
 
-            echo "==> Baixando imagem $IMAGE:$VERSION ..."
-            docker pull "$IMAGE:$VERSION"
+            echo "==> Baixando nova imagem..."
+            docker compose pull "$SERVICE"
 
-            echo "==> Reiniciando serviço '$SERVICE' ..."
+            echo "==> Subindo nova versão..."
             docker compose up -d --remove-orphans "$SERVICE"
 
-            # ── HTTP health check ───────────────────────────────────────────
-            echo "==> Aguardando serviço responder em $HEALTH_URL ..."
-            HEALTHY=false
-            for i in $(seq 1 12); do
-              if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
-                HEALTHY=true
-                echo "✓ Serviço respondeu após $((i * 5))s."
-                break
-              fi
-              echo "  tentativa $i/12 — aguardando 5s ..."
-              sleep 5
-            done
+            # ── Container status check ──────────────────────────────────────
+            # The vigia service is not exposed on a host port (Traefik fronts
+            # it on the internal docker network), so we cannot curl localhost.
+            # Instead we wait for the container to settle and inspect its
+            # runtime state — same strategy as the previous working pipeline.
+            echo "==> Aguardando estabilização (15s)..."
+            sleep 15
 
-            if [ "$HEALTHY" = "false" ]; then
-              echo "::error::Serviço não respondeu em 60s. Iniciando rollback ..."
+            STATUS=$(docker inspect \
+              --format='{{.State.Status}}' \
+              "$(docker compose ps -q "$SERVICE")" 2>/dev/null || echo "not_found")
+
+            echo "Status do container: $STATUS"
+
+            if [[ "$STATUS" != "running" ]]; then
+              echo "::error::Container '$SERVICE' não está running após o deploy."
+              echo "==> Últimas 100 linhas de log:"
               docker compose logs --tail=100 "$SERVICE" || true
 
               # ── Rollback ──────────────────────────────────────────────────
-              if [ -n "$PREV_VERSION" ]; then
+              if [ -n "$PREV_VERSION" ] && [ "$PREV_VERSION" != "$VERSION" ]; then
                 echo "==> Revertendo para $PREV_VERSION ..."
                 sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$PREV_VERSION/" .env
+                docker compose pull "$SERVICE" || true
                 docker compose up -d --remove-orphans "$SERVICE"
 
-                for i in $(seq 1 6); do
-                  if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
-                    echo "✓ Rollback concluído — serviço estável em v$PREV_VERSION."
-                    break
-                  fi
-                  sleep 5
-                done
+                sleep 10
+                ROLLBACK_STATUS=$(docker inspect \
+                  --format='{{.State.Status}}' \
+                  "$(docker compose ps -q "$SERVICE")" 2>/dev/null || echo "not_found")
+                echo "Status após rollback: $ROLLBACK_STATUS"
                 echo "::warning::Rollback executado para v$PREV_VERSION. Verifique os logs acima."
               else
                 echo "::warning::Sem versão anterior registrada — rollback não executado."
@@ -460,11 +459,8 @@ jobs:
               exit 1
             fi
 
-            echo "==> Removendo imagens antigas de vigia-api ..."
-            docker images "$IMAGE" --format "{{.Tag}}" \
-              | grep -v "^$VERSION$" \
-              | grep -v "^latest$" \
-              | xargs -r -I{} docker rmi "$IMAGE:{}" 2>/dev/null || true
+            echo "==> Limpando imagens obsoletas..."
+            docker image prune -f
 
             echo "==> Deploy de vigia-api v$VERSION concluído com sucesso."
 

@@ -1,7 +1,5 @@
 name: Vigia API — Service Deploy
 
-# Prevent concurrent deploys of the same version.
-# cancel-in-progress: false → queues instead of cancelling.
 concurrency:
   group: service-deploy-vigia-api-${{ inputs.version }}
   cancel-in-progress: false
@@ -12,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semantic version to release (e.g. 1.2.3)"
+        description: "Versão a ser publicada (ex.: 1.0.0)"
         required: true
         type: string
 
@@ -29,8 +27,6 @@ env:
   SERVICE_PATH: vigia-services/apps/vigia-api
   DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
-  # TAG format: <service>@<version> — consistent across all vigia services.
-  # Computed per-step as: vigia-api@${{ inputs.version }}
   TAG_PREFIX: vigia-api
 
 jobs:

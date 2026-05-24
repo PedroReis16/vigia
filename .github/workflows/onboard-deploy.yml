@@ -438,8 +438,6 @@ jobs:
           git push origin "$TAG_NAME"
           echo "✓ Tag '$TAG_NAME' criada e publicada."
 
-      # Release sem binário anexado — o build do binário ARM64 é responsabilidade
-      # do deploy-trigger.yml que consome esta release como sinal de "pronto para deploy".
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -450,3 +448,65 @@ jobs:
           skip_duplicate: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. BUILD ARM64 & PUBLISH
+  #    Compila o binário para Linux ARM64 via Docker buildx (emulação QEMU),
+  #    empacota em tar.gz e publica na vigia-api (que armazena no MinIO).
+  #
+  #    Executa somente após tag_release ter criado a GitHub Release.
+  #    O job exige o secret VIGIA_API_BASE_URL apontando para a API de produção.
+  # ═══════════════════════════════════════════════════════════════════════════
+  publish_release:
+    name: Build ARM64 & publish to vigia-api
+    needs: tag_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (emulação ARM64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Constrói a imagem ARM64 e carrega localmente para podermos extrair o artefato.
+      - name: Build imagem ARM64
+        working-directory: fall-detection
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --file deploy/Dockerfile.linux-arm64-binary \
+            --tag vigia-fall-detection:linux-arm64 \
+            --load \
+            .
+
+      # Extrai o bundle onedir do container e empacota como tar.gz,
+      # mantendo a estrutura esperada pelo vigia-bootstrap:
+      #   vigia-fall-detection-linux-arm64/vigia-fall-detection
+      - name: Extrair artefato e empacotar tar.gz
+        working-directory: fall-detection
+        run: |
+          CONTAINER=$(docker create vigia-fall-detection:linux-arm64)
+          mkdir -p dist/vigia-fall-detection-linux-arm64
+          docker cp "$CONTAINER:/vigia-fall-detection/." dist/vigia-fall-detection-linux-arm64/
+          docker rm "$CONTAINER"
+          chmod +x dist/vigia-fall-detection-linux-arm64/vigia-fall-detection
+          tar -czf dist/vigia-fall-detection-linux-arm64.tar.gz \
+            -C dist vigia-fall-detection-linux-arm64
+          echo "✓ Artefato gerado: $(du -sh dist/vigia-fall-detection-linux-arm64.tar.gz | cut -f1)"
+
+      # Publica na vigia-api via multipart/form-data.
+      # A API salva o arquivo no MinIO e registra a versão no banco.
+      - name: Publicar versão na vigia-api
+        working-directory: fall-detection
+        run: |
+          curl -sf --max-time 600 \
+            -X POST \
+            -F "version=${{ inputs.version }}" \
+            -F "file=@dist/vigia-fall-detection-linux-arm64.tar.gz;type=application/gzip" \
+            "${{ secrets.VIGIA_API_BASE_URL }}/v1/devices/version/register"
+          echo "✓ Versão ${{ inputs.version }} publicada na vigia-api."

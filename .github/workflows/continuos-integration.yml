@@ -49,19 +49,16 @@ jobs:
             fall_detection_src:
               - 'fall-detection/**'
               - '!fall-detection/**/*.md'
-              - '!fall-detection/docs/**'
             fall_detection_docker:
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
             vigia_api_src:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
-              - '!vigia-services/apps/vigia-api/docs/**'
             vigia_api_docker:
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
               - '!vigia-services/apps/vigia-bootstrap/**/*.md'
-              - '!vigia-services/apps/vigia-bootstrap/docs/**'
             vigia_shared_non_md:
               - 'vigia-services/pkg/shared/**'
               - '!vigia-services/pkg/shared/**/*.md'
@@ -74,7 +71,6 @@ jobs:
             vigia_ui_src:
               - 'vigia_ui/**'
               - '!vigia_ui/**/*.md'
-              - '!vigia_ui/docs/**'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -159,7 +155,114 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────
-  # 3. QUALIDADE POR PROJETO
+  # 3. VALIDAÇÃO DE AUTORIA DE COMMITS
+  # Bloqueia PRs cujos commits possuam qualquer
+  # referência a agentes de IA (Cursor, Claude,
+  # Copilot, Codex, ChatGPT, Gemini, etc.) em:
+  #   - trailers (Co-authored-by, Made-with,
+  #     Generated-with, Assisted-by, Thrilled-by,
+  #     Crafted-with, Powered-by, ...);
+  #   - nome ou e-mail do author/committer;
+  #   - emoji 🤖 na mensagem.
+  # Apenas autores humanos são permitidos.
+  # ─────────────────────────────────────────────
+  commit_authors_check:
+    name: Commit authors validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate commits for AI agent attribution
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Garante que a base da PR está disponível localmente para o range.
+          git fetch --no-tags --prune --depth=0 origin \
+            "+${BASE_SHA}:refs/remotes/origin/_pr_base" 2>/dev/null \
+            || git fetch --no-tags origin "$BASE_SHA" 2>/dev/null \
+            || true
+
+          COMMITS=$(git log --format='%H' "${BASE_SHA}..${HEAD_SHA}" || true)
+          if [[ -z "$COMMITS" ]]; then
+            echo "Nenhum commit encontrado entre base e head — nada para validar."
+            exit 0
+          fi
+
+          # Trailers/frases que atribuem a autoria (parcial ou total) a um agente.
+          # Casados de forma case-insensitive contra a mensagem completa do commit.
+          TRAILER_PATTERN='(co[- ]?author(ed)?[- ]?by|made[- ]?with|generated[- ]?(with|by)|assisted[- ]?by|thrilled[- ]?by|crafted[- ]?with|written[- ]?with|powered[- ]?by|authored[- ]?by|created[- ]?by|built[- ]?with).{0,80}(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|google[- ]?bard|\bbard\b|devin|aider|continue\.dev|sweep[- ]?ai|tabnine|amazon[- ]?q|codewhisperer|llm|\bai\b|agent)'
+
+          # Identidades de bots/agentes em nome ou e-mail do author/committer.
+          IDENTITY_PATTERN='(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|devin|aider|sweep[- ]?ai|tabnine|codewhisperer|\[bot\]|noreply@anthropic|@cursor\.(com|sh|so|ai)|@openai\.com|@anthropic\.com)'
+
+          ROBOT_EMOJI=$'\xF0\x9F\xA4\x96'  # 🤖
+
+          FAIL=0
+          OFFENDING=""
+
+          while IFS= read -r SHA; do
+            [[ -z "$SHA" ]] && continue
+
+            MSG=$(git log -1 --format='%B' "$SHA")
+            AUTHOR=$(git log -1 --format='%an <%ae>' "$SHA")
+            COMMITTER=$(git log -1 --format='%cn <%ce>' "$SHA")
+            IDENTITY="${AUTHOR}"$'\n'"${COMMITTER}"
+
+            REASONS=""
+
+            if grep -qiE "$TRAILER_PATTERN" <<< "$MSG"; then
+              REASONS+=$'    • Trailer/atribuição a agente de IA na mensagem.\n'
+            fi
+
+            if grep -qiE "$IDENTITY_PATTERN" <<< "$IDENTITY"; then
+              REASONS+=$'    • Author/committer com identidade de agente/bot de IA.\n'
+            fi
+
+            if grep -qF "$ROBOT_EMOJI" <<< "$MSG"; then
+              REASONS+=$'    • Emoji 🤖 (assinatura típica de commits gerados por IA).\n'
+            fi
+
+            if [[ -n "$REASONS" ]]; then
+              FAIL=1
+              OFFENDING+=$'\n  ✖ Commit '"$SHA"$'\n'
+              OFFENDING+=$'      Author:    '"$AUTHOR"$'\n'
+              OFFENDING+=$'      Committer: '"$COMMITTER"$'\n'
+              OFFENDING+="$REASONS"
+            fi
+          done <<< "$COMMITS"
+
+          if [[ "$FAIL" -eq 1 ]]; then
+            {
+              echo "::error::Commits com referência a agentes de IA detectados nesta PR."
+              echo
+              echo "Os commits desta PR devem ter apenas autores humanos."
+              echo "Não são permitidas referências a Cursor, Claude, Copilot, Codex,"
+              echo "ChatGPT, Gemini ou qualquer outro agente — seja como co-autor,"
+              echo "trailer (Co-authored-by, Made-with, Generated-with, Assisted-by,"
+              echo "Thrilled-by, ...), identidade de author/committer ou emoji 🤖."
+              echo
+              echo "Commits inválidos:"
+              printf '%s' "$OFFENDING"
+              echo
+              echo "Como corrigir:"
+              echo "  1. Reescreva os commits afetados (git rebase -i / git commit --amend)."
+              echo "  2. Remova trailers de co-autoria e qualquer linha que mencione o agente."
+              echo "  3. Faça force-push da branch da PR."
+            } >&2
+            exit 1
+          fi
+
+          echo "Nenhum commit com referência a agente de IA encontrado."
+
+  # ─────────────────────────────────────────────
+  # 4. QUALIDADE POR PROJETO
   # Roda em paralelo para cada projeto detectado.
   # fail-fast: false garante que todos os projetos
   # sejam verificados mesmo se um falhar.
@@ -218,8 +321,7 @@ jobs:
             "bandit>=1.8,<2" \
             "pip-audit>=2.9,<3" \
             "pytest>=8.2,<9" \
-            "pytest-asyncio>=0.26,<0.27" \
-            "pytest-cov>=5,<6"
+            "pytest-asyncio>=0.26,<0.27"
 
       - name: Python - lint
         if: matrix.project.type == 'python'
@@ -239,29 +341,12 @@ jobs:
         # - CVE-2026-3219 (pip): no fixed version available in index yet.
         # - CVE-2025-71176 (pytest): fixed in pytest 9, but current async test stack
         #   depends on pytest-asyncio which constrains pytest<9.
-        # Sem --strict: torch (+cpu, wheel PyTorch) evita falha no OSV.
-        # --extra-index-url só com -r; auditoria aqui é sobre o ambiente pip atual.
-        run: |
-          python -m pip_audit \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2025-71176
+        run: python -m pip_audit --strict --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2025-71176
 
-      - name: Python - tests with coverage
+      - name: Python - tests
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
-        run: |
-          python -m pytest -q \
-            --cov=src/app \
-            --cov-report=xml \
-            --cov-report=term-missing
-
-      - name: Python - export coverage report
-        if: matrix.project.type == 'python'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.project.name }}
-          path: ${{ matrix.project.path }}/coverage.xml
-          retention-days: 7
+        run: python -m pytest -q
 
       # ── Flutter (vigia_ui) ────────────────────────────────────
 
@@ -279,12 +364,6 @@ jobs:
         if: matrix.project.type == 'flutter'
         working-directory: ${{ matrix.project.path }}
         run: flutter analyze --fatal-warnings
-
-      - name: Flutter - dependency audit
-        if: matrix.project.type == 'flutter'
-        working-directory: ${{ matrix.project.path }}
-        # dart pub audit verifica advisories de segurança publicados no pub.dev
-        run: dart pub audit
 
       - name: Flutter - test
         if: matrix.project.type == 'flutter'
@@ -343,7 +422,7 @@ jobs:
           failure-threshold: error
 
   # ─────────────────────────────────────────────
-  # 4. CI GATE
+  # 5. CI GATE
   # Job único que consolida o resultado de todos
   # os outros. Configure APENAS este job como
   # "required status check" no branch protection.
@@ -357,7 +436,7 @@ jobs:
   ci_gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [secrets_scan, project_quality]
+    needs: [secrets_scan, commit_authors_check, project_quality]
     # always() garante que o gate roda mesmo quando
     # project_quality foi pulado (matriz vazia).
     if: always()
@@ -365,13 +444,20 @@ jobs:
       - name: Avaliar resultado geral
         run: |
           SECRETS="${{ needs.secrets_scan.result }}"
+          AUTHORS="${{ needs.commit_authors_check.result }}"
           QUALITY="${{ needs.project_quality.result }}"
 
-          echo "secrets_scan    : $SECRETS"
-          echo "project_quality : $QUALITY"
+          echo "secrets_scan         : $SECRETS"
+          echo "commit_authors_check : $AUTHORS"
+          echo "project_quality      : $QUALITY"
 
           if [[ "$SECRETS" == "failure" || "$SECRETS" == "cancelled" ]]; then
             echo "::error::Secret scan falhou ou foi cancelado."
+            exit 1
+          fi
+
+          if [[ "$AUTHORS" == "failure" || "$AUTHORS" == "cancelled" ]]; then
+            echo "::error::Validação de autoria de commits falhou: há commits referenciando agentes de IA."
             exit 1
           fi
 

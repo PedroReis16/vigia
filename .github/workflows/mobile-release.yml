@@ -1,17 +1,17 @@
-name: Vigia UI — Mobile Deploy
+name: Vigia UI — Mobile Release
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Como este workflow se encaixa no pipeline de release:
 #
-#   mobile-deploy.yml   →  valida, testa, analisa segurança e prepara release
-#   deploy-trigger.yml  →  consome a release, gera APK e distribui para Android
+#   mobile-release.yml   →  valida, testa, analisa segurança e prepara release
+#   release-trigger.yml  →  consome a release, gera APK e distribui para Android
 #
-# Este workflow NÃO gera APK final nem faz deploy.
-# O APK oficial é gerado e distribuído pelo deploy-trigger.yml.
+# Este workflow NÃO gera APK final nem faz release.
+# O APK oficial é gerado e distribuído pelo release-trigger.yml.
 # ─────────────────────────────────────────────────────────────────────────────
 
 concurrency:
-  group: deploy-vigia-ui-${{ inputs.version }}
+  group: release-vigia-ui-${{ inputs.version }}
   cancel-in-progress: false
 
 run-name: "Vigia UI — v${{ inputs.version }}"
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.ref_name }}"
           echo "Branch de origem: $BRANCH"
-          if [[ "$BRANCH" != "refactor/project-deploy"]]; then
+          if [[ "$BRANCH" != "refactor/project-release"]]; then
             echo "::error::Pipeline de release deve ser disparada a partir de 'master'."
             echo "Branch atual: '$BRANCH'"
             exit 1
@@ -362,9 +362,9 @@ jobs:
   #    Executado apenas após todos os jobs de validação passarem.
   #    Cria a tag de release e uma GitHub Release com:
   #      - Release notes extraídas do CHANGELOG
-  #      - Metadados de release (JSON) para consumo pelo deploy-trigger.yml
+  #      - Metadados de release (JSON) para consumo pelo release-trigger.yml
   #
-  #    NÃO gera APK. O APK oficial é responsabilidade do deploy-trigger.yml.
+  #    NÃO gera APK. O APK oficial é responsabilidade do release-trigger.yml.
   # ═══════════════════════════════════════════════════════════════════════════
   release_preparation:
     name: Release preparation — tag e GitHub Release
@@ -437,7 +437,7 @@ jobs:
           | Disparado por | ${ACTOR} |
 
           > **APK não incluído nesta release.**
-          > O artefato Android oficial é gerado e distribuído pelo workflow \`deploy-trigger.yml\`.
+          > O artefato Android oficial é gerado e distribuído pelo workflow \`release-trigger.yml\`.
           > Acione-o selecionando a versão \`${VERSION}\` após esta release ser criada.
           EOF
 
@@ -458,7 +458,7 @@ jobs:
             "flutter_channel": "stable",
             "released_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "released_by": "${{ github.actor }}",
-            "apk_status": "pending_deploy_trigger"
+            "apk_status": "pending_release_trigger"
           }
           EOF
 

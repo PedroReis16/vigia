@@ -399,7 +399,7 @@ jobs:
             DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
 
             echo "==> Deploy de vigia-api v$VERSION"
-            cd "$DEPLOY_PATH"
+            # cd "$DEPLOY_PATH"
 
             # ── Save the running version for rollback ───────────────────────
             PREV_VERSION=$(grep "^VIGIA_API_IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "")

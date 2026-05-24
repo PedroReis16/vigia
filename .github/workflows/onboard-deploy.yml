@@ -459,7 +459,7 @@ jobs:
   publish_release:
     name: Build ARM64 & publish to vigia-api
     needs: tag_release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -11,7 +11,7 @@ COPY vigia-services/apps/vigia-api/ ./apps/vigia-api/
 
 # 3) Build do binário da API
 WORKDIR /src/vigia-services/apps/vigia-api
-RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api .
+RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api ./cmd
 
 # Etapa de execução (imagem final)
 FROM alpine:3.22

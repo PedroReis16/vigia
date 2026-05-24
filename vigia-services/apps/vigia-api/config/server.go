@@ -20,6 +20,8 @@ func Server(lc fx.Lifecycle, log *zap.Logger, handlers *handlers.Handlers) *gin.
 	router := gin.New()
 	router.Use(middleware.RequestContext(log))
 	router.Use(middleware.ZapRecovery())
+	// Arquivos maiores que 32 MB são gravados em disco temporário (não na RAM).
+	router.MaxMultipartMemory = 32 << 20
 
 	routes.SetRoutes(router, handlers)
 	srv := &http.Server{
@@ -27,9 +29,10 @@ func Server(lc fx.Lifecycle, log *zap.Logger, handlers *handlers.Handlers) *gin.
 		Handler: router,
 		// G112 / Slowloris: tempo máximo para ler cabeçalhos antes do corpo (Go exige para mitigar).
 		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       60 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       120 * time.Second,
+		// Upload de binário ARM64 (≈400 MB) pode levar vários minutos em CI.
+		ReadTimeout:  10 * time.Minute,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	lc.Append(fx.Hook{

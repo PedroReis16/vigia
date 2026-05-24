@@ -364,10 +364,9 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   # 6. SSH UPDATE — production (EC2)
   # First production-touching step. Connects to the EC2 host via
-  # SSH, updates VIGIA_API_IMAGE_TAG, pulls the freshly published
-  # Docker image, restarts the service via docker compose, runs
-  # the HTTP health check and rolls back to the previous tag on
-  # failure.
+  # SSH, updates VIGIA_API_IMAGE_TAG no .env, faz `docker compose
+  # pull` da imagem recém-publicada e sobe o serviço com
+  # `docker compose up -d`.
   #
   # This job is intentionally isolated: it does NOT create the
   # git tag, the GitHub Release or the GitHub Deployment audit

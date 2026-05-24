@@ -491,29 +491,80 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # FUTURO — Device Farm (opcional, não implementado)
+  # FUTURO — Build de APK e Device Farm (template, não ativo)
   #
-  #  Este job está documentado mas não ativo. Para habilitar testes em
-  #  dispositivos Android reais, veja vigia_ui/docs/mobile-pipeline.md.
+  #  Esta seção documenta como ativar o build do APK assinado e a execução
+  #  em device farm. Quando ativar, basta descomentar e ajustar.
   #
-  #  Opções avaliadas:
+  #  Pré-requisitos no repositório (GitHub Secrets):
+  #    - GOOGLE_SERVICES_JSON_BASE64  → conteúdo base64 do google-services.json
+  #        gerado com:   base64 -w 0 vigia_ui/android/app/google-services.json
+  #        Documentação completa em vigia_ui/README.md (seção "Setup do CI/CD").
+  #    - ANDROID_KEYSTORE_BASE64      → keystore .jks em base64 (para assinatura release)
+  #    - ANDROID_KEYSTORE_PASSWORD
+  #    - ANDROID_KEY_ALIAS
+  #    - ANDROID_KEY_PASSWORD
+  #
+  #  Opções de device farm avaliadas:
   #    - Firebase Test Lab (integrado ao Firebase do projeto)
   #    - AWS Device Farm
   #    - Runner dedicado com dispositivo físico conectado
-  #
-  #  Pré-requisitos mínimos:
-  #    1. Gerar APK de debug (requer google-services.json via secret)
-  #    2. Configurar credenciais do serviço de device farm como secrets
-  #    3. Definir suite de testes de integração/E2E
   # ═══════════════════════════════════════════════════════════════════════════
-  # optional_device_farm:
-  #   name: Device farm (Firebase Test Lab) — FUTURO
-  #   needs: [preflight, tests, integration_tests]
+  # build_apk:
+  #   name: Build APK assinado
+  #   needs: [preflight, quality, tests, android_security, security_secrets]
   #   if: false  # Remover esta linha quando estiver pronto para ativar
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - name: Build APK de debug para device farm
-  #       ...
+  #
+  #     - name: Hidratar google-services.json a partir do secret
+  #       env:
+  #         GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+  #       run: |
+  #         set -euo pipefail
+  #         if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
+  #           echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 não configurado."
+  #           echo "Veja vigia_ui/README.md (seção 'Setup do CI/CD') para gerar e cadastrar."
+  #           exit 1
+  #         fi
+  #         echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d \
+  #           > "$SERVICE_PATH/android/app/google-services.json"
+  #         jq empty "$SERVICE_PATH/android/app/google-services.json" \
+  #           || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
+  #         echo "✓ google-services.json hidratado e validado."
+  #
+  #     - name: Set up Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with: { channel: stable, cache: true }
+  #
+  #     - name: Flutter — pub get
+  #       working-directory: ${{ env.SERVICE_PATH }}
+  #       run: flutter pub get
+  #
+  #     - name: Build APK release
+  #       working-directory: ${{ env.SERVICE_PATH }}
+  #       run: flutter build apk --release
+  #
+  #     - name: Limpar google-services.json após o build
+  #       if: always()
+  #       run: rm -f "$SERVICE_PATH/android/app/google-services.json"
+  #
+  #     - name: Upload do APK como artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: vigia-ui-${{ inputs.version }}-release.apk
+  #         path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/app-release.apk
+  #
+  # optional_device_farm:
+  #   name: Device farm (Firebase Test Lab) — FUTURO
+  #   needs: [build_apk, integration_tests]
+  #   if: false  # Remover esta linha quando estiver pronto para ativar
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Download do APK
+  #       uses: actions/download-artifact@v4
+  #       with: { name: vigia-ui-${{ inputs.version }}-release.apk }
   #     - name: Firebase Test Lab — executar testes em dispositivos reais
   #       ...

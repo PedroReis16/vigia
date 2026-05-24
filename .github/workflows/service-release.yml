@@ -23,12 +23,21 @@ permissions:
 
 # ─────────────────────────────────────────────────────────────────
 # Top-level constants — change service metadata here only.
+#
+# Tool versions: as ferramentas de Go abaixo são instaladas via
+# `go install` durante a CI. Pinar versões garante:
+#   1. Cache de `~/go/bin` reaproveitável entre runs (chave estável).
+#   2. Comportamento reprodutível — nenhum bump silencioso traz
+#      regras novas de SAST que quebrem a pipeline.
+# Para atualizar, basta bumpar a versão aqui; o cache invalida sozinho.
 # ─────────────────────────────────────────────────────────────────
 env:
   SERVICE_PATH: vigia-services/apps/vigia-api
   DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
   TAG_PREFIX: vigia-api
+  GOSEC_VERSION: v2.22.0
+  GOVULNCHECK_VERSION: v1.1.4
 
 jobs:
 
@@ -180,17 +189,37 @@ jobs:
           failure-threshold: error
 
       - name: Set up Go
+        id: setup_go
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ env.SERVICE_PATH }}/go.mod
           cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
 
-      - name: Install security tools
+      # Cache dos binários gosec/govulncheck.
+      # actions/setup-go cobre apenas os módulos do projeto; binários
+      # instalados via `go install` ficam em ~/go/bin e não entram naquele cache.
+      # Chave amarrada à versão real do Go + às versões fixadas das ferramentas.
+      - name: Cache Go security tools (~/go/bin)
+        id: cache_go_tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security tools (only on cache miss)
+        if: steps.cache_go_tools.outputs.cache-hit != 'true'
         env:
           GOWORK: off
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          set -euo pipefail
+          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
+          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
+
+      # ~/go/bin precisa estar no PATH para que `gosec` e `govulncheck`
+      # funcionem nos steps seguintes — `actions/setup-go` não adiciona
+      # esse diretório automaticamente em cache hit.
+      - name: Ensure ~/go/bin is on PATH
+        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       # gosec: static analysis for common Go security issues (SQL injection, unsafe operations, etc.)
       - name: Go — SAST (gosec)

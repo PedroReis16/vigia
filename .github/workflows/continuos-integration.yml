@@ -15,6 +15,19 @@ permissions:
   contents: read
   pull-requests: read
 
+# ─────────────────────────────────────────────
+# Tool versions — versões pinadas das ferramentas de CI
+# instaladas via `go install` / `pip install`.
+#
+# Pinar versões garante que o cache (~/go/bin para Go,
+# ~/.cache/pip para Python) tenha chave estável e reusável
+# entre runs. Bump aqui invalida o cache automaticamente.
+# ─────────────────────────────────────────────
+env:
+  GOSEC_VERSION: v2.22.0
+  GOVULNCHECK_VERSION: v1.1.4
+  GOLANGCI_LINT_VERSION: v1.64.5
+
 jobs:
   # ─────────────────────────────────────────────
   # 1. DETECÇÃO DE MUDANÇAS
@@ -287,16 +300,32 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
+          # requirements-ci.txt centraliza pylint/bandit/pip-audit/pytest
+          # — incluí-lo no path faz a chave do cache invalidar automaticamente
+          # quando essas versões mudam.
           cache-dependency-path: |
             ${{ matrix.project.path }}/requirements.txt
             ${{ matrix.project.path }}/requirements-debug.txt
+            ${{ matrix.project.path }}/requirements-ci.txt
 
       - name: Set up Go
         if: matrix.project.type == 'go'
+        id: setup_go
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ matrix.project.go_mod }}
           cache-dependency-path: ${{ matrix.project.go_sum }}
+
+      # actions/setup-go só cacheia módulos; binários instalados via
+      # `go install` (gosec/govulncheck/golangci-lint) ficam em ~/go/bin
+      # e precisam de cache próprio.
+      - name: Cache Go security tools (~/go/bin)
+        if: matrix.project.type == 'go'
+        id: cache_go_tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}-golangci${{ env.GOLANGCI_LINT_VERSION }}
 
       - name: Set up Flutter
         if: matrix.project.type == 'flutter'
@@ -316,12 +345,9 @@ jobs:
           # Mantemos compatibilidade com o workflow de deploy:
           # não instalamos requirements-debug.txt aqui para evitar
           # conflito pytest==9.x vs pytest-asyncio<9.
-          python -m pip install \
-            "pylint>=3,<4" \
-            "bandit>=1.8,<2" \
-            "pip-audit>=2.9,<3" \
-            "pytest>=8.2,<9" \
-            "pytest-asyncio>=0.26,<0.27"
+          # As ferramentas de CI (pylint/bandit/pip-audit/pytest) vêm
+          # de requirements-ci.txt para que fiquem cobertas pelo cache.
+          python -m pip install -r requirements-ci.txt
 
       - name: Python - lint
         if: matrix.project.type == 'python'
@@ -372,12 +398,19 @@ jobs:
 
       # ── Go ──────────────────────────────────────────────────
 
-      - name: Go - install security tools
-        if: matrix.project.type == 'go'
+      - name: Go - install security tools (only on cache miss)
+        if: matrix.project.type == 'go' && steps.cache_go_tools.outputs.cache-hit != 'true'
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          set -euo pipefail
+          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
+          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+
+      # ~/go/bin precisa estar no PATH para que os binários cacheados
+      # sejam encontrados nos próximos steps.
+      - name: Go - ensure ~/go/bin is on PATH
+        if: matrix.project.type == 'go'
+        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       - name: Go - lint
         if: matrix.project.type == 'go'

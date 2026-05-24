@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/http/logging"
@@ -12,7 +14,7 @@ import (
 
 // VersionHandlerService is the behavior required by VersionHandler (implemented by *services.VersionService).
 type VersionHandlerService interface {
-	RegisterNewVigiaVersion(*dtos.NewVersionDTO) error
+	RegisterNewVigiaVersion(ctx context.Context, version string, file io.Reader, size int64) error
 	FindForUpdates(currentVersion string) (*dtos.VersionDTO, error)
 	GetVigiaVersion(version string) (*dtos.VersionDTO, error)
 }
@@ -26,16 +28,27 @@ func NewVersionHandler(service VersionHandlerService) *VersionHandler {
 }
 
 func (h *VersionHandler) RegisterNewVigiaVersion(c *gin.Context) {
-	// Registra uma nova versão do Vigia para o dispositivo
-	var newVersionDTO dtos.NewVersionDTO
-	if err := c.ShouldBindJSON(&newVersionDTO); err != nil {
-		_ = c.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	version := c.PostForm("version")
+	if version == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "version é obrigatório"})
 		return
 	}
 
-	err := h.service.RegisterNewVigiaVersion(&newVersionDTO)
+	fileHeader, err := c.FormFile("file")
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file é obrigatório"})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		_ = c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro ao abrir arquivo enviado"})
+		return
+	}
+	defer file.Close()
+
+	if err := h.service.RegisterNewVigiaVersion(c.Request.Context(), version, file, fileHeader.Size); err != nil {
 		_ = c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -43,7 +56,7 @@ func (h *VersionHandler) RegisterNewVigiaVersion(c *gin.Context) {
 
 	logging.LoggerFromGin(c).Info("versão registrada com sucesso",
 		zap.String("event", "version_registered"),
-		zap.String("version", newVersionDTO.Version),
+		zap.String("version", version),
 	)
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Versão registrada com sucesso"})
@@ -72,8 +85,6 @@ func (h *VersionHandler) FindForUpdates(c *gin.Context) {
 }
 
 func (h *VersionHandler) GetVigiaVersion(c *gin.Context) {
-	// Retorna a versão do vigia para o vigia
-
 	versionParam := c.Param("version")
 	version, err := h.service.GetVigiaVersion(versionParam)
 

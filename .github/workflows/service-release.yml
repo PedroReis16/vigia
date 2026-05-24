@@ -396,23 +396,18 @@ jobs:
 
             SERVICE="vigia"
             VERSION="${{ inputs.version }}"
-            DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
 
             echo "==> Deploy de vigia-api v$VERSION"
-
-            if [ -z "$DEPLOY_PATH" ]; then
-              echo "::error::EC2_DEPLOY_PATH não configurado nos secrets do environment production."
-              exit 1
-            fi
-            if ! cd "$DEPLOY_PATH"; then
-              echo "::error::Não foi possível acessar DEPLOY_PATH='$DEPLOY_PATH'."
-              exit 1
-            fi
-            if [ ! -f docker-compose.yaml ] && [ ! -f docker-compose.yml ]; then
-              echo "::error::docker-compose.yaml não encontrado em '$DEPLOY_PATH'."
-              exit 1
-            fi
             echo "==> Diretório de deploy: $(pwd)"
+
+            # docker-compose.yaml e .env ficam na home do usuário SSH na VM,
+            # que é o diretório padrão em que esta sessão já cai. Por isso
+            # nenhum 'cd' adicional é necessário.
+            if [ ! -f docker-compose.yaml ] && [ ! -f docker-compose.yml ]; then
+              echo "::error::docker-compose.yaml não encontrado no diretório atual ($(pwd))."
+              echo "Verifique se o usuário SSH '${{ secrets.EC2_USER }}' cai no diretório de deploy."
+              exit 1
+            fi
 
             # ── Save the running version for rollback ───────────────────────
             PREV_VERSION=""

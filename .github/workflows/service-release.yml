@@ -19,6 +19,7 @@ permissions:
   contents: write        # create tags and GitHub releases
   pull-requests: read
   security-events: write # upload Trivy SARIF to GitHub Security tab
+  deployments: write     # register GitHub Deployment entries for the production deploy audit trail
 
 # ─────────────────────────────────────────────────────────────────
 # Top-level constants — change service metadata here only.
@@ -332,15 +333,121 @@ jobs:
           fi
 
   # ═══════════════════════════════════════════════════════════════
-  # 6. RELEASE
-  # Creates git tag + GitHub Release with CHANGELOG-based notes.
-  # Only runs after the Docker image is published successfully.
-  # The GitHub Release is the "ready for release" signal consumed
-  # by release-trigger.yml.
+  # 6. SSH UPDATE — production (EC2)
+  # First production-touching step. Connects to the EC2 host via
+  # SSH, updates VIGIA_API_IMAGE_TAG, pulls the freshly published
+  # Docker image, restarts the service via docker compose, runs
+  # the HTTP health check and rolls back to the previous tag on
+  # failure.
+  #
+  # This job is intentionally isolated: it does NOT create the
+  # git tag, the GitHub Release or the GitHub Deployment audit
+  # entry. Those happen only after the SSH update succeeds, so
+  # that the release/deployment records never reference an image
+  # that failed to roll out.
+  #
+  # `environment: production` enables environment-scoped secrets
+  # and any protection rules configured for the environment.
+  # ═══════════════════════════════════════════════════════════════
+  ssh_update:
+    name: SSH update — production (EC2)
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_SERVER_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            SERVICE="vigia"
+            VERSION="${{ inputs.version }}"
+            DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
+            HEALTH_URL="http://localhost:8000/health"
+
+            echo "==> Deploy de vigia-api v$VERSION"
+            cd "$DEPLOY_PATH"
+
+            # ── Save the running version for rollback ───────────────────────
+            PREV_VERSION=$(grep "^VIGIA_API_IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "")
+            echo "==> Versão anterior: ${PREV_VERSION:-<não registrada>}"
+
+            # ── Update tag in .env ──────────────────────────────────────────
+            # docker-compose.yaml reads VIGIA_API_IMAGE_TAG to build the image tag.
+            if [ -f .env ] && grep -q "^VIGIA_API_IMAGE_TAG=" .env; then
+              sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$VERSION/" .env
+            else
+              echo "VIGIA_API_IMAGE_TAG=$VERSION" >> .env
+            fi
+            echo "==> VIGIA_API_IMAGE_TAG → $VERSION"
+
+            echo "==> Baixando imagem $IMAGE:$VERSION ..."
+            docker pull "$IMAGE:$VERSION"
+
+            echo "==> Reiniciando serviço '$SERVICE' ..."
+            docker compose up -d --remove-orphans "$SERVICE"
+
+            # ── HTTP health check ───────────────────────────────────────────
+            echo "==> Aguardando serviço responder em $HEALTH_URL ..."
+            HEALTHY=false
+            for i in $(seq 1 12); do
+              if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+                HEALTHY=true
+                echo "✓ Serviço respondeu após $((i * 5))s."
+                break
+              fi
+              echo "  tentativa $i/12 — aguardando 5s ..."
+              sleep 5
+            done
+
+            if [ "$HEALTHY" = "false" ]; then
+              echo "::error::Serviço não respondeu em 60s. Iniciando rollback ..."
+              docker compose logs --tail=100 "$SERVICE" || true
+
+              # ── Rollback ──────────────────────────────────────────────────
+              if [ -n "$PREV_VERSION" ]; then
+                echo "==> Revertendo para $PREV_VERSION ..."
+                sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$PREV_VERSION/" .env
+                docker compose up -d --remove-orphans "$SERVICE"
+
+                for i in $(seq 1 6); do
+                  if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+                    echo "✓ Rollback concluído — serviço estável em v$PREV_VERSION."
+                    break
+                  fi
+                  sleep 5
+                done
+                echo "::warning::Rollback executado para v$PREV_VERSION. Verifique os logs acima."
+              else
+                echo "::warning::Sem versão anterior registrada — rollback não executado."
+              fi
+
+              exit 1
+            fi
+
+            echo "==> Removendo imagens antigas de vigia-api ..."
+            docker images "$IMAGE" --format "{{.Tag}}" \
+              | grep -v "^$VERSION$" \
+              | grep -v "^latest$" \
+              | xargs -r -I{} docker rmi "$IMAGE:{}" 2>/dev/null || true
+
+            echo "==> Deploy de vigia-api v$VERSION concluído com sucesso."
+
+  # ═══════════════════════════════════════════════════════════════
+  # 7. RELEASE — git tag & GitHub Release
+  # Runs only after the SSH update succeeded, so the GitHub
+  # Release always references a version that was effectively
+  # rolled out to production.
   # ═══════════════════════════════════════════════════════════════
   release:
     name: Release — git tag & GitHub Release
-    needs: [publish]
+    needs: ssh_update
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -367,9 +474,6 @@ jobs:
         run: |
           set -euo pipefail
           CHANGELOG="./${SERVICE_PATH}/CHANGELOG.md"
-          COMMIT_SHA="${{ github.sha }}"
-          BRANCH="${{ github.ref_name }}"
-          ACTOR="${{ github.actor }}"
 
           awk -v version="$VERSION" '
             $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
@@ -382,9 +486,6 @@ jobs:
             exit 1
           fi
 
-          cat >> RELEASE_NOTES.md <<EOF
-
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -395,3 +496,64 @@ jobs:
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════
+  # 8. DEPLOYMENT AUDIT — register GitHub Deployment entry
+  # Post-hoc audit step. Records the production rollout on the
+  # GitHub Deployments API so it shows up under the repository's
+  # Environments → production tab.
+  #
+  # Runs after `release` succeeded — at this point the image is
+  # already live (ssh_update) and the GitHub Release exists, so
+  # this job only writes the audit entry.
+  #
+  # Uses `if: always()` plus a check on `ssh_update.result` so the
+  # entry is also written when either ssh_update or release fail,
+  # preserving the failure trail under Environments → production.
+  # ═══════════════════════════════════════════════════════════════
+  deployment_audit:
+    name: Deployment audit — register GitHub Deployment
+    needs: [ssh_update, release]
+    if: always() && needs.ssh_update.result != 'skipped'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Create GitHub Deployment record
+        id: create_deployment
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_ID=$(gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments" \
+            -f ref="${{ github.ref }}" \
+            -f environment="production" \
+            -f description="Deploy vigia-api v${{ inputs.version }}" \
+            -F auto_merge=false \
+            -F required_contexts='[]' \
+            --jq '.id')
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+
+      - name: Mark deployment as success
+        if: needs.ssh_update.result == 'success' && needs.release.result == 'success'
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f description="vigia-api v${{ inputs.version }} em produção"
+
+      - name: Mark deployment as failure
+        if: needs.ssh_update.result != 'success' || needs.release.result != 'success'
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          REASON="ssh_update=${{ needs.ssh_update.result }}, release=${{ needs.release.result }}"
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="failure" \
+            -f description="Deploy vigia-api v${{ inputs.version }} falhou — $REASON"

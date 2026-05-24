@@ -2,13 +2,14 @@
 
 ## Visão geral
 
-O workflow `.github/workflows/onboard-deploy.yml` é o portão de qualidade do projeto `fall-detection` dentro do monorepo Vigia. Ele valida, testa e prepara o release antes de qualquer deploy ao dispositivo embarcado.
+O workflow `.github/workflows/onboard-release.yml` é a pipeline **única** do projeto `fall-detection` dentro do monorepo Vigia. Cobre todo o ciclo: valida, testa, audita, faz o build ARM64, publica o tar.gz na vigia-api/MinIO e cria a GitHub Release.
 
 ```
-onboard-deploy.yml  →  cria a GitHub Release (tag Git + release notes)
-deploy-trigger.yml  →  (futuro) consome a Release, faz o build do binário
-                        ARM64 e instala na Raspberry Pi 5
+onboard-release.yml  →  valida + testa + audita + build ARM64
+                        + publica na vigia-api + cria GitHub Release
 ```
+
+Não existe um workflow separado de deploy: a publicação do tar.gz na vigia-api **é** o "deploy" do fall-detection. A partir desse momento, o `vigia-bootstrap` rodando em cada Raspberry Pi 5 detecta a nova versão consultando `/v1/devices/version/find-for-updates` e baixa o artefato — é um modelo OTA / deploy assíncrono.
 
 ## Jobs e ordem de execução
 
@@ -22,7 +23,9 @@ pip-audit) bandit)   -m not     integration)
                      integration)
 └───┬──────────────────────────────────────┘
     ↓ todos devem passar
-tag_release         ← tag Git + GitHub Release (sem deploy)
+publish_release     ← build ARM64 + publica vigia-api + audit trail (Deployment)
+    ↓
+tag_release         ← tag Git + GitHub Release com release notes
 ```
 
 ## Validações obrigatórias
@@ -32,7 +35,7 @@ Todas as etapas abaixo bloqueiam a pipeline em caso de falha.
 | Etapa | Job | O que valida |
 |-------|-----|-------------|
 | Formato de versão | `validate` | `MAJOR.MINOR.PATCH` (ex: `1.2.3`) |
-| Branch de origem | `validate` | Deve ser `master` ou `main` |
+| Branch de origem | `validate` | Branch configurada (atualmente `refactor/project-release`; será `master` após o merge) |
 | Arquivos essenciais | `validate` | `pyproject.toml`, `CHANGELOG.md`, `main.py`, `Makefile`, `Dockerfile.linux-arm64-binary`, etc. |
 | Entrada no CHANGELOG | `validate` | `## [X.Y.Z]` ou `# [X.Y.Z]` presente em `fall-detection/CHANGELOG.md` |
 | Unicidade da tag | `validate` | `vigia-fall-detection@X.Y.Z` não pode existir já |
@@ -42,6 +45,25 @@ Todas as etapas abaixo bloqueiam a pipeline em caso de falha.
 | SAST | `quality` | bandit em `src/app` (severidade média+) |
 | Testes unitários | `test_unit` | `pytest -m "not integration"` |
 | Testes de integração | `test_integration` | `pytest -m integration` (fake FIWARE com aiohttp TestServer) |
+| Build ARM64 | `publish_release` | `docker buildx` produz binário Linux/arm64 |
+| Publicação na vigia-api | `publish_release` | `POST /v1/devices/version/register` retorna 2xx |
+
+## `publish_release` — build ARM64 e deploy efetivo
+
+Este é o job que **substitui** o conceito de "deploy" separado: a publicação do tar.gz na vigia-api torna a nova versão disponível para todos os dispositivos do parque automaticamente.
+
+| Etapa | Descrição |
+|-------|-----------|
+| Audit trail — Deployment record | Cria um GitHub Deployment (environment `production`) com status inicial `in_progress` |
+| `docker buildx build` | Constrói a imagem ARM64 via `release/Dockerfile.linux-arm64-binary` em runner `ubuntu-24.04-arm` |
+| Extração do bundle | `docker cp` extrai o bundle PyInstaller onedir do container |
+| Empacotamento | Gera `dist/vigia-fall-detection-linux-arm64.tar.gz` |
+| Publicação | `curl POST` no endpoint `/v1/devices/version/register` da vigia-api (multipart/form-data) |
+| Audit trail — final | Atualiza o Deployment para `success` ou `failure` |
+
+**Secret obrigatório:** `VIGIA_API_BASE_URL` apontando para a API de produção.
+
+O job aparece na aba **Environments → production** do repositório, permitindo inspeção do histórico de deploys e (se configurado em Settings → Environments) regras de proteção.
 
 ## Etapas opcionais / não bloqueantes
 
@@ -100,21 +122,16 @@ tests/
     *_tests.py              ← testes marcados com @pytest.mark.integration
 ```
 
-## Conexão com deploy-trigger.yml
-
-O workflow `deploy-trigger.yml` (existente) é voltado para a **Vigia API** (serviço Docker). No futuro, um workflow equivalente para o `fall-detection` deverá:
-
-1. Consumir a GitHub Release criada por este workflow (`vigia-fall-detection@X.Y.Z`)
-2. Fazer o build do binário ARM64 via `make build-linux-arm64` (requer Docker buildx)
-3. Copiar o artefato via SCP para a Raspberry Pi 5
-4. Reiniciar o serviço systemd (`fall-detection.service`)
-
-Este workflow propositalmente **não faz o deploy** — a criação da Release é o sinal de "pronto para deploy" que o futuro trigger consumirá.
-
 ## Como executar
 
-1. Acesse **Actions → Vigia Fall Detection — Onboard Deploy**
+1. Acesse **Actions → Vigia Fall Detection — Onboard Release**
 2. Clique em **Run workflow**
 3. Informe a versão no formato `MAJOR.MINOR.PATCH` (ex: `1.2.3`)
 4. Certifique-se de que `fall-detection/CHANGELOG.md` tem uma entrada para essa versão
-5. Execute a partir da branch `master`
+5. Execute a partir da branch configurada no job `validate`
+
+Ao final da execução:
+- `vigia-fall-detection-linux-arm64.tar.gz` estará disponível na vigia-api (MinIO)
+- Uma GitHub Release `vigia-fall-detection@X.Y.Z` terá sido criada
+- Um registro de Deployment estará visível em **Environments → production**
+- Os Raspberry Pi do parque vão detectar e baixar a nova versão na próxima checagem do `vigia-bootstrap`

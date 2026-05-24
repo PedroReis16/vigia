@@ -1,13 +1,16 @@
 name: Vigia UI — Mobile Release
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Como este workflow se encaixa no pipeline de release:
+# Pipeline única do projeto vigia-ui.
 #
-#   mobile-release.yml   →  valida, testa, analisa segurança e prepara release
-#   release-trigger.yml  →  consome a release, gera APK e distribui para Android
+# Cobre todo o ciclo de release:
+#   1. Validações estáticas e de configuração (preflight + jobs paralelos)
+#   2. Build do APK assinado (build_apk)
+#   3. Publicação da GitHub Release com o APK anexado e registro de Deployment
+#      no GitHub para audit trail (release_and_deploy)
 #
-# Este workflow NÃO gera APK final nem faz release.
-# O APK oficial é gerado e distribuído pelo release-trigger.yml.
+# Não existe um workflow separado de deploy — o APK fica disponível
+# diretamente como asset da GitHub Release criada por este pipeline.
 # ─────────────────────────────────────────────────────────────────────────────
 
 concurrency:
@@ -28,6 +31,7 @@ permissions:
   contents: write
   pull-requests: read
   security-events: write
+  deployments: write     # register GitHub Deployment entries for the production audit trail
 
 env:
   SERVICE_PATH: vigia_ui
@@ -84,8 +88,8 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.ref_name }}"
           echo "Branch de origem: $BRANCH"
-          if [[ "$BRANCH" != "refactor/project-release"]]; then
-            echo "::error::Pipeline de release deve ser disparada a partir de 'master'."
+          if [[ "$BRANCH" != "refactor/project-release" ]]; then
+            echo "::error::Pipeline de release deve ser disparada a partir de 'refactor/project-release'."
             echo "Branch atual: '$BRANCH'"
             exit 1
           fi
@@ -357,17 +361,25 @@ jobs:
         run: flutter test integration_test/
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 9. RELEASE PREPARATION — tag e GitHub Release
+  # 9. BUILD APK — APK assinado de release
   #
-  #    Executado apenas após todos os jobs de validação passarem.
-  #    Cria a tag de release e uma GitHub Release com:
-  #      - Release notes extraídas do CHANGELOG
-  #      - Metadados de release (JSON) para consumo pelo release-trigger.yml
+  #    Executa depois que TODOS os gates de qualidade, segurança e teste
+  #    passaram. Hidrata os arquivos sensíveis a partir de GitHub Secrets
+  #    (eles nunca são versionados no repositório) e produz um APK assinado
+  #    pronto para distribuição como asset da GitHub Release.
   #
-  #    NÃO gera APK. O APK oficial é responsabilidade do release-trigger.yml.
+  #    Secrets obrigatórios (configurar em Settings → Secrets and variables):
+  #      - GOOGLE_SERVICES_JSON_BASE64  → base64 do google-services.json
+  #      - ANDROID_KEYSTORE_BASE64      → keystore .jks em base64
+  #      - ANDROID_KEYSTORE_PASSWORD    → senha do keystore
+  #      - ANDROID_KEY_ALIAS            → alias da chave de assinatura
+  #      - ANDROID_KEY_PASSWORD         → senha da chave
+  #
+  #    Ver vigia_ui/README.md (seção "Setup do CI/CD") para gerar e cadastrar
+  #    cada secret.
   # ═══════════════════════════════════════════════════════════════════════════
-  release_preparation:
-    name: Release preparation — tag e GitHub Release
+  build_apk:
+    name: Build APK — release assinado
     needs:
       - preflight
       - security_secrets
@@ -377,22 +389,177 @@ jobs:
       - android_security
       - dependency_security
       - integration_tests
-    if: |
-      always() &&
-      needs.preflight.result           == 'success' &&
-      needs.security_secrets.result    == 'success' &&
-      needs.setup_validation.result    == 'success' &&
-      needs.quality.result             == 'success' &&
-      needs.tests.result               == 'success' &&
-      needs.android_security.result    == 'success' &&
-      needs.dependency_security.result == 'success' &&
-      needs.integration_tests.result   == 'success'
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Hidratação de arquivos sensíveis a partir de secrets ────────────────
+      - name: Hidratar google-services.json a partir do secret
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
+            echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 não configurado."
+            echo "Veja vigia_ui/README.md (seção 'Setup do CI/CD') para gerar e cadastrar."
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d \
+            > "$SERVICE_PATH/android/app/google-services.json"
+          jq empty "$SERVICE_PATH/android/app/google-services.json" \
+            || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
+          echo "✓ google-services.json hidratado."
+
+      - name: Hidratar keystore Android a partir do secret
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 não configurado."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d \
+            > "$SERVICE_PATH/android/app/release.keystore"
+          echo "✓ keystore hidratado em $SERVICE_PATH/android/app/release.keystore"
+
+      # Gera o key.properties consumido pelo signingConfig do Gradle.
+      # O storeFile aponta para release.keystore (relativo a android/app).
+      - name: Gerar key.properties para assinatura
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for var in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Secret ANDROID_${var} não configurado."
+              exit 1
+            fi
+          done
+          cat > "$SERVICE_PATH/android/key.properties" <<EOF
+          storeFile=release.keystore
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+          echo "✓ key.properties gerado."
+
+      # ── Toolchain ───────────────────────────────────────────────────────────
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter — pub get
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter pub get
+
+      # ── Build do APK assinado ───────────────────────────────────────────────
+      - name: Build APK (release, signed)
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: flutter build apk --release
+
+      # Renomeia o APK para incluir a versão, evitando colisão entre execuções
+      # e tornando o asset auto-explicativo na GitHub Release.
+      - name: Renomear APK com versão
+        run: |
+          set -euo pipefail
+          SRC="$SERVICE_PATH/build/app/outputs/flutter-apk/app-release.apk"
+          DST="$SERVICE_PATH/build/app/outputs/flutter-apk/vigia-ui-${{ inputs.version }}-release.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::APK não encontrado em $SRC."
+            exit 1
+          fi
+          mv "$SRC" "$DST"
+          echo "==> APK final: $DST ($(du -h "$DST" | cut -f1))"
+
+      - name: Upload APK como workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vigia-ui-${{ inputs.version }}-apk
+          path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/vigia-ui-${{ inputs.version }}-release.apk
+          retention-days: 30
+
+      # Cleanup garantido — remove arquivos sensíveis hidratados, mesmo se o
+      # build falhar, para não vazar nada caso o runner seja inspecionado.
+      - name: Remover arquivos sensíveis hidratados
+        if: always()
+        run: |
+          rm -f "$SERVICE_PATH/android/app/google-services.json"
+          rm -f "$SERVICE_PATH/android/app/release.keystore"
+          rm -f "$SERVICE_PATH/android/key.properties"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 10. RELEASE & DEPLOY — tag, GitHub Release com APK e audit trail
+  #
+  #    Cria a tag Git, publica a GitHub Release (com o APK assinado como asset)
+  #    e registra um Deployment no GitHub para audit trail.
+  #
+  #    Usa `environment: production` para acionar regras de proteção (caso
+  #    configuradas em Settings → Environments → production, ex.: aprovação
+  #    obrigatória) e habilitar secrets escopados ao ambiente de produção.
+  #
+  #    Para usuários finais, o "deploy" do app mobile é a publicação da
+  #    GitHub Release com o APK anexado — é de lá que o APK é baixado.
+  # ═══════════════════════════════════════════════════════════════════════════
+  release_and_deploy:
+    name: Release & deploy — tag, GitHub Release e audit trail
+    needs:
+      - preflight
+      - build_apk
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ── Audit trail — abrir registro de Deployment ─────────────────────────
+      - name: Create GitHub Deployment record
+        id: create_deployment
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_ID=$(gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments" \
+            -f ref="${{ github.ref }}" \
+            -f environment="production" \
+            -f description="Deploy vigia-ui v${{ inputs.version }} (Release + APK)" \
+            -F auto_merge=false \
+            -F required_contexts='[]' \
+            --jq '.id')
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+
+      - name: Mark deployment as in_progress
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="in_progress" \
+            -f description="Publicando vigia-ui v${{ inputs.version }} (Release + APK)"
+
+      # ── Download do APK assinado produzido em build_apk ────────────────────
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vigia-ui-${{ inputs.version }}-apk
+          path: ./apk
+
+      # ── Extração das release notes do CHANGELOG ────────────────────────────
       - name: Extrair release notes do CHANGELOG
         env:
           VERSION: ${{ inputs.version }}
@@ -436,9 +603,10 @@ jobs:
           | Flutter | stable |
           | Disparado por | ${ACTOR} |
 
-          > **APK não incluído nesta release.**
-          > O artefato Android oficial é gerado e distribuído pelo workflow \`release-trigger.yml\`.
-          > Acione-o selecionando a versão \`${VERSION}\` após esta release ser criada.
+          ## Instalação
+
+          Baixe o APK \`vigia-ui-${VERSION}-release.apk\` listado abaixo
+          e instale no dispositivo Android.
           EOF
 
       - name: Gerar metadados de release (JSON)
@@ -458,7 +626,7 @@ jobs:
             "flutter_channel": "stable",
             "released_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "released_by": "${{ github.actor }}",
-            "apk_status": "pending_release_trigger"
+            "apk_asset": "vigia-ui-${{ inputs.version }}-release.apk"
           }
           EOF
 
@@ -484,87 +652,33 @@ jobs:
           tag_name: ${{ needs.preflight.outputs.tag_name }}
           name: "Vigia UI v${{ inputs.version }}"
           body_path: ./RELEASE_NOTES.md
-          files: ./release-metadata.json
+          # APK assinado + metadados JSON ficam disponíveis como assets.
+          files: |
+            ./apk/vigia-ui-${{ inputs.version }}-release.apk
+            ./release-metadata.json
           draft: false
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # FUTURO — Build de APK e Device Farm (template, não ativo)
-  #
-  #  Esta seção documenta como ativar o build do APK assinado e a execução
-  #  em device farm. Quando ativar, basta descomentar e ajustar.
-  #
-  #  Pré-requisitos no repositório (GitHub Secrets):
-  #    - GOOGLE_SERVICES_JSON_BASE64  → conteúdo base64 do google-services.json
-  #        gerado com:   base64 -w 0 vigia_ui/android/app/google-services.json
-  #        Documentação completa em vigia_ui/README.md (seção "Setup do CI/CD").
-  #    - ANDROID_KEYSTORE_BASE64      → keystore .jks em base64 (para assinatura release)
-  #    - ANDROID_KEYSTORE_PASSWORD
-  #    - ANDROID_KEY_ALIAS
-  #    - ANDROID_KEY_PASSWORD
-  #
-  #  Opções de device farm avaliadas:
-  #    - Firebase Test Lab (integrado ao Firebase do projeto)
-  #    - AWS Device Farm
-  #    - Runner dedicado com dispositivo físico conectado
-  # ═══════════════════════════════════════════════════════════════════════════
-  # build_apk:
-  #   name: Build APK assinado
-  #   needs: [preflight, quality, tests, android_security, security_secrets]
-  #   if: false  # Remover esta linha quando estiver pronto para ativar
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #
-  #     - name: Hidratar google-services.json a partir do secret
-  #       env:
-  #         GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
-  #       run: |
-  #         set -euo pipefail
-  #         if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
-  #           echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 não configurado."
-  #           echo "Veja vigia_ui/README.md (seção 'Setup do CI/CD') para gerar e cadastrar."
-  #           exit 1
-  #         fi
-  #         echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d \
-  #           > "$SERVICE_PATH/android/app/google-services.json"
-  #         jq empty "$SERVICE_PATH/android/app/google-services.json" \
-  #           || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
-  #         echo "✓ google-services.json hidratado e validado."
-  #
-  #     - name: Set up Flutter
-  #       uses: subosito/flutter-action@v2
-  #       with: { channel: stable, cache: true }
-  #
-  #     - name: Flutter — pub get
-  #       working-directory: ${{ env.SERVICE_PATH }}
-  #       run: flutter pub get
-  #
-  #     - name: Build APK release
-  #       working-directory: ${{ env.SERVICE_PATH }}
-  #       run: flutter build apk --release
-  #
-  #     - name: Limpar google-services.json após o build
-  #       if: always()
-  #       run: rm -f "$SERVICE_PATH/android/app/google-services.json"
-  #
-  #     - name: Upload do APK como artifact
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: vigia-ui-${{ inputs.version }}-release.apk
-  #         path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/app-release.apk
-  #
-  # optional_device_farm:
-  #   name: Device farm (Firebase Test Lab) — FUTURO
-  #   needs: [build_apk, integration_tests]
-  #   if: false  # Remover esta linha quando estiver pronto para ativar
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Download do APK
-  #       uses: actions/download-artifact@v4
-  #       with: { name: vigia-ui-${{ inputs.version }}-release.apk }
-  #     - name: Firebase Test Lab — executar testes em dispositivos reais
-  #       ...
+      - name: Mark deployment as success
+        if: success()
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f description="vigia-ui v${{ inputs.version }} publicado com APK anexado à Release"
+
+      - name: Mark deployment as failure
+        if: failure()
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="failure" \
+            -f description="Publicação de vigia-ui v${{ inputs.version }} falhou — verifique os logs"

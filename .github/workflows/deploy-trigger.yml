@@ -1,28 +1,49 @@
-name: Vigia API — Deploy Trigger
+name: Vigia — Deploy Trigger
 
 # Prevent concurrent deploys — queue instead of cancel.
 concurrency:
-  group: deploy-trigger-vigia-api-${{ inputs.version }}
+  group: deploy-trigger-${{ inputs.project }}-${{ inputs.version }}
   cancel-in-progress: false
 
-run-name: "Vigia API — deploy v${{ inputs.version }} → production"
+run-name: "${{ inputs.project }} — deploy v${{ inputs.version }} → production"
 
 # ─────────────────────────────────────────────────────────────────
 # Como este workflow se encaixa no pipeline de release:
 #
-#   service-deploy.yml  →  valida, testa, analisa segurança, faz o
-#                          build e push da imagem Docker para o Hub,
-#                          e cria a GitHub Release (vigia-api@X.Y.Z)
-#   deploy-trigger.yml  →  valida que a release existe (imagem já no
-#                          Hub), atualiza a versão no servidor via SSH
+#   <project>-deploy.yml →  valida, testa, analisa segurança, faz o
+#                          build/push do artefato e cria a GitHub
+#                          Release com tag padronizada
+#                          ('<project>@X.Y.Z'). Cada projeto possui
+#                          seu próprio workflow de release:
+#                            • vigia-api            → service-deploy.yml
+#                            • vigia-ui             → mobile-deploy.yml
+#                            • vigia-fall-detection → onboard-deploy.yml
+#
+#   deploy-trigger.yml  →  recebe o par (projeto, versão), valida
+#                          que a Release '<project>@<version>'
+#                          existe e dispara o deploy do projeto
+#                          escolhido para o ambiente de produção.
 #
 # A GitHub Release é o contrato: ela só existe quando todos os gates
-# de qualidade passaram e a imagem está publicada. Este workflow
-# confia nesse contrato — não reconstrói nem re-publica a imagem.
+# de qualidade passaram e o artefato está publicado. Este workflow
+# confia nesse contrato — não reconstrói nem re-publica artefatos.
+#
+# OBS.: atualmente apenas o projeto 'vigia-api' possui fluxo de deploy
+# automatizado implementado neste workflow. As demais opções já
+# constam no input para padronização, mas falham com mensagem clara
+# até que seus respectivos jobs de deploy sejam estruturados.
 # ─────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
     inputs:
+      project:
+        description: "Projeto para deploy"
+        required: true
+        type: choice
+        options:
+          - vigia-api
+          - vigia-ui
+          - vigia-fall-detection
       version:
         description: "Versão para deploy — deve ter uma GitHub Release (ex: 1.2.3)"
         required: true
@@ -33,17 +54,26 @@ permissions:
   deployments: write  # registro de Deployments no GitHub para audit trail
 
 env:
-  TAG: vigia-api@${{ inputs.version }}
-  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/vigia-api
-  SERVICE: vigia  # nome do serviço no docker-compose.yaml de produção
+  # Tag padronizada do release ('<project>@<version>') — gerada por todos
+  # os workflows de release do monorepo. É o contrato consumido aqui.
+  TAG: ${{ inputs.project }}@${{ inputs.version }}
+  # Imagem Docker correspondente ao projeto. Relevante apenas para
+  # projetos que publicam imagens no Docker Hub (atualmente: vigia-api).
+  IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.project }}
+  # Nome do serviço no docker-compose.yaml de produção.
+  # Vinculado ao vigia-api por enquanto (único deploy via SSH/EC2).
+  SERVICE: vigia
 
 jobs:
 
   # ═══════════════════════════════════════════════════════════════
   # 1. VALIDATE DEPLOY
   #    Garante que a versão está pronta para deploy:
-  #      - GitHub Release existe (prova que todos os gates CI/CD passaram)
-  #      - Imagem Docker disponível no Docker Hub
+  #      - Projeto possui fluxo de deploy implementado neste workflow
+  #      - GitHub Release '<project>@<version>' existe (todos os gates
+  #        CI/CD passaram no workflow de release do projeto)
+  #      - Para projetos baseados em imagem Docker: imagem disponível
+  #        no Docker Hub
   #    Cria um registro de Deployment no GitHub para audit trail.
   # ═══════════════════════════════════════════════════════════════
   validate_deploy:
@@ -54,14 +84,40 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      # A GitHub Release só existe após service-deploy.yml concluir com sucesso
-      # (testes, segurança, build Docker, push para Hub). É o sinal de "pronto".
+      # ── Gate de projeto suportado ──────────────────────────────────────
+      # Apenas 'vigia-api' tem fluxo de deploy automatizado hoje.
+      # Os demais projetos já constam no input para padronização, mas
+      # falham aqui (antes de qualquer side-effect, como criação do
+      # registro de Deployment) com mensagem explícita.
+      - name: Verificar projeto suportado neste workflow
+        run: |
+          set -euo pipefail
+          PROJECT="${{ inputs.project }}"
+          case "$PROJECT" in
+            vigia-api)
+              echo "✓ Projeto '$PROJECT' suportado por este workflow."
+              ;;
+            vigia-ui|vigia-fall-detection)
+              echo "::error::O fluxo de deploy automatizado para o projeto '$PROJECT' ainda não foi implementado neste workflow."
+              echo "Atualmente apenas 'vigia-api' possui pipeline de deploy estruturado."
+              echo "TODO: estruturar o deploy de '$PROJECT' em um job dedicado."
+              exit 1
+              ;;
+            *)
+              echo "::error::Projeto desconhecido: '$PROJECT'."
+              exit 1
+              ;;
+          esac
+
+      # A GitHub Release só existe após o workflow de release do projeto
+      # concluir com sucesso (testes, segurança, build, push do artefato).
+      # É o sinal de "pronto para deploy".
       - name: Verificar GitHub Release existe
         run: |
           set -euo pipefail
           if ! gh release view "${{ env.TAG }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "::error::Release '${{ env.TAG }}' não encontrada."
-            echo "Execute 'Vigia API — Service Deploy' com version '${{ inputs.version }}' primeiro."
+            echo "Execute o workflow de release de '${{ inputs.project }}' com version '${{ inputs.version }}' primeiro."
             exit 1
           fi
           echo "✓ Release '${{ env.TAG }}' encontrada — versão pronta para deploy."
@@ -71,7 +127,7 @@ jobs:
           set -euo pipefail
           if ! docker manifest inspect "${{ env.IMAGE }}:${{ inputs.version }}" >/dev/null 2>&1; then
             echo "::error::Imagem '${{ env.IMAGE }}:${{ inputs.version }}' não encontrada no Docker Hub."
-            echo "Verifique se o job 'publish' do service-deploy.yml concluiu com sucesso."
+            echo "Verifique se o job 'publish' do workflow de release de '${{ inputs.project }}' concluiu com sucesso."
             exit 1
           fi
           echo "✓ Imagem '${{ env.IMAGE }}:${{ inputs.version }}' disponível."
@@ -87,7 +143,7 @@ jobs:
             "/repos/${{ github.repository }}/deployments" \
             -f ref="${{ github.ref }}" \
             -f environment="production" \
-            -f description="Deploy vigia-api v${{ inputs.version }}" \
+            -f description="Deploy ${{ inputs.project }} v${{ inputs.version }}" \
             -F auto_merge=false \
             -F required_contexts='[]' \
             --jq '.id')
@@ -97,7 +153,11 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   # 2. DEPLOY
   #    Conecta via SSH ao servidor de produção e atualiza o serviço.
-  #    Fluxo:
+  #    Atualmente implementado apenas para o projeto 'vigia-api'.
+  #    O gate em validate_deploy garante que apenas projetos com
+  #    fluxo estruturado cheguem até este job.
+  #
+  #    Fluxo (vigia-api):
   #      1. Salva versão anterior para possível rollback
   #      2. Atualiza VIGIA_API_IMAGE_TAG no .env
   #      3. Faz pull da nova imagem
@@ -105,6 +165,11 @@ jobs:
   #      5. Aguarda estabilização e valida via health check HTTP
   #      6. Rollback automático se o serviço não responder
   #    Atualiza o status do Deployment no GitHub em caso de sucesso ou falha.
+  #
+  #    TODO: ao estruturar o deploy de 'vigia-ui' e 'vigia-fall-detection',
+  #          considerar quebrar este job em jobs específicos por projeto
+  #          (ex.: deploy_vigia_api / deploy_vigia_ui / deploy_fall_detection)
+  #          gated por `if: inputs.project == '<project>'`.
   # ═══════════════════════════════════════════════════════════════
   deploy:
     name: Deploy → production
@@ -123,7 +188,7 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="in_progress" \
-            -f description="Deploy vigia-api v${{ inputs.version }} iniciado"
+            -f description="Deploy ${{ inputs.project }} v${{ inputs.version }} iniciado"
 
       - name: Deploy via SSH
         id: ssh_deploy
@@ -220,7 +285,7 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-api v${{ inputs.version }} em produção"
+            -f description="${{ inputs.project }} v${{ inputs.version }} em produção"
 
       - name: Marcar deployment como falha
         if: failure()
@@ -229,4 +294,4 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="failure" \
-            -f description="Deploy vigia-api v${{ inputs.version }} falhou — verifique os logs"
+            -f description="Deploy ${{ inputs.project }} v${{ inputs.version }} falhou — verifique os logs"

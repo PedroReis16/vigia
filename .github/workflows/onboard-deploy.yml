@@ -7,9 +7,8 @@ name: Vigia Fall Detection — Onboard Deploy
 # É o portão de qualidade antes de qualquer deploy ao dispositivo embarcado.
 #
 # FLUXO:
-#   onboard-deploy.yml  →  cria a GitHub Release (tag + artefatos)
-#   deploy-trigger.yml  →  (futuro) consome a Release, faz o build do binário
-#                          ARM64 e instala na Raspberry Pi 5
+#   onboard-deploy.yml  →  build ARM64 + publica na vigia-api + cria GitHub Release
+#   deploy-trigger.yml  →  (futuro) consome a Release e instala na Raspberry Pi 5
 #
 # JOBS (ordem de execução):
 #   validate            ← validações leves, fail-fast (sem instalação pesada)
@@ -20,7 +19,10 @@ name: Vigia Fall Detection — Onboard Deploy
 #   pip-audit) bandit)  not integ)  integration)
 #   └───┬──────────────────────────────┘
 #       ↓ todos devem passar
-#   tag_release         ← cria tag + GitHub Release (sem deploy embarcado)
+#   publish_release     ← build ARM64 (Docker buildx + QEMU), extrai artefato
+#                         e publica a versão na vigia-api (MinIO)
+#       ↓ needs (somente se a publicação for bem-sucedida)
+#   tag_release         ← cria tag Git + GitHub Release com release notes
 #
 # NOTAS:
 #   - Todos os jobs pesados rodam em ubuntu-latest (x86_64).
@@ -380,13 +382,18 @@ jobs:
   #         echo "Consulte fall-detection/docs/CI-PIPELINE.md para orientações."
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 7. TAG & RELEASE
-  #    Cria a tag Git e a GitHub Release.
-  #    Executado somente quando TODOS os gates anteriores passam.
-  #    NÃO faz deploy ao dispositivo — isso é responsabilidade do deploy-trigger.yml.
+  # 7. BUILD ARM64 & PUBLISH
+  #    Compila o binário para Linux ARM64 via Docker buildx (emulação QEMU),
+  #    empacota em tar.gz e publica na vigia-api (que armazena no MinIO).
+  #
+  #    Executa somente quando TODOS os gates anteriores passam (validate,
+  #    security, quality, test_unit, test_integration).
+  #    Se este job falhar, NENHUMA tag/release será criada — garantindo
+  #    que só haja release quando o artefato estiver efetivamente publicado.
+  #    O job exige o secret VIGIA_API_BASE_URL apontando para a API de produção.
   # ═══════════════════════════════════════════════════════════════════════════
-  tag_release:
-    name: Release — create tag & GitHub release
+  publish_release:
+    name: Build ARM64 & publish to vigia-api
     needs:
       - validate
       - security
@@ -400,65 +407,6 @@ jobs:
       needs.quality.result == 'success' &&
       needs.test_unit.result == 'success' &&
       needs.test_integration.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Extrai apenas as notas da versão solicitada do CHANGELOG do fall-detection.
-      - name: Extract release notes from CHANGELOG
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          CHANGELOG="./fall-detection/CHANGELOG.md"
-          awk -v version="$VERSION" '
-            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
-            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
-            capture { print }
-          ' "$CHANGELOG" > RELEASE_NOTES.md
-
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Não foi possível extrair release notes para v$VERSION em $CHANGELOG."
-            exit 1
-          fi
-          echo "Release notes extraídas com sucesso:"
-          cat RELEASE_NOTES.md
-
-      - name: Create and push release tag
-        env:
-          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG_NAME" \
-            -m "Release Vigia Fall Detection v${{ inputs.version }}"
-          git push origin "$TAG_NAME"
-          echo "✓ Tag '$TAG_NAME' criada e publicada."
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.validate.outputs.tag_name }}
-          body_path: ./RELEASE_NOTES.md
-          draft: false
-          generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 8. BUILD ARM64 & PUBLISH
-  #    Compila o binário para Linux ARM64 via Docker buildx (emulação QEMU),
-  #    empacota em tar.gz e publica na vigia-api (que armazena no MinIO).
-  #
-  #    Executa somente após tag_release ter criado a GitHub Release.
-  #    O job exige o secret VIGIA_API_BASE_URL apontando para a API de produção.
-  # ═══════════════════════════════════════════════════════════════════════════
-  publish_release:
-    name: Build ARM64 & publish to vigia-api
-    needs: tag_release
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
@@ -509,3 +457,69 @@ jobs:
             -F "file=@dist/vigia-fall-detection-linux-arm64.tar.gz;type=application/gzip" \
             "${{ secrets.VIGIA_API_BASE_URL }}/v1/devices/version/register"
           echo "✓ Versão ${{ inputs.version }} publicada na vigia-api."
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. TAG & RELEASE
+  #    Cria a tag Git e a GitHub Release.
+  #    Executado SOMENTE após o publish_release ter concluído com sucesso —
+  #    isto é, build ARM64, extração do artefato e publicação na vigia-api.
+  #    Caso o publish_release falhe, NENHUMA release é criada, evitando
+  #    tags/releases órfãs sem artefato correspondente publicado.
+  #    NÃO faz deploy ao dispositivo — isso é responsabilidade do deploy-trigger.yml.
+  # ═══════════════════════════════════════════════════════════════════════════
+  tag_release:
+    name: Release — create tag & GitHub release
+    needs:
+      - validate
+      - publish_release
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.publish_release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Extrai apenas as notas da versão solicitada do CHANGELOG do fall-detection.
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          CHANGELOG="./fall-detection/CHANGELOG.md"
+          awk -v version="$VERSION" '
+            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
+            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
+            capture { print }
+          ' "$CHANGELOG" > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Não foi possível extrair release notes para v$VERSION em $CHANGELOG."
+            exit 1
+          fi
+          echo "Release notes extraídas com sucesso:"
+          cat RELEASE_NOTES.md
+
+      - name: Create and push release tag
+        env:
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" \
+            -m "Release Vigia Fall Detection v${{ inputs.version }}"
+          git push origin "$TAG_NAME"
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          draft: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,26 +2,28 @@
 
 ## Visão geral
 
-O `mobile-deploy.yml` é a pipeline DevSecOps de **preparação de release** do projeto Flutter `vigia_ui`. Ele valida, testa e audita o projeto antes de criar uma GitHub Release versionada. A geração do APK final e a distribuição para Android são responsabilidade do `deploy-trigger.yml`.
+O `mobile-release.yml` (`.github/workflows/mobile-release.yml`) é a pipeline DevSecOps **única** do projeto Flutter `vigia_ui`. Ele cobre todo o ciclo de release: validação, testes, análise de segurança, build do APK assinado e publicação da GitHub Release com o APK anexado como asset.
 
 ```
-mobile-deploy.yml  →  valida + testa + audita + cria Release
-deploy-trigger.yml →  consome a Release + gera APK + distribui
+mobile-release.yml  →  valida + testa + audita + build APK + GitHub Release (com APK)
 ```
+
+Não existe um workflow separado de deploy: o "deploy" do app mobile é a publicação da GitHub Release com o APK assinado anexado — é de lá que o APK é baixado pelos usuários finais.
 
 ## Como acionar
 
 A pipeline é acionada manualmente via **workflow_dispatch** no GitHub Actions:
 
-1. Acesse **Actions → Vigia UI — Mobile Deploy → Run workflow**
+1. Acesse **Actions → Vigia UI — Mobile Release → Run workflow**
 2. Informe a versão no formato semver: `X.Y.Z` (ex: `1.0.0`)
-3. A pipeline só aceita disparos de `master` ou `release/*`
+3. A pipeline só aceita disparos da branch configurada (ver job `preflight`)
 
 ### Pré-requisitos antes de acionar
 
 - [ ] `pubspec.yaml` contém `version: X.Y.Z` (ou `X.Y.Z+<build>`)
 - [ ] `vigia_ui/CHANGELOG.md` tem a seção `## [X.Y.Z]` com as notas da versão
 - [ ] A tag `vigia-ui@X.Y.Z` ainda não existe no repositório
+- [ ] Todos os secrets de assinatura Android estão cadastrados (ver "Setup do CI/CD" no `vigia_ui/README.md`)
 
 ## Jobs da pipeline
 
@@ -38,7 +40,9 @@ preflight (fail-fast leve)
     ├── dependency_security (osv-scanner — paralelo)
     └── integration_tests   (evolutivo — paralelo)
                 │
-                └── release_preparation (só após todos passarem)
+                └── build_apk           (APK assinado; precisa de todos os gates acima)
+                         │
+                         └── release_and_deploy  (tag + GitHub Release com APK + audit trail)
 ```
 
 ### 1. `preflight` — obrigatório, fail-fast
@@ -51,7 +55,7 @@ Executa validações leves sem instalar nenhuma ferramenta pesada. Uma falha aqu
 | `pubspec.yaml` contém a versão | `tool/ci/validate_version.sh` |
 | `CHANGELOG.md` tem a seção `## [X.Y.Z]` | `tool/ci/validate_version.sh` |
 | Tag `vigia-ui@X.Y.Z` ainda não existe | inline no workflow |
-| Branch é `master` ou `release/*` | inline no workflow |
+| Branch de origem é a esperada | inline no workflow |
 | Estrutura mínima de arquivos presente | `tool/ci/validate_structure.sh` |
 | Arquivos sensíveis ausentes do repo | `tool/ci/validate_structure.sh` |
 
@@ -107,15 +111,48 @@ Verifica se `integration_test/` existe com arquivos `.dart`:
 
 Para ativar: basta criar `vigia_ui/integration_test/` com testes Flutter.
 
-### 9. `release_preparation` — final
+### 9. `build_apk` — obrigatório
 
-Só executa se **todos os jobs anteriores passaram**. Cria:
-1. Tag `vigia-ui@X.Y.Z` no repositório
-2. GitHub Release com:
-   - Release notes extraídas do `CHANGELOG.md`
-   - Metadados de release (`release-metadata.json`) para o `deploy-trigger.yml`
+Roda depois que **todos** os gates de qualidade, segurança e teste passaram. Hidrata arquivos sensíveis a partir de GitHub Secrets (nunca versionados) e produz o APK assinado.
 
-O APK **não é gerado aqui**.
+| Etapa | Descrição |
+|-------|-----------|
+| Hidratar `google-services.json` | Decodifica `GOOGLE_SERVICES_JSON_BASE64` em `android/app/google-services.json` |
+| Hidratar keystore | Decodifica `ANDROID_KEYSTORE_BASE64` em `android/app/release.keystore` |
+| Gerar `key.properties` | Monta o arquivo de configuração de assinatura a partir dos secrets |
+| `flutter build apk --release` | Build de release assinado |
+| Renomear APK | `app-release.apk` → `vigia-ui-X.Y.Z-release.apk` |
+| Upload como workflow artifact | `vigia-ui-X.Y.Z-apk` (retenção: 30 dias) |
+| Cleanup | Remove arquivos sensíveis do runner (sempre, mesmo em falha) |
+
+Se algum secret obrigatório estiver ausente, o job falha com `::error::` explícito apontando o nome do secret.
+
+### 10. `release_and_deploy` — final
+
+Só executa após `build_apk` concluir com sucesso. Roda no environment `production` do GitHub (permite proteções como aprovadores obrigatórios). Cria:
+
+1. Registro de **GitHub Deployment** com status `in_progress` (audit trail)
+2. Download do APK artifact gerado em `build_apk`
+3. Tag `vigia-ui@X.Y.Z` no repositório
+4. **GitHub Release** com:
+   - Release notes extraídas do `CHANGELOG.md` + bloco de metadados
+   - `vigia-ui-X.Y.Z-release.apk` anexado como asset (downloadable)
+   - `release-metadata.json` anexado como asset (info estruturada da release)
+5. Atualização do Deployment para `success` ou `failure`
+
+## Setup do CI/CD — secrets necessários
+
+Cadastre todos os secrets em **Settings → Secrets and variables → Actions** (ou no environment `production` para escopar):
+
+| Secret | Conteúdo |
+|--------|----------|
+| `GOOGLE_SERVICES_JSON_BASE64` | base64 do `vigia_ui/android/app/google-services.json` |
+| `ANDROID_KEYSTORE_BASE64` | base64 do keystore `.jks` de release |
+| `ANDROID_KEYSTORE_PASSWORD` | senha do keystore |
+| `ANDROID_KEY_ALIAS` | alias da chave de assinatura |
+| `ANDROID_KEY_PASSWORD` | senha da chave |
+
+Ver `vigia_ui/README.md` (seção "Setup do CI/CD") para passos detalhados de geração dos secrets, inclusive comandos `base64` para Linux/macOS e PowerShell para Windows.
 
 ## Validações obrigatórias vs. opcionais
 
@@ -128,7 +165,7 @@ O APK **não é gerado aqui**.
 | Estrutura do projeto | Sim | Sim |
 | GitLeaks | Sim | Sim |
 | Firebase config | Sim | Sim |
-| google-services.json ausente | Sim | Sim |
+| google-services.json ausente do repo | Sim | Sim |
 | Dart format | Sim | Sim |
 | Flutter analyze | Sim | Sim |
 | Unit/Widget tests | Sim | Sim |
@@ -136,21 +173,9 @@ O APK **não é gerado aqui**.
 | Android security (avisos) | Sim | Não |
 | OSV Scanner | Sim | Sim |
 | Integration tests | Evolutivo | Só se existirem |
+| Build APK assinado | Sim | Sim |
 | Golden tests | Futuro | — |
 | E2E / Device farm | Futuro | — |
-
-## Configuração do Firebase no CI
-
-O `google-services.json` está no `.gitignore` e não deve ser versionado. A estratégia do projeto:
-
-- **Validação e testes** (`flutter analyze`, `flutter test`): não requerem o arquivo
-- **Build de APK** (responsabilidade do `deploy-trigger.yml`): requer o arquivo via secret
-
-Para configurar quando o `deploy-trigger.yml` precisar:
-```
-Secrets necessários no repositório GitHub:
-  GOOGLE_SERVICES_JSON  — conteúdo do google-services.json de produção
-```
 
 ## Etapas futuras — Golden Tests
 
@@ -168,68 +193,34 @@ Golden tests validam a aparência visual dos widgets comparando com imagens de r
 
 **Atenção:** golden tests são sensíveis à versão do Flutter e plataforma. Considere fixar a versão do Flutter (usando FVM ou `flutter-action` com `flutter-version:`) para evitar falsos positivos em atualizações de canal.
 
-## Etapas futuras — E2E e Device Farm
+## Etapas futuras — Distribuição automatizada (Play Store / Firebase App Distribution)
 
-Testes end-to-end em dispositivos Android reais exigem infraestrutura adicional.
+Hoje o APK é publicado como asset da GitHub Release; usuários baixam e instalam manualmente. Para automatizar a distribuição:
 
-### Opção 1 — Firebase Test Lab (recomendado, integrado ao projeto)
+### Opção A — Google Play Store
+
+Acrescentar um job `publish_play_store` (`needs: release_and_deploy`) que use [`r0adkll/upload-google-play`](https://github.com/r0adkll/upload-google-play) ou similar. Requer:
+- Service account JSON com permissão no Google Play Console
+- Configuração de internal/alpha/beta/production tracks
+
+### Opção B — Firebase App Distribution
+
+Útil para distribuir builds de QA antes da loja. Requer:
+- Service account com permissão em Firebase App Distribution
+- Configuração de grupos de testers
+
+### Opção C — Device Farm para testes E2E
+
+Testes end-to-end em dispositivos Android reais como gate adicional antes do release:
 
 ```yaml
-# Pré-requisitos:
-#   - APK de debug gerado (requer google-services.json via secret)
-#   - Service account com permissão no Firebase project (vigia-fall-detection)
-#   - Secret: FIREBASE_SERVICE_ACCOUNT_JSON
-
-- name: Build APK de debug para device farm
-  working-directory: vigia_ui
-  env:
-    GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-  run: |
-    echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-    flutter build apk --debug
-
+# Firebase Test Lab (recomendado, integrado ao projeto):
 - name: Firebase Test Lab
   run: |
     gcloud firebase test android run \
       --type instrumentation \
-      --app vigia_ui/build/app/outputs/apk/debug/app-debug.apk \
-      --test vigia_ui/build/app/outputs/apk/androidTest/debug/app-debug-androidTest.apk \
+      --app build/app/outputs/apk/release/vigia-ui-X.Y.Z-release.apk \
       --device model=Pixel2,version=28,locale=pt_BR,orientation=portrait
 ```
 
-### Opção 2 — AWS Device Farm
-
-Alternativa se o projeto migrar para infraestrutura AWS. Requer:
-- AWS credentials configuradas como secrets
-- APK de debug gerado
-
-### Opção 3 — Runner com dispositivo físico
-
-Para testes offline ou com hardware específico, configure um runner self-hosted com dispositivo Android conectado via ADB.
-
-## Conexão com `deploy-trigger.yml`
-
-A GitHub Release criada pelo `mobile-deploy.yml` contém o arquivo `release-metadata.json` com:
-
-```json
-{
-  "service": "vigia-ui",
-  "version": "1.0.0",
-  "pubspec_version": "1.0.0+1",
-  "tag": "vigia-ui@1.0.0",
-  "commit_sha": "<sha>",
-  "branch": "master",
-  "flutter_channel": "stable",
-  "released_at": "2026-05-18T00:00:00Z",
-  "released_by": "username",
-  "apk_status": "pending_deploy_trigger"
-}
-```
-
-O `deploy-trigger.yml` deve:
-1. Validar que a Release `vigia-ui@X.Y.Z` existe
-2. Baixar o `release-metadata.json`
-3. Usar `commit_sha` para fazer checkout da versão exata
-4. Injetar `google-services.json` via secret
-5. Executar `flutter build apk --release` com a versão correta
-6. Distribuir o APK (Google Play, Firebase App Distribution, etc.)
+Alternativas: AWS Device Farm; runner self-hosted com dispositivo físico conectado via ADB.

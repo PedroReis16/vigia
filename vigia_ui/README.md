@@ -55,7 +55,19 @@ flutter analyze --fatal-warnings
 
 ## Setup do CI/CD (GitHub Actions)
 
-A pipeline `Vigia UI — Mobile Deploy` (`.github/workflows/mobile-deploy.yml`) hoje **valida, testa e prepara o release** mas não gera o APK final. Quando o job de build de APK for ativado (atualmente templated em `optional_device_farm`), ele vai precisar do `google-services.json` injetado via secret.
+A pipeline `Vigia UI — Mobile Release` (`.github/workflows/mobile-release.yml`) cobre todo o ciclo: validação, testes, build do APK assinado e publicação da GitHub Release com o APK anexado como asset. O job `build_apk` precisa de **cinco secrets** para hidratar arquivos sensíveis no runner sem versioná-los no repositório.
+
+### Secrets obrigatórios
+
+Cadastre em **Settings → Secrets and variables → Actions** (ou no environment `production` se quiser escopar):
+
+| Secret | Conteúdo |
+|--------|----------|
+| `GOOGLE_SERVICES_JSON_BASE64` | base64 do `vigia_ui/android/app/google-services.json` |
+| `ANDROID_KEYSTORE_BASE64` | base64 do keystore `.jks` de release |
+| `ANDROID_KEYSTORE_PASSWORD` | senha do keystore |
+| `ANDROID_KEY_ALIAS` | alias da chave de assinatura |
+| `ANDROID_KEY_PASSWORD` | senha da chave |
 
 ### 1. Gerar o conteúdo base64 do `google-services.json`
 
@@ -76,37 +88,38 @@ cat google-services.b64                # copie esse conteúdo
 
 (o conteúdo fica direto no clipboard, pronto para colar)
 
-### 2. Cadastrar o secret no GitHub
+### 2. Gerar o conteúdo base64 do keystore Android
 
-1. Repositório → **Settings → Secrets and variables → Actions → New repository secret**.
-2. Nome: `GOOGLE_SERVICES_JSON_BASE64`
-3. Value: cole o conteúdo do passo 1.
-4. (iOS, futuro) repetir com `GOOGLE_SERVICE_INFO_PLIST_BASE64`.
+A partir do arquivo `.jks` de release (gerado uma vez com `keytool -genkey -v -keystore release.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias vigia-ui`):
 
-### 3. Hidratação no workflow
+**Linux / macOS:**
 
-Snippet a ser usado no job que compila o APK (já documentado como template no bloco `optional_device_farm` do `mobile-deploy.yml`):
-
-```yaml
-- name: Hidratar google-services.json a partir do secret
-  env:
-    GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
-  run: |
-    set -euo pipefail
-    if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
-      echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 não configurado no repositório."
-      exit 1
-    fi
-    echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d \
-      > "$SERVICE_PATH/android/app/google-services.json"
-    jq empty "$SERVICE_PATH/android/app/google-services.json" \
-      || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
-    echo "✓ google-services.json hidratado e validado."
-
-- name: Limpar google-services.json após o build
-  if: always()
-  run: rm -f "$SERVICE_PATH/android/app/google-services.json"
+```bash
+base64 -w 0 release.keystore > release-keystore.b64
+cat release-keystore.b64               # copie esse conteúdo
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.keystore")) | Set-Clipboard
+```
+
+Cadastre o resultado como `ANDROID_KEYSTORE_BASE64`. Os três secrets restantes (`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) vão como texto plano — são as credenciais do keystore. **Nunca versione o `.jks` nem essas senhas.**
+
+### 3. (iOS, futuro)
+
+Quando habilitar build iOS, replicar a estratégia com `GOOGLE_SERVICE_INFO_PLIST_BASE64` para o `GoogleService-Info.plist` e os equivalentes de assinatura iOS (provisioning profile + certificado p12).
+
+### 4. Como os secrets são consumidos
+
+O job `build_apk` do `mobile-release.yml` hidrata, usa e remove todos os arquivos sensíveis no próprio runner — eles nunca persistem após o build:
+
+1. `GOOGLE_SERVICES_JSON_BASE64` → `android/app/google-services.json`
+2. `ANDROID_KEYSTORE_BASE64` → `android/app/release.keystore`
+3. As três senhas → `android/key.properties`
+4. `flutter build apk --release` produz o APK assinado
+5. Step `if: always()` remove os três arquivos do runner (mesmo em falha)
 
 ### Por que NÃO basta versionar mesmo "só a chave de cliente"?
 
@@ -134,4 +147,4 @@ flutter test                                      # testes
 flutter build apk --release                       # APK release (precisa do google-services.json)
 ```
 
-Para o pipeline completo (formatação, análise, testes, secrets, OSV) execute o workflow **Vigia UI — Mobile Deploy** em GitHub Actions.
+Para o pipeline completo (formatação, análise, testes, secrets, OSV, build do APK assinado e publicação da GitHub Release) execute o workflow **Vigia UI — Mobile Release** em GitHub Actions.

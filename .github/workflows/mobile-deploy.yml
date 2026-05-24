@@ -84,8 +84,8 @@ jobs:
           set -euo pipefail
           BRANCH="${{ github.ref_name }}"
           echo "Branch de origem: $BRANCH"
-          if [[ "$BRANCH" != "master" && ! "$BRANCH" =~ ^release/ ]]; then
-            echo "::error::Pipeline de release deve ser disparada a partir de 'master' ou 'release/*'."
+          if [[ "$BRANCH" != "refactor/project-deploy"]]; then
+            echo "::error::Pipeline de release deve ser disparada a partir de 'master'."
             echo "Branch atual: '$BRANCH'"
             exit 1
           fi
@@ -487,7 +487,6 @@ jobs:
           files: ./release-metadata.json
           draft: false
           generate_release_notes: false
-          skip_duplicate: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

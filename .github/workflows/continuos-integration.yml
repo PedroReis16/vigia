@@ -27,26 +27,34 @@ jobs:
     outputs:
       projects_matrix: ${{ steps.compute_matrix.outputs.projects_matrix }}
     steps:
+      # shallow clone (fetch-depth: 1) impede o merge-base da PR; o paths-filter
+      # então considera *todos* os arquivos como novos e aciona todos os filtros.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
+      # Sem `token`, o paths-filter em pull_request usa git em vez da API; o diff local
+      # costuma divergir do conjunto real de ficheiros da PR e pode marcar todos os filtros.
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          token: ${{ github.token }}
+          # "every": um ficheiro só conta se corresponder a *todos* os padrões do filtro
+          # (ex.: path do projeto E não-*.md). "some" com '!' em linhas separadas trata
+          # cada '!' como OR e dispara falsos positivos no repositório inteiro.
+          # O quantificador é global: dockerfiles e ficheiros comuns ficam em filtros à parte.
+          predicate-quantifier: every
           filters: |
-            frontend_non_md:
-              - 'frontend/**'
-              - '!frontend/**/*.md'
-              - 'docker-compose/dockerfiles/vigia-frontend.dockerfile'
-            fall_detection_non_md:
+            fall_detection_src:
               - 'fall-detection/**'
               - '!fall-detection/**/*.md'
+            fall_detection_docker:
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
-            vigia_api_non_md:
+            vigia_api_src:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
+            vigia_api_docker:
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
@@ -54,10 +62,15 @@ jobs:
             vigia_shared_non_md:
               - 'vigia-services/pkg/shared/**'
               - '!vigia-services/pkg/shared/**/*.md'
-            vigia_common:
+            vigia_go_work:
               - 'vigia-services/go.work'
+            vigia_go_sum:
               - 'vigia-services/go.work.sum'
+            vigia_makefile:
               - 'vigia-services/Makefile'
+            vigia_ui_src:
+              - 'vigia_ui/**'
+              - '!vigia_ui/**/*.md'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -66,17 +79,16 @@ jobs:
           set -euo pipefail
           PROJECTS='[]'
 
-          if [[ "${{ steps.filter.outputs.frontend_non_md }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.vigia_ui_src }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
-              "name":       "frontend",
-              "type":       "node",
-              "path":       "frontend",
-              "dockerfile": "docker-compose/dockerfiles/vigia-frontend.dockerfile",
-              "has_docker": "true"
+              "name":       "vigia_ui",
+              "type":       "flutter",
+              "path":       "vigia_ui",
+              "has_docker": "false"
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "${{ steps.filter.outputs.fall_detection_non_md }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.fall_detection_src }}" == "true" || "${{ steps.filter.outputs.fall_detection_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "fall-detection",
               "type":       "python",
@@ -87,15 +99,17 @@ jobs:
           fi
 
           # Variáveis auxiliares para deixar as condições legíveis
-          VIGIA_API_CHANGED="${{ steps.filter.outputs.vigia_api_non_md }}"
-          VIGIA_STREAM_CHANGED="${{ steps.filter.outputs.vigia_stream_non_md }}"
+          VIGIA_API_SRC="${{ steps.filter.outputs.vigia_api_src }}"
+          VIGIA_API_DOCKER="${{ steps.filter.outputs.vigia_api_docker }}"
           VIGIA_BOOTSTRAP_CHANGED="${{ steps.filter.outputs.vigia_bootstrap_non_md }}"
           SHARED_CHANGED="${{ steps.filter.outputs.vigia_shared_non_md }}"
-          COMMON_CHANGED="${{ steps.filter.outputs.vigia_common }}"
+          GO_WORK_CHANGED="${{ steps.filter.outputs.vigia_go_work }}"
+          GO_SUM_CHANGED="${{ steps.filter.outputs.vigia_go_sum }}"
+          MAKEFILE_CHANGED="${{ steps.filter.outputs.vigia_makefile }}"
 
           # vigia-api entra se o próprio app, o pacote shared ou os arquivos
           # comuns do workspace Go foram alterados.
-          if [[ "$VIGIA_API_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$COMMON_CHANGED" == "true" ]]; then
+          if [[ "$VIGIA_API_SRC" == "true" || "$VIGIA_API_DOCKER" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "vigia-api",
               "type":       "go",
@@ -107,7 +121,7 @@ jobs:
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "$VIGIA_BOOTSTRAP_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$COMMON_CHANGED" == "true" ]]; then
+          if [[ "$VIGIA_BOOTSTRAP_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "vigia-bootstrap",
               "type":       "go",
@@ -141,7 +155,114 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────
-  # 3. QUALIDADE POR PROJETO
+  # 3. VALIDAÇÃO DE AUTORIA DE COMMITS
+  # Bloqueia PRs cujos commits possuam qualquer
+  # referência a agentes de IA (Cursor, Claude,
+  # Copilot, Codex, ChatGPT, Gemini, etc.) em:
+  #   - trailers (Co-authored-by, Made-with,
+  #     Generated-with, Assisted-by, Thrilled-by,
+  #     Crafted-with, Powered-by, ...);
+  #   - nome ou e-mail do author/committer;
+  #   - emoji 🤖 na mensagem.
+  # Apenas autores humanos são permitidos.
+  # ─────────────────────────────────────────────
+  commit_authors_check:
+    name: Commit authors validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate commits for AI agent attribution
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Garante que a base da PR está disponível localmente para o range.
+          git fetch --no-tags --prune --depth=0 origin \
+            "+${BASE_SHA}:refs/remotes/origin/_pr_base" 2>/dev/null \
+            || git fetch --no-tags origin "$BASE_SHA" 2>/dev/null \
+            || true
+
+          COMMITS=$(git log --format='%H' "${BASE_SHA}..${HEAD_SHA}" || true)
+          if [[ -z "$COMMITS" ]]; then
+            echo "Nenhum commit encontrado entre base e head — nada para validar."
+            exit 0
+          fi
+
+          # Trailers/frases que atribuem a autoria (parcial ou total) a um agente.
+          # Casados de forma case-insensitive contra a mensagem completa do commit.
+          TRAILER_PATTERN='(co[- ]?author(ed)?[- ]?by|made[- ]?with|generated[- ]?(with|by)|assisted[- ]?by|thrilled[- ]?by|crafted[- ]?with|written[- ]?with|powered[- ]?by|authored[- ]?by|created[- ]?by|built[- ]?with).{0,80}(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|google[- ]?bard|\bbard\b|devin|aider|continue\.dev|sweep[- ]?ai|tabnine|amazon[- ]?q|codewhisperer|llm|\bai\b|agent)'
+
+          # Identidades de bots/agentes em nome ou e-mail do author/committer.
+          IDENTITY_PATTERN='(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|devin|aider|sweep[- ]?ai|tabnine|codewhisperer|\[bot\]|noreply@anthropic|@cursor\.(com|sh|so|ai)|@openai\.com|@anthropic\.com)'
+
+          ROBOT_EMOJI=$'\xF0\x9F\xA4\x96'  # 🤖
+
+          FAIL=0
+          OFFENDING=""
+
+          while IFS= read -r SHA; do
+            [[ -z "$SHA" ]] && continue
+
+            MSG=$(git log -1 --format='%B' "$SHA")
+            AUTHOR=$(git log -1 --format='%an <%ae>' "$SHA")
+            COMMITTER=$(git log -1 --format='%cn <%ce>' "$SHA")
+            IDENTITY="${AUTHOR}"$'\n'"${COMMITTER}"
+
+            REASONS=""
+
+            if grep -qiE "$TRAILER_PATTERN" <<< "$MSG"; then
+              REASONS+=$'    • Trailer/atribuição a agente de IA na mensagem.\n'
+            fi
+
+            if grep -qiE "$IDENTITY_PATTERN" <<< "$IDENTITY"; then
+              REASONS+=$'    • Author/committer com identidade de agente/bot de IA.\n'
+            fi
+
+            if grep -qF "$ROBOT_EMOJI" <<< "$MSG"; then
+              REASONS+=$'    • Emoji 🤖 (assinatura típica de commits gerados por IA).\n'
+            fi
+
+            if [[ -n "$REASONS" ]]; then
+              FAIL=1
+              OFFENDING+=$'\n  ✖ Commit '"$SHA"$'\n'
+              OFFENDING+=$'      Author:    '"$AUTHOR"$'\n'
+              OFFENDING+=$'      Committer: '"$COMMITTER"$'\n'
+              OFFENDING+="$REASONS"
+            fi
+          done <<< "$COMMITS"
+
+          if [[ "$FAIL" -eq 1 ]]; then
+            {
+              echo "::error::Commits com referência a agentes de IA detectados nesta PR."
+              echo
+              echo "Os commits desta PR devem ter apenas autores humanos."
+              echo "Não são permitidas referências a Cursor, Claude, Copilot, Codex,"
+              echo "ChatGPT, Gemini ou qualquer outro agente — seja como co-autor,"
+              echo "trailer (Co-authored-by, Made-with, Generated-with, Assisted-by,"
+              echo "Thrilled-by, ...), identidade de author/committer ou emoji 🤖."
+              echo
+              echo "Commits inválidos:"
+              printf '%s' "$OFFENDING"
+              echo
+              echo "Como corrigir:"
+              echo "  1. Reescreva os commits afetados (git rebase -i / git commit --amend)."
+              echo "  2. Remova trailers de co-autoria e qualquer linha que mencione o agente."
+              echo "  3. Faça force-push da branch da PR."
+            } >&2
+            exit 1
+          fi
+
+          echo "Nenhum commit com referência a agente de IA encontrado."
+
+  # ─────────────────────────────────────────────
+  # 4. QUALIDADE POR PROJETO
   # Roda em paralelo para cada projeto detectado.
   # fail-fast: false garante que todos os projetos
   # sejam verificados mesmo se um falhar.
@@ -160,22 +281,6 @@ jobs:
 
       # ── Setup de runtime por linguagem ──────────────────────
 
-      - name: Set up Node.js
-        if: matrix.project.type == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ matrix.project.path }}/package-lock.json
-
-      - name: Set up npm
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          corepack enable
-          corepack prepare npm@11.6.2 --activate
-          npm --version
-
       - name: Set up Python
         if: matrix.project.type == 'python'
         uses: actions/setup-python@v5
@@ -193,67 +298,12 @@ jobs:
           go-version-file: ${{ matrix.project.go_mod }}
           cache-dependency-path: ${{ matrix.project.go_sum }}
 
-      # ── Node (Angular) ───────────────────────────────────────
-
-      - name: Node - install dependencies
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          set -euo pipefail
-          if ! npm ci; then
-            echo "::warning::npm ci falhou (possivel lockfile com diferenca de plataforma). Tentando npm install para manter o fluxo."
-            npm install
-          fi
-
-      - name: Node - lint
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          if node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(p.scripts && p.scripts.lint ? 0 : 1)"; then
-            npm run lint
-          else
-            echo "::notice::Sem script de lint em package.json; pulando."
-          fi
-
-      - name: Node - dependency vulnerabilities
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        # --omit=dev exclui dependências de build (webpack, esbuild, etc.)
-        # que frequentemente têm CVEs sem vetor real de exploração.
-        # Troque por --audit-level=high se quiser cobertura total.
-        run: npm audit --audit-level=critical --omit=dev
-
-      - name: Node - tests
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          set -euo pipefail
-          HAS_TEST_SCRIPT="false"
-          HAS_SPEC_FILES="false"
-
-          if node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); process.exit(p.scripts && p.scripts.test ? 0 : 1)"; then
-            HAS_TEST_SCRIPT="true"
-          fi
-
-          if git ls-files '*.spec.ts' | grep -q .; then
-            HAS_SPEC_FILES="true"
-          fi
-
-          if [[ "$HAS_TEST_SCRIPT" == "true" && "$HAS_SPEC_FILES" == "true" ]]; then
-            if npm ls @vitest/coverage-v8 --depth=0 >/dev/null 2>&1; then
-              npm run test -- --watch=false --coverage
-            else
-              echo "::notice::Plugin de coverage do Vitest nao encontrado; executando testes sem cobertura."
-              npm run test -- --watch=false
-            fi
-          else
-            echo "::notice::Sem suite de testes configurada (script test e/ou arquivos *.spec.ts ausentes); pulando."
-          fi
-
-      - name: Node - build verification
-        if: matrix.project.type == 'node'
-        working-directory: ${{ matrix.project.path }}
-        run: npm run build -- --configuration=production
+      - name: Set up Flutter
+        if: matrix.project.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
       # ── Python ──────────────────────────────────────────────
 
@@ -297,6 +347,28 @@ jobs:
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
         run: python -m pytest -q
+
+      # ── Flutter (vigia_ui) ────────────────────────────────────
+
+      - name: Flutter - pub get
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter pub get
+
+      - name: Flutter - format (obrigatório)
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Flutter - analyze
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter analyze --fatal-warnings
+
+      - name: Flutter - test
+        if: matrix.project.type == 'flutter'
+        working-directory: ${{ matrix.project.path }}
+        run: flutter test
 
       # ── Go ──────────────────────────────────────────────────
 
@@ -350,7 +422,7 @@ jobs:
           failure-threshold: error
 
   # ─────────────────────────────────────────────
-  # 4. CI GATE
+  # 5. CI GATE
   # Job único que consolida o resultado de todos
   # os outros. Configure APENAS este job como
   # "required status check" no branch protection.
@@ -364,7 +436,7 @@ jobs:
   ci_gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [secrets_scan, project_quality]
+    needs: [secrets_scan, commit_authors_check, project_quality]
     # always() garante que o gate roda mesmo quando
     # project_quality foi pulado (matriz vazia).
     if: always()
@@ -372,13 +444,20 @@ jobs:
       - name: Avaliar resultado geral
         run: |
           SECRETS="${{ needs.secrets_scan.result }}"
+          AUTHORS="${{ needs.commit_authors_check.result }}"
           QUALITY="${{ needs.project_quality.result }}"
 
-          echo "secrets_scan    : $SECRETS"
-          echo "project_quality : $QUALITY"
+          echo "secrets_scan         : $SECRETS"
+          echo "commit_authors_check : $AUTHORS"
+          echo "project_quality      : $QUALITY"
 
           if [[ "$SECRETS" == "failure" || "$SECRETS" == "cancelled" ]]; then
             echo "::error::Secret scan falhou ou foi cancelado."
+            exit 1
+          fi
+
+          if [[ "$AUTHORS" == "failure" || "$AUTHORS" == "cancelled" ]]; then
+            echo "::error::Validação de autoria de commits falhou: há commits referenciando agentes de IA."
             exit 1
           fi
 

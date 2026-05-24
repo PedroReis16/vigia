@@ -1,53 +1,48 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  # # ─── VIGIA API ────────────────────────────────────────────────────────────
-  # vigia-api:
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
-  #   ports:
-  #     - 8000:8000
-  #   environment:
-  #     - APP_RUNTIME_MODE=api
-  #     - LOG_LEVEL=INFO
-  #     - APP_NAME=vigia-api
-  #     - APP_VERSION=1.0.0
-  #     # Omissão do binário escuta só em 127.0.0.1 (gosec); no container é preciso expor na interface publicada.
-  #     - VIGIA_API_ADDR=0.0.0.0:8000
-  #   networks:
-  #     - vigia-network
+  # ─── POSTGRES ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: vigia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_DB:-vigia}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5432:5432"
+    networks:
+      - vigia-network
 
-  # # ─── VIGIA STREAM ──────────────────────────────────────────────────────────
-  # vigia-stream:
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-stream.dockerfile
-  #   container_name: vigia-stream
-  #   ports:
-  #     - 8090:8090
-  #     - 8091:8091
-  #   environment:
-  #     - VIGIA_STREAM_TCP_ADDR=0.0.0.0:8090
-  #     - VIGIA_STREAM_HTTP_ADDR=0.0.0.0:8091
-  #     - VIGIA_INGEST_TOKEN=${VIGIA_INGEST_TOKEN:-}
-  #   restart: always
-  #   networks:
-  #     - vigia-network
+  # ─── REDIS ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:latest
+    container_name: vigia-redis
+    profiles: ["redis"]
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - vigia-network
 
-  # # ─── VIGIA FRONTEND ──────────────────────────────────────────────────────────
-  # vigia-frontend:
-  #   container_name: vigia-frontend
-  #   build:
-  #     context: .
-  #     dockerfile: docker-compose/dockerfiles/vigia-frontend.dockerfile
-  #   # Nginx escuta na 80 no container; 4200 é só a porta no host (como no ng serve)
-  #   depends_on:
-  #     - vigia-stream
-  #   ports:
-  #     - 4200:80
-  #   networks:
-  #     - vigia-network
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: vigia-redisinsight
+    profiles: ["redis"]
+    depends_on:
+      - redis
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - vigia-network
 
   # ─── MediaMTX (baixa latencia para testes) ─────────────────────────────────────
   mediamtx:
@@ -72,6 +67,92 @@ services:
     networks:
       - vigia-network
 
+  # ─── MiniIO ────────────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio
+    container_name: minio
+    profiles: ["storage"]
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    networks:
+      - vigia-network
+
+  
+  # ─── Keycloak ────────────────────────────────────────────────────────────────
+  init-keycloak-db:
+    # Same tag as `postgres` so Docker reuses one image (avoids a second Hub pull for 15-alpine).
+    image: postgres:15
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: >
+      sh -c '
+        # 1) Garante usuário keycloak
+        UE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_roles WHERE rolname='\''keycloak'\''")
+        if [ "$$UE" = "1" ]; then
+          echo "[init] Usuário keycloak já existe; ajustando senha..."
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "ALTER USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
+        else
+          echo "[init] Criando usuário keycloak..."
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
+        fi
+
+        # 2) Garante database keycloakdb
+        DE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_database WHERE datname='\''keycloakdb'\''")
+        if [ "$$DE" = "1" ]; then
+          echo "[init] Database keycloakdb já existe."
+        else
+          echo "[init] Criando database keycloakdb..."
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE DATABASE keycloakdb OWNER keycloak";
+        fi
+
+        # 3) Garante schema dentro do keycloakdb
+        echo "[init] Garantindo schema keycloak..."
+        psql -h postgres -U ${POSTGRES_USER} -d keycloakdb -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS keycloak AUTHORIZATION keycloak";
+        echo "[init] OK"
+      '
+    networks:
+      - vigia-network
+
+  keycloak:
+    build:
+      context: ..
+      dockerfile: dockerfiles/keycloak.dockerfile
+    image: vigia-keycloak:local
+    container_name: vigia-keycloak
+    restart: unless-stopped
+    ports:
+      # Host e container: KC_HTTP_PORT=8080 (ver keycloak.dockerfile)
+      - "8080:8080"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloakdb
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_DB_SCHEMA: keycloak
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: localhost
+      KC_HTTP_PORT: "8080"
+      KC_HTTP_ENABLED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      init-keycloak-db:
+        condition: service_completed_successfully
+    networks:
+      - vigia-network
+    # Imagem roda `kc.sh build`; arranque recomendado é optimized (não start-dev)
+    command: ["start", "--optimized"]
+
   # ─── MONGO HISTÓRICO (com autenticação) - usado pelo STH Comet ────────────────
   mongo-db-historical:
     image: mongo:4.4
@@ -84,7 +165,7 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=admin123
     command: ["mongod", "--nojournal", "--auth"]
     ports:
-      - "27017:27017"  # <-- Exposto externamente, se necessário
+      - "27017:27017" # <-- Exposto externamente, se necessário
     volumes:
       - ./docker-compose/mongo-db-historical/data:/data/db
     networks:
@@ -125,7 +206,7 @@ services:
       -dbAuthDb admin
       -corsOrigin __ALL
       -corsMaxAge 600
-    
+
     networks:
       - vigia-network
 
@@ -144,7 +225,7 @@ services:
       - STH_HOST=0.0.0.0
       - STH_PORT=8666
       - DB_PREFIX=sth_
-      - DB_URI=mongo-db-historical:27017  # <-- Aponte para o serviço renomeado
+      - DB_URI=mongo-db-historical:27017 # <-- Aponte para o serviço renomeado
       - DB_USERNAME=admin
       - DB_PASSWORD=admin123
       - DB_AUTH_SOURCE=admin
@@ -164,7 +245,7 @@ services:
       - "9001:9001"
     volumes:
       - ./docker-compose/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
-    
+
     networks:
       - vigia-network
 

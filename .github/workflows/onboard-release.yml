@@ -1,0 +1,591 @@
+name: Vigia Fall Detection — Onboard Release
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VISÃO GERAL
+#
+# Pipeline única do projeto vigia-fall-detection. Cobre todo o ciclo de release:
+#   validate → security/quality/tests → publish (build ARM64 + envio para a
+#   vigia-api/MinIO) → tag + GitHub Release.
+#
+# Não existe um workflow separado de deploy. O "deploy" do fall-detection é a
+# publicação do tar.gz ARM64 na vigia-api: os Raspberry Pi puxam a nova versão
+# sozinhos via vigia-bootstrap (deploy assíncrono / OTA-like).
+#
+# JOBS (ordem de execução):
+#   validate            ← validações leves, fail-fast (sem instalação pesada)
+#       ↓ needs
+#   ┌───┴──────────────────────────────┐
+#   security  quality  test_unit  test_integration
+#   (gitleaks (pylint  (pytest -m  (pytest -m
+#   pip-audit) bandit)  not integ)  integration)
+#   └───┬──────────────────────────────┘
+#       ↓ todos devem passar
+#   publish_release     ← build ARM64 (Docker buildx) + extrai artefato +
+#                         publica a versão na vigia-api (MinIO);
+#                         abre/atualiza Deployment para audit trail
+#       ↓ needs (somente se a publicação for bem-sucedida)
+#   tag_release         ← cria tag Git + GitHub Release com release notes
+#
+# NOTAS:
+#   - O job publish_release roda em runner ARM64 nativo (ubuntu-24.04-arm).
+#     QEMU é mantido como redundância em caso de fallback para x86.
+#   - DAST: não aplicável — a aplicação é um binário embarcado sem interface HTTP
+#     exposta durante a CI. Realizar testes de campo manualmente na Raspberry Pi 5.
+#   - Hardware tests: estrutura preparada como job comentado (self-hosted ARM).
+#     Não bloqueia a pipeline até um runner ser configurado.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Impede dois releases simultâneos para a mesma versão.
+concurrency:
+  group: release-vigia-fall-detection-${{ inputs.version }}
+  cancel-in-progress: false
+
+run-name: "Vigia Fall Detection — v${{ inputs.version }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão para release (ex: 1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  security-events: write
+  deployments: write     # register GitHub Deployment entries for the production audit trail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Variáveis compartilhadas entre jobs
+# ─────────────────────────────────────────────────────────────────────────────
+env:
+  SERVICE_PATH: fall-detection
+  SERVICE_SLUG: vigia-fall-detection
+  PYTHON_VERSION: "3.11"
+
+jobs:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 1. VALIDATE
+  #    Validações leves que não requerem instalação de dependências.
+  #    Executa primeiro para falhar rapidamente e poupar recursos.
+  #    Todos os jobs pesados dependem deste via `needs: validate`.
+  # ═══════════════════════════════════════════════════════════════════════════
+  validate:
+    name: Validate — version, branch, files, changelog, tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.set_tag.outputs.tag_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Formato de versão ──────────────────────────────────────────────────
+      - name: Validate version format (MAJOR.MINOR.PATCH)
+        run: |
+          VERSION="${{ inputs.version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Versão '$VERSION' inválida. Use o formato MAJOR.MINOR.PATCH (ex: 1.2.3)."
+            exit 1
+          fi
+          echo "✓ Formato de versão válido: $VERSION"
+
+      # ── Branch de origem ───────────────────────────────────────────────────
+      - name: Validate source branch (master or main only)
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" != "refactor/project-release" ]]; then
+            echo "::error::Este workflow deve ser executado a partir de 'master' ou 'main'. Branch atual: '$BRANCH'."
+            exit 1
+          fi
+          echo "✓ Branch válida: $BRANCH"
+
+      # ── Arquivos essenciais ────────────────────────────────────────────────
+      # Verifica apenas arquivos do fall-detection, sem tocar em outros projetos.
+      - name: Validate essential files (fall-detection scope only)
+        run: |
+          set -euo pipefail
+          MISSING=""
+          for f in \
+            fall-detection/pyproject.toml \
+            fall-detection/CHANGELOG.md \
+            fall-detection/main.py \
+            fall-detection/requirements-common.txt \
+            fall-detection/requirements-headless.txt \
+            fall-detection/requirements-binary.txt \
+            fall-detection/Makefile \
+            fall-detection/release/Dockerfile.linux-arm64-binary \
+            fall-detection/src/app/__init__.py; do
+            if [ ! -f "$f" ]; then
+              MISSING="${MISSING}\n  ✗ $f"
+            fi
+          done
+          if [ -n "$MISSING" ]; then
+            printf "::error::Arquivos essenciais ausentes do fall-detection:%b\n" "$MISSING"
+            exit 1
+          fi
+          echo "✓ Todos os arquivos essenciais do projeto estão presentes."
+
+      # ── CHANGELOG ─────────────────────────────────────────────────────────
+      - name: Validate CHANGELOG entry for this version
+        run: |
+          VERSION="${{ inputs.version }}"
+          CHANGELOG="fall-detection/CHANGELOG.md"
+          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG"; then
+            echo "✓ Versão $VERSION encontrada no CHANGELOG."
+          else
+            echo "::error::Versão '$VERSION' não encontrada em $CHANGELOG."
+            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes de executar este workflow."
+            exit 1
+          fi
+
+      # ── Unicidade da tag ───────────────────────────────────────────────────
+      - name: Validate tag uniqueness
+        run: |
+          TAG="vigia-fall-detection@${{ inputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::A tag '$TAG' já existe. Use uma versão diferente ou delete a tag manualmente."
+            exit 1
+          fi
+          echo "✓ Tag '$TAG' está disponível."
+
+      - name: Set tag name output
+        id: set_tag
+        run: echo "tag_name=vigia-fall-detection@${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 2. SECURITY
+  #    Secrets scan + auditoria de dependências vulneráveis.
+  #    Scopo: somente fall-detection (pip-audit via requirements file, não global).
+  #    Runner: ubuntu-latest (x86_64) — não precisa de ARM para análise estática.
+  # ═══════════════════════════════════════════════════════════════════════════
+  security:
+    name: Security — secrets scan & dependency audit
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Gitleaks varre todo o histórico visível do checkout.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip "pip-audit>=2.9,<3"
+
+      # Auditoria via requirements file — não precisa instalar torch/ultralytics.
+      # Isso limita a auditoria às dependências declaradas do fall-detection.
+      - name: Dependency vulnerability audit (pip-audit — fall-detection only)
+        working-directory: fall-detection
+        run: |
+          python -m pip_audit \
+            -r requirements-headless.txt \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2025-71176
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 3. QUALITY
+  #    Lint (pylint) + SAST (bandit) escopados ao fall-detection/src/app.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  quality:
+    name: Quality — lint (pylint) & SAST (bandit)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps (opencv headless requirements)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          # torch CPU wheel — ultralytics exige torch mas não precisamos de GPU em CI
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -e .
+          # Garante opencv-headless (ultralytics instala opencv-python que conflita no embedded)
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install "pylint>=3,<4" "bandit>=1.8,<2"
+
+      # Lint escopo: src/app (somente código do fall-detection)
+      - name: Lint (pylint) — fall-detection/src/app
+        working-directory: fall-detection
+        run: python -m pylint src/app
+
+      # SAST escopo: src/app (somente código do fall-detection)
+      - name: SAST (bandit) — fall-detection/src/app
+        working-directory: fall-detection
+        run: python -m bandit -r src/app -ll
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 4. TEST — UNIT
+  #    Testes sem dependências externas (usam mocks).
+  #    Separados dos testes de integração via marker: `not integration`.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  test_unit:
+    name: Tests — unit (pytest -m "not integration")
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -e .
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
+
+      - name: Run unit tests
+        working-directory: fall-detection
+        run: python -m pytest -q -m "not integration" --tb=short
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 5. TEST — INTEGRATION
+  #    Testes marcados com @pytest.mark.integration.
+  #    Usam aiohttp TestServer como fake FIWARE — sem dependência de hardware real.
+  #    Runner: ubuntu-latest (x86_64).
+  # ═══════════════════════════════════════════════════════════════════════════
+  test_integration:
+    name: Tests — integration (fake FIWARE, pytest -m integration)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            fall-detection/requirements-common.txt
+            fall-detection/requirements-headless.txt
+            fall-detection/pyproject.toml
+
+      - name: Install Python dependencies (fall-detection)
+        working-directory: fall-detection
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple \
+            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
+          python -m pip install -r requirements-headless.txt
+          python -m pip install -e .
+          python -m pip uninstall -y opencv-python 2>/dev/null || true
+          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
+          python -m pip install "pytest>=8.2,<9" "pytest-asyncio>=0.26,<0.27"
+
+      - name: Run integration tests (fake FIWARE — no real hardware required)
+        working-directory: fall-detection
+        run: python -m pytest -q -m integration --tb=short
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 6. TEST — HARDWARE (OPCIONAL / NÃO BLOQUEANTE)
+  #    Executa smoke tests no binário real em Raspberry Pi 5.
+  #    Requer runner self-hosted configurado com as labels abaixo.
+  #    Descomente quando o runner estiver disponível.
+  #
+  #    Labels esperadas no runner:
+  #      [self-hosted, linux, arm64, raspberry-pi]
+  #
+  #    TODO: implementar testes de hardware em fall-detection/tests/hardware/
+  #          Sugestão de escopo:
+  #            - smoke: binário inicia sem erro
+  #            - camera: câmera é detectada pelo sistema operacional
+  #            - model: modelo ONNX carrega corretamente
+  # ═══════════════════════════════════════════════════════════════════════════
+  # test_hardware:
+  #   name: Tests — hardware (Raspberry Pi 5, self-hosted ARM64)
+  #   needs: validate
+  #   runs-on: [self-hosted, linux, arm64, raspberry-pi]
+  #   continue-on-error: true   # não bloqueia o release enquanto runner não estiver pronto
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Run hardware smoke tests
+  #       working-directory: fall-detection
+  #       run: |
+  #         # TODO: implementar fall-detection/tests/hardware/smoke_tests.sh
+  #         echo "::warning::Hardware tests não implementados ainda."
+  #         echo "Consulte fall-detection/docs/CI-PIPELINE.md para orientações."
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 7. BUILD ARM64 & PUBLISH
+  #    Compila o binário para Linux ARM64 via Docker buildx (emulação QEMU),
+  #    empacota em tar.gz e publica na vigia-api (que armazena no MinIO).
+  #    Esta publicação é o "deploy" efetivo do fall-detection: a partir daí,
+  #    o vigia-bootstrap nas Raspberry Pi 5 detecta a nova versão via
+  #    /v1/devices/version/find-for-updates e baixa o artefato.
+  #
+  #    Audit trail: cria um registro de Deployment no GitHub (ambiente
+  #    "production") no início e atualiza o status conforme o build/publish
+  #    progride. Isso aparece na aba Environments do repositório.
+  #
+  #    Executa somente quando TODOS os gates anteriores passam (validate,
+  #    security, quality, test_unit, test_integration).
+  #    Se este job falhar, NENHUMA tag/release será criada — garantindo
+  #    que só haja release quando o artefato estiver efetivamente publicado.
+  #    O job exige o secret VIGIA_API_BASE_URL apontando para a API de produção.
+  # ═══════════════════════════════════════════════════════════════════════════
+  publish_release:
+    name: Build ARM64 & publish to vigia-api
+    needs:
+      - validate
+      - security
+      - quality
+      - test_unit
+      - test_integration
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.security.result == 'success' &&
+      needs.quality.result == 'success' &&
+      needs.test_unit.result == 'success' &&
+      needs.test_integration.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Audit trail — abrir registro de Deployment ─────────────────────────
+      # Criado antes do build pesado para que falhas no build também fiquem
+      # registradas no histórico de Deployments do GitHub.
+      - name: Create GitHub Deployment record
+        id: create_deployment
+        run: |
+          set -euo pipefail
+          DEPLOYMENT_ID=$(gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments" \
+            -f ref="${{ github.ref }}" \
+            -f environment="production" \
+            -f description="Deploy vigia-fall-detection v${{ inputs.version }} (build ARM64 + publish vigia-api)" \
+            -F auto_merge=false \
+            -F required_contexts='[]' \
+            --jq '.id')
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+
+      - name: Mark deployment as in_progress
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="in_progress" \
+            -f description="Build ARM64 + publish para vigia-api v${{ inputs.version }}"
+
+      - name: Set up QEMU (emulação ARM64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Constrói a imagem ARM64 e carrega localmente para podermos extrair o artefato.
+      - name: Build imagem ARM64
+        working-directory: fall-detection
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --file release/Dockerfile.linux-arm64-binary \
+            --tag vigia-fall-detection:linux-arm64 \
+            --load \
+            .
+
+      # Extrai o bundle onedir do container e empacota como tar.gz,
+      # mantendo a estrutura esperada pelo vigia-bootstrap:
+      #   vigia-fall-detection-linux-arm64/vigia-fall-detection
+      - name: Extrair artefato e empacotar tar.gz
+        working-directory: fall-detection
+        run: |
+          CONTAINER=$(docker create vigia-fall-detection:linux-arm64)
+          mkdir -p dist/vigia-fall-detection-linux-arm64
+          docker cp "$CONTAINER:/vigia-fall-detection/." dist/vigia-fall-detection-linux-arm64/
+          docker rm "$CONTAINER"
+          chmod +x dist/vigia-fall-detection-linux-arm64/vigia-fall-detection
+          tar -czf dist/vigia-fall-detection-linux-arm64.tar.gz \
+            -C dist vigia-fall-detection-linux-arm64
+          echo "✓ Artefato gerado: $(du -sh dist/vigia-fall-detection-linux-arm64.tar.gz | cut -f1)"
+
+      # Publica na vigia-api via multipart/form-data.
+      # A API salva o arquivo no MinIO e registra a versão no banco.
+      - name: Publicar versão na vigia-api
+        working-directory: fall-detection
+        run: |
+          curl -sf --max-time 600 \
+            -X POST \
+            -F "version=${{ inputs.version }}" \
+            -F "file=@dist/vigia-fall-detection-linux-arm64.tar.gz;type=application/gzip" \
+            "${{ secrets.VIGIA_API_BASE_URL }}/v1/devices/version/register"
+          echo "✓ Versão ${{ inputs.version }} publicada na vigia-api."
+
+      - name: Mark deployment as success
+        if: success()
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f description="vigia-fall-detection v${{ inputs.version }} publicado na vigia-api"
+
+      - name: Mark deployment as failure
+        if: failure() && steps.create_deployment.outputs.deployment_id != ''
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="failure" \
+            -f description="Deploy vigia-fall-detection v${{ inputs.version }} falhou — verifique os logs"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # 8. TAG & RELEASE
+  #    Cria a tag Git e a GitHub Release.
+  #    Executado SOMENTE após o publish_release ter concluído com sucesso —
+  #    isto é, build ARM64, extração do artefato e publicação na vigia-api.
+  #    Caso o publish_release falhe, NENHUMA release é criada, evitando
+  #    tags/releases órfãs sem artefato correspondente publicado.
+  #
+  #    A instalação do binário nas Raspberry Pi 5 é responsabilidade do
+  #    vigia-bootstrap, que roda no próprio dispositivo e consulta a vigia-api
+  #    periodicamente em /v1/devices/version/find-for-updates.
+  # ═══════════════════════════════════════════════════════════════════════════
+  tag_release:
+    name: Release — create tag & GitHub release
+    needs:
+      - validate
+      - publish_release
+    if: |
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.publish_release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Extrai apenas as notas da versão solicitada do CHANGELOG do fall-detection.
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          CHANGELOG="./fall-detection/CHANGELOG.md"
+          awk -v version="$VERSION" '
+            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
+            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
+            capture { print }
+          ' "$CHANGELOG" > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::Não foi possível extrair release notes para v$VERSION em $CHANGELOG."
+            exit 1
+          fi
+          echo "Release notes extraídas com sucesso:"
+          cat RELEASE_NOTES.md
+
+      - name: Create and push release tag
+        env:
+          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" \
+            -m "Release Vigia Fall Detection v${{ inputs.version }}"
+          git push origin "$TAG_NAME"
+          echo "✓ Tag '$TAG_NAME' criada e publicada."
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          body_path: ./RELEASE_NOTES.md
+          draft: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

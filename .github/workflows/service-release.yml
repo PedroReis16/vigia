@@ -51,13 +51,13 @@ jobs:
     name: Validate — version, CHANGELOG, tag
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: "[1/5] Checkout code"
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # needed for git ls-remote tag check
 
       # Enforce SemVer so image tags and releases are predictable.
-      - name: Validate semantic version format
+      - name: "[2/5] Validate semantic version format"
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +70,7 @@ jobs:
 
       # Changelog must be updated before a release ships — this enforces the
       # discipline of documenting changes as part of the release process.
-      - name: Validate CHANGELOG entry
+      - name: "[3/5] Validate CHANGELOG entry"
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
@@ -94,7 +94,7 @@ jobs:
           fi
 
       # Prevent accidentally overwriting a production release that already shipped.
-      - name: Validate git tag uniqueness
+      - name: "[4/5] Validate git tag uniqueness"
         shell: bash
         run: |
           set -euo pipefail
@@ -106,7 +106,7 @@ jobs:
           fi
           echo "✓ Tag '$TAG' disponível."
 
-      - name: Validate GitHub Release uniqueness
+      - name: "[5/5] Validate GitHub Release uniqueness"
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,9 +129,10 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/4] Checkout code"
+        uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: "[2/4] Set up Go"
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ env.SERVICE_PATH }}/go.mod
@@ -140,7 +141,7 @@ jobs:
       # Unit tests: handlers, middleware, logging utilities.
       # Integration tests: repositories (SQLite), cache (miniredis), services.
       # -race: detects data races. -covermode=atomic: safe with -race.
-      - name: Go — unit & integration tests
+      - name: "[3/4] Go — unit & integration tests"
         working-directory: ${{ env.SERVICE_PATH }}
         env:
           GOWORK: off
@@ -151,7 +152,7 @@ jobs:
             -covermode=atomic \
             -timeout=120s
 
-      - name: Upload coverage report
+      - name: "[4/4] Upload coverage report"
         uses: actions/upload-artifact@v4
         with:
           name: coverage-vigia-api-${{ inputs.version }}
@@ -171,24 +172,25 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/9] Checkout code"
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # gitleaks needs full history to detect historical leaks
 
       # Scans the entire repo — secrets can appear in any file, not just Go code.
-      - name: Secret scan (gitleaks)
+      - name: "[2/9] Secret scan (gitleaks)"
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Dockerfile lint runs early — before Go toolchain setup — to fail fast on config errors.
-      - name: Dockerfile lint (hadolint)
+      - name: "[3/9] Dockerfile lint (hadolint)"
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: ${{ env.DOCKERFILE_PATH }}
           failure-threshold: error
 
-      - name: Set up Go
+      - name: "[4/9] Set up Go"
         id: setup_go
         uses: actions/setup-go@v5
         with:
@@ -199,14 +201,14 @@ jobs:
       # actions/setup-go cobre apenas os módulos do projeto; binários
       # instalados via `go install` ficam em ~/go/bin e não entram naquele cache.
       # Chave amarrada à versão real do Go + às versões fixadas das ferramentas.
-      - name: Cache Go security tools (~/go/bin)
+      - name: "[5/9] Cache Go security tools (~/go/bin)"
         id: cache_go_tools
         uses: actions/cache@v4
         with:
           path: ~/go/bin
           key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}
 
-      - name: Install security tools (only on cache miss)
+      - name: "[6/9] Install security tools (only on cache miss)"
         if: steps.cache_go_tools.outputs.cache-hit != 'true'
         env:
           GOWORK: off
@@ -218,18 +220,18 @@ jobs:
       # ~/go/bin precisa estar no PATH para que `gosec` e `govulncheck`
       # funcionem nos steps seguintes — `actions/setup-go` não adiciona
       # esse diretório automaticamente em cache hit.
-      - name: Ensure ~/go/bin is on PATH
+      - name: "[7/9] Ensure ~/go/bin is on PATH"
         run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       # gosec: static analysis for common Go security issues (SQL injection, unsafe operations, etc.)
-      - name: Go — SAST (gosec)
+      - name: "[8/9] Go — SAST (gosec)"
         working-directory: ${{ env.SERVICE_PATH }}
         env:
           GOWORK: off
         run: gosec ./...
 
       # govulncheck: checks only code paths reachable from the binary — low false-positive rate.
-      - name: Go — dependency vulnerability check (govulncheck)
+      - name: "[9/9] Go — dependency vulnerability check (govulncheck)"
         working-directory: ${{ env.SERVICE_PATH }}
         env:
           GOWORK: off
@@ -245,9 +247,10 @@ jobs:
     needs: [test, security]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/4] Checkout code"
+        uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: "[2/4] Set up Go"
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ env.SERVICE_PATH }}/go.mod
@@ -256,7 +259,7 @@ jobs:
       # CGO_ENABLED=0: fully static binary (no libc dependency).
       # -trimpath: removes local build paths from binary (reproducible + smaller attack surface).
       # -ldflags="-s -w": strips debug info and symbol table (smaller binary).
-      - name: Build binary
+      - name: "[3/4] Build binary"
         working-directory: ${{ env.SERVICE_PATH }}
         env:
           GOWORK: off
@@ -269,7 +272,7 @@ jobs:
               -o vigia-api \
               ./cmd
 
-      - name: Upload binary artifact
+      - name: "[4/4] Upload binary artifact"
         uses: actions/upload-artifact@v4
         with:
           name: binary-vigia-api-${{ inputs.version }}
@@ -288,12 +291,16 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/9] Checkout code"
+        uses: actions/checkout@v4
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - name: "[2/9] Set up QEMU"
+        uses: docker/setup-qemu-action@v3
 
-      - name: Login to Docker Hub
+      - name: "[3/9] Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "[4/9] Login to Docker Hub"
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -301,7 +308,7 @@ jobs:
 
       # Build locally (load: true, push: false) so Trivy can scan before the image goes public.
       # The Dockerfile is multi-stage — it builds the binary internally.
-      - name: Build Docker image (local, pre-scan)
+      - name: "[5/9] Build Docker image (local, pre-scan)"
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -316,7 +323,7 @@ jobs:
             VERSION=${{ inputs.version }}
 
       # Upload SARIF so vulnerabilities appear in the GitHub Security tab (even if not blocking).
-      - name: Trivy — generate SARIF report
+      - name: "[6/9] Trivy — generate SARIF report"
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
@@ -325,7 +332,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
 
-      - name: Upload Trivy SARIF to GitHub Security
+      - name: "[7/9] Upload Trivy SARIF to GitHub Security"
         uses: github/codeql-action/upload-sarif@v4
         if: hashFiles('trivy-results.sarif') != ''
         with:
@@ -333,7 +340,7 @@ jobs:
 
       # Hard gate: fail the workflow if unfixed CRITICAL/HIGH CVEs are found.
       # ignore-unfixed: true skips CVEs with no available fix (avoids noise).
-      - name: Trivy — block on unfixed CRITICAL/HIGH CVEs
+      - name: "[8/9] Trivy — block on unfixed CRITICAL/HIGH CVEs"
         uses: aquasecurity/trivy-action@v0.24.0
         with:
           image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
@@ -345,7 +352,7 @@ jobs:
       # Push versioned tag and commit SHA tag.
       # latest is only pushed from the master branch to prevent feature branches from
       # accidentally overwriting the production-ready image.
-      - name: Push Docker image
+      - name: "[9/9] Push Docker image"
         run: |
           set -euo pipefail
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
@@ -383,11 +390,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/2] Checkout code"
+        uses: actions/checkout@v4
 
       # Script lives in the repo so appleboy does not run it through Go format()
       # (inline script breaks on bash braces like ${tag} / ${line#*=}).
-      - name: Deploy via SSH
+      - name: "[2/2] Deploy via SSH"
         uses: appleboy/ssh-action@v1.2.0
         env:
           VERSION: ${{ inputs.version }}
@@ -410,11 +418,12 @@ jobs:
     needs: ssh_update
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: "[1/4] Checkout code"
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create and push git tag
+      - name: "[2/4] Create and push git tag"
         run: |
           set -euo pipefail
           TAG="${TAG_PREFIX}@${{ inputs.version }}"
@@ -427,7 +436,7 @@ jobs:
 
       # Extract only the section for this version from CHANGELOG.
       # awk stops reading when it hits the next version header.
-      - name: Extract release notes from CHANGELOG
+      - name: "[3/4] Extract release notes from CHANGELOG"
         shell: bash
         env:
           VERSION: ${{ inputs.version }}
@@ -446,7 +455,7 @@ jobs:
             exit 1
           fi
 
-      - name: Create GitHub Release
+      - name: "[4/4] Create GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_PREFIX }}@${{ inputs.version }}
@@ -470,23 +479,39 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Create GitHub Deployment record
+      # `gh api` com `-F required_contexts='[]'` envia o valor como string `"[]"`,
+      # o que faz o GitHub responder HTTP 422 ("not an array or null").
+      # A API exige um array JSON real, então montamos o payload com `jq -n` e
+      # mandamos via `--input -`. `required_contexts: []` desabilita os status
+      # checks como pré-requisito (já cobrimos isso nos jobs anteriores).
+      - name: "[1/2] Create GitHub Deployment record"
         id: create_deployment
+        shell: bash
         run: |
           set -euo pipefail
-          DEPLOYMENT_ID=$(gh api \
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-api v${{ inputs.version }}" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: []
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments" \
-            -f ref="${{ github.ref }}" \
-            -f environment="production" \
-            -f description="Deploy vigia-api v${{ inputs.version }}" \
-            -F auto_merge=false \
-            -F required_contexts='[]' \
+            --input - \
             --jq '.id')
+
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
 
-      - name: Mark deployment as success
+      - name: "[2/2] Mark deployment as success"
         env:
           DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
         run: |

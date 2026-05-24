@@ -1,12 +1,77 @@
 services:
+  # ─── REDIS ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:latest
+    container_name: vigia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vigia-network
+  # ─── POSTGRES ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: vigia-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin123
+      - POSTGRES_DB=vigia
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d vigia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vigia-network
+  # ─── Minio ────────────────────────────────────────────────────────────────
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - ./minio_data:/data
+    command: server --console-address ":9001" /data
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vigia-network
+
   # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
-    image: ${DOCKERHUB_USERNAME:-pedroreis16}/vigia-api:${VIGIA_API_IMAGE_TAG:-latest}
+    image: pedroreis16/vigia-api:latest
     container_name: vigia-api
     restart: always
+    env_file:
+      - default.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=Host(`www.vigia-deteccoes.duckdns.org`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.vigia.entrypoints=websecure"
       - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia.loadbalancer.server.port=8000"
@@ -17,7 +82,7 @@ services:
 
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.6
     container_name: traefik
     restart: always
     ports:
@@ -45,7 +110,7 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin123
-    command: ["mongod", "--nojournal", "--auth"] 
+    command: ["mongod", "--nojournal", "--auth"]
     volumes:
       - mongo-historical-data:/data/db
     networks:
@@ -217,148 +282,6 @@ services:
     networks:
       - vigia-network
 
-# ─── REDIS ────────────────────────────────────────────────────────────────
-  redis:
-    image: redis:latest
-    container_name: vigia-redis
-    profiles: ["redis"]
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    networks:
-      - vigia-network
-
-  redisinsight:
-    image: redis/redisinsight:latest
-    container_name: vigia-redisinsight
-    profiles: ["redis"]
-    depends_on:
-      - redis
-    restart: unless-stopped
-    ports:
-      - "5540:5540"
-    networks:
-      - vigia-network
-      
-  # ─── POSTGRES ────────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:15
-    container_name: vigia-postgres
-    profiles: ["postgres"]
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin123
-      - POSTGRES_DB=vigia
-    ports:
-      - "5432:5432"
-    networks:
-      - vigia-network
-  
-
-  # ─── MiniIO ────────────────────────────────────────────────────────────────
-  minio:
-    image: minio/minio
-    container_name: minio
-    profiles: ["storage"]
-    command: server /data --console-address ":9001"
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: vigia
-      MINIO_ROOT_PASSWORD: vigia123
-    labels:
-      - "traefik.enable=true"
-      # API S3
-      - "traefik.http.routers.minio-api.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/minio/api`)"
-      - "traefik.http.routers.minio-api.entrypoints=websecure"
-      - "traefik.http.routers.minio-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.minio-api.service=minio-api"
-      - "traefik.http.services.minio-api.loadbalancer.server.port=9000"
-      # Console web
-      - "traefik.http.routers.minio-console.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/minio/console`)"
-      - "traefik.http.routers.minio-console.entrypoints=websecure"
-      - "traefik.http.routers.minio-console.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.minio-console.service=minio-console"
-      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
-    networks:
-      - vigia-network
-
-  # ─── Keycloak ────────────────────────────────────────────────────────────────
-  init-keycloak-db:
-    image: postgres:15-alpine
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-    command: >
-      sh -c '
-        UE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_roles WHERE rolname='\''keycloak'\''")
-        if [ "$UE" = "1" ]; then
-          echo "[init] Usuário keycloak já existe; ajustando senha..."
-          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "ALTER USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
-        else
-          echo "[init] Criando usuário keycloak..."
-          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE USER keycloak WITH PASSWORD '\''${KEYCLOAK_DB_PASSWORD}'\''";
-        fi
-        DE=$(psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -Atc "SELECT 1 FROM pg_database WHERE datname='\''keycloakdb'\''")
-        if [ "$DE" = "1" ]; then
-          echo "[init] Database keycloakdb já existe."
-        else
-          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -c "CREATE DATABASE keycloakdb OWNER keycloak";
-        fi
-        psql -h postgres -U ${POSTGRES_USER} -d keycloakdb -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS keycloak AUTHORIZATION keycloak";
-        echo "[init] OK"
-      '
-    networks:
-      - vigia-network
-
-  keycloak:
-    image: keycloak/keycloak:24.0
-    container_name: vigia-keycloak
-    environment:
-      # Banco
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloakdb
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
-      KC_DB_SCHEMA: keycloak
-
-      # Admin
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-
-      # Produção com proxy reverso
-      KC_HOSTNAME: vigia-deteccoes.duckdns.org
-      KC_HOSTNAME_PATH: /auth
-      KC_HTTP_ENABLED: "true"
-      KC_HTTP_RELATIVE_PATH: /auth
-      KC_PROXY: edge                        # Traefik termina o TLS
-      KC_PROXY_HEADERS: xforwarded          # Aceita X-Forwarded-* do Traefik
-
-    command: ["start"]                      # modo produção (não start-dev)
-    depends_on:
-      postgres:
-        condition: service_healthy
-      init-keycloak-db:
-        condition: service_completed_successfully
-    networks:
-      - vigia-network
-    labels:
-      - "traefik.enable=true"
-
-      # Roteamento: tudo em /auth vai para o Keycloak
-      - "traefik.http.routers.keycloak.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/auth`)"
-      - "traefik.http.routers.keycloak.entrypoints=websecure"
-      - "traefik.http.routers.keycloak.tls=true"
-      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
-
-      # Porta interna do Keycloak
-      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
-
 volumes:
   mongo-historical-data:
   mongo-internal-data:
@@ -366,4 +289,3 @@ volumes:
 networks:
   vigia-network:
     driver: bridge
-    external: true

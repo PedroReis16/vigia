@@ -55,7 +55,7 @@ services:
 
   # ─── VIGIA ────────────────────────────────────────────────────────────────
   vigia:
-    image: pedroreis16/vigia-api:latest
+    image: ${DOCKERHUB_USERNAME:-pedroreis16}/vigia-api:${VIGIA_API_IMAGE_TAG:-latest}
     container_name: vigia-api
     restart: always
     env_file:
@@ -282,9 +282,33 @@ services:
     networks:
       - vigia-network
 
+  # ─── PORTAINER ───────────────────────────────────────────────────────────────
+  # UI: https://vigia-deteccoes.duckdns.org/portainer
+  # Roteado pelo Traefik — nenhuma porta extra exposta na EC2.
+  # --base-url=/portainer: alinha os assets e API do Portainer com o
+  # PathPrefix do Traefik. Sem isso o JS usaria paths absolutos (/) e quebraria.
+  portainer:
+    image: portainer/portainer-ce:2.21.4
+    container_name: portainer
+    restart: always
+    command: --base-url=/portainer
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/portainer`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      # Portainer escuta em 9000 (HTTP) internamente; TLS é terminado pelo Traefik.
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+    networks:
+      - vigia-network
+
 volumes:
   mongo-historical-data:
   mongo-internal-data:
+  portainer_data:
 
 networks:
   vigia-network:

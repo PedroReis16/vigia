@@ -343,74 +343,57 @@ jobs:
           format: table
           ignore-unfixed: true
 
-      # Push versioned tag and commit SHA tag.
-      # latest is only pushed from the master branch to prevent feature branches from
-      # accidentally overwriting the production-ready image.
+      # Publica as três tags: versão semântica, SHA do commit e latest.
+      # O Portainer sempre puxa :latest no webhook — todas precisam estar no registry.
       - name: Push Docker image
         run: |
           set -euo pipefail
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-
-          if [[ "${{ github.ref_name }}" == "refactor/project-deploy" ]]; then
-            docker tag \
-              "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}" \
-              "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-            docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-            echo "✓ latest atualizado para ${{ inputs.version }}"
-          else
-            echo "ℹ latest não atualizado (branch: ${{ github.ref_name }}, não é master)"
-          fi
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+          echo "✓ Imagens publicadas: ${{ inputs.version }}, ${{ github.sha }}, latest"
 
   # ═══════════════════════════════════════════════════════════════
-  # 6. SSH UPDATE — production (EC2)
-  # First production-touching step. Connects to the EC2 host via
-  # SSH, updates VIGIA_API_IMAGE_TAG no .env, faz `docker compose
-  # pull` da imagem recém-publicada e sobe o serviço com
-  # `docker compose up -d`.
+  # 6. PORTAINER DEPLOY — production (EC2)
+  # Aciona o webhook do Portainer, que faz pull da imagem :latest
+  # recém-publicada e recria o container vigia-api automaticamente.
   #
-  # This job is intentionally isolated: it does NOT create the
-  # git tag, the GitHub Release or the GitHub Deployment audit
-  # entry. Those happen only after the SSH update succeeds, so
-  # that the release/deployment records never reference an image
-  # that failed to roll out.
+  # Não requer SSH nem credenciais da EC2 — apenas o webhook URL
+  # armazenado como secret no environment "production".
   #
-  # `environment: production` enables environment-scoped secrets
-  # and any protection rules configured for the environment.
+  # Este job é intencionalmente isolado: git tag, GitHub Release e
+  # Deployment audit só são criados após o deploy ter sido acionado
+  # com sucesso, garantindo que nenhum registro aponte para uma
+  # versão que não chegou a produção.
   # ═══════════════════════════════════════════════════════════════
-  ssh_update:
-    name: SSH update — production (EC2)
+  portainer_deploy:
+    name: Deploy — Portainer webhook
     needs: publish
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: "Checkout code"
-        uses: actions/checkout@v4
-
-      # Script lives in the repo so appleboy does not run it through Go format()
-      # (inline script breaks on bash braces like ${tag} / ${line#*=}).
-      - name: "Deploy via SSH"
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          VERSION: ${{ inputs.version }}
-        with:
-          host: ${{ secrets.EC2_SERVER_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          script_stop: true
-          envs: VERSION
-          script_path: .github/scripts/deploy-vigia-api-ec2.sh
+      - name: Trigger Portainer stack redeploy
+        run: |
+          set -euo pipefail
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}")
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
+            echo "Verifique se PORTAINER_WEBHOOK_URL está correto e o Portainer está acessível."
+            exit 1
+          fi
+          echo "✓ Portainer redeploy acionado — vigia-api v${{ inputs.version }} (HTTP ${HTTP_STATUS})."
 
 
   # ═══════════════════════════════════════════════════════════════
   # 7. RELEASE — git tag & GitHub Release
-  # Runs only after the SSH update succeeded, so the GitHub
+  # Runs only after the Portainer deploy succeeded, so the GitHub
   # Release always references a version that was effectively
   # rolled out to production.
   # ═══════════════════════════════════════════════════════════════
   release:
     name: Release — git tag & GitHub Release
-    needs: ssh_update
+    needs: portainer_deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -467,8 +450,8 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   deployment_audit:
     name: Deployment audit — register GitHub Deployment
-    needs: [ssh_update, release]
-    if: needs.ssh_update.result == 'success' && needs.release.result == 'success'
+    needs: [portainer_deploy, release]
+    if: needs.portainer_deploy.result == 'success' && needs.release.result == 'success'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

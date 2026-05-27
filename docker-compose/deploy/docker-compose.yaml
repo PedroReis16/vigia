@@ -8,13 +8,6 @@ services:
       - default.env
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"

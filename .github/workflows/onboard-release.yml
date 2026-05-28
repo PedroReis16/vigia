@@ -116,7 +116,7 @@ jobs:
             fall-detection/requirements-headless.txt \
             fall-detection/requirements-binary.txt \
             fall-detection/Makefile \
-            fall-detection/release/Dockerfile.linux-arm64-binary \
+            fall-detection/deploy/Dockerfile.linux-arm64-binary \
             fall-detection/src/app/__init__.py; do
             if [ ! -f "$f" ]; then
               MISSING="${MISSING}\n  ✗ $f"

@@ -16,10 +16,10 @@ on:
 
 # Principle of least privilege: only what each job strictly needs.
 permissions:
-  contents: write        # create tags and GitHub releases
+  contents: write # create tags and GitHub releases
   pull-requests: read
   security-events: write # upload Trivy SARIF to GitHub Security tab
-  deployments: write     # register GitHub Deployment entries for the production deploy audit trail
+  deployments: write # register GitHub Deployment entries for the production deploy audit trail
 
 # ─────────────────────────────────────────────────────────────────
 # Top-level constants — change service metadata here only.
@@ -40,7 +40,6 @@ env:
   GOVULNCHECK_VERSION: v1.1.4
 
 jobs:
-
   # ═══════════════════════════════════════════════════════════════
   # 1. VALIDATE
   # Pre-flight checks before any compute-intensive work runs.
@@ -54,7 +53,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for git ls-remote tag check
+          fetch-depth: 0 # needed for git ls-remote tag check
 
       # Enforce SemVer so image tags and releases are predictable.
       - name: Validate semantic version format
@@ -173,7 +172,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # gitleaks needs full history to detect historical leaks
+          fetch-depth: 0 # gitleaks needs full history to detect historical leaks
 
       # Scans the entire repo — secrets can appear in any file, not just Go code.
       - name: Secret scan (gitleaks)
@@ -373,17 +372,17 @@ jobs:
     environment: production
     steps:
       - name: Trigger Portainer stack redeploy
+        env:
+          WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}")
-          if [[ "$HTTP_STATUS" != "200" ]]; then
+          WEBHOOK_URL=$(echo "$WEBHOOK_URL" | tr -d '[:space:]')
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "204" ]]; then
             echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
-            echo "Verifique se PORTAINER_WEBHOOK_URL está correto e o Portainer está acessível."
             exit 1
           fi
           echo "✓ Portainer redeploy acionado — vigia-api v${{ inputs.version }} (HTTP ${HTTP_STATUS})."
-
 
   # ═══════════════════════════════════════════════════════════════
   # 7. RELEASE — git tag & GitHub Release

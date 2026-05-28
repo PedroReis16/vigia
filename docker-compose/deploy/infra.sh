@@ -20,6 +20,8 @@ log "Rede vigia-network pronta."
 log "Subindo Redis..."
 docker run -d \
   --name vigia-redis \
+  --hostname redis \
+  --network-alias redis \
   --restart unless-stopped \
   --network vigia-network \
   -p 6379:6379 \
@@ -30,6 +32,8 @@ log "Redis OK."
 log "Subindo Postgres..."
 docker run -d \
   --name vigia-postgres \
+  --hostname postgres \
+  --network-alias postgres \
   --restart unless-stopped \
   --network vigia-network \
   -p 5432:5432 \

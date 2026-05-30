@@ -471,13 +471,34 @@ jobs:
             -C dist ${{ env.ARTIFACT_NAME }}
           echo "✓ Artefato gerado: $(du -sh dist/${{ env.ARTIFACT_NAME }}.tar.gz | cut -f1)"
 
+      # Sanity check: garante que o tar.gz existe e é > 0 bytes ANTES do upload.
+      # Sem isso, um docker cp para um caminho inesperado dentro da imagem deixa
+      # `dist/` vazio, e o upload-artifact (default if-no-files-found: warn)
+      # marcaria o step como verde sem subir nada — fazendo o job `publish`
+      # falhar depois com "Artifact not found".
+      - name: Verify artifact exists before upload
+        working-directory: ${{ env.SERVICE_PATH }}
+        run: |
+          set -euo pipefail
+          ARTIFACT_PATH="dist/${{ env.ARTIFACT_NAME }}.tar.gz"
+          if [ ! -s "$ARTIFACT_PATH" ]; then
+            echo "::error::Artefato '$ARTIFACT_PATH' ausente ou vazio. Verifique se a imagem ARM64 expõe o binário em /${{ env.SERVICE_SLUG }}/."
+            ls -la dist/ || true
+            exit 1
+          fi
+          echo "✓ Artefato pronto para upload: $ARTIFACT_PATH ($(du -h "$ARTIFACT_PATH" | cut -f1))"
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
           path: ${{ env.SERVICE_PATH }}/dist/${{ env.ARTIFACT_NAME }}.tar.gz
-          # Short retention: artifact is only needed during this workflow run.
-          retention-days: 1
+          # Falha o step caso o path não exista, em vez do default `warn` que
+          # sobe um artefato vazio (ou nenhum) e quebra o `publish` depois.
+          if-no-files-found: error
+          # Retenção alinhada com o tempo máximo razoável que a aprovação do
+          # environment `production` pode levar até o job `publish` rodar.
+          retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 8. PUBLISH (DEPLOY) — envia o tar.gz ARM64 para a vigia-api
@@ -500,6 +521,22 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
           path: dist
+          # Em re-runs parciais, artefatos podem ficar atrelados à attempt em
+          # que foram criados. Fixar `run-id` aqui garante que estamos baixando
+          # o artefato gerado pelo `build` deste mesmo workflow run.
+          run-id: ${{ github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify downloaded artifact
+        run: |
+          set -euo pipefail
+          ARTIFACT_PATH="dist/${{ env.ARTIFACT_NAME }}.tar.gz"
+          if [ ! -s "$ARTIFACT_PATH" ]; then
+            echo "::error::Artefato '$ARTIFACT_PATH' não foi baixado ou está vazio."
+            ls -la dist/ || true
+            exit 1
+          fi
+          echo "✓ Artefato baixado: $ARTIFACT_PATH ($(du -h "$ARTIFACT_PATH" | cut -f1))"
 
       # Publica na vigia-api via multipart/form-data.
       # A API salva o arquivo no MinIO e registra a versão no banco.

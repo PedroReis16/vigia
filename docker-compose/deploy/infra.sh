@@ -51,9 +51,17 @@ docker run -d \
   --restart always \
   --network vigia-network \
   -p 9000:9000 \
-  -p 9001:9001 \
   -e MINIO_ROOT_USER=admin \
   -e MINIO_ROOT_PASSWORD=password123 \
+  -e MINIO_BROWSER_REDIRECT_URL=https://vigia-deteccoes.duckdns.org/bucket \
+  --label "traefik.enable=true" \
+  --label "traefik.http.routers.minio-console.rule=(Host(\`vigia-deteccoes.duckdns.org\`) || Host(\`www.vigia-deteccoes.duckdns.org\`)) && PathPrefix(\`/bucket\`)" \
+  --label "traefik.http.routers.minio-console.entrypoints=websecure" \
+  --label "traefik.http.routers.minio-console.tls=true" \
+  --label "traefik.http.routers.minio-console.tls.certresolver=letsencrypt" \
+  --label "traefik.http.routers.minio-console.middlewares=strip-bucket" \
+  --label "traefik.http.middlewares.strip-bucket.stripprefix.prefixes=/bucket" \
+  --label "traefik.http.services.minio-console.loadbalancer.server.port=9001" \
   -v "$BASE_DIR/minio_data":/data \
   quay.io/minio/minio:latest \
   server --console-address ":9001" /data

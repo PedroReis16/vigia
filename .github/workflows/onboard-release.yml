@@ -540,15 +540,80 @@ jobs:
 
       # Publica na vigia-api via multipart/form-data.
       # A API salva o arquivo no MinIO e registra a versão no banco.
+      # Sucesso esperado: HTTP 201 Created (ver VersionHandler.RegisterNewVigiaVersion).
       - name: Publicar versão na vigia-api
+        env:
+          VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
+          VERSION: ${{ inputs.version }}
+          ARTIFACT_PATH: dist/${{ env.ARTIFACT_NAME }}.tar.gz
         run: |
           set -euo pipefail
-          curl -sf --max-time 600 \
+
+          if [ -z "${VIGIA_API_BASE_URL}" ]; then
+            echo "::error::Secret VIGIA_API_BASE_URL não configurado."
+            echo "Defina em Settings → Environments → production → Environment secrets"
+            echo "(ou em Repository secrets) com a URL base da API, ex.: https://api.exemplo.com"
+            exit 1
+          fi
+
+          BASE_URL="${VIGIA_API_BASE_URL%/}"
+          if [[ ! "$BASE_URL" =~ ^https?:// ]]; then
+            echo "::error::VIGIA_API_BASE_URL inválida: deve começar com http:// ou https:// (sem barra no final)."
+            exit 1
+          fi
+
+          REGISTER_URL="${BASE_URL}/v1/devices/version/register"
+
+          if [ ! -s "${ARTIFACT_PATH}" ]; then
+            echo "::error::Artefato não encontrado ou vazio: ${ARTIFACT_PATH}"
+            exit 1
+          fi
+
+          echo "Enviando versão ${VERSION} para ${REGISTER_URL} ($(du -h "${ARTIFACT_PATH}" | cut -f1)) ..."
+
+          RESPONSE_FILE="$(mktemp)"
+          trap 'rm -f "${RESPONSE_FILE}"' EXIT
+
+          set +e
+          HTTP_CODE=$(curl -sS --max-time 600 \
+            -w '%{http_code}' \
+            -o "${RESPONSE_FILE}" \
             -X POST \
-            -F "version=${{ inputs.version }}" \
-            -F "file=@dist/${{ env.ARTIFACT_NAME }}.tar.gz;type=application/gzip" \
-            "${{ secrets.VIGIA_API_BASE_URL }}/v1/devices/version/register"
-          echo "✓ Versão ${{ inputs.version }} publicada na vigia-api."
+            -F "version=${VERSION}" \
+            -F "file=@${ARTIFACT_PATH};type=application/gzip" \
+            "${REGISTER_URL}")
+          CURL_EXIT=$?
+          set -e
+
+          if [ "${CURL_EXIT}" -ne 0 ]; then
+            case "${CURL_EXIT}" in
+              3)  MSG="URL inválida — VIGIA_API_BASE_URL ausente ou mal formatada." ;;
+              6)  MSG="Não foi possível resolver o host da vigia-api (${BASE_URL})." ;;
+              7)  MSG="Conexão recusada — vigia-api inacessível em ${BASE_URL}." ;;
+              28) MSG="Timeout (600s) ao enviar o artefato." ;;
+              *)  MSG="curl falhou com código ${CURL_EXIT}." ;;
+            esac
+            echo "::error::${MSG}"
+            if [ -s "${RESPONSE_FILE}" ]; then
+              echo "Corpo parcial da resposta:"
+              cat "${RESPONSE_FILE}"
+            fi
+            exit "${CURL_EXIT}"
+          fi
+
+          echo "HTTP ${HTTP_CODE}"
+          if [ -s "${RESPONSE_FILE}" ]; then
+            echo "Corpo da resposta:"
+            cat "${RESPONSE_FILE}"
+          fi
+
+          if [ "${HTTP_CODE}" -eq 201 ]; then
+            echo "✓ Versão ${VERSION} publicada na vigia-api."
+            exit 0
+          fi
+
+          echo "::error::Publicação falhou — esperado HTTP 201 Created, recebido HTTP ${HTTP_CODE}."
+          exit 1
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 9. RELEASE — git tag & GitHub Release

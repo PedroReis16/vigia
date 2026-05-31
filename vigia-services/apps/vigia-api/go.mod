@@ -1,6 +1,6 @@
 module github.com/PedroReis16/vigia/vigia-services/apps/vigia-api
 
-go 1.26.3
+go 1.26.2
 
 require (
 	github.com/PedroReis16/vigia/vigia-services/pkg/shared v0.0.0-20260509190812-57bd7de89177

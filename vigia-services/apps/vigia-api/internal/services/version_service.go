@@ -1,10 +1,8 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/dtos"
@@ -28,16 +26,15 @@ type versionStore interface {
 	RegisterVersion(newVersion *entities.Version) error
 }
 
-// bucketProvider uploads and generates download URLs (implemented by *BucketService).
-type bucketProvider interface {
+// presignedURLProvider generates download URLs (implemented by *BucketService).
+type presignedURLProvider interface {
 	GetVersionPreSignedUrl(version string) (*string, error)
-	UploadVersion(ctx context.Context, version string, reader io.Reader, size int64) error
 }
 
 type VersionService struct {
 	versionUrlRepositoryCache versionURLCache
 	versionRepository         versionStore
-	bucketService             bucketProvider
+	bucketService             presignedURLProvider
 }
 
 func NewVersionService(
@@ -52,16 +49,18 @@ func NewVersionService(
 	}
 }
 
-func (s *VersionService) RegisterNewVigiaVersion(ctx context.Context, version string, file io.Reader, size int64) error {
-	if err := s.bucketService.UploadVersion(ctx, version, file, size); err != nil {
-		return fmt.Errorf("upload version to bucket: %w", err)
-	}
+func (s *VersionService) RegisterNewVigiaVersion(newVersionDTO *dtos.NewVersionDTO) error {
 
 	newVersion := (&entities.Version{}).NewVersion()
-	newVersion.Version = version
+	newVersion.Version = newVersionDTO.Version
 	newVersion.IsLatest = true
 
-	return s.versionRepository.RegisterVersion(newVersion)
+	err := s.versionRepository.RegisterVersion(newVersion)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // FindForUpdates returns download metadata for the newest published version.
@@ -108,6 +107,8 @@ func semverCanonical(v string) string {
 }
 
 func (s *VersionService) GetVigiaVersion(version string) (*dtos.VersionDTO, error) {
+	// Retorna a URL de download da versão do Vigia
+
 	url, _ := s.versionUrlRepositoryCache.GetVersionUrl(version)
 
 	if url == nil {
@@ -117,6 +118,7 @@ func (s *VersionService) GetVigiaVersion(version string) (*dtos.VersionDTO, erro
 		}
 
 		url, err = s.bucketService.GetVersionPreSignedUrl(result.Version)
+
 		if err != nil {
 			return nil, err
 		}

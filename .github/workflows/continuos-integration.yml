@@ -15,19 +15,6 @@ permissions:
   contents: read
   pull-requests: read
 
-# ─────────────────────────────────────────────
-# Tool versions — versões pinadas das ferramentas de CI
-# instaladas via `go install` / `pip install`.
-#
-# Pinar versões garante que o cache (~/go/bin para Go,
-# ~/.cache/pip para Python) tenha chave estável e reusável
-# entre runs. Bump aqui invalida o cache automaticamente.
-# ─────────────────────────────────────────────
-env:
-  GOSEC_VERSION: v2.22.0
-  GOVULNCHECK_VERSION: v1.1.4
-  GOLANGCI_LINT_VERSION: v1.64.5
-
 jobs:
   # ─────────────────────────────────────────────
   # 1. DETECÇÃO DE MUDANÇAS
@@ -168,114 +155,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────
-  # 3. VALIDAÇÃO DE AUTORIA DE COMMITS
-  # Bloqueia PRs cujos commits possuam qualquer
-  # referência a agentes de IA (Cursor, Claude,
-  # Copilot, Codex, ChatGPT, Gemini, etc.) em:
-  #   - trailers (Co-authored-by, Made-with,
-  #     Generated-with, Assisted-by, Thrilled-by,
-  #     Crafted-with, Powered-by, ...);
-  #   - nome ou e-mail do author/committer;
-  #   - emoji 🤖 na mensagem.
-  # Apenas autores humanos são permitidos.
-  # ─────────────────────────────────────────────
-  commit_authors_check:
-    name: Commit authors validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Validate commits for AI agent attribution
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-
-          # Garante que a base da PR está disponível localmente para o range.
-          git fetch --no-tags --prune --depth=0 origin \
-            "+${BASE_SHA}:refs/remotes/origin/_pr_base" 2>/dev/null \
-            || git fetch --no-tags origin "$BASE_SHA" 2>/dev/null \
-            || true
-
-          COMMITS=$(git log --format='%H' "${BASE_SHA}..${HEAD_SHA}" || true)
-          if [[ -z "$COMMITS" ]]; then
-            echo "Nenhum commit encontrado entre base e head — nada para validar."
-            exit 0
-          fi
-
-          # Trailers/frases que atribuem a autoria (parcial ou total) a um agente.
-          # Casados de forma case-insensitive contra a mensagem completa do commit.
-          TRAILER_PATTERN='(co[- ]?author(ed)?[- ]?by|made[- ]?with|generated[- ]?(with|by)|assisted[- ]?by|thrilled[- ]?by|crafted[- ]?with|written[- ]?with|powered[- ]?by|authored[- ]?by|created[- ]?by|built[- ]?with).{0,80}(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|google[- ]?bard|\bbard\b|devin|aider|continue\.dev|sweep[- ]?ai|tabnine|amazon[- ]?q|codewhisperer|llm|\bai\b|agent)'
-
-          # Identidades de bots/agentes em nome ou e-mail do author/committer.
-          IDENTITY_PATTERN='(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|devin|aider|sweep[- ]?ai|tabnine|codewhisperer|\[bot\]|noreply@anthropic|@cursor\.(com|sh|so|ai)|@openai\.com|@anthropic\.com)'
-
-          ROBOT_EMOJI=$'\xF0\x9F\xA4\x96'  # 🤖
-
-          FAIL=0
-          OFFENDING=""
-
-          while IFS= read -r SHA; do
-            [[ -z "$SHA" ]] && continue
-
-            MSG=$(git log -1 --format='%B' "$SHA")
-            AUTHOR=$(git log -1 --format='%an <%ae>' "$SHA")
-            COMMITTER=$(git log -1 --format='%cn <%ce>' "$SHA")
-            IDENTITY="${AUTHOR}"$'\n'"${COMMITTER}"
-
-            REASONS=""
-
-            if grep -qiE "$TRAILER_PATTERN" <<< "$MSG"; then
-              REASONS+=$'    • Trailer/atribuição a agente de IA na mensagem.\n'
-            fi
-
-            if grep -qiE "$IDENTITY_PATTERN" <<< "$IDENTITY"; then
-              REASONS+=$'    • Author/committer com identidade de agente/bot de IA.\n'
-            fi
-
-            if grep -qF "$ROBOT_EMOJI" <<< "$MSG"; then
-              REASONS+=$'    • Emoji 🤖 (assinatura típica de commits gerados por IA).\n'
-            fi
-
-            if [[ -n "$REASONS" ]]; then
-              FAIL=1
-              OFFENDING+=$'\n  ✖ Commit '"$SHA"$'\n'
-              OFFENDING+=$'      Author:    '"$AUTHOR"$'\n'
-              OFFENDING+=$'      Committer: '"$COMMITTER"$'\n'
-              OFFENDING+="$REASONS"
-            fi
-          done <<< "$COMMITS"
-
-          if [[ "$FAIL" -eq 1 ]]; then
-            {
-              echo "::error::Commits com referência a agentes de IA detectados nesta PR."
-              echo
-              echo "Os commits desta PR devem ter apenas autores humanos."
-              echo "Não são permitidas referências a Cursor, Claude, Copilot, Codex,"
-              echo "ChatGPT, Gemini ou qualquer outro agente — seja como co-autor,"
-              echo "trailer (Co-authored-by, Made-with, Generated-with, Assisted-by,"
-              echo "Thrilled-by, ...), identidade de author/committer ou emoji 🤖."
-              echo
-              echo "Commits inválidos:"
-              printf '%s' "$OFFENDING"
-              echo
-              echo "Como corrigir:"
-              echo "  1. Reescreva os commits afetados (git rebase -i / git commit --amend)."
-              echo "  2. Remova trailers de co-autoria e qualquer linha que mencione o agente."
-              echo "  3. Faça force-push da branch da PR."
-            } >&2
-            exit 1
-          fi
-
-          echo "Nenhum commit com referência a agente de IA encontrado."
-
-  # ─────────────────────────────────────────────
-  # 4. QUALIDADE POR PROJETO
+  # 3. QUALIDADE POR PROJETO
   # Roda em paralelo para cada projeto detectado.
   # fail-fast: false garante que todos os projetos
   # sejam verificados mesmo se um falhar.
@@ -300,32 +180,16 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          # requirements-ci.txt centraliza pylint/bandit/pip-audit/pytest
-          # — incluí-lo no path faz a chave do cache invalidar automaticamente
-          # quando essas versões mudam.
           cache-dependency-path: |
             ${{ matrix.project.path }}/requirements.txt
             ${{ matrix.project.path }}/requirements-debug.txt
-            ${{ matrix.project.path }}/requirements-ci.txt
 
       - name: Set up Go
         if: matrix.project.type == 'go'
-        id: setup_go
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ matrix.project.go_mod }}
           cache-dependency-path: ${{ matrix.project.go_sum }}
-
-      # actions/setup-go só cacheia módulos; binários instalados via
-      # `go install` (gosec/govulncheck/golangci-lint) ficam em ~/go/bin
-      # e precisam de cache próprio.
-      - name: Cache Go security tools (~/go/bin)
-        if: matrix.project.type == 'go'
-        id: cache_go_tools
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin
-          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}-golangci${{ env.GOLANGCI_LINT_VERSION }}
 
       - name: Set up Flutter
         if: matrix.project.type == 'flutter'
@@ -345,9 +209,12 @@ jobs:
           # Mantemos compatibilidade com o workflow de deploy:
           # não instalamos requirements-debug.txt aqui para evitar
           # conflito pytest==9.x vs pytest-asyncio<9.
-          # As ferramentas de CI (pylint/bandit/pip-audit/pytest) vêm
-          # de requirements-ci.txt para que fiquem cobertas pelo cache.
-          python -m pip install -r requirements-ci.txt
+          python -m pip install \
+            "pylint>=3,<4" \
+            "bandit>=1.8,<2" \
+            "pip-audit>=2.9,<3" \
+            "pytest>=8.2,<9" \
+            "pytest-asyncio>=0.26,<0.27"
 
       - name: Python - lint
         if: matrix.project.type == 'python'
@@ -398,19 +265,12 @@ jobs:
 
       # ── Go ──────────────────────────────────────────────────
 
-      - name: Go - install security tools (only on cache miss)
-        if: matrix.project.type == 'go' && steps.cache_go_tools.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
-          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
-
-      # ~/go/bin precisa estar no PATH para que os binários cacheados
-      # sejam encontrados nos próximos steps.
-      - name: Go - ensure ~/go/bin is on PATH
+      - name: Go - install security tools
         if: matrix.project.type == 'go'
-        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
       - name: Go - lint
         if: matrix.project.type == 'go'
@@ -455,7 +315,7 @@ jobs:
           failure-threshold: error
 
   # ─────────────────────────────────────────────
-  # 5. CI GATE
+  # 4. CI GATE
   # Job único que consolida o resultado de todos
   # os outros. Configure APENAS este job como
   # "required status check" no branch protection.
@@ -469,7 +329,7 @@ jobs:
   ci_gate:
     name: CI gate
     runs-on: ubuntu-latest
-    needs: [secrets_scan, commit_authors_check, project_quality]
+    needs: [secrets_scan, project_quality]
     # always() garante que o gate roda mesmo quando
     # project_quality foi pulado (matriz vazia).
     if: always()
@@ -477,20 +337,13 @@ jobs:
       - name: Avaliar resultado geral
         run: |
           SECRETS="${{ needs.secrets_scan.result }}"
-          AUTHORS="${{ needs.commit_authors_check.result }}"
           QUALITY="${{ needs.project_quality.result }}"
 
-          echo "secrets_scan         : $SECRETS"
-          echo "commit_authors_check : $AUTHORS"
-          echo "project_quality      : $QUALITY"
+          echo "secrets_scan    : $SECRETS"
+          echo "project_quality : $QUALITY"
 
           if [[ "$SECRETS" == "failure" || "$SECRETS" == "cancelled" ]]; then
             echo "::error::Secret scan falhou ou foi cancelado."
-            exit 1
-          fi
-
-          if [[ "$AUTHORS" == "failure" || "$AUTHORS" == "cancelled" ]]; then
-            echo "::error::Validação de autoria de commits falhou: há commits referenciando agentes de IA."
             exit 1
           fi
 

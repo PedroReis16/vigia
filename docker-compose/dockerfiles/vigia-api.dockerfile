@@ -1,5 +1,5 @@
 # Build vigia-api from modular workspace (vigia-services/apps/vigia-api)
-FROM golang:1.26.3-alpine AS builder
+FROM golang:1.26.2-alpine AS builder
 
 WORKDIR /src/vigia-services
 
@@ -11,7 +11,7 @@ COPY vigia-services/apps/vigia-api/ ./apps/vigia-api/
 
 # 3) Build do binário da API
 WORKDIR /src/vigia-services/apps/vigia-api
-RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api ./cmd
+RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api .
 
 # Etapa de execução (imagem final)
 FROM alpine:3.22

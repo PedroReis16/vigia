@@ -3,6 +3,7 @@
 	test-api test-bootstrap test-internal \
 	build-api build-bootstrap \
 	build-linux-arm64-api build-linux-arm64-bootstrap \
+	swagger-api \
 	clean
 
 BIN_DIR := bin
@@ -24,6 +25,7 @@ help:
 	@echo "  test-api | test-bootstrap | test-internal | test-all"
 	@echo "  build-api | build-bootstrap | build-all"
 	@echo "  build-linux-arm64-api | build-linux-arm64-bootstrap"
+	@echo "  swagger-api"
 	@echo "  tidy | clean"
 
 tidy:
@@ -73,6 +75,15 @@ build-linux-arm64-api:
 build-linux-arm64-bootstrap:
 	@mkdir -p $(BIN_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o $(BIN_DIR)/vigia-bootstrap-linux-arm64 ./$(BOOTSTRAP_CMD)
+
+# Regenera os arquivos do swagger (docs/docs.go, docs/swagger.json e docs/swagger.yaml)
+# a partir das anotacoes nos handlers e em cmd/main.go
+swagger-api:
+	cd apps/vigia-api && go run github.com/swaggo/swag/cmd/swag@latest init \
+		-g cmd/main.go \
+		-o docs \
+		--parseDependency \
+		--parseInternal
 
 clean:
 	rm -rf $(BIN_DIR)

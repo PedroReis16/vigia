@@ -53,35 +53,6 @@ services:
     networks:
       - vigia-network
 
-  # ─── VIGIA ────────────────────────────────────────────────────────────────
-  vigia:
-    container_name: vigia
-    restart: always
-    build: 
-      context: ../
-      dockerfile: dockerfiles/vigia-api.dockerfile
-    env_file:
-      - default.env
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
-      - "traefik.http.routers.vigia.entrypoints=websecure"
-      - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vigia.loadbalancer.server.port=8000"
-      - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
-      - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
-    networks:
-      - vigia-network
-
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
     image: traefik:v3.6
@@ -95,6 +66,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./certificates:/certificates
     networks:
       - vigia-network
 
@@ -255,7 +228,7 @@ services:
     networks:
       - vigia-network
 
-#  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
+  #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
     image: bluenviron/mediamtx:latest
@@ -282,9 +255,31 @@ services:
     networks:
       - vigia-network
 
+  # ─── PORTAINER ───────────────────────────────────────────────────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer_data:/data
+    networks:
+      - vigia-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer-vigia.duckdns.org`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls=true"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
 volumes:
   mongo-historical-data:
   mongo-internal-data:
+  portainer_data:
 
 networks:
   vigia-network:

@@ -16,22 +16,30 @@ on:
 
 # Principle of least privilege: only what each job strictly needs.
 permissions:
-  contents: write        # create tags and GitHub releases
+  contents: write # create tags and GitHub releases
   pull-requests: read
   security-events: write # upload Trivy SARIF to GitHub Security tab
-  deployments: write     # register GitHub Deployment entries for the production deploy audit trail
+  deployments: write # register GitHub Deployment entries for the production deploy audit trail
 
 # ─────────────────────────────────────────────────────────────────
 # Top-level constants — change service metadata here only.
+#
+# Tool versions: as ferramentas de Go abaixo são instaladas via
+# `go install` durante a CI. Pinar versões garante:
+#   1. Cache de `~/go/bin` reaproveitável entre runs (chave estável).
+#   2. Comportamento reprodutível — nenhum bump silencioso traz
+#      regras novas de SAST que quebrem a pipeline.
+# Para atualizar, basta bumpar a versão aqui; o cache invalida sozinho.
 # ─────────────────────────────────────────────────────────────────
 env:
   SERVICE_PATH: vigia-services/apps/vigia-api
   DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
   TAG_PREFIX: vigia-api
+  GOSEC_VERSION: v2.22.0
+  GOVULNCHECK_VERSION: v1.1.4
 
 jobs:
-
   # ═══════════════════════════════════════════════════════════════
   # 1. VALIDATE
   # Pre-flight checks before any compute-intensive work runs.
@@ -45,7 +53,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # needed for git ls-remote tag check
+          fetch-depth: 0 # needed for git ls-remote tag check
 
       # Enforce SemVer so image tags and releases are predictable.
       - name: Validate semantic version format
@@ -164,7 +172,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # gitleaks needs full history to detect historical leaks
+          fetch-depth: 0 # gitleaks needs full history to detect historical leaks
 
       # Scans the entire repo — secrets can appear in any file, not just Go code.
       - name: Secret scan (gitleaks)
@@ -180,17 +188,37 @@ jobs:
           failure-threshold: error
 
       - name: Set up Go
+        id: setup_go
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ env.SERVICE_PATH }}/go.mod
           cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
 
-      - name: Install security tools
+      # Cache dos binários gosec/govulncheck.
+      # actions/setup-go cobre apenas os módulos do projeto; binários
+      # instalados via `go install` ficam em ~/go/bin e não entram naquele cache.
+      # Chave amarrada à versão real do Go + às versões fixadas das ferramentas.
+      - name: Cache Go security tools (~/go/bin)
+        id: cache_go_tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}
+
+      - name: Install security tools (only on cache miss)
+        if: steps.cache_go_tools.outputs.cache-hit != 'true'
         env:
           GOWORK: off
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          set -euo pipefail
+          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
+          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
+
+      # ~/go/bin precisa estar no PATH para que `gosec` e `govulncheck`
+      # funcionem nos steps seguintes — `actions/setup-go` não adiciona
+      # esse diretório automaticamente em cache hit.
+      - name: Ensure ~/go/bin is on PATH
+        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       # gosec: static analysis for common Go security issues (SQL injection, unsafe operations, etc.)
       - name: Go — SAST (gosec)
@@ -283,6 +311,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             VERSION=${{ inputs.version }}
 
@@ -313,141 +342,57 @@ jobs:
           format: table
           ignore-unfixed: true
 
-      # Push versioned tag and commit SHA tag.
-      # latest is only pushed from the master branch to prevent feature branches from
-      # accidentally overwriting the production-ready image.
+      # Publica as três tags: versão semântica, SHA do commit e latest.
+      # O Portainer sempre puxa :latest no webhook — todas precisam estar no registry.
       - name: Push Docker image
         run: |
           set -euo pipefail
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-
-          if [[ "${{ github.ref_name }}" == "refactor/project-release" ]]; then
-            docker tag \
-              "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}" \
-              "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-            docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-            echo "✓ latest atualizado para ${{ inputs.version }}"
-          else
-            echo "ℹ latest não atualizado (branch: ${{ github.ref_name }}, não é master)"
-          fi
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+          echo "✓ Imagens publicadas: ${{ inputs.version }}, ${{ github.sha }}, latest"
 
   # ═══════════════════════════════════════════════════════════════
-  # 6. SSH UPDATE — production (EC2)
-  # First production-touching step. Connects to the EC2 host via
-  # SSH, updates VIGIA_API_IMAGE_TAG, pulls the freshly published
-  # Docker image, restarts the service via docker compose, runs
-  # the HTTP health check and rolls back to the previous tag on
-  # failure.
+  # 6. PORTAINER DEPLOY — production (EC2)
+  # Aciona o webhook do Portainer, que faz pull da imagem :latest
+  # recém-publicada e recria o container vigia-api automaticamente.
   #
-  # This job is intentionally isolated: it does NOT create the
-  # git tag, the GitHub Release or the GitHub Deployment audit
-  # entry. Those happen only after the SSH update succeeds, so
-  # that the release/deployment records never reference an image
-  # that failed to roll out.
+  # Não requer SSH nem credenciais da EC2 — apenas o webhook URL
+  # armazenado como secret no environment "production".
   #
-  # `environment: production` enables environment-scoped secrets
-  # and any protection rules configured for the environment.
+  # Este job é intencionalmente isolado: git tag, GitHub Release e
+  # Deployment audit só são criados após o deploy ter sido acionado
+  # com sucesso, garantindo que nenhum registro aponte para uma
+  # versão que não chegou a produção.
   # ═══════════════════════════════════════════════════════════════
-  ssh_update:
-    name: SSH update — production (EC2)
+  portainer_deploy:
+    name: Deploy — Portainer webhook
     needs: publish
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_SERVER_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          script_stop: true
-          script: |
-            set -euo pipefail
-
-            SERVICE="vigia"
-            VERSION="${{ inputs.version }}"
-            DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH }}"
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}"
-            HEALTH_URL="http://localhost:8000/health"
-
-            echo "==> Deploy de vigia-api v$VERSION"
-            cd "$DEPLOY_PATH"
-
-            # ── Save the running version for rollback ───────────────────────
-            PREV_VERSION=$(grep "^VIGIA_API_IMAGE_TAG=" .env 2>/dev/null | cut -d= -f2 || echo "")
-            echo "==> Versão anterior: ${PREV_VERSION:-<não registrada>}"
-
-            # ── Update tag in .env ──────────────────────────────────────────
-            # docker-compose.yaml reads VIGIA_API_IMAGE_TAG to build the image tag.
-            if [ -f .env ] && grep -q "^VIGIA_API_IMAGE_TAG=" .env; then
-              sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$VERSION/" .env
-            else
-              echo "VIGIA_API_IMAGE_TAG=$VERSION" >> .env
-            fi
-            echo "==> VIGIA_API_IMAGE_TAG → $VERSION"
-
-            echo "==> Baixando imagem $IMAGE:$VERSION ..."
-            docker pull "$IMAGE:$VERSION"
-
-            echo "==> Reiniciando serviço '$SERVICE' ..."
-            docker compose up -d --remove-orphans "$SERVICE"
-
-            # ── HTTP health check ───────────────────────────────────────────
-            echo "==> Aguardando serviço responder em $HEALTH_URL ..."
-            HEALTHY=false
-            for i in $(seq 1 12); do
-              if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
-                HEALTHY=true
-                echo "✓ Serviço respondeu após $((i * 5))s."
-                break
-              fi
-              echo "  tentativa $i/12 — aguardando 5s ..."
-              sleep 5
-            done
-
-            if [ "$HEALTHY" = "false" ]; then
-              echo "::error::Serviço não respondeu em 60s. Iniciando rollback ..."
-              docker compose logs --tail=100 "$SERVICE" || true
-
-              # ── Rollback ──────────────────────────────────────────────────
-              if [ -n "$PREV_VERSION" ]; then
-                echo "==> Revertendo para $PREV_VERSION ..."
-                sed -i "s/^VIGIA_API_IMAGE_TAG=.*/VIGIA_API_IMAGE_TAG=$PREV_VERSION/" .env
-                docker compose up -d --remove-orphans "$SERVICE"
-
-                for i in $(seq 1 6); do
-                  if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
-                    echo "✓ Rollback concluído — serviço estável em v$PREV_VERSION."
-                    break
-                  fi
-                  sleep 5
-                done
-                echo "::warning::Rollback executado para v$PREV_VERSION. Verifique os logs acima."
-              else
-                echo "::warning::Sem versão anterior registrada — rollback não executado."
-              fi
-
-              exit 1
-            fi
-
-            echo "==> Removendo imagens antigas de vigia-api ..."
-            docker images "$IMAGE" --format "{{.Tag}}" \
-              | grep -v "^$VERSION$" \
-              | grep -v "^latest$" \
-              | xargs -r -I{} docker rmi "$IMAGE:{}" 2>/dev/null || true
-
-            echo "==> Deploy de vigia-api v$VERSION concluído com sucesso."
+      - name: Trigger Portainer stack redeploy
+        env:
+          WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          WEBHOOK_URL=$(echo "$WEBHOOK_URL" | tr -d '[:space:]')
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "204" ]]; then
+            echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
+            exit 1
+          fi
+          echo "✓ Portainer redeploy acionado — vigia-api v${{ inputs.version }} (HTTP ${HTTP_STATUS})."
 
   # ═══════════════════════════════════════════════════════════════
   # 7. RELEASE — git tag & GitHub Release
-  # Runs only after the SSH update succeeded, so the GitHub
+  # Runs only after the Portainer deploy succeeded, so the GitHub
   # Release always references a version that was effectively
   # rolled out to production.
   # ═══════════════════════════════════════════════════════════════
   release:
     name: Release — git tag & GitHub Release
-    needs: ssh_update
+    needs: portainer_deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -499,44 +444,50 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════
   # 8. DEPLOYMENT AUDIT — register GitHub Deployment entry
-  # Post-hoc audit step. Records the production rollout on the
-  # GitHub Deployments API so it shows up under the repository's
-  # Environments → production tab.
-  #
-  # Runs after `release` succeeded — at this point the image is
-  # already live (ssh_update) and the GitHub Release exists, so
-  # this job only writes the audit entry.
-  #
-  # Uses `if: always()` plus a check on `ssh_update.result` so the
-  # entry is also written when either ssh_update or release fail,
-  # preserving the failure trail under Environments → production.
+  # Runs only when ssh_update and release both succeeded — same
+  # policy as git tag / GitHub Release: no audit record on failure.
   # ═══════════════════════════════════════════════════════════════
   deployment_audit:
     name: Deployment audit — register GitHub Deployment
-    needs: [ssh_update, release]
-    if: always() && needs.ssh_update.result != 'skipped'
+    needs: [portainer_deploy, release]
+    if: needs.portainer_deploy.result == 'success' && needs.release.result == 'success'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      # `gh api` com `-F required_contexts='[]'` envia o valor como string `"[]"`,
+      # o que faz o GitHub responder HTTP 422 ("not an array or null").
+      # A API exige um array JSON real, então montamos o payload com `jq -n` e
+      # mandamos via `--input -`. `required_contexts: []` desabilita os status
+      # checks como pré-requisito (já cobrimos isso nos jobs anteriores).
       - name: Create GitHub Deployment record
         id: create_deployment
+        shell: bash
         run: |
           set -euo pipefail
-          DEPLOYMENT_ID=$(gh api \
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-api v${{ inputs.version }}" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: []
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments" \
-            -f ref="${{ github.ref }}" \
-            -f environment="production" \
-            -f description="Deploy vigia-api v${{ inputs.version }}" \
-            -F auto_merge=false \
-            -F required_contexts='[]' \
+            --input - \
             --jq '.id')
+
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
 
       - name: Mark deployment as success
-        if: needs.ssh_update.result == 'success' && needs.release.result == 'success'
         env:
           DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
         run: |
@@ -545,15 +496,3 @@ jobs:
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
             -f description="vigia-api v${{ inputs.version }} em produção"
-
-      - name: Mark deployment as failure
-        if: needs.ssh_update.result != 'success' || needs.release.result != 'success'
-        env:
-          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
-        run: |
-          REASON="ssh_update=${{ needs.ssh_update.result }}, release=${{ needs.release.result }}"
-          gh api \
-            --method POST \
-            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
-            -f state="failure" \
-            -f description="Deploy vigia-api v${{ inputs.version }} falhou — $REASON"

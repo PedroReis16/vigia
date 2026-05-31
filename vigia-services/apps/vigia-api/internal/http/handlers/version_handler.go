@@ -27,6 +27,18 @@ func NewVersionHandler(service VersionHandlerService) *VersionHandler {
 	return &VersionHandler{service: service}
 }
 
+// RegisterNewVigiaVersion godoc
+// @Summary      Registrar nova versão do Vigia
+// @Description  Faz upload de um bundle do agente fall-detection e registra uma nova versão no catálogo.
+// @Tags         versions
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        version  formData  string  true  "Identificador semântico da versão (ex.: 1.2.3)"
+// @Param        file     formData  file    true  "Bundle compactado da versão"
+// @Success      201  {object}  MessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /v1/devices/version/register [post]
 func (h *VersionHandler) RegisterNewVigiaVersion(c *gin.Context) {
 	version := c.PostForm("version")
 	if version == "" {
@@ -62,6 +74,16 @@ func (h *VersionHandler) RegisterNewVigiaVersion(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Versão registrada com sucesso"})
 }
 
+// FindForUpdates godoc
+// @Summary      Buscar atualização disponível
+// @Description  Retorna metadados da versão mais recente publicada. Quando `currentVersion` é informada via query, responde 204 caso o dispositivo já esteja na versão mais recente.
+// @Tags         versions
+// @Produce      json
+// @Param        currentVersion  query     string  false  "Versão atualmente instalada no dispositivo (semver)"
+// @Success      200  {object}  dtos.VersionDTO
+// @Success      204  "Dispositivo já está na versão mais recente"
+// @Failure      500  {object}  ErrorResponse
+// @Router       /v1/devices/version/find-for-updates [get]
 func (h *VersionHandler) FindForUpdates(c *gin.Context) {
 	currentVersion := c.Query("currentVersion")
 	dto, err := h.service.FindForUpdates(currentVersion)
@@ -84,6 +106,16 @@ func (h *VersionHandler) FindForUpdates(c *gin.Context) {
 	c.JSON(http.StatusOK, dto)
 }
 
+// GetVigiaVersion godoc
+// @Summary      Obter metadados de uma versão
+// @Description  Retorna a URL de download pré-assinada para a versão informada.
+// @Tags         versions
+// @Produce      json
+// @Param        version  path      string  true  "Versão alvo (semver)"
+// @Success      200  {object}  dtos.VersionDTO
+// @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /v1/devices/version/{version}/download [get]
 func (h *VersionHandler) GetVigiaVersion(c *gin.Context) {
 	versionParam := c.Param("version")
 	version, err := h.service.GetVigiaVersion(versionParam)

@@ -29,10 +29,17 @@ func (s *BucketService) newS3Client(ctx context.Context) (*s3.Client, error) {
 		s.credentials.SecretAccessKey,
 		s.credentials.SessionToken,
 	)
+	// MinIO (e outros S3-compatible) costuma rejeitar os checksum trailers que o
+	// SDK Go v2 passou a enviar por padrão a partir de jan/2025 (RequestChecksum=
+	// WhenSupported), fechando a conexão TCP durante o upload (connection reset).
+	// Como o transporte já é assinado (SigV4) e idealmente sobre TLS, desabilitar
+	// o checksum automático é seguro e mantém a compatibilidade com S3 real.
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
 		config.WithRegion(s.credentials.Region),
 		config.WithCredentialsProvider(cred),
+		config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired),
+		config.WithResponseChecksumValidation(aws.ResponseChecksumValidationWhenRequired),
 	)
 	if err != nil {
 		return nil, err

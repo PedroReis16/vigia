@@ -2,8 +2,10 @@ package handlers_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,7 +24,7 @@ type stubVersionService struct {
 	findErr error
 }
 
-func (s *stubVersionService) RegisterNewVigiaVersion(*dtos.NewVersionDTO) error {
+func (s *stubVersionService) RegisterNewVigiaVersion(_ context.Context, _ string, _ io.Reader, _ int64) error {
 	return s.registerErr
 }
 
@@ -34,13 +36,50 @@ func (s *stubVersionService) GetVigiaVersion(string) (*dtos.VersionDTO, error) {
 	return s.getDTO, s.getErr
 }
 
-func TestVersionHandler_RegisterNewVigiaVersion_badJSON(t *testing.T) {
+// buildMultipart creates a multipart/form-data body with an optional file field.
+func buildMultipart(t *testing.T, version string, addFile bool) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	if version != "" {
+		_ = w.WriteField("version", version)
+	}
+	if addFile {
+		fw, err := w.CreateFormFile("file", "vigia-fall-detection-linux-arm64.tar.gz")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = fw.Write([]byte("fake binary content"))
+	}
+	w.Close()
+	return &buf, w.FormDataContentType()
+}
+
+func TestVersionHandler_RegisterNewVigiaVersion_missingVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := handlers.NewVersionHandler(&stubVersionService{})
 
+	buf, ct := buildMultipart(t, "", true)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{`)))
+	c.Request = httptest.NewRequest(http.MethodPost, "/", buf)
+	c.Request.Header.Set("Content-Type", ct)
+
+	h.RegisterNewVigiaVersion(c)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status %d", w.Code)
+	}
+}
+
+func TestVersionHandler_RegisterNewVigiaVersion_missingFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := handlers.NewVersionHandler(&stubVersionService{})
+
+	buf, ct := buildMultipart(t, "1.0.0", false)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", buf)
+	c.Request.Header.Set("Content-Type", ct)
 
 	h.RegisterNewVigiaVersion(c)
 	if w.Code != http.StatusBadRequest {
@@ -52,13 +91,11 @@ func TestVersionHandler_RegisterNewVigiaVersion_created(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := handlers.NewVersionHandler(&stubVersionService{})
 
-	body := map[string]string{"version": "1.0.0"}
-	buf, _ := json.Marshal(body)
-
+	buf, ct := buildMultipart(t, "1.0.0", true)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(buf))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request = httptest.NewRequest(http.MethodPost, "/", buf)
+	c.Request.Header.Set("Content-Type", ct)
 
 	h.RegisterNewVigiaVersion(c)
 	if w.Code != http.StatusCreated {
@@ -70,11 +107,11 @@ func TestVersionHandler_RegisterNewVigiaVersion_serviceError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := handlers.NewVersionHandler(&stubVersionService{registerErr: errors.New("fail")})
 
-	buf, _ := json.Marshal(map[string]string{"version": "1.0.0"})
+	buf, ct := buildMultipart(t, "1.0.0", true)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(buf))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request = httptest.NewRequest(http.MethodPost, "/", buf)
+	c.Request.Header.Set("Content-Type", ct)
 
 	h.RegisterNewVigiaVersion(c)
 	if w.Code != http.StatusInternalServerError {

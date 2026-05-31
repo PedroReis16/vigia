@@ -1,40 +1,5 @@
 name: Vigia Fall Detection — Onboard Release
 
-# ─────────────────────────────────────────────────────────────────────────────
-# VISÃO GERAL
-#
-# Pipeline única do projeto vigia-fall-detection. Cobre todo o ciclo de release
-# seguindo o mesmo padrão da pipeline `service-release.yml`:
-#
-#   validate
-#       ↓
-#   ┌───┴──────────────────────────────┐
-#   security  quality  test_unit  test_integration
-#       ↓ todos devem passar
-#   build               ← compilação ARM64 (Docker buildx) + empacota tar.gz
-#       ↓
-#   publish             ← "deploy" efetivo: envia o artefato para a vigia-api
-#                         (production environment). A partir daqui os Raspberry Pi
-#                         puxam a nova versão sozinhos via vigia-bootstrap.
-#       ↓ só se publish tiver sucesso
-#   release             ← cria tag Git + GitHub Release com release notes
-#       ↓ só se release tiver sucesso
-#   deployment_audit    ← registra GitHub Deployment como audit trail
-#
-# Princípio: nenhuma tag/release/Deployment record é criado antes do artefato
-# estar efetivamente publicado na vigia-api. Isso garante que cada release no
-# GitHub corresponde a uma versão que chegou à produção.
-#
-# NOTAS:
-#   - O job build roda em runner ARM64 nativo (ubuntu-24.04-arm). QEMU é mantido
-#     como redundância em caso de fallback para x86.
-#   - DAST: não aplicável — a aplicação é um binário embarcado sem interface HTTP
-#     exposta durante a CI. Testes de campo manuais devem ser feitos na Raspberry Pi 5.
-#   - Hardware tests: estrutura preparada como job comentado (self-hosted ARM).
-#     Não bloqueia a pipeline até um runner ser configurado.
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Impede dois releases simultâneos para a mesma versão.
 concurrency:
   group: release-vigia-fall-detection-${{ inputs.version }}
   cancel-in-progress: false
@@ -49,15 +14,11 @@ on:
         required: true
         type: string
 
-# Principle of least privilege: only what each job strictly needs.
 permissions:
-  contents: write        # create tags and GitHub releases
-  security-events: write # upload SAST/secrets findings to the GitHub Security tab
-  deployments: write     # register GitHub Deployment entries for the production audit trail
+  contents: write        
+  security-events: write 
+  deployments: write     
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Variáveis compartilhadas entre jobs
-# ─────────────────────────────────────────────────────────────────────────────
 env:
   SERVICE_PATH: fall-detection
   SERVICE_SLUG: vigia-fall-detection
@@ -70,9 +31,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 1. VALIDATE
-  #    Validações leves que não requerem instalação de dependências.
-  #    Executa primeiro para falhar rapidamente e poupar recursos.
-  #    Todos os jobs pesados dependem deste via `needs: validate`.
   # ═══════════════════════════════════════════════════════════════════════════
   validate:
     name: Validate — version, branch, files, changelog, tag
@@ -173,9 +131,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 2. SECURITY
-  #    Secrets scan + auditoria de dependências vulneráveis.
-  #    Scopo: somente fall-detection (pip-audit via requirements file, não global).
-  #    Runner: ubuntu-latest (x86_64) — não precisa de ARM para análise estática.
   # ═══════════════════════════════════════════════════════════════════════════
   security:
     name: Security — secrets scan & dependency audit
@@ -198,8 +153,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          # Inclui requirements-ci.txt para que o pip cache cubra também
-          # as ferramentas de CI (pip-audit, pylint, bandit, pytest).
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
@@ -212,8 +165,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-ci.txt
 
-      # Auditoria via requirements file — não precisa instalar torch/ultralytics.
-      # Isso limita a auditoria às dependências declaradas do fall-detection.
       - name: Dependency vulnerability audit (pip-audit — fall-detection only)
         working-directory: fall-detection
         run: |
@@ -224,8 +175,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 3. QUALITY
-  #    Lint (pylint) + SAST (bandit) escopados ao fall-detection/src/app.
-  #    Runner: ubuntu-latest (x86_64).
   # ═══════════════════════════════════════════════════════════════════════════
   quality:
     name: Quality — lint (pylint) & SAST (bandit)
@@ -246,8 +195,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          # Inclui requirements-ci.txt para que pylint/bandit fiquem cacheados
-          # junto das deps de runtime.
           cache-dependency-path: |
             fall-detection/requirements-common.txt
             fall-detection/requirements-headless.txt
@@ -283,9 +230,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 4. TEST — UNIT
-  #    Testes sem dependências externas (usam mocks).
-  #    Separados dos testes de integração via marker: `not integration`.
-  #    Runner: ubuntu-latest (x86_64).
   # ═══════════════════════════════════════════════════════════════════════════
   test_unit:
     name: Tests — unit (pytest -m "not integration")
@@ -333,9 +277,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 5. TEST — INTEGRATION
-  #    Testes marcados com @pytest.mark.integration.
-  #    Usam aiohttp TestServer como fake FIWARE — sem dependência de hardware real.
-  #    Runner: ubuntu-latest (x86_64).
   # ═══════════════════════════════════════════════════════════════════════════
   test_integration:
     name: Tests — integration (fake FIWARE, pytest -m integration)
@@ -382,46 +323,7 @@ jobs:
         run: python -m pytest -q -m integration --tb=short
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 6. TEST — HARDWARE (OPCIONAL / NÃO BLOQUEANTE)
-  #    Executa smoke tests no binário real em Raspberry Pi 5.
-  #    Requer runner self-hosted configurado com as labels abaixo.
-  #    Descomente quando o runner estiver disponível.
-  #
-  #    Labels esperadas no runner:
-  #      [self-hosted, linux, arm64, raspberry-pi]
-  #
-  #    TODO: implementar testes de hardware em fall-detection/tests/hardware/
-  #          Sugestão de escopo:
-  #            - smoke: binário inicia sem erro
-  #            - camera: câmera é detectada pelo sistema operacional
-  #            - model: modelo ONNX carrega corretamente
-  # ═══════════════════════════════════════════════════════════════════════════
-  # test_hardware:
-  #   name: Tests — hardware (Raspberry Pi 5, self-hosted ARM64)
-  #   needs: validate
-  #   runs-on: [self-hosted, linux, arm64, raspberry-pi]
-  #   continue-on-error: true   # não bloqueia o release enquanto runner não estiver pronto
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Run hardware smoke tests
-  #       working-directory: fall-detection
-  #       run: |
-  #         # TODO: implementar fall-detection/tests/hardware/smoke_tests.sh
-  #         echo "::warning::Hardware tests não implementados ainda."
-  #         echo "Consulte fall-detection/docs/CI-PIPELINE.md para orientações."
-
-  # ═══════════════════════════════════════════════════════════════════════════
   # 7. BUILD — Linux ARM64 binary
-  #    Compila o binário para Linux ARM64 via Docker buildx (runner ARM nativo),
-  #    extrai o bundle onedir e empacota em tar.gz. O artefato é então
-  #    disponibilizado via actions/upload-artifact para o job seguinte.
-  #
-  #    Roda somente quando TODOS os gates anteriores passam (validate,
-  #    security, quality, test_unit, test_integration). Se este job falhar,
-  #    nenhuma publicação na vigia-api é feita — e portanto nenhuma tag/
-  #    release é criada.
   # ═══════════════════════════════════════════════════════════════════════════
   build:
     name: Build — Linux ARM64 binary (Docker buildx)
@@ -454,10 +356,7 @@ jobs:
             --tag ${{ env.SERVICE_SLUG }}:linux-arm64 \
             --load \
             .
-
-      # Extrai o bundle onedir do container e empacota como tar.gz,
-      # mantendo a estrutura esperada pelo vigia-bootstrap:
-      #   vigia-fall-detection-linux-arm64/vigia-fall-detection
+            
       - name: Extrair artefato e empacotar tar.gz
         working-directory: ${{ env.SERVICE_PATH }}
         run: |
@@ -471,11 +370,6 @@ jobs:
             -C dist ${{ env.ARTIFACT_NAME }}
           echo "✓ Artefato gerado: $(du -sh dist/${{ env.ARTIFACT_NAME }}.tar.gz | cut -f1)"
 
-      # Sanity check: garante que o tar.gz existe e é > 0 bytes ANTES do upload.
-      # Sem isso, um docker cp para um caminho inesperado dentro da imagem deixa
-      # `dist/` vazio, e o upload-artifact (default if-no-files-found: warn)
-      # marcaria o step como verde sem subir nada — fazendo o job `publish`
-      # falhar depois com "Artifact not found".
       - name: Verify artifact exists before upload
         working-directory: ${{ env.SERVICE_PATH }}
         run: |
@@ -493,22 +387,11 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
           path: ${{ env.SERVICE_PATH }}/dist/${{ env.ARTIFACT_NAME }}.tar.gz
-          # Falha o step caso o path não exista, em vez do default `warn` que
-          # sobe um artefato vazio (ou nenhum) e quebra o `publish` depois.
           if-no-files-found: error
-          # Retenção alinhada com o tempo máximo razoável que a aprovação do
-          # environment `production` pode levar até o job `publish` rodar.
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 8. PUBLISH (DEPLOY) — envia o tar.gz ARM64 para a vigia-api
-  #    Este é o "deploy" efetivo do fall-detection: a vigia-api persiste o
-  #    artefato no MinIO e registra a versão no banco. A partir daí, o
-  #    vigia-bootstrap nas Raspberry Pi 5 detecta a nova versão via
-  #    /v1/devices/version/find-for-updates e baixa o artefato (OTA-like).
-  #
-  #    Isolado em um job de "production environment" para que falhas no
-  #    upload bloqueiem a criação da tag/release/Deployment audit.
   # ═══════════════════════════════════════════════════════════════════════════
   publish:
     name: Publish — upload artifact to vigia-api
@@ -521,9 +404,6 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
           path: dist
-          # Em re-runs parciais, artefatos podem ficar atrelados à attempt em
-          # que foram criados. Fixar `run-id` aqui garante que estamos baixando
-          # o artefato gerado pelo `build` deste mesmo workflow run.
           run-id: ${{ github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -538,9 +418,6 @@ jobs:
           fi
           echo "✓ Artefato baixado: $ARTIFACT_PATH ($(du -h "$ARTIFACT_PATH" | cut -f1))"
 
-      # Publica na vigia-api via multipart/form-data.
-      # A API salva o arquivo no MinIO e registra a versão no banco.
-      # Sucesso esperado: HTTP 201 Created (ver VersionHandler.RegisterNewVigiaVersion).
       - name: Publicar versão na vigia-api
         env:
           VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
@@ -617,9 +494,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 9. RELEASE — git tag & GitHub Release
-  #    Executado SOMENTE após o publish ter concluído com sucesso — isto é,
-  #    o tar.gz ARM64 já está disponível na vigia-api. Garante que nenhuma
-  #    tag/release órfã seja criada sem artefato correspondente publicado.
   # ═══════════════════════════════════════════════════════════════════════════
   release:
     name: Release — create tag & GitHub Release
@@ -645,8 +519,6 @@ jobs:
           git push origin "$TAG_NAME"
           echo "✓ Tag '$TAG_NAME' criada e publicada."
 
-      # Extract only the section for this version from CHANGELOG.
-      # awk stops reading when it hits the next version header.
       - name: Extract release notes from CHANGELOG
         env:
           VERSION: ${{ inputs.version }}
@@ -680,9 +552,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 10. DEPLOYMENT AUDIT — register GitHub Deployment entry
-  #     Runs only when publish and release both succeeded — mesma política do
-  #     service-release.yml: nenhum registro de Deployment é criado se a
-  #     publicação/tag não tiver ocorrido com sucesso.
   # ═══════════════════════════════════════════════════════════════════════════
   deployment_audit:
     name: Deployment audit — register GitHub Deployment
@@ -692,11 +561,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      # `gh api` com `-F required_contexts='[]'` envia o valor como string `"[]"`,
-      # o que faz o GitHub responder HTTP 422 ("not an array or null").
-      # A API exige um array JSON real, então montamos o payload com `jq -n` e
-      # mandamos via `--input -`. `required_contexts: []` desabilita os status
-      # checks como pré-requisito (já cobrimos isso nos jobs anteriores).
       - name: Create GitHub Deployment record
         id: create_deployment
         shell: bash

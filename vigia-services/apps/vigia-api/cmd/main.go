@@ -42,10 +42,13 @@ func main() {
 			cache.NewVersionUrlRepositoryCache,
 		),
 		fx.Provide(
-			// Services 
+			// Services
 			services.NewBucketService,
 			services.NewDeviceService,
-			services.NewVersionService,
+			fx.Annotate(
+				services.NewVersionService,
+				fx.As(new(handlers.VersionHandlerService)),
+			),
 		),
 		fx.Provide(
 			// Handlers

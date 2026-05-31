@@ -13,7 +13,5 @@ func GetAwsSettings() *models.CloudSettings {
 		AccessKeyID:     os.Getenv("S3_VIGIA_ACCESS_KEY_ID"),
 		SecretAccessKey: os.Getenv("S3_VIGIA_SECRET_ACCESS_KEY"),
 		SessionToken:    os.Getenv("S3_VIGIA_SESSION_TOKEN"),
-		Endpoint:        os.Getenv("S3_VIGIA_ENDPOINT"),
-		UsePathStyle:    os.Getenv("S3_VIGIA_PATH_STYLE") == "true",
 	}
 }

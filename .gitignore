@@ -271,5 +271,3 @@ app.*.map.json
 /android/app/release
 
 vigia-services/apps/vigia-api/cmd/__debug_bin*
-docker-compose/**/certificates
-docker-compose/**/minio_data

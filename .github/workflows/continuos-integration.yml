@@ -15,14 +15,6 @@ permissions:
   contents: read
   pull-requests: read
 
-# ─────────────────────────────────────────────
-# Tool versions — versões pinadas das ferramentas de CI
-# instaladas via `go install` / `pip install`.
-#
-# Pinar versões garante que o cache (~/go/bin para Go,
-# ~/.cache/pip para Python) tenha chave estável e reusável
-# entre runs. Bump aqui invalida o cache automaticamente.
-# ─────────────────────────────────────────────
 env:
   GOSEC_VERSION: v2.22.0
   GOVULNCHECK_VERSION: v1.1.4
@@ -40,23 +32,15 @@ jobs:
     outputs:
       projects_matrix: ${{ steps.compute_matrix.outputs.projects_matrix }}
     steps:
-      # shallow clone (fetch-depth: 1) impede o merge-base da PR; o paths-filter
-      # então considera *todos* os arquivos como novos e aciona todos os filtros.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Sem `token`, o paths-filter em pull_request usa git em vez da API; o diff local
-      # costuma divergir do conjunto real de ficheiros da PR e pode marcar todos os filtros.
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@v3
         with:
           token: ${{ github.token }}
-          # "every": um ficheiro só conta se corresponder a *todos* os padrões do filtro
-          # (ex.: path do projeto E não-*.md). "some" com '!' em linhas separadas trata
-          # cada '!' como OR e dispara falsos positivos no repositório inteiro.
-          # O quantificador é global: dockerfiles e ficheiros comuns ficam em filtros à parte.
           predicate-quantifier: every
           filters: |
             fall_detection_src:
@@ -171,13 +155,7 @@ jobs:
   # 3. VALIDAÇÃO DE AUTORIA DE COMMITS
   # Bloqueia PRs cujos commits possuam qualquer
   # referência a agentes de IA (Cursor, Claude,
-  # Copilot, Codex, ChatGPT, Gemini, etc.) em:
-  #   - trailers (Co-authored-by, Made-with,
-  #     Generated-with, Assisted-by, Thrilled-by,
-  #     Crafted-with, Powered-by, ...);
-  #   - nome ou e-mail do author/committer;
-  #   - emoji 🤖 na mensagem.
-  # Apenas autores humanos são permitidos.
+  # Copilot, Codex, ChatGPT, Gemini, etc.) 
   # ─────────────────────────────────────────────
   commit_authors_check:
     name: Commit authors validation
@@ -300,9 +278,6 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          # requirements-ci.txt centraliza pylint/bandit/pip-audit/pytest
-          # — incluí-lo no path faz a chave do cache invalidar automaticamente
-          # quando essas versões mudam.
           cache-dependency-path: |
             ${{ matrix.project.path }}/requirements.txt
             ${{ matrix.project.path }}/requirements-debug.txt
@@ -363,10 +338,6 @@ jobs:
       - name: Python - dependency vulnerabilities
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
-        # Temporarily ignored vulnerabilities:
-        # - CVE-2026-3219 (pip): no fixed version available in index yet.
-        # - CVE-2025-71176 (pytest): fixed in pytest 9, but current async test stack
-        #   depends on pytest-asyncio which constrains pytest<9.
         run: python -m pip_audit --strict --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2025-71176
 
       - name: Python - tests
@@ -459,19 +430,11 @@ jobs:
   # Job único que consolida o resultado de todos
   # os outros. Configure APENAS este job como
   # "required status check" no branch protection.
-  #
-  # Por que um gate separado?
-  # O GitHub trata jobs pulados (skipped) como
-  # aprovados em required checks — sem o gate,
-  # uma PR que não altera nenhum projeto mapeado
-  # passa o CI sem nenhuma validação real.
   # ─────────────────────────────────────────────
   ci_gate:
     name: CI gate
     runs-on: ubuntu-latest
     needs: [secrets_scan, commit_authors_check, project_quality]
-    # always() garante que o gate roda mesmo quando
-    # project_quality foi pulado (matriz vazia).
     if: always()
     steps:
       - name: Avaliar resultado geral

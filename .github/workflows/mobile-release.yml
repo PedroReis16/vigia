@@ -1,18 +1,5 @@
 name: Vigia UI — Mobile Release
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Pipeline única do projeto vigia-ui.
-#
-# Cobre todo o ciclo de release:
-#   1. Validações estáticas e de configuração (preflight + jobs paralelos)
-#   2. Build do APK assinado (build_apk)
-#   3. Publicação da GitHub Release com o APK anexado e registro de Deployment
-#      no GitHub para audit trail (release_and_deploy)
-#
-# Não existe um workflow separado de deploy — o APK fica disponível
-# diretamente como asset da GitHub Release criada por este pipeline.
-# ─────────────────────────────────────────────────────────────────────────────
-
 concurrency:
   group: release-vigia-ui-${{ inputs.version }}
   cancel-in-progress: false
@@ -31,24 +18,16 @@ permissions:
   contents: write
   pull-requests: read
   security-events: write
-  deployments: write     # register GitHub Deployment entries for the production audit trail
+  deployments: write
 
 env:
   SERVICE_PATH: vigia_ui
-  # Versão pinada do osv-scanner — também usada como parte da chave de
-  # cache do binário (evita download de ~30 MB a cada run).
   OSV_SCANNER_VERSION: v1.9.2
 
 jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 1. PREFLIGHT — validações leves e rápidas (fail-fast)
-  #
-  #    Nenhuma ferramenta pesada (Flutter, Gradle, scanners) é instalada aqui.
-  #    Todos os outros jobs dependem deste. Uma falha aqui aborta tudo.
-  #
-  #    Valida: formato da versão · pubspec · CHANGELOG · unicidade da tag
-  #            branch de origem · estrutura mínima do projeto
   # ═══════════════════════════════════════════════════════════════════════════
   preflight:
     name: Preflight — versão, CHANGELOG, tag, branch e estrutura
@@ -105,9 +84,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 2. SECURITY — varredura de secrets em todo o repositório
-  #
-  #    Roda em paralelo com os demais jobs pós-preflight.
-  #    Secrets podem aparecer em qualquer arquivo do monorepo.
   # ═══════════════════════════════════════════════════════════════════════════
   security_secrets:
     name: Security — GitLeaks
@@ -125,9 +101,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 3. SETUP VALIDATION — Flutter, Firebase e coerência de configuração Android
-  #
-  #    Valida a coerência das configurações sem instalar Gradle nem gerar APK.
-  #    Detecta problemas de configuração cedo, antes das etapas pesadas.
   # ═══════════════════════════════════════════════════════════════════════════
   setup_validation:
     name: Setup validation — Flutter, Firebase e Android config
@@ -205,9 +178,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 4. QUALITY — formatação e análise estática (SAST)
-  #
-  #    dart format: garante consistência de estilo (falha em diff)
-  #    flutter analyze: análise estática com --fatal-warnings (SAST estático)
   # ═══════════════════════════════════════════════════════════════════════════
   quality:
     name: Quality — format e analyze
@@ -236,10 +206,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 5. TESTS — testes unitários e de widget
-  #
-  #    Executa flutter test, que cobre unit tests e widget tests.
-  #    Os testes em test/ não inicializam Firebase (importam app.dart diretamente),
-  #    portanto não requerem google-services.json.
   # ═══════════════════════════════════════════════════════════════════════════
   tests:
     name: Tests — unit e widget
@@ -264,10 +230,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 6. ANDROID SECURITY — AndroidManifest, permissões e configuração de build
-  #
-  #    Valida configurações críticas de segurança sem instalar Gradle.
-  #    Falhas críticas (ex: debuggable no manifest principal) bloqueiam o release.
-  #    Avisos (ex: debug signing) são registrados mas não bloqueiam.
   # ═══════════════════════════════════════════════════════════════════════════
   android_security:
     name: Android security — manifest, permissões e build config
@@ -283,10 +245,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 7. DEPENDENCY SECURITY — OSV Scanner no pubspec.lock
-  #
-  #    Verifica vulnerabilidades conhecidas nas dependências Dart/Flutter
-  #    usando o banco de dados OSV (Open Source Vulnerabilities) do Google.
-  #    Não requer Flutter SDK — apenas o pubspec.lock.
   # ═══════════════════════════════════════════════════════════════════════════
   dependency_security:
     name: Dependency security — OSV Scanner (pubspec.lock)
@@ -295,8 +253,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Cache do binário osv-scanner. Versão pinada via env.OSV_SCANNER_VERSION
-      # garante chave estável; bump na env invalida o cache.
       - name: Cache osv-scanner binary
         id: cache_osv
         uses: actions/cache@v4
@@ -326,16 +282,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 8. INTEGRATION TESTS (evolutivo — ativado automaticamente)
-  #
-  #    Este job verifica se integration_test/ existe com arquivos .dart.
-  #    Se não existir, registra um aviso informativo e conclui com sucesso.
-  #    Quando integration_test/ for criado, os testes passam a executar
-  #    automaticamente sem nenhuma mudança no workflow.
-  #
-  #    Pré-requisitos para ativar:
-  #      1. Criar vigia_ui/integration_test/ com testes Flutter
-  #      2. Para testes em dispositivo real, adicionar emulador Android ao runner
-  #         (ver documentação em vigia_ui/docs/mobile-pipeline.md)
   # ═══════════════════════════════════════════════════════════════════════════
   integration_tests:
     name: Integration tests (evolutivo)
@@ -370,9 +316,6 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
 
-      # Nota: flutter test integration_test/ requer emulador Android em execução
-      # para testes que interagem com a UI nativa. Para testes sem UI, funciona
-      # no runner ubuntu-latest. Ver documentação para setup com emulador.
       - name: Flutter — integration tests
         if: steps.check.outputs.has_tests == 'true'
         working-directory: ${{ env.SERVICE_PATH }}
@@ -380,21 +323,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 9. BUILD APK — APK assinado de release
-  #
-  #    Executa depois que TODOS os gates de qualidade, segurança e teste
-  #    passaram. Hidrata os arquivos sensíveis a partir de GitHub Secrets
-  #    (eles nunca são versionados no repositório) e produz um APK assinado
-  #    pronto para distribuição como asset da GitHub Release.
-  #
-  #    Secrets obrigatórios (configurar em Settings → Secrets and variables):
-  #      - GOOGLE_SERVICES_JSON_BASE64  → base64 do google-services.json
-  #      - ANDROID_KEYSTORE_BASE64      → keystore .jks em base64
-  #      - ANDROID_KEYSTORE_PASSWORD    → senha do keystore
-  #      - ANDROID_KEY_ALIAS            → alias da chave de assinatura
-  #      - ANDROID_KEY_PASSWORD         → senha da chave
-  #
-  #    Ver vigia_ui/README.md (seção "Setup do CI/CD") para gerar e cadastrar
-  #    cada secret.
   # ═══════════════════════════════════════════════════════════════════════════
   build_apk:
     name: Build APK — release assinado
@@ -465,10 +393,6 @@ jobs:
           echo "✓ key.properties gerado."
 
       # ── Toolchain ───────────────────────────────────────────────────────────
-      # setup-java cobre o cache de dependências Gradle (~/.gradle/caches +
-      # ~/.gradle/wrapper) automaticamente quando `cache: gradle` é definido.
-      # Esse é o maior ganho do APK build: o primeiro build baixa ~200 MB de
-      # AGP/Kotlin/AndroidX; com cache, restauração leva alguns segundos.
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -486,10 +410,6 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
 
-      # Cache adicional do diretório de build do Gradle no projeto Android.
-      # Cobre intermediates/transforms gerados a partir do AGP — não
-      # ficam em ~/.gradle e por isso precisam de cache próprio.
-      # Chave amarrada aos arquivos que mudam a estrutura de build.
       - name: Cache Gradle project build
         uses: actions/cache@v4
         with:
@@ -506,8 +426,6 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter build apk --release
 
-      # Renomeia o APK para incluir a versão, evitando colisão entre execuções
-      # e tornando o asset auto-explicativo na GitHub Release.
       - name: Renomear APK com versão
         run: |
           set -euo pipefail
@@ -527,8 +445,6 @@ jobs:
           path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/vigia-ui-${{ inputs.version }}-release.apk
           retention-days: 30
 
-      # Cleanup garantido — remove arquivos sensíveis hidratados, mesmo se o
-      # build falhar, para não vazar nada caso o runner seja inspecionado.
       - name: Remover arquivos sensíveis hidratados
         if: always()
         run: |
@@ -538,16 +454,6 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 10. RELEASE & DEPLOY — tag, GitHub Release com APK e audit trail
-  #
-  #    Cria a tag Git, publica a GitHub Release (com o APK assinado como asset)
-  #    e registra um Deployment no GitHub para audit trail.
-  #
-  #    Usa `environment: production` para acionar regras de proteção (caso
-  #    configuradas em Settings → Environments → production, ex.: aprovação
-  #    obrigatória) e habilitar secrets escopados ao ambiente de produção.
-  #
-  #    Para usuários finais, o "deploy" do app mobile é a publicação da
-  #    GitHub Release com o APK anexado — é de lá que o APK é baixado.
   # ═══════════════════════════════════════════════════════════════════════════
   release_and_deploy:
     name: Release & deploy — tag, GitHub Release e audit trail

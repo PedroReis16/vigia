@@ -1,10 +1,12 @@
 package services
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"io"
 	"testing"
 
-	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/dtos"
 	"github.com/PedroReis16/vigia/vigia-services/apps/vigia-api/internal/models/entities"
 	"gorm.io/gorm"
 )
@@ -33,7 +35,7 @@ type fakeVersionStore struct {
 	findVer *entities.Version
 	findErr error
 
-	findLatest *entities.Version
+	findLatest    *entities.Version
 	findLatestErr error
 
 	regErr error
@@ -57,13 +59,21 @@ func (f *fakeVersionStore) RegisterVersion(newVersion *entities.Version) error {
 	return f.regErr
 }
 
-type fakePresigner struct {
-	url *string
-	err error
+type fakeBucket struct {
+	presignURL *string
+	presignErr error
+
+	uploadErr    error
+	uploadCalled bool
 }
 
-func (f *fakePresigner) GetVersionPreSignedUrl(version string) (*string, error) {
-	return f.url, f.err
+func (f *fakeBucket) GetVersionPreSignedUrl(version string) (*string, error) {
+	return f.presignURL, f.presignErr
+}
+
+func (f *fakeBucket) UploadVersion(_ context.Context, _ string, _ io.Reader, _ int64) error {
+	f.uploadCalled = true
+	return f.uploadErr
 }
 
 func TestVersionService_GetVigiaVersion_cacheHit(t *testing.T) {
@@ -71,7 +81,7 @@ func TestVersionService_GetVigiaVersion_cacheHit(t *testing.T) {
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{getURL: &u},
 		versionRepository:         &fakeVersionStore{},
-		bucketService:             &fakePresigner{},
+		bucketService:             &fakeBucket{},
 	}
 
 	out, err := svc.GetVigiaVersion("1.2.3")
@@ -90,7 +100,7 @@ func TestVersionService_GetVigiaVersion_cacheMiss_presignsAndCaches(t *testing.T
 
 	cache := &fakeVersionURLCache{}
 	repo := &fakeVersionStore{findVer: v}
-	bucket := &fakePresigner{url: &pre}
+	bucket := &fakeBucket{presignURL: &pre}
 
 	svc := &VersionService{
 		versionUrlRepositoryCache: cache,
@@ -114,7 +124,7 @@ func TestVersionService_GetVigiaVersion_repoNotFound(t *testing.T) {
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{},
 		versionRepository:         &fakeVersionStore{findErr: errors.New("no row")},
-		bucketService:             &fakePresigner{},
+		bucketService:             &fakeBucket{},
 	}
 
 	_, err := svc.GetVigiaVersion("x")
@@ -130,7 +140,7 @@ func TestVersionService_GetVigiaVersion_presignError(t *testing.T) {
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{},
 		versionRepository:         &fakeVersionStore{findVer: v},
-		bucketService:             &fakePresigner{err: errors.New("s3 down")},
+		bucketService:             &fakeBucket{presignErr: errors.New("s3 down")},
 	}
 
 	_, err := svc.GetVigiaVersion("1.0.0")
@@ -140,16 +150,49 @@ func TestVersionService_GetVigiaVersion_presignError(t *testing.T) {
 }
 
 func TestVersionService_RegisterNewVigiaVersion(t *testing.T) {
+	bucket := &fakeBucket{}
 	repo := &fakeVersionStore{}
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{},
 		versionRepository:         repo,
-		bucketService:             &fakePresigner{},
+		bucketService:             bucket,
 	}
 
-	err := svc.RegisterNewVigiaVersion(&dtos.NewVersionDTO{Version: "9.9.9"})
+	err := svc.RegisterNewVigiaVersion(context.Background(), "9.9.9", bytes.NewReader([]byte("data")), 4)
 	if err != nil {
 		t.Fatalf("RegisterNewVigiaVersion: %v", err)
+	}
+	if !bucket.uploadCalled {
+		t.Fatal("expected UploadVersion to be called")
+	}
+}
+
+func TestVersionService_RegisterNewVigiaVersion_uploadError(t *testing.T) {
+	bucket := &fakeBucket{uploadErr: errors.New("s3 fail")}
+	svc := &VersionService{
+		versionUrlRepositoryCache: &fakeVersionURLCache{},
+		versionRepository:         &fakeVersionStore{},
+		bucketService:             bucket,
+	}
+
+	err := svc.RegisterNewVigiaVersion(context.Background(), "1.0.0", bytes.NewReader([]byte{}), 0)
+	if err == nil {
+		t.Fatal("expected upload error")
+	}
+}
+
+func TestVersionService_RegisterNewVigiaVersion_repoError(t *testing.T) {
+	bucket := &fakeBucket{}
+	repo := &fakeVersionStore{regErr: errors.New("db")}
+	svc := &VersionService{
+		versionUrlRepositoryCache: &fakeVersionURLCache{},
+		versionRepository:         repo,
+		bucketService:             bucket,
+	}
+
+	err := svc.RegisterNewVigiaVersion(context.Background(), "1.0.0", bytes.NewReader([]byte("data")), 4)
+	if err == nil || err.Error() != "db" {
+		t.Fatalf("want db error, got %v", err)
 	}
 }
 
@@ -161,7 +204,7 @@ func TestVersionService_FindForUpdates_noCurrent_returnsLatest(t *testing.T) {
 
 	cache := &fakeVersionURLCache{}
 	repo := &fakeVersionStore{findLatest: v, findVer: v}
-	bucket := &fakePresigner{url: &u}
+	bucket := &fakeBucket{presignURL: &u}
 
 	svc := &VersionService{
 		versionUrlRepositoryCache: cache,
@@ -186,7 +229,7 @@ func TestVersionService_FindForUpdates_alreadyLatest_returnsNil(t *testing.T) {
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{},
 		versionRepository:         &fakeVersionStore{findLatest: v},
-		bucketService:             &fakePresigner{},
+		bucketService:             &fakeBucket{},
 	}
 
 	out, err := svc.FindForUpdates("2.0.0")
@@ -203,7 +246,7 @@ func TestVersionService_FindForUpdates_newerAvailable_returnsLatest(t *testing.T
 
 	cache := &fakeVersionURLCache{}
 	repo := &fakeVersionStore{findLatest: v, findVer: v}
-	bucket := &fakePresigner{url: &u}
+	bucket := &fakeBucket{presignURL: &u}
 
 	svc := &VersionService{
 		versionUrlRepositoryCache: cache,
@@ -224,25 +267,11 @@ func TestVersionService_FindForUpdates_noVersionsRegistered(t *testing.T) {
 	svc := &VersionService{
 		versionUrlRepositoryCache: &fakeVersionURLCache{},
 		versionRepository:         &fakeVersionStore{findLatestErr: gorm.ErrRecordNotFound},
-		bucketService:             &fakePresigner{},
+		bucketService:             &fakeBucket{},
 	}
 
 	_, err := svc.FindForUpdates("")
 	if err == nil || err.Error() != "nenhuma versão disponível" {
 		t.Fatalf("unexpected err: %v", err)
-	}
-}
-
-func TestVersionService_RegisterNewVigiaVersion_repoError(t *testing.T) {
-	repo := &fakeVersionStore{regErr: errors.New("db")}
-	svc := &VersionService{
-		versionUrlRepositoryCache: &fakeVersionURLCache{},
-		versionRepository:         repo,
-		bucketService:             &fakePresigner{},
-	}
-
-	err := svc.RegisterNewVigiaVersion(&dtos.NewVersionDTO{Version: "1"})
-	if err == nil || err.Error() != "db" {
-		t.Fatalf("want db error, got %v", err)
 	}
 }

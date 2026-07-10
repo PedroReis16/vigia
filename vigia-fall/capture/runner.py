@@ -1,11 +1,15 @@
+"""
+Executa a captura de vídeo
+"""
+
 from concurrent.futures import ThreadPoolExecutor
 import time
-import cv2
+import cv2 # pyright: ignore[reportMissingImports]
 
 from shared import get_settings
-from capture.frame_worker import FrameWorker
+from capture.frame_worker import get_worker
 
-def run_capture_async():
+def run_capture():
     """
     Executa a captura de vídeo
     """
@@ -26,10 +30,10 @@ def run_capture_async():
 
         capture_interval = 1.0 / settings.frame_rate
         
-        worker = FrameWorker(settings.frame_rate)
+        frame_worker = get_worker()
 
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="frame-worker")
-        executor.submit(worker.run)
+        executor.submit(frame_worker.run)
 
         while True:
             ret, frame = cap.read()
@@ -40,7 +44,7 @@ def run_capture_async():
             now = time.monotonic()
 
             if now - last_capture > capture_interval:
-                worker.insert(frame.copy())
+                frame_worker.insert_raw_frame(frame.copy())
                 last_capture = now
 
             if show_video:
@@ -59,6 +63,6 @@ def run_capture_async():
         raise e
     finally:
         cv2.destroyAllWindows()
-        worker.stop()
+        frame_worker.stop()
         executor.shutdown(wait=True, cancel_futures=True)
 

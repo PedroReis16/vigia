@@ -4,7 +4,7 @@ Ponto de entrada do programa
 
 from multiprocessing import Process
 import time
-from capture import run_capture_async
+from capture import run_capture
 from integration import initialize_device_async, run_device_integration_async
 
 def kill_task(task: Process) -> None:
@@ -21,7 +21,7 @@ def main():
 
     initialize_device_async()
 
-    capture_task = Process(target=run_capture_async)
+    capture_task = Process(target=run_capture)
     integration_task = Process(target=run_device_integration_async)
 
     capture_task.start()

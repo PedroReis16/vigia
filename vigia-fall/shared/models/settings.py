@@ -19,6 +19,7 @@ class Settings: #pylint: disable=too-many-instance-attributes
     show_video: bool = False
     yolo_pose_model: str = "yolo26s-pose"
     frame_rate: int = 12
+    slider_window_size: int = 30
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -31,6 +32,7 @@ class Settings: #pylint: disable=too-many-instance-attributes
             show_video=helpers_convert_to_bool(os.getenv("SHOW_VIDEO", "false")),
             yolo_pose_model=os.getenv("YOLO_POSE_MODEL", "yolo26s-pose"),
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
+            slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
         )
 
 @lru_cache

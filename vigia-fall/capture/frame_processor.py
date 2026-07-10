@@ -2,8 +2,9 @@
 Processa os frames capturados para inclusão na fila de processamento
 """
 
-import numpy as np
+import numpy as np # pyright: ignore[reportMissingImports]
 
+from capture.frame_worker import get_worker
 from capture.models import get_yolo_model
 
 def process_frame(frame: np.ndarray) -> None:
@@ -20,5 +21,7 @@ def process_frame(frame: np.ndarray) -> None:
 
         print(results)
         
+        get_worker().insert_slider_window(frame)
+
     except Exception as error:
         print(f"Erro ao processar o frame: {error}")

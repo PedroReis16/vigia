@@ -4,7 +4,7 @@ import cv2
 from shared import get_settings
 
 
-def run_capture():
+def run_capture_async():
     """
     Executa a captura de vídeo
     """
@@ -20,15 +20,18 @@ def run_capture():
         show_video = settings.show_video
 
         key = cv2.waitKey(1) & 0xFF
-
+        
         while True:
             ret, frame = cap.read()
 
             if not ret:
                 break
 
+
             if show_video:
-                cv2.imshow("Frame", frame)
+                display = cv2.flip(frame, 1)
+                cv2.imshow("Visualização de movimentos", display)
+                
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 

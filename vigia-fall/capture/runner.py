@@ -1,8 +1,9 @@
-from ultralytics import YOLO
+from concurrent.futures import ThreadPoolExecutor
+import time
 import cv2
 
 from shared import get_settings
-
+from capture.frame_worker import FrameWorker
 
 def run_capture_async():
     """
@@ -21,12 +22,26 @@ def run_capture_async():
 
         key = cv2.waitKey(1) & 0xFF
         
+        last_capture = time.monotonic()
+
+        capture_interval = 1.0 / settings.frame_rate
+        
+        worker = FrameWorker(settings.frame_rate)
+
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="frame-worker")
+        executor.submit(worker.run)
+
         while True:
             ret, frame = cap.read()
 
             if not ret:
                 break
 
+            now = time.monotonic()
+
+            if now - last_capture > capture_interval:
+                worker.insert(frame.copy())
+                last_capture = now
 
             if show_video:
                 display = cv2.flip(frame, 1)
@@ -44,4 +59,6 @@ def run_capture_async():
         raise e
     finally:
         cv2.destroyAllWindows()
+        worker.stop()
+        executor.shutdown(wait=True, cancel_futures=True)
 

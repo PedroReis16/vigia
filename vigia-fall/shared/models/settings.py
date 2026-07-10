@@ -18,6 +18,7 @@ class Settings: #pylint: disable=too-many-instance-attributes
     capture_source: int = 0
     show_video: bool = False
     yolo_pose_model: str = "yolo26s-pose"
+    frame_rate: int = 12
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -28,7 +29,8 @@ class Settings: #pylint: disable=too-many-instance-attributes
         return cls(
             capture_source=int(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=helpers_convert_to_bool(os.getenv("SHOW_VIDEO", "false")),
-            yolo_pose_model=os.getenv("YOLO_POSE_MODEL", "yolo26s-pose")
+            yolo_pose_model=os.getenv("YOLO_POSE_MODEL", "yolo26s-pose"),
+            frame_rate=int(os.getenv("FRAME_RATE", "12")),
         )
 
 @lru_cache

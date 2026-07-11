@@ -44,7 +44,7 @@ def run_capture():
             now = time.monotonic()
 
             if now - last_capture > capture_interval:
-                frame_worker.insert_raw_frame(frame.copy())
+                frame_worker.insert_raw_frame(frame.copy(), now)
                 last_capture = now
 
             if show_video:

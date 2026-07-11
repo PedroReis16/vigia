@@ -25,12 +25,12 @@ class FrameWorker:
         """
         from capture.frame_processor import process_frame
         
-        frame = self.raw_frame_queue.get()
+        frame, capture_date = self.raw_frame_queue.get()
 
         if frame is None:
             return False
 
-        process_frame(frame)
+        process_frame(frame, capture_date)
         self.raw_frame_queue.task_done()
         return True
 
@@ -63,19 +63,19 @@ class FrameWorker:
         self.slider_window_queue.put_nowait(None) # put a sentinel value to stop the worker
 
 
-    def insert_raw_frame(self, frame: np.ndarray) -> None:
+    def insert_raw_frame(self, frame: np.ndarray, capture_date: float) -> None:
         """
         Insere um frame na fila de processamento
         """
 
         try:
-            self.raw_frame_queue.put_nowait(frame)
+            self.raw_frame_queue.put_nowait((frame, capture_date))
         except queue.Full:
             try:
                 self.raw_frame_queue.get_nowait() # descarta o mais antigo
             except queue.Empty:
                 pass
-            self.raw_frame_queue.put_nowait(frame)
+            self.raw_frame_queue.put_nowait((frame, capture_date))
 
 
     def insert_slider_window(self, window: np.ndarray) -> None:

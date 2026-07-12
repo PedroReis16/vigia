@@ -3,19 +3,20 @@ Processa os frames capturados para inclusão na fila de processamento
 """
 
 from math import dist
+from typing import Any
 import numpy as np
 
 from capture.models import get_yolo_model, apply_kalman, cleanup_stale_trackers
 
 
-def get_central_point(point_left: float, point_right: float) -> float:
+def __get_central_point(point_left: float, point_right: float) -> float:
     """
     Obtém o ponto central entre dois pontos
     """
     return (point_left + point_right) / 2
 
 
-def normalize_body_part(
+def __normalize_body_part(
     scale: float, hip: tuple[float, float], body_part: tuple[float, float]
 ) -> tuple[float, float]:
     """
@@ -26,7 +27,10 @@ def normalize_body_part(
 
     return x, y
 
-def normalize_data(frame_points: dict[int, list[float]]) -> dict[int, list[float]]:
+
+def __normalize_data(
+    frame_points: dict[int, list[float]],
+) -> dict[int, dict[int, tuple[float, float]]]:
     """
     Normaliza os dados dos keypoints para o tamanho da imagem
     """
@@ -51,12 +55,12 @@ def normalize_data(frame_points: dict[int, list[float]]) -> dict[int, list[float
             continue
 
         shoulder_center = (
-            get_central_point(shoulder_left["x"], shoulder_right["x"]),
-            get_central_point(shoulder_left["y"], shoulder_right["y"]),
+            __get_central_point(shoulder_left["x"], shoulder_right["x"]),
+            __get_central_point(shoulder_left["y"], shoulder_right["y"]),
         )
         hip_center = (
-            get_central_point(hip_left["x"], hip_right["x"]),
-            get_central_point(hip_left["y"], hip_right["y"]),
+            __get_central_point(hip_left["x"], hip_right["x"]),
+            __get_central_point(hip_left["y"], hip_right["y"]),
         )
 
         #   Cálculo do tamanho do torso
@@ -67,22 +71,25 @@ def normalize_data(frame_points: dict[int, list[float]]) -> dict[int, list[float
         normalized_parts = {}
 
         for body_part_id, body_part in smoothed_points.items():
-            normalized_parts[body_part_id] = normalize_body_part(scale, hip_center, body_part)
+            normalized_parts[body_part_id] = __normalize_body_part(
+                scale, hip_center, body_part
+            )
 
         normalized_data[person_id] = normalized_parts
-
 
     return normalized_data
 
 
-def process_frame(frame: np.ndarray, capture_date: float) -> None:
+def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str, Any]]:
     """
-    Processa o frame capturado para inclusão na fila de processamento
+    Processa o frame capturado para obtenção das coordenadas dos keypoints dos corpos detectados no frame,
+    aplica o filtro de Kalman para suavização das posições e normalização das coordenadas para o tamanho da imagem.
+    Retorna um dicionário com os IDs dos corpos detectados e suas coordenadas normalizadas.
     """
     try:
         model = get_yolo_model()
 
-        results = model.track(
+        track_result = model.track(
             frame,
             device="cpu",
             conf=0.25,
@@ -92,13 +99,13 @@ def process_frame(frame: np.ndarray, capture_date: float) -> None:
             classes=[0],
         )  # 0 = pessoa
 
-        if len(results) <= 0:
+        if len(track_result) <= 0:
             return
 
         frame_results = {}
         active_ids = []
 
-        for result in results:
+        for result in track_result:
             kpts = result.keypoints
 
             if kpts is None or kpts.data is None or len(kpts.data) <= 0:
@@ -132,12 +139,17 @@ def process_frame(frame: np.ndarray, capture_date: float) -> None:
         # Remoção de trackers inativos
         cleanup_stale_trackers(set(active_ids))
 
-        # print(frame_results)
+        result = {}
 
-        # return
-        normalized_data = normalize_data(frame_results)
+        # Dados normalizados = Dados adimensionais
 
-        print("Normalized data: ", normalized_data)
+        for person_id, body_parts in __normalize_data(frame_results).items():
+            result[person_id] = {
+                "coordinates": body_parts,
+                "timestamp": capture_date,
+            }
+
+        return result
 
     except Exception as error:
-        print(f"Erro ao processar o frame: {error}")
+        raise RuntimeError(f"Erro ao processar o frame: {error}") from error

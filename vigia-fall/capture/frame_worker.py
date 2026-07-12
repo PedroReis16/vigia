@@ -4,41 +4,52 @@ Worker para processamento assíncrono dos frames capturados
 
 from functools import lru_cache
 import queue
+from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
+from capture.frame_processor import process_frame
+from capture.models import SlidingWindowManager
+from capture.features_processor import extract_features
 
 
-class FrameWorker: 
+class FrameWorker:
     """
     Worker para processamento assíncrono dos frames capturados
     """
+
     def __init__(self, frame_rate: int, slider_window_size: int) -> None:
         """
         Inicializa o worker
         """
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
-        self.slider_window_queue = queue.Queue(maxsize=slider_window_size)
+        self._slider_window_manager = SlidingWindowManager(
+            window_size=slider_window_size, stale_timeout=frame_rate
+        )
 
     def __consume_raw_frame(self) -> bool:
         """
         Consome um frame da fila de frames brutos
         """
-        from capture.frame_processor import process_frame
-        
+
         frame, capture_date = self.raw_frame_queue.get()
 
         if frame is None:
             return False
 
-        process_frame(frame, capture_date)
+        # Processa o frame e obtém os resultados
+        frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
         self.raw_frame_queue.task_done()
-        return True
 
-    def __consume_slider_window(self) -> bool:
-        """
-        Inicializa o processamento da janela deslizante
-        """
-        pass
+        if not frame_result:
+            return True
+
+        ready_ids = self._slider_window_manager.update(frame_result)
+
+        for person_id in ready_ids:
+            window = self._slider_window_manager.get_window(person_id)
+            extract_features(person_id, window)
+
+        return True
 
     def run(self) -> None:
         """
@@ -47,21 +58,13 @@ class FrameWorker:
 
         while True:
             if not self.__consume_raw_frame():
-                break # sai do loop se a fila de frames brutos estiver vazia
-
-            if not self.slider_window_queue.full():
-                continue # continua o loop se a fila de janelas deslizantes não estiver cheia para iniciar o processamento
-
-            self.__consume_slider_window()
-
+                break  # sai do loop se a fila de frames brutos estiver vazia
 
     def stop(self) -> None:
         """
         Para o worker
         """
-        self.raw_frame_queue.put_nowait(None) # put a sentinel value to stop the worker
-        self.slider_window_queue.put_nowait(None) # put a sentinel value to stop the worker
-
+        self.raw_frame_queue.put_nowait(None)  # put a sentinel value to stop the worker
 
     def insert_raw_frame(self, frame: np.ndarray, capture_date: float) -> None:
         """
@@ -72,24 +75,10 @@ class FrameWorker:
             self.raw_frame_queue.put_nowait((frame, capture_date))
         except queue.Full:
             try:
-                self.raw_frame_queue.get_nowait() # descarta o mais antigo
+                self.raw_frame_queue.get_nowait()  # descarta o mais antigo
             except queue.Empty:
                 pass
             self.raw_frame_queue.put_nowait((frame, capture_date))
-
-
-    def insert_slider_window(self, window: np.ndarray) -> None:
-        """
-        Insere uma janela na fila de processamento
-        """
-        try:
-            self.slider_window_queue.put_nowait(window)
-        except queue.Full:
-            try:
-                self.slider_window_queue.get_nowait() # descarta o mais antigo
-            except queue.Empty:
-                pass
-            self.slider_window_queue.put_nowait(window)
 
 
 @lru_cache

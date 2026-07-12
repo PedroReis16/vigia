@@ -2,16 +2,77 @@
 Processa os frames capturados para inclusão na fila de processamento
 """
 
-import numpy as np # pyright: ignore[reportMissingImports]
+from math import dist
+import numpy as np
 
-from capture.models import get_yolo_model,apply_kalman, cleanup_stale_trackers
+from capture.models import get_yolo_model, apply_kalman, cleanup_stale_trackers
 
-def normalize_data()-> dict[int, list[float]]:
+
+def get_central_point(point_left: float, point_right: float) -> float:
+    """
+    Obtém o ponto central entre dois pontos
+    """
+    return (point_left + point_right) / 2
+
+
+def normalize_body_part(
+    scale: float, hip: tuple[float, float], body_part: tuple[float, float]
+) -> tuple[float, float]:
+    """
+    Normaliza a parte do corpo em relação a posição centralizada do quadril, mantendo a escala do torso
+    """
+    x = (body_part["x"] - hip[0]) / scale
+    y = (body_part["y"] - hip[1]) / scale
+
+    return x, y
+
+def normalize_data(frame_points: dict[int, list[float]]) -> dict[int, list[float]]:
     """
     Normaliza os dados dos keypoints para o tamanho da imagem
     """
-    return {}
 
+    normalized_data = {}
+
+    for person_id, (_, smoothed_points) in frame_points.items():
+        # Normalizando o torso do corpo
+
+        shoulder_left = smoothed_points.get(5, None)
+        shoulder_right = smoothed_points.get(6, None)
+        hip_left = smoothed_points.get(11, None)
+        hip_right = smoothed_points.get(12, None)
+
+        # Se os pontos de ombro ou quadril não forem encontrados, pula o cálculo
+        if (
+            shoulder_left is None
+            or shoulder_right is None
+            or hip_left is None
+            or hip_right is None
+        ):
+            continue
+
+        shoulder_center = (
+            get_central_point(shoulder_left["x"], shoulder_right["x"]),
+            get_central_point(shoulder_left["y"], shoulder_right["y"]),
+        )
+        hip_center = (
+            get_central_point(hip_left["x"], hip_right["x"]),
+            get_central_point(hip_left["y"], hip_right["y"]),
+        )
+
+        #   Cálculo do tamanho do torso
+        scale = dist(shoulder_center, hip_center)
+
+        # Normalização do corpo por partes em relação ao torso centralizado
+
+        normalized_parts = {}
+
+        for body_part_id, body_part in smoothed_points.items():
+            normalized_parts[body_part_id] = normalize_body_part(scale, hip_center, body_part)
+
+        normalized_data[person_id] = normalized_parts
+
+
+    return normalized_data
 
 
 def process_frame(frame: np.ndarray, capture_date: float) -> None:
@@ -22,13 +83,19 @@ def process_frame(frame: np.ndarray, capture_date: float) -> None:
         model = get_yolo_model()
 
         results = model.track(
-            frame, device="cpu", conf=0.25, verbose=False, persist=True, 
-            tracker="botsort.yaml",classes=[0]) # 0 = pessoa
+            frame,
+            device="cpu",
+            conf=0.25,
+            verbose=False,
+            persist=True,
+            tracker="botsort.yaml",
+            classes=[0],
+        )  # 0 = pessoa
 
         if len(results) <= 0:
             return
 
-        frame_results = []
+        frame_results = {}
         active_ids = []
 
         for result in results:
@@ -46,25 +113,31 @@ def process_frame(frame: np.ndarray, capture_date: float) -> None:
                 else list(range(len(kpts.data)))
             )
 
-            points= {}
+            points = {}
 
             for person_id, person_kpts in zip(person_ids, kpts.data):
                 kpts_np = person_kpts.numpy()
 
-                points = {idx: valor.tolist() for idx, valor in enumerate(kpts_np) if valor[2] != 0.0} 
+                points = {
+                    idx: valor.tolist()
+                    for idx, valor in enumerate(kpts_np)
+                    if valor[2] != 0.0
+                }
 
                 # Aplicação do filtro de Kalman para suavização das posições
                 smoothed_points = apply_kalman(person_id, capture_date, points)
                 active_ids.append(person_id)
-                frame_results.append((person_id,points, smoothed_points))
+                frame_results[person_id] = (points, smoothed_points)
 
         # Remoção de trackers inativos
         cleanup_stale_trackers(set(active_ids))
 
-        # Smoothed points que irá preencher a janela deslizante depois de ser aplicado a normalização das posições
-        print(frame_results)
+        # print(frame_results)
 
-            
+        # return
+        normalized_data = normalize_data(frame_results)
+
+        print("Normalized data: ", normalized_data)
 
     except Exception as error:
         print(f"Erro ao processar o frame: {error}")

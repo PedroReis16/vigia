@@ -49,7 +49,7 @@ def run_capture():
 
             if show_video:
                 display = cv2.flip(frame, 1)
-                cv2.imshow("Visualização de movimentos", display)
+                cv2.imshow("Preview movimentos", display)
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break

@@ -4,8 +4,15 @@ Processa os frames capturados para inclusão na fila de processamento
 
 import numpy as np # pyright: ignore[reportMissingImports]
 
-from capture.frame_worker import get_worker
 from capture.models import get_yolo_model,apply_kalman, cleanup_stale_trackers
+
+def normalize_data()-> dict[int, list[float]]:
+    """
+    Normaliza os dados dos keypoints para o tamanho da imagem
+    """
+    return {}
+
+
 
 def process_frame(frame: np.ndarray, capture_date: float) -> None:
     """

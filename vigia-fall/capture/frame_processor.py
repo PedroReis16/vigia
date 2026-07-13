@@ -6,7 +6,7 @@ from math import dist
 from typing import Any
 import numpy as np
 
-from capture.models import get_yolo_model, apply_kalman, cleanup_stale_trackers
+from capture.models import get_yolo_model, apply_kalman, cleanup_stale_trackers, get_trunk_angle
 
 
 def __get_central_point(point_left: float, point_right: float) -> float:
@@ -68,6 +68,8 @@ def __normalize_data(
 
         # Normalização do corpo por partes em relação ao torso centralizado
 
+        trunk_angle = get_trunk_angle(shoulder_center, hip_center)
+
         normalized_parts = {}
 
         for body_part_id, body_part in smoothed_points.items():
@@ -75,7 +77,10 @@ def __normalize_data(
                 scale, hip_center, body_part
             )
 
-        normalized_data[person_id] = normalized_parts
+        normalized_data[person_id] = {
+            "coordinates": normalized_parts,
+            "trunk_angle": trunk_angle,
+        }
 
     return normalized_data
 
@@ -145,7 +150,8 @@ def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str,
 
         for person_id, body_parts in __normalize_data(frame_results).items():
             result[person_id] = {
-                "coordinates": body_parts,
+                "coordinates": body_parts["coordinates"],
+                "trunk_angle": body_parts["trunk_angle"],
                 "timestamp": capture_date,
             }
 

@@ -40,3 +40,20 @@ def get_angular_speed(
     delta_angle = (current_angle - previous_angle + math.pi) % (2 * math.pi) - math.pi
 
     return delta_angle / (current_timestamp - previous_timestamp)
+
+def get_trunk_angle(
+    shoulder_center: tuple[float, float],
+    hip_center: tuple[float, float],
+) -> float:
+    """
+    Calcula o ângulo do tronco de um corpo a partir das coordenadas do ombro e do quadril.
+    Retorna o ângulo em radianos com o posicionamento do tronco em relação ao eixo vertical
+    """
+
+    shoulder_x, shoulder_y = shoulder_center
+    hip_x, hip_y = hip_center
+
+    trunk_angle = math.atan2((hip_x - shoulder_x), (hip_y - shoulder_y))
+
+    return trunk_angle
+    

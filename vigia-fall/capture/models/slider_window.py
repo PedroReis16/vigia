@@ -4,6 +4,7 @@ Customização de gerenciamento de janelas deslizantes conforme o Id reconhecido
 
 from collections import deque
 from dataclasses import dataclass, field
+import time
 from typing import Any, Optional
 
 
@@ -21,7 +22,7 @@ class SlidingWindowManager:
     Matém uma janela deslizante por ID, juntamente com o release de janelas ociosas
     """
 
-    def __init__(self, window_size: int, stale_timeout: float) -> None:
+    def __init__(self, window_size: int, stale_timeout: float = 10.0) -> None:
         self.window_size = window_size
         self.stale_timeout = stale_timeout
         self._windows: dict[int, PersonWindow] = {}
@@ -33,7 +34,7 @@ class SlidingWindowManager:
         Retorna a lista de IDs cuja janela está cheia (prontos p/ extração).
         """
         ready: list[int] = []
-
+    
         for person_id, data in frame_result.items():
             pw = self._windows.get(person_id)
 
@@ -46,13 +47,15 @@ class SlidingWindowManager:
             timestamp = data["timestamp"]
 
             pw.last_seen = timestamp
-            latest_ts = max(latest_ts, timestamp)
 
             if len(pw.window) == self.window_size:
                 ready.append(person_id)
 
-        self._cleanup_stale(latest_ts)
-
+        # print("Ready IDs antes da limpeza de stale:", ready)
+        # print("Windows antes da limpeza de stale:", self._windows)
+        # self._cleanup_stale()
+        # print("Ready IDs depois da limpeza de stale:", ready)
+        # print("Windows depois da limpeza de stale:", self._windows)
         return ready
 
     def get_window(self, person_id: int) -> Optional[deque]:
@@ -62,14 +65,14 @@ class SlidingWindowManager:
         pw = self._windows.get(person_id)
         return pw.window if pw else None
 
-    def _cleanup_stale(self, now: float) -> None:
+    def _cleanup_stale(self) -> None:
         """
         Remove as janelas ociosas
         """
         stale = [
             pid
             for pid, pw in self._windows.items()
-            if now - pw.last_seen > self.stale_timeout
+            if time.time() - pw.last_seen > self.stale_timeout
         ]
         for pid in stale:
             del self._windows[pid]

@@ -4,12 +4,15 @@ Worker para processamento assíncrono dos frames capturados
 
 from functools import lru_cache
 import queue
+import time
 from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
 from capture.frame_processor import process_frame
 from capture.models import SlidingWindowManager
 from capture.features_processor import extract_features
+
+from shared.models import COORDINATES_CONSTANTS
 
 
 class FrameWorker:
@@ -23,7 +26,7 @@ class FrameWorker:
         """
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
         self._slider_window_manager = SlidingWindowManager(
-            window_size=slider_window_size, stale_timeout=frame_rate
+            window_size=slider_window_size
         )
 
     def __consume_raw_frame(self) -> bool:
@@ -31,23 +34,31 @@ class FrameWorker:
         Consome um frame da fila de frames brutos
         """
 
-        frame, capture_date = self.raw_frame_queue.get()
+        # TODO: Reabilitar o consumo real de frames para testes reais
+        # frame, capture_date = self.raw_frame_queue.get()
 
-        if frame is None:
-            return False
+        # if frame is None:
+        #     return False
 
-        # Processa o frame e obtém os resultados
-        frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
-        self.raw_frame_queue.task_done()
+        # # Processa o frame e obtém os resultados
+        # frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
+        # self.raw_frame_queue.task_done()
 
-        if not frame_result:
-            return True
+        # if not frame_result:
+        #     return True
 
-        ready_ids = self._slider_window_manager.update(frame_result)
+        # ready_ids = self._slider_window_manager.update(frame_result)
+
+        ready_ids = [1]
 
         for person_id in ready_ids:
-            window = self._slider_window_manager.get_window(person_id)
-            extract_features(person_id, window)
+            # TODO: Reabilitar o consumo real de frames para testes reais
+            # window = self._slider_window_manager.get_window(person_id)
+            # extract_features(person_id, list(window))
+
+            extract_features(person_id, COORDINATES_CONSTANTS)
+
+        time.sleep(1)
 
         return True
 

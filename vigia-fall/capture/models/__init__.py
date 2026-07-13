@@ -6,6 +6,7 @@ from .yolo_model import get_yolo_model
 from .kalman_filter import apply_kalman, cleanup_stale_trackers
 from .feature_helpers import get_linear_speed, get_angular_speed
 from .slider_window import SlidingWindowManager
+from .capture_constants import TRACKED_KPTS, MAX_MISSED_FRAMES, MIN_KPT_CONF
 
 __all__ = [
     "get_yolo_model",
@@ -14,4 +15,7 @@ __all__ = [
     "get_linear_speed",
     "get_angular_speed",
     "SlidingWindowManager",
+    "TRACKED_KPTS",
+    "MAX_MISSED_FRAMES",
+    "MIN_KPT_CONF",
 ]

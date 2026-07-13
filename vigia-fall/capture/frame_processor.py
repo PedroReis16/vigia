@@ -6,7 +6,13 @@ from math import dist
 from typing import Any
 import numpy as np
 
-from capture.models import get_yolo_model, apply_kalman, cleanup_stale_trackers, get_trunk_angle
+from capture.models import (
+    get_yolo_model,
+    apply_kalman,
+    cleanup_stale_trackers,
+    get_trunk_angle,
+    get_pca_features,
+)
 
 
 def __get_central_point(point_left: float, point_right: float) -> float:
@@ -77,9 +83,15 @@ def __normalize_data(
                 scale, hip_center, body_part
             )
 
+        # Análise PCA da nuvem de keypoints normalizados do frame:
+        # descreve o alongamento (aspect ratio) e a orientação da silhueta
+        pca_ratio, pca_angle = get_pca_features(normalized_parts)
+
         normalized_data[person_id] = {
             "coordinates": normalized_parts,
             "trunk_angle": trunk_angle,
+            "pca_ratio": pca_ratio,
+            "pca_angle": pca_angle,
         }
 
     return normalized_data
@@ -152,6 +164,8 @@ def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str,
             result[person_id] = {
                 "coordinates": body_parts["coordinates"],
                 "trunk_angle": body_parts["trunk_angle"],
+                "pca_ratio": body_parts["pca_ratio"],
+                "pca_angle": body_parts["pca_angle"],
                 "timestamp": capture_date,
             }
 

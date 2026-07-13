@@ -21,6 +21,11 @@ def extract_features(
 
     features: dict[int, dict[str, list[float]]] = {}
 
+    print(f"Features extraídas para person_id={person_id}:")
+    print("--------------------------------")
+    print("coordenadas: ", window_coordinates)
+    print("--------------------------------")
+
     # posição e timestamp do frame anterior, mantidos por parte do corpo
     previous_positions: dict[int, tuple[float, float]] = {}
     previous_timestamps: dict[int, float] = {}
@@ -57,8 +62,8 @@ def extract_features(
             previous_positions[part] = (current_x, current_y)
             previous_timestamps[part] = current_ts
 
-    print(f"Features extraídas para person_id={person_id}:")
-    for part, part_features in features.items():
-        print(f"  keypoint {part}: {part_features}")
+    # print(f"Features extraídas para person_id={person_id}:")
+    # for part, part_features in features.items():
+    #     print(f"  keypoint {part}: {part_features}")
 
     return features

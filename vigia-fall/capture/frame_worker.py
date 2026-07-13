@@ -35,30 +35,30 @@ class FrameWorker:
         """
 
         # TODO: Reabilitar o consumo real de frames para testes reais
-        # frame, capture_date = self.raw_frame_queue.get()
+        frame, capture_date = self.raw_frame_queue.get()
 
-        # if frame is None:
-        #     return False
+        if frame is None:
+            return False
 
-        # # Processa o frame e obtém os resultados
-        # frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
-        # self.raw_frame_queue.task_done()
+        # Processa o frame e obtém os resultados
+        frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
+        self.raw_frame_queue.task_done()
 
-        # if not frame_result:
-        #     return True
+        if not frame_result:
+            return True
 
-        # ready_ids = self._slider_window_manager.update(frame_result)
+        ready_ids = self._slider_window_manager.update(frame_result)
 
         ready_ids = [1]
 
         for person_id in ready_ids:
             # TODO: Reabilitar o consumo real de frames para testes reais
-            # window = self._slider_window_manager.get_window(person_id)
-            # extract_features(person_id, list(window))
+            window = self._slider_window_manager.get_window(person_id)
+            extract_features(person_id, list(window))
 
-            extract_features(person_id, COORDINATES_CONSTANTS)
+            # extract_features(person_id, COORDINATES_CONSTANTS)
 
-        time.sleep(1)
+        # time.sleep(1)
 
         return True
 

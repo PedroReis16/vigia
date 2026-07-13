@@ -4,6 +4,8 @@ Helpers para extração de features
 
 import math
 
+import numpy as np
+
 
 def get_linear_speed(
     current_position: float,
@@ -56,4 +58,44 @@ def get_trunk_angle(
     trunk_angle = math.atan2((hip_x - shoulder_x), (hip_y - shoulder_y))
 
     return trunk_angle
-    
+
+
+def get_pca_features(
+    coordinates: dict[int, tuple[float, float]],
+) -> tuple[float, float]:
+    """
+    Analisa a nuvem de keypoints de um frame via PCA (Análise de Componentes Principais).
+
+    Roda o PCA sobre os pontos daquele instante e usa os autovalores da matriz de
+    covariância para descrever a forma da silhueta:
+
+    Retorna uma tupla (aspect_ratio, principal_angle):
+        - aspect_ratio: razão entre o eixo principal e o secundário (sqrt(lambda1 / lambda2)).
+          Valores altos => silhueta alongada em uma direção (ex.: em pé);
+          valores próximos de 1 => silhueta achatada/espalhada (ex.: no chão).
+        - principal_angle: ângulo (rad) do eixo principal em relação ao eixo horizontal,
+          indicando a orientação predominante do corpo.
+    """
+
+    points = np.array(list(coordinates.values()), dtype=float)
+
+    # PCA precisa de ao menos 2 pontos para estimar a covariância
+    if points.shape[0] < 2:
+        return 1.0, 0.0
+
+    centered = points - points.mean(axis=0)
+    covariance = np.cov(centered, rowvar=False)
+
+    # eigh retorna autovalores em ordem crescente (matriz simétrica)
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance)
+    minor_eigenvalue, major_eigenvalue = eigenvalues
+
+    # clamp evita divisão por zero quando a nuvem é degenerada (pontos ~colineares)
+    minor_eigenvalue = max(float(minor_eigenvalue), 1e-12)
+    aspect_ratio = math.sqrt(float(major_eigenvalue) / minor_eigenvalue)
+
+    # autovetor associado ao maior autovalor = direção do eixo principal
+    principal_axis = eigenvectors[:, -1]
+    principal_angle = math.atan2(float(principal_axis[1]), float(principal_axis[0]))
+
+    return aspect_ratio, principal_angle

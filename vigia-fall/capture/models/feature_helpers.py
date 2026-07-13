@@ -43,6 +43,38 @@ def get_angular_speed(
 
     return delta_angle / (current_timestamp - previous_timestamp)
 
+
+def get_linear_acceleration(
+    current_speed: float,
+    current_timestamp: float,
+    previous_speed: float,
+    previous_timestamp: float,
+) -> float:
+    """
+    Calcula a aceleração linear de um corpo a partir da variação da velocidade no tempo.
+    """
+    # a(t) = (v(t) - v(t-1)) / (t - t-1)
+
+    return (current_speed - previous_speed) / (current_timestamp - previous_timestamp)
+
+
+def get_angular_acceleration(
+    current_angular_speed: float,
+    current_timestamp: float,
+    previous_angular_speed: float,
+    previous_timestamp: float,
+) -> float:
+    """
+    Calcula a aceleração angular (rad/s^2) a partir da variação da
+    velocidade angular no tempo.
+    """
+    # alpha(t) = (w(t) - w(t-1)) / (t - t-1)
+
+    return (current_angular_speed - previous_angular_speed) / (
+        current_timestamp - previous_timestamp
+    )
+
+
 def get_trunk_angle(
     shoulder_center: tuple[float, float],
     hip_center: tuple[float, float],

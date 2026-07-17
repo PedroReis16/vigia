@@ -19,6 +19,14 @@
                 "ASPNETCORE_ENVIRONMENT": "Development",
                 "ASPNETCORE_URLS": "http://localhost:8090;"
             }
+        },
+        {
+            "name": "Vigia.UI",
+            "type": "dart",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/vigia_ui",
+            "program": "lib/main.dart",
+            "flutterMode": "debug"
         }
     ]
 }

@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
+import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
+import 'package:vigia_ui/presentation/devices/providers/device_pairing_provider.dart';
+import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
+import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/scanning_view.dart';
+import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/status_view.dart';
 
 class NewDeviceModal extends ConsumerStatefulWidget {
   const NewDeviceModal({super.key});
@@ -45,6 +50,10 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
         setState(() {});
         _videoController.play();
       });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(devicePairingProvider.notifier).start();
+    });
   }
 
   @override
@@ -53,120 +62,69 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
     super.dispose();
   }
 
+  Future<void> _onConfirm() async {
+    final paired = ref.read(devicePairingProvider).device;
+    if (paired != null) {
+      ref.read(devicesProvider.notifier).addDevice(paired);
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final pairing = ref.watch(devicePairingProvider);
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Adicionar dispositivo',
-              style: textTheme.titleLarge,
+        child: switch (pairing.stage) {
+          DevicePairingStage.scanning => ScanningView(
+            videoController: _videoController,
+            steps: _steps,
+          ),
+          DevicePairingStage.connecting => const StatusView(
+            icon: CircularProgressIndicator(),
+            title: 'Conectando',
+            description:
+                'Dispositivo encontrado. Estabelecendo a conexão com o Vigia…',
+          ),
+          DevicePairingStage.connected => StatusView(
+            icon: const Icon(
+              Icons.check_circle_rounded,
+              color: ThemeColors.accent,
+              size: 56,
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Siga o tutorial e os passos abaixo para cadastrar um novo Vigia.',
-              style: textTheme.bodySmall,
+            title: 'Conexão estabelecida',
+            description:
+                '${pairing.device?.description ?? 'Vigia'} foi vinculado com sucesso.',
+            action: FilledButton(
+              onPressed: _onConfirm,
+              child: const Text('Confirmar'),
             ),
-            const SizedBox(height: 16),
-            _VideoPreview(controller: _videoController),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _steps.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final step = _steps[index];
-                  return _StepTile(
-                    number: index + 1,
-                    title: step.title,
-                    description: step.description,
-                  );
-                },
-              ),
+          ),
+          DevicePairingStage.error => StatusView(
+            icon: Icon(
+              Icons.error_outline_rounded,
+              color: Colors.red.shade400,
+              size: 56,
             ),
-          ],
-        ),
+            title: 'Não foi possível conectar',
+            description:
+                pairing.errorMessage ??
+                'Ocorreu um erro ao procurar ou conectar ao dispositivo.',
+            action: OutlinedButton(
+              onPressed: () =>
+                  ref.read(devicePairingProvider.notifier).retry(),
+              child: const Text('Tentar novamente'),
+            ),
+          ),
+        },
       ),
     );
   }
 }
 
-class _VideoPreview extends StatelessWidget {
-  const _VideoPreview({required this.controller});
 
-  final VideoPlayerController controller;
 
-  @override
-  Widget build(BuildContext context) {
-    if (!controller.value.isInitialized) {
-      return const SizedBox(
-        height: 180,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: AspectRatio(
-        aspectRatio: controller.value.aspectRatio,
-        child: VideoPlayer(controller),
-      ),
-    );
-  }
-}
-
-class _StepTile extends StatelessWidget {
-  const _StepTile({
-    required this.number,
-    required this.title,
-    required this.description,
-  });
-
-  final int number;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: ThemeColors.accent,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            '$number',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: textTheme.titleMedium),
-              const SizedBox(height: 2),
-              Text(description, style: textTheme.bodySmall),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

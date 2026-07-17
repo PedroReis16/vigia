@@ -27,20 +27,22 @@ class DevicesPage extends ConsumerWidget {
             ),
           );
         },
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
   Widget _loadDevices(BuildContext context, WidgetRef ref) {
-    final devicesAsync = ref.watch(getDevicesProvider);
+    final devicesAsync = ref.watch(devicesProvider);
 
     return devicesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) =>
           Center(child: Text('Error: ${error.toString()}')),
       data: (devices) {
-        if (devices.isEmpty) return Center(child: Text('No devices found'));
+        if (devices.isEmpty) {
+          return const Center(child: Text('No devices found'));
+        }
         return ListView.builder(
           itemCount: devices.length,
           itemBuilder: (context, index) {

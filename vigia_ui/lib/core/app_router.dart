@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/presentation/home/home_page.dart';
-import 'package:vigia_ui/presentation/settings/settings_page.dart';
+import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
+import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
 import 'package:vigia_ui/presentation/shell/base_page.dart';
 
@@ -32,7 +32,7 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: AppRoutes.home,
-              builder: (context, state) => const HomePage(),
+              builder: (context, state) => const DevicesPage(),
               routes: [],
             ),
           ],

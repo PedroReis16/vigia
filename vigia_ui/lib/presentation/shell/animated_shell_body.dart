@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vigia_ui/core/providers/app_bar_config.dart';
 
 class AnimatedShellBody extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -48,8 +49,11 @@ class _AnimatedShellBodyState extends State<AnimatedShellBody> {
 
   @override
   Widget build(BuildContext context) {
+    final config = AppBarConfig.fromState(GoRouterState.of(context));
+
     return PageView(
       controller: _pageController,
+      physics: !config.showAppBar ? const NeverScrollableScrollPhysics() : null,
       onPageChanged: (index) {
         // Swipe entre abas → atualiza a rota
         widget.navigationShell.goBranch(index);

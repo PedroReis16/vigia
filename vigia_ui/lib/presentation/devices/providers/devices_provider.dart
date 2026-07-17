@@ -7,7 +7,7 @@ part 'devices_provider.g.dart';
 
 @riverpod
 Future<List<Device>> getDevices(Ref ref) async {
-  try { 
+  try {
     final thumbnailData = await rootBundle.load('assets/images/fake_thumb.JPG');
     final thumbnail = thumbnailData.buffer.asUint8List();
     return [

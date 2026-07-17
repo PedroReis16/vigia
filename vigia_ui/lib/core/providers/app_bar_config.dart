@@ -4,14 +4,9 @@ import 'package:vigia_ui/domain/enums/sheet_stages.dart';
 
 class AppBarConfig {
   final String title;
-  final bool showBackButton;
-  final bool showFilterButton;
+  final bool showAppBar;
 
-  const AppBarConfig({
-    required this.title,
-    this.showBackButton = false,
-    this.showFilterButton = false,
-  });
+  const AppBarConfig({required this.title, this.showAppBar = true});
 
   factory AppBarConfig.fromState(GoRouterState state) {
     final option = state.pathParameters['option'];
@@ -19,21 +14,17 @@ class AppBarConfig {
     final stageName = state.pathParameters['stage'];
 
     final title = switch (state.matchedLocation) {
-      AppRoutes.home => 'Home',
-      AppRoutes.settings => 'Settings',
+      AppRoutes.devices => 'Dispositivos',
+      AppRoutes.settings => 'Configurações',
       _ when stageName != null => _stageTitle(stageName),
       _ when option != null => Uri.decodeComponent(option),
       _ when id != null => 'Ficha #$id',
       _ => 'Ceramics Planner',
     };
-    const rootRoutes = {AppRoutes.home, AppRoutes.settings};
-    final showBackButton = !rootRoutes.contains(state.matchedLocation);
-    final showFilterButton = state.matchedLocation == AppRoutes.settings;
-    return AppBarConfig(
-      title: title,
-      showBackButton: showBackButton,
-      showFilterButton: showFilterButton,
-    );
+
+    final showBar = !state.pathParameters.keys.contains('deviceId');
+
+    return AppBarConfig(title: title, showAppBar: showBar);
   }
 
   static String _stageTitle(String stageName) {

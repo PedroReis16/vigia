@@ -8,7 +8,7 @@ class BasePage extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
   const BasePage({super.key, required this.navigationShell});
 
-  void _onMenyTap(int index) {
+  void _onMenuTap(int index) {
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
@@ -19,33 +19,21 @@ class BasePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = AppBarConfig.fromState(GoRouterState.of(context));
     // final hasActiveFilters = ref.watch(sheetsFilterProvider).hasActiveFilters;
-
+ 
+    
     return Scaffold(
-      appBar: AppBar(
-        leading: config.showBackButton
-            ? IconButton(
-                onPressed: () => context.pop(),
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              )
-            : null,
-        title: Text(config.title),
-        actions: [
-          if (config.showFilterButton)
-            IconButton(
-              tooltip: 'Filtrar fichas',
-              onPressed: () => {},
-              icon: Badge(
-                isLabelVisible: false,
-                child: Icon(Icons.filter_alt_outlined),
-              ),
+      appBar: !config.showAppBar
+          ? null
+          : AppBar(
+              title: Text(config.title),
             ),
-        ],
-      ),
       body: navigationShell,
-      bottomNavigationBar: MenuComponent(
-        currentIndex: navigationShell.currentIndex,
-        onItemTap: _onMenyTap,
-      ),
+      bottomNavigationBar: !config.showAppBar
+          ? null
+          : MenuComponent(
+              currentIndex: navigationShell.currentIndex,
+              onItemTap: _onMenuTap,
+            ),
     );
   }
 }

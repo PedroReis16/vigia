@@ -46,4 +46,4 @@ final class GetDevicesProvider
   }
 }
 
-String _$getDevicesHash() => r'17ed9fddbb120f54483d166e09ae1d8ef5a51734';
+String _$getDevicesHash() => r'c5ad3bd85b55c4c6370d26e67caddc86b4d5b7f8';

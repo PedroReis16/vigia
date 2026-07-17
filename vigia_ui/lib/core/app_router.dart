@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
+import 'package:vigia_ui/presentation/devices/pages/device_live_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
@@ -12,7 +13,7 @@ final _libraryNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: AppRoutes.home,
+  initialLocation: AppRoutes.devices,
   debugLogDiagnostics: false,
   routes: [
     StatefulShellRoute(
@@ -31,9 +32,38 @@ final GoRouter appRouter = GoRouter(
           navigatorKey: _sheetsNavigatorKey,
           routes: [
             GoRoute(
-              path: AppRoutes.home,
+              path: AppRoutes.devices,
               builder: (context, state) => const DevicesPage(),
-              routes: [],
+              routes: [
+                GoRoute(
+                  path: AppRoutes.deviceDetailsRelative,
+                  pageBuilder: (context, state) {
+                    final String deviceId = state.pathParameters['deviceId']!;
+
+                    return CustomTransitionPage(
+                      key: state.pageKey,
+                      child: DeviceLivePage(deviceId: deviceId),
+                      transitionsBuilder:
+                          (context, animation, secondaryAnimation, child) {
+                            // Define o início (fora da tela à direita) e o fim (centro)
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.ease;
+
+                            final tween = Tween(
+                              begin: begin,
+                              end: end,
+                            ).chain(CurveTween(curve: curve));
+
+                            return SlideTransition(
+                              position: animation.drive(tween),
+                              child: child,
+                            );
+                          },
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),

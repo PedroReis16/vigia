@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/presentation/devices/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 
@@ -34,7 +36,12 @@ class DevicesPage extends ConsumerWidget {
             return DeviceCard(
               device: devices[index],
               onTap: () {
-                print('onTap');
+                context.push(
+                  AppRoutes.deviceDetails.replaceAll(
+                    ':deviceId',
+                    devices[index].id,
+                  ),
+                );
               },
             );
           },

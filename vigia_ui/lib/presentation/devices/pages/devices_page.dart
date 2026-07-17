@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/presentation/devices/device_card.dart';
+import 'package:vigia_ui/presentation/devices/widgets/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
+import 'package:vigia_ui/presentation/devices/widgets/new_device_modal.dart';
 
 class DevicesPage extends ConsumerWidget {
   const DevicesPage({super.key});
@@ -14,7 +15,17 @@ class DevicesPage extends ConsumerWidget {
       body: Consumer(builder: (context, ref, _) => _loadDevices(context, ref)),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          print('onPressed');
+          showModalBottomSheet(
+            context: context,
+            useRootNavigator: true,
+            isScrollControlled: true,
+            showDragHandle: true,
+            builder: (context) => SizedBox(
+              height: MediaQuery.of(context).size.height * 0.65,
+              width: MediaQuery.of(context).size.width,
+              child: const NewDeviceModal(),
+            ),
+          );
         },
         child: Icon(Icons.add),
       ),

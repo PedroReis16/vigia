@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>O Vigia usa Bluetooth para encontrar e vincular o dispositivo.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>O Vigia usa Bluetooth para encontrar e vincular o dispositivo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

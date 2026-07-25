@@ -1,7 +1,6 @@
 """
 Módulo de helpers para o sistema
 """
-
 from uuid import uuid4
 from getmac import get_mac_address
 

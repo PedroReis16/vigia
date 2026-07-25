@@ -64,53 +64,53 @@ def get_device() -> Optional[Device]:
     return __get_device_details()
 
 
-def update_device_group(group_id: UUID) -> None:
-    """
-    Vincula o dispositivo a um grupo de usuários
-    """
+# def update_device_group(group_id: UUID) -> None:
+#     """
+#     Vincula o dispositivo a um grupo de usuários
+#     """
 
-    try:
-        db.connect()
+#     try:
+#         db.connect()
 
-        devices = Device.select()
+#         devices = Device.select()
 
-        if not devices:
-            raise EntityValidationException("Nenhum dispositivo registrado")
+#         if not devices:
+#             raise EntityValidationException("Nenhum dispositivo registrado")
 
-        device = devices[0]
+#         device = devices[0]
 
-        device.group_id = group_id
-        device.updated_at = datetime.datetime.now()
+#         device.group_id = group_id
+#         device.updated_at = datetime.datetime.now()
 
-        device.save()
+#         device.save()
 
-        get_device.cache_clear()
+#         get_device.cache_clear()
 
-    finally:
-        db.close()
+#     finally:
+#         db.close()
 
 
-def delete_device_group() -> None:
-    """
-    Desvincula o dispositivo de um grupo de usuários
-    """
+# def delete_device_group() -> None:
+#     """
+#     Desvincula o dispositivo de um grupo de usuários
+#     """
 
-    try:
-        db.connect()
+#     try:
+#         db.connect()
 
-        devices = Device.select()
+#         devices = Device.select()
 
-        if not devices:
-            raise EntityValidationException("Nenhum dispositivo registrado")
+#         if not devices:
+#             raise EntityValidationException("Nenhum dispositivo registrado")
 
-        device = devices[0]
+#         device = devices[0]
 
-        device.group_id = None
-        device.updated_at = datetime.datetime.now()
+#         device.group_id = None
+#         device.updated_at = datetime.datetime.now()
 
-        device.save()
+#         device.save()
 
-        get_device.cache_clear()
+#         get_device.cache_clear()
 
-    finally:
-        db.close()
+#     finally:
+#         db.close()

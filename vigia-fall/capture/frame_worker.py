@@ -5,7 +5,7 @@ Worker para processamento assíncrono dos frames capturados
 from functools import lru_cache
 import queue
 import numpy as np  # pyright: ignore[reportMissingImports]
-from models import get_settings
+from shared import get_settings
 
 
 class FrameWorker: 

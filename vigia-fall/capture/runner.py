@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import cv2 # pyright: ignore[reportMissingImports]
 
-from models import get_settings
+from shared import get_settings
 from capture.frame_worker import get_worker
 
 def run_capture():

@@ -5,13 +5,13 @@ Módulo de runner para a integração do dispositivo com o serviço externo
 import asyncio
 from uuid import UUID
 
-from models import helpers_create_device_name, helpers_get_mac_address
-from database import create_database, get_device_details, create_device
+from shared import helpers_create_device_name, helpers_get_mac_address
+from database import create_database, get_device, create_device
 
 is_connected: bool = False
 
 
-def register_device() -> tuple[UUID, str]:
+def __register_device() -> tuple[UUID, str]:
     """
     Registro das informações iniciais do dispositivo
     """
@@ -19,7 +19,7 @@ def register_device() -> tuple[UUID, str]:
     device_name = helpers_create_device_name()
     mac_address = helpers_get_mac_address()
 
-    tracked_device = get_device_details()
+    tracked_device = get_device()
 
     if tracked_device:
         return tracked_device.id, tracked_device.name
@@ -40,7 +40,7 @@ async def initialize_device() -> None:
 
     create_database()
 
-    device_id, device_name = register_device()
+    device_id, device_name = __register_device()
 
     print(f"Device ID: {device_id}")
     print(f"Device Name: {device_name}")

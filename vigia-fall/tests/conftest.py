@@ -3,7 +3,7 @@
 import pytest
 
 from capture.frame_worker import get_worker
-from shared.models.settings import get_settings
+from models import get_settings
 
 
 @pytest.fixture(autouse=True)

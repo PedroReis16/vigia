@@ -2,7 +2,7 @@
 
 import pytest
 
-from shared.models.settings import Settings, get_settings
+from models import Settings, get_settings
 
 
 def test_Settings_from_env_ComVariaveisDefinidas_RetornaConfiguracaoCorreta(

@@ -1,8 +1,8 @@
-"""Testes unitários para shared.helpers.helpers_convert_to_bool."""
+"""Testes unitários para models.helpers.helpers_convert_to_bool."""
 
 import pytest
 
-from shared.helpers import helpers_convert_to_bool
+from models.helpers import helpers_convert_to_bool
 
 
 def test_helpers_convert_to_bool_ComValorTrue_RetornaVerdadeiro() -> None:

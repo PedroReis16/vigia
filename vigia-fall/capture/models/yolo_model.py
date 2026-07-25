@@ -7,7 +7,7 @@ from functools import lru_cache
 
 from ultralytics import YOLO  # pyright: ignore[reportMissingImports]
 
-from shared.models import get_settings
+from models import get_settings
 
 @dataclass(frozen=True)
 class YoloModel:

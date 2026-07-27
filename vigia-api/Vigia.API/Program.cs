@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.OpenApi;
 using Vigia.API.Config;
+using Vigia.API.Contracts;
+using Vigia.API.Services;
 using Vigia.Models.Middlewares;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -23,6 +25,8 @@ builder.Services.AddTransient<GlobalExceptionHandler>();
 builder.Services.AddTransient<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
 
+// Services
+builder.Services.AddScoped<IDeviceService,DeviceService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

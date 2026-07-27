@@ -30,6 +30,8 @@
 	<string>O Vigia usa Bluetooth para encontrar e vincular o dispositivo.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>O Vigia usa Bluetooth para encontrar e vincular o dispositivo.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O Vigia usa a localização para listar redes Wi‑Fi próximas durante a configuração do dispositivo.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

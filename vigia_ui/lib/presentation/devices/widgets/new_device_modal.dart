@@ -7,6 +7,7 @@ import 'package:vigia_ui/presentation/devices/providers/device_pairing_provider.
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/scanning_view.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/status_view.dart';
+import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/wifi_provision_form.dart';
 
 class NewDeviceModal extends ConsumerStatefulWidget {
   const NewDeviceModal({super.key});
@@ -89,6 +90,19 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             description:
                 'Dispositivo encontrado. Estabelecendo a conexão com o Vigia…',
           ),
+          DevicePairingStage.authenticating => const StatusView(
+            icon: CircularProgressIndicator(),
+            title: 'Validando dispositivo',
+            description:
+                'Confirmando a identidade do Vigia e autenticando o aplicativo…',
+          ),
+          DevicePairingStage.provisioning => WifiProvisionForm(
+            onSubmit: (ssid, password) {
+              return ref
+                  .read(devicePairingProvider.notifier)
+                  .submitWifi(ssid: ssid, password: password);
+            },
+          ),
           DevicePairingStage.connected => StatusView(
             icon: const Icon(
               Icons.check_circle_rounded,
@@ -124,7 +138,3 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
     );
   }
 }
-
-
-
-

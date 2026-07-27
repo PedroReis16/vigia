@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:uuid/uuid.dart';
+import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/DTOs/device_identity.dart';
+import 'package:vigia_ui/domain/constants.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
 
 part 'device_pairing_provider.g.dart';
@@ -36,8 +38,12 @@ class DevicePairingState {
 @riverpod
 class DevicePairing extends _$DevicePairing {
   final BlePairingService _ble = BlePairingService();
+  final AppIdentityService _identity = AppIdentityService();
+
   StreamSubscription<ScanResult>? _scanSubscription;
   BluetoothDevice? _connectedBleDevice;
+  DeviceIdentity? _deviceIdentity;
+  String? _bleName;
   var _started = false;
 
   @override
@@ -55,10 +61,8 @@ class DevicePairing extends _$DevicePairing {
     try {
       await _ble.ensureReady();
       await _scanSubscription?.cancel();
-      // Keep scanning while the modal is open — no timeout / "not found" error.
       _scanSubscription = _ble.scanForVigia().listen(_onDeviceFound);
     } catch (error) {
-      // Permissions / Bluetooth off — user must fix before scanning can continue.
       state = DevicePairingState(
         stage: DevicePairingStage.error,
         errorMessage: error.toString(),
@@ -70,6 +74,45 @@ class DevicePairing extends _$DevicePairing {
     await _cleanup();
     _started = false;
     await start();
+  }
+
+  Future<void> submitWifi({
+    required String ssid,
+    required String password,
+  }) async {
+    final device = _connectedBleDevice;
+    final identity = _deviceIdentity;
+    if (device == null || identity == null) {
+      state = const DevicePairingState(
+        stage: DevicePairingStage.error,
+        errorMessage: 'Sessão BLE inválida. Tente novamente.',
+      );
+      return;
+    }
+
+    if (state.stage != DevicePairingStage.provisioning) return;
+
+    try {
+      await _ble.provision(
+        device,
+        ssid: ssid.trim(),
+        password: password,
+        apiToken: Constants.localDevApiToken,
+      );
+
+      state = DevicePairingState(
+        stage: DevicePairingStage.connected,
+        device: Device(
+          id: identity.deviceId,
+          description: _bleName ?? 'Vigia',
+        ),
+      );
+    } catch (error) {
+      state = DevicePairingState(
+        stage: DevicePairingStage.error,
+        errorMessage: 'Falha no provisionamento: $error',
+      );
+    }
   }
 
   Future<void> _onDeviceFound(ScanResult result) async {
@@ -85,20 +128,29 @@ class DevicePairing extends _$DevicePairing {
       _connectedBleDevice = result.device;
 
       final name = result.device.platformName.trim().isEmpty
-          ? 'Vigia'
+          ? (result.advertisementData.advName.trim().isEmpty
+                ? 'Vigia'
+                : result.advertisementData.advName.trim())
           : result.device.platformName.trim();
+      _bleName = name;
 
-      state = DevicePairingState(
-        stage: DevicePairingStage.connected,
-        device: Device(
-          id: const Uuid().v4(),
-          description: name,
-        ),
+      state = const DevicePairingState(stage: DevicePairingStage.authenticating);
+
+      final identity = await _ble.readIdentity(result.device);
+      _deviceIdentity = identity;
+
+      final appPub = await _identity.publicKeyHex();
+      await _ble.authenticate(
+        result.device,
+        appSignPubHex: appPub,
+        signNonce: _identity.signHex,
       );
+
+      state = const DevicePairingState(stage: DevicePairingStage.provisioning);
     } catch (error) {
       state = DevicePairingState(
         stage: DevicePairingStage.error,
-        errorMessage: 'Não foi possível conectar: $error',
+        errorMessage: 'Não foi possível autenticar: $error',
       );
     }
   }
@@ -108,5 +160,7 @@ class DevicePairing extends _$DevicePairing {
     _scanSubscription = null;
     await _ble.disconnect(_connectedBleDevice);
     _connectedBleDevice = null;
+    _deviceIdentity = null;
+    _bleName = null;
   }
 }

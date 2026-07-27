@@ -10,6 +10,8 @@ using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
 using Vigia.API.Database.Contracts;
 using Vigia.API.Database.EFDao;
+using Vigia.API.Database.CacheContracts;
+using Vigia.API.Database.Cache;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +44,11 @@ builder.Services.AddScoped<IDeviceService, DeviceService>();
 
 // Dao Services
 builder.Services.AddTransient<IDevicesDao, DevicesDao>();
+builder.Services.AddTransient<IUserDao, UserDao>();
+builder.Services.AddTransient<IGroupDao, GroupDao>();
+
+// Dao Cache
+builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

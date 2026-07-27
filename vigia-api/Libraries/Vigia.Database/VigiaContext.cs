@@ -5,20 +5,27 @@ using Vigia.Models.Entities;
 public class VigiaDbContext : DbContext
 {
     public DbSet<Device> Devices { get; set; } = null!;
+    public DbSet<Group> Groups { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserRole> UserRoles { get; set; } = null!;
 
     public VigiaDbContext(DbContextOptions<VigiaDbContext> options) : base(options)
     {
     }
 
-    internal VigiaDbContext(){
-
+    internal VigiaDbContext()
+    {
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+
+        _ = modelBuilder.ApplyConfiguration(new UserRolesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new DevicesConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new GroupsConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new UsersConfiguration());
 
         _ = modelBuilder.Ignore<BaseEntity>();
     }

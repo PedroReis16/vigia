@@ -10,9 +10,9 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
     {
         base.Configure(builder);
 
-        _ = builder.Property(e => e.DeviceName)
+        _ = builder.Property(e => e.Name)
             .IsRequired()
-            .HasColumnName("device_name")
+            .HasColumnName("name")
             .HasMaxLength(64);
 
         _ = builder.Property(e => e.Nickname)
@@ -25,8 +25,8 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasMaxLength(256);
 
 
-        _ = builder.HasIndex(e => e.DeviceName);
-        _ = builder.HasIndex(e => e.PublicKey);
+        _ = builder.HasIndex(e => e.Name);
         _ = builder.HasIndex(e => e.Nickname);
+        _ = builder.HasIndex(e => e.PublicKey);
     }
 }

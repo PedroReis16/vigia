@@ -37,6 +37,7 @@ builder.Services.AddTransient<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Services
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
 
 // Dao Services

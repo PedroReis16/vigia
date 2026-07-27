@@ -3,7 +3,7 @@ using Vigia.Models.Entities;
 
 namespace Vigia.Database.Cache;
 
-internal class RepositoryCache<TEntity>(IInMemoryCacheService cacheService) : IRepositoryCache<TEntity> where TEntity : BaseEntity
+public class RepositoryCache<TEntity>(IInMemoryCacheService cacheService) : IRepositoryCache<TEntity> where TEntity : BaseEntity
 {
     protected IInMemoryCacheService _cacheService = cacheService;
     private static string GetCacheKey(string key) => $"{typeof(TEntity).Name}-{key}";

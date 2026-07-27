@@ -6,6 +6,10 @@ using Vigia.API.Config;
 using Vigia.API.Contracts;
 using Vigia.API.Services;
 using Vigia.Models.Middlewares;
+using Vigia.Database.Extensions;
+using Vigia.Cache.Extensions;
+using Vigia.API.Database.Contracts;
+using Vigia.API.Database.EFDao;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +23,13 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
+// Database
+builder.Services.AddPostgres(builder.Configuration.GetConnectionString("VigiaDb")!);
+
+// Cache
+builder.Services.AddInMemoryCache(builder.Configuration);
+
+
 // Middlewares 
 
 builder.Services.AddTransient<GlobalExceptionHandler>();
@@ -26,7 +37,10 @@ builder.Services.AddTransient<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Services
-builder.Services.AddScoped<IDeviceService,DeviceService>();
+builder.Services.AddScoped<IDeviceService, DeviceService>();
+
+// Dao Services
+builder.Services.AddTransient<IDevicesDao, DevicesDao>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

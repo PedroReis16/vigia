@@ -225,8 +225,7 @@ namespace Vigia.Database.Migrations
 
                     b.HasIndex("UpdatedAt");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
                     b.ToTable("refresh_tokens", (string)null);
                 });

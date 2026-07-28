@@ -1,9 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.StaticAssets;
 using Microsoft.IdentityModel.Tokens;
-using Vigia.API.Models.DTOs.Auth;
 
 namespace Vigia.API.Models.Helpers;
 
@@ -21,8 +19,9 @@ public static class JwtConverter
         // Mapear as claims do usuário
         var claims = new List<Claim>{
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new(ClaimTypes.Role, string.Join(",", roles)),
         };
+
+        roles.ForEach(role => claims.Add(new("role", role)));
 
         // Configurar chave e algoritmo de assinatura
         var tokenKey = Encoding.UTF8.GetBytes(GetJwtSettings(configuration).SecretKey);
@@ -53,15 +52,39 @@ public static class JwtConverter
         var securityToken = tokenHandler.ReadJwtToken(token);
 
         var idClaim = securityToken.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-        var nameClaim = securityToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value;
-        var emailClaim = securityToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
-        var rolesClaim = securityToken.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToList();
-
+        var rolesClaim = securityToken.Claims
+            .Where(c => c.Type == "role")
+            .Select(c => c.Value)
+            .ToList();
 
         // 3. Reconstrói e retorna o objeto original
         return (
             idClaim != null ? Guid.Parse(idClaim) : Guid.Empty,
             rolesClaim ?? []
         );
+    }
+
+    public static bool ValidateToken(IConfiguration configuration, string accessToken)
+    {
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+
+            tokenHandler.ValidateToken(accessToken, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["JWT:SecretKey"]!)),
+                ValidateIssuer = true,
+                ValidIssuer = configuration["JWT:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = configuration["JWT:Audience"],
+            }, out SecurityToken? validatedToken);
+
+            return validatedToken != null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

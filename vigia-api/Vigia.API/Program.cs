@@ -13,6 +13,9 @@ using Vigia.API.Database.EFDao;
 using Vigia.API.Database.CacheContracts;
 using Vigia.API.Database.Cache;
 using Vigia.API.Middlewares;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -40,15 +43,16 @@ builder.Services.AddScoped<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Services
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IDeviceService, DeviceService>();
+builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.AddTransient<IDeviceService, DeviceService>();
+builder.Services.AddTransient<IAuthService, AuthService>();
+
 
 // Dao Services
-builder.Services.AddTransient<IRefreshTokenDao, RefreshTokenDao>();
-builder.Services.AddTransient<IDevicesDao, DevicesDao>();
-builder.Services.AddTransient<IUserDao, UserDao>();
-builder.Services.AddTransient<IGroupDao, GroupDao>();
+builder.Services.AddScoped<IRefreshTokenDao, RefreshTokenDao>();
+builder.Services.AddScoped<IDevicesDao, DevicesDao>();
+builder.Services.AddScoped<IUserDao, UserDao>();
+builder.Services.AddScoped<IGroupDao, GroupDao>();
 
 // Dao Cache
 builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();

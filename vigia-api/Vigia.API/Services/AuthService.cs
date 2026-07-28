@@ -26,14 +26,20 @@ internal class AuthService(ILogger<AuthService> logger, IServiceScopeFactory sco
             User? user = await userDao.FindUserByEmailAsync(loginUserDTO.Email);
 
             if (user == null)
+            {
+                _logger.LogWarning($"Tentativa de login com email {loginUserDTO.Email}. Usuário não encontrado");
                 return null;
+            }
 
             byte[] passwordSalt = user.Salt;
 
             byte[] attemptPasswordHash = PasswordHasher.Hash(loginUserDTO.Password, passwordSalt);
 
             if (!attemptPasswordHash.SequenceEqual(user.Password))
+            {
+                _logger.LogWarning($"Tentativa de login com email {loginUserDTO.Email}. Senha incorreta");
                 return null;
+            }
 
             string accessToken = GenerateAccessToken(scope, user.Id, user.Roles.Select(r => r.Id).ToList());
 
@@ -135,6 +141,25 @@ internal class AuthService(ILogger<AuthService> logger, IServiceScopeFactory sco
 
     public async Task LogoutUserAsync(string refreshToken)
     {
-        throw new NotImplementedException();
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            IRefreshTokenDao tokenDao = scope.ServiceProvider.GetRequiredService<IRefreshTokenDao>();
+
+            RefreshToken? trackedToken = await tokenDao.FindByTokenAsync(refreshToken);
+
+            if (trackedToken == null)
+                throw new UnauthorizedAccessException("Token de atualização inválido ou expirado");
+
+            await RevokeRefreshTokenAsync(scope, refreshToken);
+        }
+        catch (UnauthorizedAccessException) { throw; }
+        catch (Exception ex)
+        {
+            string errorMessage = $"Houve um erro ao tentar realizar o logout do usuário: {ex.GetFullMessage()}";
+            _logger.LogError(errorMessage);
+            throw new Exception(errorMessage);
+        }
     }
 }

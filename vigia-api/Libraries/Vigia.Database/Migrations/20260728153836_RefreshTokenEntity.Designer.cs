@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Vigia.Database.Migrations
 {
     [DbContext(typeof(VigiaDbContext))]
-    [Migration("20260728142956_RefreshTokenEntity")]
+    [Migration("20260728153836_RefreshTokenEntity")]
     partial class RefreshTokenEntity
     {
         /// <inheritdoc />
@@ -228,8 +228,7 @@ namespace Vigia.Database.Migrations
 
                     b.HasIndex("UpdatedAt");
 
-                    b.HasIndex("UserId")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
                     b.ToTable("refresh_tokens", (string)null);
                 });

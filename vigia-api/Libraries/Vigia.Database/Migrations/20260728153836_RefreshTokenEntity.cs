@@ -66,8 +66,7 @@ namespace Vigia.Database.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_refresh_tokens_user_id",
                 table: "refresh_tokens",
-                column: "user_id",
-                unique: true);
+                column: "user_id");
         }
 
         /// <inheritdoc />

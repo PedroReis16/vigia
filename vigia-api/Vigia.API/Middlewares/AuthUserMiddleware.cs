@@ -1,19 +1,34 @@
-
 using System.Text.Json;
 using Vigia.API.Models.Helpers;
 
 namespace Vigia.API.Middlewares;
 
-public class AuthUserMiddleware : IMiddleware
+public class AuthUserMiddleware(IConfiguration configuration) : IMiddleware
 {
-    private static readonly string[] _allowedPaths = new string[] { "/login", "/register" };
+    private readonly IConfiguration _configuration = configuration;
+    private static readonly string[] _allowedPaths = new string[] { "login", "register" };
 
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
+
+        string route = context.Request.Path.ToString().Split("/").Last();
+
+        if (_allowedPaths.Contains(route))
+        {
+            await next(context);
+            return;
+        }
+
         string? accessToken = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
 
-        if (string.IsNullOrEmpty(accessToken) || !_allowedPaths.Contains(context.Request.PathBase.ToString()))
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            await UnauthorizedResponse(context);
+            return;
+        }
+
+        if (!JwtConverter.ValidateToken(_configuration, accessToken))
         {
             await UnauthorizedResponse(context);
             return;
@@ -33,6 +48,7 @@ public class AuthUserMiddleware : IMiddleware
 
         await next(context);
     }
+
 
     private async Task UnauthorizedResponse(HttpContext context)
     {

@@ -39,7 +39,7 @@ internal class RefreshTokensConfiguration : BaseConfiguration<RefreshToken>
             .IsRequired();
 
         _ = builder.HasIndex(e => e.Token).IsUnique();
-        _ = builder.HasIndex(e => e.UserId).IsUnique();
+        _ = builder.HasIndex(e => e.UserId);
         _ = builder.HasIndex(e => e.RequestIp);
         _ = builder.HasIndex(e => e.ReplacedToken).IsUnique();
     }

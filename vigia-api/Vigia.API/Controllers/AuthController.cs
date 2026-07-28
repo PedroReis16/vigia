@@ -54,7 +54,7 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// <param name="refreshToken"></param>
     /// <returns></returns>
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDTO refreshToken)
     {
         try
         {
@@ -64,7 +64,7 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
 
             IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
 
-            AuthResponseDTO? responseToken = await authService.RefreshTokenAsync(refreshToken, requestIp);
+            AuthResponseDTO? responseToken = await authService.RefreshTokenAsync(refreshToken.RefreshToken, requestIp);
 
             if (responseToken == null)
                 return Unauthorized();
@@ -87,13 +87,13 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// <param name="refreshToken"></param>
     /// <returns></returns>
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromHeader] string refreshToken)
+    public async Task<IActionResult> Logout([FromHeader] RefreshTokenDTO refreshToken)
     {
         using IServiceScope scope = _scopeFactory.CreateScope();
 
         IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
 
-        await authService.LogoutUserAsync(refreshToken);
+        await authService.LogoutUserAsync(refreshToken.RefreshToken);
 
         return Ok();
     }

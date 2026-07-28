@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
 
@@ -131,7 +130,9 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
     final busy = _submitting || widget.isSubmitting;
     final hasSelection =
         _selectedNetwork != null ||
@@ -177,11 +178,11 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           if (_scanError != null) ...[
             Text(
               _scanError!,
-              style: textTheme.bodySmall?.copyWith(color: Colors.red.shade700),
+              style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
             ),
             const SizedBox(height: 8),
           ],
-          Expanded(child: _buildNetworkSection(textTheme, busy)),
+          Expanded(child: _buildNetworkSection(textTheme, colorScheme, busy)),
           if (hasSelection) ...[
             const SizedBox(height: 12),
             if (_requiresPassword) ...[
@@ -193,8 +194,6 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 onFieldSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
                   labelText: 'Senha da rede',
-                  filled: true,
-                  fillColor: ThemeColors.fieldBackground,
                   suffixIcon: IconButton(
                     onPressed: busy
                         ? null
@@ -239,7 +238,11 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     );
   }
 
-  Widget _buildNetworkSection(TextTheme textTheme, bool busy) {
+  Widget _buildNetworkSection(
+    TextTheme textTheme,
+    ColorScheme colorScheme,
+    bool busy,
+  ) {
     if (_manualEntry) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -251,8 +254,6 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             onChanged: (_) => setState(() {}),
             decoration: const InputDecoration(
               labelText: 'Nome da rede (SSID)',
-              filled: true,
-              fillColor: ThemeColors.fieldBackground,
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
@@ -302,10 +303,10 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
 
               return ListTile(
                 selected: selected,
-                selectedTileColor: ThemeColors.fieldBackground,
+                selectedTileColor: colorScheme.primaryContainer,
                 leading: Icon(
                   network.isSecure ? Icons.lock_outline : Icons.wifi,
-                  color: selected ? ThemeColors.accent : null,
+                  color: selected ? colorScheme.primary : null,
                 ),
                 title: Text(network.ssid),
                 subtitle: Text(_signalLabel(network.signalLevel)),
@@ -338,6 +339,7 @@ class _SignalIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final bars = switch (level) {
       >= -50 => 3,
       >= -65 => 2,
@@ -356,8 +358,8 @@ class _SignalIcon extends StatelessWidget {
             margin: const EdgeInsets.only(left: 2),
             decoration: BoxDecoration(
               color: i < bars
-                  ? ThemeColors.accent
-                  : ThemeColors.hint.withValues(alpha: 0.4),
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(1),
             ),
           ),

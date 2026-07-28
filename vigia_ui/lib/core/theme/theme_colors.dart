@@ -1,11 +1,171 @@
 import 'package:flutter/material.dart';
 
-abstract final class ThemeColors {
-  static const background = Color(0xFFFBF8F3);
-  static const cardBackground = Color(0xFFFFFFFF);
-  static const fieldBackground = Color(0xFFF5EDE3);
-  static const border = Color(0xFFB8956A);
-  static const label = Color(0xFF6B4E3D);
-  static const hint = Color(0xFF9C8575);
-  static const accent = Color(0xFFC4784A);
+/// Color tokens for Vigia light and dark themes.
+///
+/// Prefer [Theme.of] `.colorScheme` for Material roles. Use
+/// `Theme.of(context).extension<AppColors>()` for semantic colors
+/// (success, info, warning) and direct token access.
+@immutable
+final class AppColors extends ThemeExtension<AppColors> {
+  const AppColors({
+    required this.primary,
+    required this.primaryContainer,
+    required this.secondary,
+    required this.secondaryContainer,
+    required this.background,
+    required this.surface,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.outline,
+    required this.outlineVariant,
+    required this.error,
+    required this.success,
+    required this.info,
+    required this.warning,
+  });
+
+  final Color primary;
+  final Color primaryContainer;
+  final Color secondary;
+  final Color secondaryContainer;
+  final Color background;
+  final Color surface;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color outline;
+  final Color outlineVariant;
+  final Color error;
+  final Color success;
+  final Color info;
+  final Color warning;
+
+  static const light = AppColors(
+    primary: Color(0xFF0D3B6D),
+    primaryContainer: Color(0xFFE8F0F7),
+    secondary: Color(0xFF12785D),
+    secondaryContainer: Color(0xFFE8F6F2),
+    background: Color(0xFFF6F9FB),
+    surface: Color(0xFFFFFFFF),
+    textPrimary: Color(0xFF102A43),
+    textSecondary: Color(0xFF52677A),
+    outline: Color(0xFF8FA1B1),
+    outlineVariant: Color(0xFFD7E1EA),
+    error: Color(0xFFB42318),
+    success: Color(0xFF167A5B),
+    info: Color(0xFF2563A6),
+    warning: Color(0xFF9A5B00),
+  );
+
+  static const dark = AppColors(
+    primary: Color(0xFF71A7D8),
+    primaryContainer: Color(0xFF13365E),
+    secondary: Color(0xFF4FC3A3),
+    secondaryContainer: Color(0xFF164D40),
+    background: Color(0xFF071522),
+    surface: Color(0xFF0D2235),
+    textPrimary: Color(0xFFF4F7FA),
+    textSecondary: Color(0xFFA9BAC8),
+    outline: Color(0xFF71879A),
+    outlineVariant: Color(0xFF294052),
+    error: Color(0xFFFF8A80),
+    success: Color(0xFF4FC3A3),
+    info: Color(0xFF71A7D8),
+    warning: Color(0xFFF6C85F),
+  );
+
+  ColorScheme toColorScheme(Brightness brightness) {
+    final onPrimary = brightness == Brightness.light
+        ? const Color(0xFFFFFFFF)
+        : background;
+    final onSecondary = brightness == Brightness.light
+        ? const Color(0xFFFFFFFF)
+        : background;
+    final onError = brightness == Brightness.light
+        ? const Color(0xFFFFFFFF)
+        : background;
+
+    return ColorScheme(
+      brightness: brightness,
+      primary: primary,
+      onPrimary: onPrimary,
+      primaryContainer: primaryContainer,
+      onPrimaryContainer: textPrimary,
+      secondary: secondary,
+      onSecondary: onSecondary,
+      secondaryContainer: secondaryContainer,
+      onSecondaryContainer: textPrimary,
+      surface: surface,
+      onSurface: textPrimary,
+      onSurfaceVariant: textSecondary,
+      error: error,
+      onError: onError,
+      outline: outline,
+      outlineVariant: outlineVariant,
+      surfaceContainerHighest: primaryContainer,
+    );
+  }
+
+  @override
+  AppColors copyWith({
+    Color? primary,
+    Color? primaryContainer,
+    Color? secondary,
+    Color? secondaryContainer,
+    Color? background,
+    Color? surface,
+    Color? textPrimary,
+    Color? textSecondary,
+    Color? outline,
+    Color? outlineVariant,
+    Color? error,
+    Color? success,
+    Color? info,
+    Color? warning,
+  }) {
+    return AppColors(
+      primary: primary ?? this.primary,
+      primaryContainer: primaryContainer ?? this.primaryContainer,
+      secondary: secondary ?? this.secondary,
+      secondaryContainer: secondaryContainer ?? this.secondaryContainer,
+      background: background ?? this.background,
+      surface: surface ?? this.surface,
+      textPrimary: textPrimary ?? this.textPrimary,
+      textSecondary: textSecondary ?? this.textSecondary,
+      outline: outline ?? this.outline,
+      outlineVariant: outlineVariant ?? this.outlineVariant,
+      error: error ?? this.error,
+      success: success ?? this.success,
+      info: info ?? this.info,
+      warning: warning ?? this.warning,
+    );
+  }
+
+  @override
+  AppColors lerp(ThemeExtension<AppColors>? other, double t) {
+    if (other is! AppColors) return this;
+    return AppColors(
+      primary: Color.lerp(primary, other.primary, t)!,
+      primaryContainer: Color.lerp(primaryContainer, other.primaryContainer, t)!,
+      secondary: Color.lerp(secondary, other.secondary, t)!,
+      secondaryContainer: Color.lerp(
+        secondaryContainer,
+        other.secondaryContainer,
+        t,
+      )!,
+      background: Color.lerp(background, other.background, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      outline: Color.lerp(outline, other.outline, t)!,
+      outlineVariant: Color.lerp(outlineVariant, other.outlineVariant, t)!,
+      error: Color.lerp(error, other.error, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      info: Color.lerp(info, other.info, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+    );
+  }
+}
+
+extension AppColorsContext on BuildContext {
+  AppColors get appColors => Theme.of(this).extension<AppColors>()!;
 }

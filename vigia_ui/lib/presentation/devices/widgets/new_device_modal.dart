@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_pairing_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
@@ -104,9 +103,9 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             },
           ),
           DevicePairingStage.connected => StatusView(
-            icon: const Icon(
+            icon: Icon(
               Icons.check_circle_rounded,
-              color: ThemeColors.accent,
+              color: Theme.of(context).colorScheme.primary,
               size: 56,
             ),
             title: 'Conexão estabelecida',

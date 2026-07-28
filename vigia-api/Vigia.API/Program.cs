@@ -12,6 +12,7 @@ using Vigia.API.Database.Contracts;
 using Vigia.API.Database.EFDao;
 using Vigia.API.Database.CacheContracts;
 using Vigia.API.Database.Cache;
+using Vigia.API.Middlewares;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -33,16 +34,18 @@ builder.Services.AddInMemoryCache(builder.Configuration);
 
 
 // Middlewares 
-
-builder.Services.AddTransient<GlobalExceptionHandler>();
-builder.Services.AddTransient<HttpResponseCacheHandler>();
+builder.Services.AddScoped<AuthUserMiddleware>();
+builder.Services.AddScoped<GlobalExceptionHandler>();
+builder.Services.AddScoped<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Services
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IDeviceService, DeviceService>();
 
 // Dao Services
+builder.Services.AddTransient<IRefreshTokenDao, RefreshTokenDao>();
 builder.Services.AddTransient<IDevicesDao, DevicesDao>();
 builder.Services.AddTransient<IUserDao, UserDao>();
 builder.Services.AddTransient<IGroupDao, GroupDao>();
@@ -99,9 +102,10 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = $"{basePath}/swagger";
 });
 
+// Aplicação dos middlewares
 app.UseMiddleware<GlobalExceptionHandler>();
-
 app.UseMiddleware<HttpResponseCacheHandler>();
+app.UseMiddleware<AuthUserMiddleware>();
 
 app.UsePathBase($"/{basePath}");
 

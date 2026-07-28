@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using Vigia.API.Contracts;
+using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Database.Contracts;
 using Vigia.API.Models.DTOs.Auth;
-using Vigia.API.Models.Helpers;
 using Vigia.Models.Entities;
 using Vigia.Models.Exceptions;
 using Vigia.Models.Extensions;
@@ -103,8 +103,8 @@ internal class AuthService(ILogger<AuthService> logger, IServiceScopeFactory sco
 
     private string GenerateAccessToken(IServiceScope scope, Guid userId, List<string> roles)
     {
-        IConfiguration configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        return JwtConverter.Encode(configuration, userId, roles);
+        JwtConverterService jwtConverterService = scope.ServiceProvider.GetRequiredService<JwtConverterService>();
+        return jwtConverterService.Encode(userId, roles);
     }
 
     private async Task<string> GenerateRefreshTokenAsync(IServiceScope scope, Guid userId, string requestIp)
@@ -139,7 +139,7 @@ internal class AuthService(ILogger<AuthService> logger, IServiceScopeFactory sco
         return Convert.ToBase64String(bytes);
     }
 
-    public async Task LogoutUserAsync(string refreshToken)
+    public async Task LogoutUserAsync(Guid tokenId, DateTime expiresAt, string refreshToken)
     {
         try
         {
@@ -153,6 +153,10 @@ internal class AuthService(ILogger<AuthService> logger, IServiceScopeFactory sco
                 throw new UnauthorizedAccessException("Token de atualização inválido ou expirado");
 
             await RevokeRefreshTokenAsync(scope, refreshToken);
+
+            IRevokedTokensCacheService revokedTokensCacheService = scope.ServiceProvider.GetRequiredService<IRevokedTokensCacheService>();
+
+            revokedTokensCacheService.SaveToken(tokenId, expiresAt);
         }
         catch (UnauthorizedAccessException) { throw; }
         catch (Exception ex)

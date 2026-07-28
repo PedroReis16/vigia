@@ -16,6 +16,8 @@ using Vigia.API.Middlewares;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Vigia.API.Contracts.CacheServices;
+using Vigia.API.Services.CacheServices;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -47,6 +49,8 @@ builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IDeviceService, DeviceService>();
 builder.Services.AddTransient<IAuthService, AuthService>();
 
+builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
+
 
 // Dao Services
 builder.Services.AddScoped<IRefreshTokenDao, RefreshTokenDao>();
@@ -56,6 +60,9 @@ builder.Services.AddScoped<IGroupDao, GroupDao>();
 
 // Dao Cache
 builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();
+
+// Cache Services 
+builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

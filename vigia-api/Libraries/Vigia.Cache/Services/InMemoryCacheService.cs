@@ -6,23 +6,23 @@ namespace Vigia.Cache.Services;
 
 public class InMemoryCacheService(InMemoryCacheConfig config, IMemoryCache memoryCache) : IInMemoryCacheService
 {
-    protected readonly InMemoryCacheConfig _config = config;
-    protected readonly IMemoryCache _memoryCache = memoryCache;
-    private CancellationTokenSource _resetCacheSource = new();
+    protected readonly InMemoryCacheConfig Config = config;
+    protected readonly IMemoryCache MemoryCache = memoryCache;
+    protected CancellationTokenSource ResetCacheSource = new();
 
     public virtual void Add(string key, object value)
     {
         MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromSeconds(_config.ExpirationInSeconds));
+            .SetAbsoluteExpiration(TimeSpan.FromSeconds(Config.ExpirationInSeconds));
 
-        _ = cacheEntryOptions.AddExpirationToken(new CancellationChangeToken(_resetCacheSource.Token));
+        _ = cacheEntryOptions.AddExpirationToken(new CancellationChangeToken(ResetCacheSource.Token));
 
-        _ = _memoryCache.Set(key.ToUpperInvariant(), value, cacheEntryOptions);
+        _ = MemoryCache.Set(key.ToUpperInvariant(), value, cacheEntryOptions);
     }
 
     public virtual object? Get(string key)
     {
-        if (_memoryCache.TryGetValue(key.ToUpperInvariant(), out object? value))
+        if (MemoryCache.TryGetValue(key.ToUpperInvariant(), out object? value))
             return value;
         else
             return null;
@@ -30,16 +30,16 @@ public class InMemoryCacheService(InMemoryCacheConfig config, IMemoryCache memor
 
     public virtual void Remove(string key)
     {
-        _memoryCache.Remove(key.ToUpperInvariant());
+        MemoryCache.Remove(key.ToUpperInvariant());
     }
 
     public virtual void Clear()
     {
-        if (_resetCacheSource != null && !_resetCacheSource.IsCancellationRequested && _resetCacheSource.Token.CanBeCanceled)
+        if (ResetCacheSource != null && !ResetCacheSource.IsCancellationRequested && ResetCacheSource.Token.CanBeCanceled)
         {
-            _resetCacheSource.Cancel();
-            _resetCacheSource.Dispose();
+            ResetCacheSource.Cancel();
+            ResetCacheSource.Dispose();
         }
-        _resetCacheSource = new CancellationTokenSource();
+        ResetCacheSource = new CancellationTokenSource();
     }
 }

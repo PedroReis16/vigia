@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using Vigia.API.Contracts;
 using Vigia.API.Database.Contracts;
 using Vigia.API.Models.DTOs.Auth;
-using Vigia.API.Models.Helpers;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;

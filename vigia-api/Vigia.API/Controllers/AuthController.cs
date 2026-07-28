@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Auth;
@@ -87,15 +86,18 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// <param name="refreshToken"></param>
     /// <returns></returns>
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromHeader] RefreshTokenDTO refreshToken)
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenDTO refreshToken)
     {
         using IServiceScope scope = _scopeFactory.CreateScope();
 
+        Guid tokenId = (Guid)HttpContext.Items["tokenId"]!;
+        DateTime expiresAt = (DateTime)HttpContext.Items["expiresAt"]!;
+
         IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
 
-        await authService.LogoutUserAsync(refreshToken.RefreshToken);
+        await authService.LogoutUserAsync(tokenId, expiresAt, refreshToken.RefreshToken);
 
-        return Ok();
+        return NoContent();
     }
 
 

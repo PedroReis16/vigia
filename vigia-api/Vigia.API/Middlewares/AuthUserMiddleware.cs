@@ -1,11 +1,14 @@
 using System.Text.Json;
-using Vigia.API.Models.Helpers;
+using Vigia.API.Contracts.CacheServices;
+using Vigia.API.Services;
 
 namespace Vigia.API.Middlewares;
 
-public class AuthUserMiddleware(IConfiguration configuration) : IMiddleware
+public class AuthUserMiddleware(IRevokedTokensCacheService revokedTokensCacheService, JwtConverterService jwtConverterService) : IMiddleware
 {
-    private readonly IConfiguration _configuration = configuration;
+    private readonly IRevokedTokensCacheService _revokedTokensCacheService = revokedTokensCacheService;
+    private readonly JwtConverterService _jwtConverterService = jwtConverterService;
+
     private static readonly string[] _allowedPaths = new string[] { "login", "register" };
 
 
@@ -28,23 +31,18 @@ public class AuthUserMiddleware(IConfiguration configuration) : IMiddleware
             return;
         }
 
-        if (!JwtConverter.ValidateToken(_configuration, accessToken))
+        bool isValidToken = _jwtConverterService.Decode(accessToken, out var decodedProperties);
+
+        if (!isValidToken)
         {
             await UnauthorizedResponse(context);
             return;
         }
 
-        var convertedToken = JwtConverter.Decode(accessToken);
-
-        if (convertedToken.userId == Guid.Empty ||
-            convertedToken.roles.Count == 0)
-        {
-            await UnauthorizedResponse(context);
-            return;
-        }
-
-        context.Items["userId"] = convertedToken.userId;
-        context.Items["roles"] = convertedToken.roles;
+        context.Items["userId"] = decodedProperties!.Value.userId;
+        context.Items["roles"] = decodedProperties.Value.roles;
+        context.Items["tokenId"] = decodedProperties.Value.tokenId;
+        context.Items["expiresAt"] = decodedProperties.Value.expiresAt;
 
         await next(context);
     }

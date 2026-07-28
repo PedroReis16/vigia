@@ -19,8 +19,8 @@ services:
     container_name: vigia-postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin123
+      - POSTGRES_USER=vigia
+      - POSTGRES_PASSWORD=vigia123
       - POSTGRES_DB=vigia
     ports:
       - "5432:5432"

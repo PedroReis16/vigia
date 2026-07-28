@@ -1,0 +1,7 @@
+python-dotenv==1.2.2
+ultralytics==8.4.33
+loguru==0.7.3
+bless==0.3.0
+peewee==4.2.6
+getmac==0.8.2
+cryptography==46.0.2

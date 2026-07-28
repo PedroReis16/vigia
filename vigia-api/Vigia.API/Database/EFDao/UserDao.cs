@@ -54,17 +54,18 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
     {
         User? result = null;
 
-        if (Cache != null)
-        {
-            result = Cache.GetEntity(email);
-
-            if (result != null)
-                return result;
-        }
+        // Não consulta no cache pois essa consulta é feita apenas para a autenticação do usuário, demais consultas são feitas através do id do usuário
         IQueryable<User> query = Context.Set<User>()
             .Where(u => u.Email.Equals(email) && u.DeletedAt == null)
             .Include(u => u.Roles)
-            .Include(u => u.LinkedGroups.Where(g => g.DeletedAt == null));
+            .Select(u => new User
+            {
+                Id = u.Id,
+                Salt = u.Salt,
+                Password = u.Password,
+                Roles = u.Roles.Select(r => new UserRole(r.Id)
+                ).ToList(),
+            });
 
         result = await query.FirstOrDefaultAsync();
 

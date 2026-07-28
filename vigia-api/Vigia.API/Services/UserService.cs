@@ -70,39 +70,5 @@ internal class UserService(ILogger<UserService> logger, IServiceScopeFactory sco
             throw new EntityValidationException(nameof(newUserDTO.Password), "A senha do usuário é obrigatória", ErrorCodes.USER_PASSWORD_IS_REQUIRED);
     }
 
-    public async Task<string?> LoginUserAsync(LoginUserDTO loginUserDTO)
-    {
-        try
-        {
-            using IServiceScope scope = _scopeFactory.CreateScope();
-            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
-
-            User? user = await userDao.FindUserByEmailAsync(loginUserDTO.Email);
-
-            if (user == null)
-                return null;
-
-            byte[] passwordSalt = user.Salt;
-
-            byte[] attemptPasswordHash = PasswordHasher.Hash(loginUserDTO.Password, passwordSalt);
-
-            if (!attemptPasswordHash.SequenceEqual(user.Password))
-                return null;
-
-            return GenerateJwtToken(scope, user);
-        }
-        catch (EntityValidationException) { throw; }
-        catch (Exception ex)
-        {
-            string errorMessage = $"Houve um erro ao tentar realizar a autenticação do usuário com o email {loginUserDTO.Email}: {ex.GetFullMessage()}";
-            _logger.LogError(errorMessage);
-            throw new Exception(errorMessage);
-        }
-    }
-
-    private string GenerateJwtToken(IServiceScope scope, User user)
-    {
-        IConfiguration configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        return JwtConverter.Encode(configuration, user.Id, user.Name, user.Email, user.Roles.Select(r => r.Id).ToList());
-    }
+    
 }

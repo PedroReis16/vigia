@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Auth;
@@ -6,38 +7,96 @@ namespace Vigia.API.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class AuthController(IUserService service) : ControllerBase
+public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
 {
-    private readonly IUserService _service = service;
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
 
+    /// <summary>
+    /// Registra um novo usuário no sistema
+    /// </summary>
+    /// <param name="newUserDTO"></param>
+    /// <returns></returns>
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] NewUserDTO newUserDTO)
     {
-        await _service.RegisterNewUserAsync(newUserDTO);
+        using IServiceScope scope = _scopeFactory.CreateScope();
+        IUserService userService = scope.ServiceProvider.GetRequiredService<IUserService>();
+
+        await userService.RegisterNewUserAsync(newUserDTO);
 
         return CreatedAtAction(nameof(Login), new { email = newUserDTO.Email, password = newUserDTO.Password });
     }
 
+    /// <summary>
+    /// Realiza a autenticação do usuário e retorna um token de acesso e um token de atualização
+    /// </summary>
+    /// <param name="loginUserDTO"></param>
+    /// <returns></returns>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginUserDTO loginUserDTO)
     {
-        string? responseToken = await _service.LoginUserAsync(loginUserDTO);
+        string requestIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-        if (string.IsNullOrEmpty(responseToken))
+        using IServiceScope scope = _scopeFactory.CreateScope();
+        IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+
+        AuthResponseDTO? responseToken = await authService.LoginUserAsync(loginUserDTO, requestIp);
+
+        if (responseToken == null)
             return Unauthorized();
-            
+
         return Ok(responseToken);
     }
 
-    [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromHeader] string refreshToken)
-    {
-        return Ok();
-    }
-
+    /// <summary>
+    /// Renova o token de acesso
+    /// </summary>
+    /// <param name="refreshToken"></param>
+    /// <returns></returns>
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
     {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            string requestIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+
+            AuthResponseDTO? responseToken = await authService.RefreshTokenAsync(refreshToken, requestIp);
+
+            if (responseToken == null)
+                return Unauthorized();
+
+            return Ok(responseToken);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized();
+        }
+        catch (Exception)
+        {
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Revoga a sessão do usuário e invalida o token de atualização
+    /// </summary>
+    /// <param name="refreshToken"></param>
+    /// <returns></returns>
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromHeader] string refreshToken)
+    {
+        using IServiceScope scope = _scopeFactory.CreateScope();
+
+        IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+
+        await authService.LogoutUserAsync(refreshToken);
+
         return Ok();
     }
+
+
 }

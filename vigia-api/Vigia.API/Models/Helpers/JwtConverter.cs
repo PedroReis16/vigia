@@ -16,13 +16,11 @@ public static class JwtConverter
         configuration.GetValue<string>("JWT:Audience")!
     );
 
-    public static string Encode(IConfiguration configuration, Guid userId, string name, string email, List<string> roles)
+    public static string Encode(IConfiguration configuration, Guid userId, List<string> roles)
     {
         // Mapear as claims do usuário
         var claims = new List<Claim>{
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new(ClaimTypes.Name, name),
-            new(ClaimTypes.Email, email),
             new(ClaimTypes.Role, string.Join(",", roles)),
         };
 
@@ -48,7 +46,7 @@ public static class JwtConverter
         return tokenHandler.WriteToken(token);
     }
 
-    public static (Guid userId, string name, string email, List<string> roles) Decode(string token)
+    public static (Guid userId, List<string> roles) Decode(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
 
@@ -62,10 +60,8 @@ public static class JwtConverter
 
         // 3. Reconstrói e retorna o objeto original
         return (
-            Guid.Parse(idClaim ?? "0"),
-            nameClaim ?? string.Empty,
-            emailClaim ?? string.Empty,
-            rolesClaim
+            idClaim != null ? Guid.Parse(idClaim) : Guid.Empty,
+            rolesClaim ?? []
         );
     }
 }

@@ -1,9 +1,13 @@
 abstract final class AppRoutes {
-  static const devices = '/devices';
+  static const loginPage = '/login';
 
-  static const deviceDetailsRelative = ':deviceId';
+  static const registerPage = '/register';
 
-  static const deviceDetails = '$devices/:deviceId';
+  static const devicesPage = '/devices';
 
-  static const settings = '/settings';
+  static const deviceStreamRelative = ':deviceId';
+
+  static const deviceStreamPage = '$devicesPage/:deviceId';
+
+  static const settingsPage = '/settings';
 }

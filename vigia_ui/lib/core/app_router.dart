@@ -6,6 +6,8 @@ import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
 import 'package:vigia_ui/presentation/shell/base_page.dart';
+import 'package:vigia_ui/presentation/user/pages/login_page.dart';
+import 'package:vigia_ui/presentation/user/pages/register_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _sheetsNavigatorKey = GlobalKey<NavigatorState>();
@@ -13,9 +15,30 @@ final _libraryNavigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: AppRoutes.devices,
+  initialLocation: AppRoutes.loginPage,
   debugLogDiagnostics: false,
   routes: [
+    GoRoute(
+      path: AppRoutes.loginPage,
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const LoginPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // fade, slide, etc.
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.registerPage,
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const RegisterPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
     StatefulShellRoute(
       builder: (context, state, navigationShell) {
         return BasePage(navigationShell: navigationShell);
@@ -32,11 +55,11 @@ final GoRouter appRouter = GoRouter(
           navigatorKey: _sheetsNavigatorKey,
           routes: [
             GoRoute(
-              path: AppRoutes.devices,
+              path: AppRoutes.devicesPage,
               builder: (context, state) => const DevicesPage(),
               routes: [
                 GoRoute(
-                  path: AppRoutes.deviceDetailsRelative,
+                  path: AppRoutes.deviceStreamRelative,
                   pageBuilder: (context, state) {
                     final String deviceId = state.pathParameters['deviceId']!;
 
@@ -72,7 +95,7 @@ final GoRouter appRouter = GoRouter(
           navigatorKey: _libraryNavigatorKey,
           routes: [
             GoRoute(
-              path: AppRoutes.settings,
+              path: AppRoutes.settingsPage,
               builder: (context, state) => const SettingsPage(),
               routes: [],
             ),

@@ -50,7 +50,7 @@ class DevicesPage extends ConsumerWidget {
               device: devices[index],
               onTap: () {
                 context.push(
-                  AppRoutes.deviceDetails.replaceAll(
+                  AppRoutes.deviceStreamPage.replaceAll(
                     ':deviceId',
                     devices[index].id,
                   ),

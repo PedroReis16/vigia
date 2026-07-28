@@ -14,8 +14,8 @@ class AppBarConfig {
     final stageName = state.pathParameters['stage'];
 
     final title = switch (state.matchedLocation) {
-      AppRoutes.devices => 'Dispositivos',
-      AppRoutes.settings => 'Configurações',
+      AppRoutes.devicesPage => 'Dispositivos',
+      AppRoutes.settingsPage => 'Configurações',
       _ when stageName != null => _stageTitle(stageName),
       _ when option != null => Uri.decodeComponent(option),
       _ when id != null => 'Ficha #$id',

@@ -1,0 +1,78 @@
+{
+  "@@locale": "en",
+  "appTitle": "Vigia",
+  "email": "Email",
+  "password": "Password",
+  "login": "Sign in",
+  "register": "Sign up",
+  "logout": "Log out",
+  "noAccount": "Don't have an account?",
+  "hasAccount": "Already have an account?",
+  "invalidCredentials": "Invalid username or password",
+  "loginError": "Login failed",
+  "devices": "Devices",
+  "settings": "Settings",
+  "home": "Home",
+  "stage": "Stage",
+  "sheetRecord": "Record #{id}",
+  "@sheetRecord": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "noDevicesFound": "No devices found",
+  "errorWithMessage": "Error: {message}",
+  "@errorWithMessage": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addDevice": "Add device",
+  "scanningHint": "Follow the tutorial and bring your phone close to Vigia. Scanning is already in progress.",
+  "stepPowerOnTitle": "Turn on the device",
+  "stepPowerOnDescription": "Plug Vigia into a power outlet and wait until the light indicates it is ready for setup.",
+  "stepPairTitle": "Link to the app",
+  "stepPairDescription": "Bring your phone close to Vigia to start pairing with the app.",
+  "stepWaitTitle": "Wait for confirmation",
+  "stepWaitDescription": "Wait a few seconds until setup completes successfully.",
+  "connectingTitle": "Connecting",
+  "connectingDescription": "Device found. Establishing a connection with Vigia…",
+  "authenticatingTitle": "Validating device",
+  "authenticatingDescription": "Confirming Vigia's identity and authenticating the app…",
+  "connectionEstablished": "Connection established",
+  "deviceLinkedSuccess": "{deviceName} was linked successfully.",
+  "@deviceLinkedSuccess": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "confirm": "Confirm",
+  "connectionFailed": "Could not connect",
+  "connectionErrorFallback": "An error occurred while searching for or connecting to the device.",
+  "tryAgain": "Try again",
+  "wifiNetwork": "Wi‑Fi network",
+  "refreshNetworks": "Refresh networks",
+  "selectWifiHint": "Select the network Vigia should use.",
+  "manualWifiHintIos": "On iOS, enter the network name manually.",
+  "noNetworksFound": "No networks found. Try refreshing the list.",
+  "selectOrEnterWifi": "Select or enter a Wi‑Fi network.",
+  "networkPassword": "Network password",
+  "networkPasswordRequired": "Enter the network password",
+  "openNetworkNoPassword": "Open network — password not required.",
+  "sendCredentials": "Send credentials",
+  "networkSsid": "Network name (SSID)",
+  "backToFoundNetworks": "Back to found networks",
+  "noNetworksAvailable": "No networks available",
+  "enterNetworkManually": "Enter network manually",
+  "enterAnotherNetwork": "Enter another network",
+  "signalExcellent": "Excellent signal",
+  "signalGood": "Good signal",
+  "signalFair": "Fair signal",
+  "signalWeak": "Weak signal"
+}

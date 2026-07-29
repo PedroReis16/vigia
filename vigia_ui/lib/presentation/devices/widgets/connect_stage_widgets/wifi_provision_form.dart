@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class WifiProvisionForm extends StatefulWidget {
   const WifiProvisionForm({
@@ -66,7 +67,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
         _networks = networks;
         _loadingNetworks = false;
         if (networks.isEmpty) {
-          _scanError = 'Nenhuma rede encontrada. Tente atualizar a lista.';
+          _scanError = context.translations.noNetworksFound;
         }
       });
     } catch (error) {
@@ -111,7 +112,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     final ssid = _selectedSsid;
     if (ssid == null || ssid.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione ou informe uma rede Wi‑Fi.')),
+        SnackBar(content: Text(context.translations.selectOrEnterWifi)),
       );
       return;
     }
@@ -143,19 +144,19 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Adicionar dispositivo', style: textTheme.titleLarge),
+          Text(context.translations.addDevice, style: textTheme.titleLarge),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  'Rede Wi‑Fi',
+                  context.translations.wifiNetwork,
                   style: textTheme.titleMedium,
                 ),
               ),
               if (_wifiScan.isScanSupported)
                 IconButton(
-                  tooltip: 'Atualizar redes',
+                  tooltip: context.translations.refreshNetworks,
                   onPressed: busy || _loadingNetworks ? null : _loadNetworks,
                   icon: _loadingNetworks
                       ? const SizedBox(
@@ -170,8 +171,8 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           const SizedBox(height: 4),
           Text(
             _wifiScan.isScanSupported
-                ? 'Selecione a rede que o Vigia deve usar.'
-                : 'No iOS, informe manualmente o nome da rede.',
+                ? context.translations.selectWifiHint
+                : context.translations.manualWifiHintIos,
             style: textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -193,7 +194,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
-                  labelText: 'Senha da rede',
+                  labelText: context.translations.networkPassword,
                   suffixIcon: IconButton(
                     onPressed: busy
                         ? null
@@ -210,14 +211,14 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 validator: (value) {
                   if (!_requiresPassword) return null;
                   if (value == null || value.isEmpty) {
-                    return 'Informe a senha da rede';
+                    return context.translations.networkPasswordRequired;
                   }
                   return null;
                 },
               ),
             ] else
               Text(
-                'Rede aberta — senha não necessária.',
+                context.translations.openNetworkNoPassword,
                 style: textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -231,7 +232,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Enviar credenciais'),
+                : Text(context.translations.sendCredentials),
           ),
         ],
       ),
@@ -252,15 +253,15 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             enabled: !busy,
             textInputAction: TextInputAction.next,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Nome da rede (SSID)',
+            decoration: InputDecoration(
+              labelText: context.translations.networkSsid,
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
             const SizedBox(height: 8),
             TextButton(
               onPressed: busy ? null : _loadNetworks,
-              child: const Text('Voltar para redes encontradas'),
+              child: Text(context.translations.backToFoundNetworks),
             ),
           ],
         ],
@@ -277,14 +278,14 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Nenhuma rede disponível',
+              context.translations.noNetworksAvailable,
               style: textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: busy ? null : _enableManualEntry,
-              child: const Text('Informar rede manualmente'),
+              child: Text(context.translations.enterNetworkManually),
             ),
           ],
         ),
@@ -318,17 +319,17 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
         ),
         TextButton(
           onPressed: busy ? null : _enableManualEntry,
-          child: const Text('Informar outra rede'),
+          child: Text(context.translations.enterAnotherNetwork),
         ),
       ],
     );
   }
 
   String _signalLabel(int level) {
-    if (level >= -50) return 'Sinal excelente';
-    if (level >= -60) return 'Sinal bom';
-    if (level >= -70) return 'Sinal moderado';
-    return 'Sinal fraco';
+    if (level >= -50) return context.translations.signalExcellent;
+    if (level >= -60) return context.translations.signalGood;
+    if (level >= -70) return context.translations.signalFair;
+    return context.translations.signalWeak;
   }
 }
 

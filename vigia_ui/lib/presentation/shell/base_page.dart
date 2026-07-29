@@ -17,7 +17,7 @@ class BasePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = AppBarConfig.fromState(GoRouterState.of(context));
+    final config = AppBarConfig.fromState(context, GoRouterState.of(context));
     // final hasActiveFilters = ref.watch(sheetsFilterProvider).hasActiveFilters;
  
     

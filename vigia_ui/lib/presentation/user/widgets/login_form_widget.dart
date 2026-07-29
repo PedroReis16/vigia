@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_provider.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
@@ -34,13 +35,15 @@ class _LoginFormState extends ConsumerState<LoginForm> {
       children: [
         TextField(
           controller: _emailController,
-          decoration: const InputDecoration(labelText: "Email"),
+          decoration: InputDecoration(labelText: context.translations.email),
         ),
         Padding(
           padding: const EdgeInsetsGeometry.symmetric(vertical: 16),
           child: TextField(
             controller: _passwordController,
-            decoration: const InputDecoration(labelText: "Senha"),
+            decoration: InputDecoration(
+              labelText: context.translations.password,
+            ),
           ),
         ),
         ElevatedButton(
@@ -58,7 +61,8 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                       _showSnackBar(
                         // ignore: use_build_context_synchronously
                         context,
-                        "Usuário ou senha inválidos",
+                        // ignore: use_build_context_synchronously
+                        context.translations.invalidCredentials,
                         // ignore: use_build_context_synchronously
                         Theme.of(context).colorScheme.error,
                       );
@@ -67,7 +71,8 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                       _showSnackBar(
                         // ignore: use_build_context_synchronously
                         context,
-                        "Erro ao fazer login",
+                        // ignore: use_build_context_synchronously
+                        context.translations.loginError,
                         // ignore: use_build_context_synchronously
                         Theme.of(context).colorScheme.error,
                       );
@@ -78,9 +83,6 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                     default:
                       break;
                   }
-                  // if (error == null) {
-                  //   ref.read(appRouterProvider).go(AppRoutes.devicesPage);
-                  // }
                 },
           style: ButtonStyle(
             maximumSize: WidgetStateProperty.all(Size(double.infinity, 50)),
@@ -99,7 +101,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
               ref.watch(authControllerProvider).isLoading
                   ? const CircularProgressIndicator.adaptive()
                   : const Icon(Icons.login_rounded, size: 20),
-              Text("Entrar", style: TextStyle(fontSize: 16)),
+              Text(context.translations.login, style: TextStyle(fontSize: 16)),
             ],
           ),
         ),

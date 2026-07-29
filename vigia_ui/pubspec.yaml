@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   cupertino_icons: ^1.0.8
   go_router: ^17.3.0
   flutter_riverpod: ^3.3.2
@@ -20,7 +23,7 @@ dependencies:
   permission_handler: ^12.0.3
   cryptography: ^2.9.0
   flutter_secure_storage: ^10.3.1
-  
+
   # Local fork with Swift Package Manager support (upstream lacks Package.swift).
   wifi_scan:
     path: packages/wifi_scan
@@ -41,7 +44,7 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/images/vigia_icon.png"
 
 flutter:
-
+  generate: true
   uses-material-design: true
   assets:
     - assets/

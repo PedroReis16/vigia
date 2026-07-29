@@ -1,0 +1,78 @@
+{
+  "@@locale": "pt",
+  "appTitle": "Vigia",
+  "email": "Email",
+  "password": "Senha",
+  "login": "Entrar",
+  "register": "Cadastre-se",
+  "logout": "Sair",
+  "noAccount": "Não tem uma conta?",
+  "hasAccount": "Já tem uma conta?",
+  "invalidCredentials": "Usuário ou senha inválidos",
+  "loginError": "Erro ao fazer login",
+  "devices": "Dispositivos",
+  "settings": "Configurações",
+  "home": "Início",
+  "stage": "Etapa",
+  "sheetRecord": "Ficha #{id}",
+  "@sheetRecord": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "noDevicesFound": "Nenhum dispositivo encontrado",
+  "errorWithMessage": "Erro: {message}",
+  "@errorWithMessage": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addDevice": "Adicionar dispositivo",
+  "scanningHint": "Siga o tutorial e aproxime o celular do Vigia. A busca já está em andamento.",
+  "stepPowerOnTitle": "Ligue o dispositivo",
+  "stepPowerOnDescription": "Conecte o Vigia à tomada e aguarde até que a luz indique que ele está pronto para a configuração.",
+  "stepPairTitle": "Vincule ao aplicativo",
+  "stepPairDescription": "Aproxime o celular do Vigia para iniciar o vínculo com o aplicativo.",
+  "stepWaitTitle": "Aguarde a confirmação",
+  "stepWaitDescription": "Aguarde alguns segundos até que a configuração seja concluída com sucesso.",
+  "connectingTitle": "Conectando",
+  "connectingDescription": "Dispositivo encontrado. Estabelecendo a conexão com o Vigia…",
+  "authenticatingTitle": "Validando dispositivo",
+  "authenticatingDescription": "Confirmando a identidade do Vigia e autenticando o aplicativo…",
+  "connectionEstablished": "Conexão estabelecida",
+  "deviceLinkedSuccess": "{deviceName} foi vinculado com sucesso.",
+  "@deviceLinkedSuccess": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "confirm": "Confirmar",
+  "connectionFailed": "Não foi possível conectar",
+  "connectionErrorFallback": "Ocorreu um erro ao procurar ou conectar ao dispositivo.",
+  "tryAgain": "Tentar novamente",
+  "wifiNetwork": "Rede Wi‑Fi",
+  "refreshNetworks": "Atualizar redes",
+  "selectWifiHint": "Selecione a rede que o Vigia deve usar.",
+  "manualWifiHintIos": "No iOS, informe manualmente o nome da rede.",
+  "noNetworksFound": "Nenhuma rede encontrada. Tente atualizar a lista.",
+  "selectOrEnterWifi": "Selecione ou informe uma rede Wi‑Fi.",
+  "networkPassword": "Senha da rede",
+  "networkPasswordRequired": "Informe a senha da rede",
+  "openNetworkNoPassword": "Rede aberta — senha não necessária.",
+  "sendCredentials": "Enviar credenciais",
+  "networkSsid": "Nome da rede (SSID)",
+  "backToFoundNetworks": "Voltar para redes encontradas",
+  "noNetworksAvailable": "Nenhuma rede disponível",
+  "enterNetworkManually": "Informar rede manualmente",
+  "enterAnotherNetwork": "Informar outra rede",
+  "signalExcellent": "Sinal excelente",
+  "signalGood": "Sinal bom",
+  "signalFair": "Sinal moderado",
+  "signalWeak": "Sinal fraco"
+}

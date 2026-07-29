@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/new_device_modal.dart';
@@ -37,11 +38,12 @@ class DevicesPage extends ConsumerWidget {
 
     return devicesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) =>
-          Center(child: Text('Error: ${error.toString()}')),
+      error: (error, stackTrace) => Center(
+        child: Text(context.translations.errorWithMessage(error.toString())),
+      ),
       data: (devices) {
         if (devices.isEmpty) {
-          return const Center(child: Text('No devices found'));
+          return Center(child: Text(context.translations.noDevicesFound));
         }
         return ListView.builder(
           itemCount: devices.length,

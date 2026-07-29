@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/theme/app_assets.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/user/widgets/login_form_widget.dart';
 import 'package:vigia_ui/presentation/user/widgets/register_form_widget.dart';
 
@@ -76,8 +77,8 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                 children: [
                   Text(
                     _currentPage == 0
-                        ? "Não tem uma conta?"
-                        : "Já tem uma conta?",
+                        ? context.translations.noAccount
+                        : context.translations.hasAccount,
                     style: TextStyle(color: Colors.white),
                   ),
                   TextButton(
@@ -88,7 +89,9 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                       changePage(_currentPage == 0 ? 1 : 0);
                     },
                     child: Text(
-                      _currentPage == 0 ? "Cadastre-se" : "Entrar",
+                      _currentPage == 0
+                          ? context.translations.register
+                          : context.translations.login,
                       style: TextStyle(
                         color: Theme.of(context).brightness == Brightness.light
                             ? context.appColors.outline

@@ -1,6 +1,9 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/domain/enums/sheet_stages.dart';
+import 'package:vigia_ui/l10n/app_localizations.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class AppBarConfig {
   final String title;
@@ -8,18 +11,18 @@ class AppBarConfig {
 
   const AppBarConfig({required this.title, this.showAppBar = true});
 
-  factory AppBarConfig.fromState(GoRouterState state) {
+  factory AppBarConfig.fromState(BuildContext context, GoRouterState state) {
     final option = state.pathParameters['option'];
     final id = state.pathParameters['id'];
     final stageName = state.pathParameters['stage'];
 
     final title = switch (state.matchedLocation) {
-      AppRoutes.devicesPage => 'Dispositivos',
-      AppRoutes.settingsPage => 'Configurações',
-      _ when stageName != null => _stageTitle(stageName),
+      AppRoutes.devicesPage => context.translations.devices,
+      AppRoutes.settingsPage => context.translations.settings,
+      _ when stageName != null => _stageTitle(context.translations, stageName),
       _ when option != null => Uri.decodeComponent(option),
-      _ when id != null => 'Ficha #$id',
-      _ => 'Ceramics Planner',
+      _ when id != null => context.translations.sheetRecord(id),
+      _ => context.translations.appTitle,
     };
 
     final showBar = !state.pathParameters.keys.contains('deviceId');
@@ -27,11 +30,14 @@ class AppBarConfig {
     return AppBarConfig(title: title, showAppBar: showBar);
   }
 
-  static String _stageTitle(String stageName) {
+  static String _stageTitle(AppLocalizations l10n, String stageName) {
     try {
-      return SheetStage.values.byName(stageName).label;
+      return switch (SheetStage.values.byName(stageName)) {
+        SheetStage.home => l10n.home,
+        SheetStage.settings => l10n.settings,
+      };
     } on ArgumentError {
-      return 'Etapa';
+      return l10n.stage;
     }
   }
 }

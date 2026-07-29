@@ -49,7 +49,7 @@ class _AnimatedShellBodyState extends State<AnimatedShellBody> {
 
   @override
   Widget build(BuildContext context) {
-    final config = AppBarConfig.fromState(GoRouterState.of(context));
+    final config = AppBarConfig.fromState(context, GoRouterState.of(context));
 
     return PageView(
       controller: _pageController,

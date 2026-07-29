@@ -1,7 +1,5 @@
 abstract final class AppRoutes {
-  static const loginPage = '/login';
-
-  static const registerPage = '/register';
+  static const authPage = '/auth';
 
   static const devicesPage = '/devices';
 

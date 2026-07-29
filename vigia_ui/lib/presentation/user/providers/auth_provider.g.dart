@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'device_pairing_provider.dart';
+part of 'auth_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -9,51 +9,51 @@ part of 'device_pairing_provider.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
-@ProviderFor(DevicePairing)
-final devicePairingProvider = DevicePairingProvider._();
+@ProviderFor(AuthController)
+final authControllerProvider = AuthControllerProvider._();
 
-final class DevicePairingProvider
-    extends $NotifierProvider<DevicePairing, DevicePairingState> {
-  DevicePairingProvider._()
+final class AuthControllerProvider
+    extends $NotifierProvider<AuthController, AuthState> {
+  AuthControllerProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'devicePairingProvider',
+        name: r'authControllerProvider',
         isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$devicePairingHash();
+  String debugGetCreateSourceHash() => _$authControllerHash();
 
   @$internal
   @override
-  DevicePairing create() => DevicePairing();
+  AuthController create() => AuthController();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(DevicePairingState value) {
+  Override overrideWithValue(AuthState value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<DevicePairingState>(value),
+      providerOverride: $SyncValueProvider<AuthState>(value),
     );
   }
 }
 
-String _$devicePairingHash() => r'1245cb0531d5fdb59ba70c8e0dc63b419a59f425';
+String _$authControllerHash() => r'd3ace2e421d1018669782e5a583d940e8f9c8b36';
 
-abstract class _$DevicePairing extends $Notifier<DevicePairingState> {
-  DevicePairingState build();
+abstract class _$AuthController extends $Notifier<AuthState> {
+  AuthState build();
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
-    final ref = this.ref as $Ref<DevicePairingState, DevicePairingState>;
+    final ref = this.ref as $Ref<AuthState, AuthState>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<DevicePairingState, DevicePairingState>,
-              DevicePairingState,
+              AnyNotifier<AuthState, AuthState>,
+              AuthState,
               Object?,
               Object?
             >;

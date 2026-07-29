@@ -20,6 +20,7 @@ dependencies:
   permission_handler: ^12.0.3
   cryptography: ^2.9.0
   flutter_secure_storage: ^10.3.1
+  
   # Local fork with Swift Package Manager support (upstream lacks Package.swift).
   wifi_scan:
     path: packages/wifi_scan

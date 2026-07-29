@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vigia_ui/core/theme/app_assets.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
 
 abstract final class AppTheme {
@@ -6,11 +7,17 @@ abstract final class AppTheme {
   static const _buttonBorderRadius = BorderRadius.all(Radius.circular(12));
   static const _cardBorderRadius = BorderRadius.all(Radius.circular(16));
 
-  static ThemeData get light => _build(AppColors.light, Brightness.light);
+  static ThemeData get light =>
+      _build(AppColors.light, AppAssets.light, Brightness.light);
 
-  static ThemeData get dark => _build(AppColors.dark, Brightness.dark);
+  static ThemeData get dark =>
+      _build(AppColors.dark, AppAssets.dark, Brightness.dark);
 
-  static ThemeData _build(AppColors colors, Brightness brightness) {
+  static ThemeData _build(
+    AppColors colors,
+    AppAssets assets,
+    Brightness brightness,
+  ) {
     final colorScheme = colors.toColorScheme(brightness);
 
     return ThemeData(
@@ -18,7 +25,7 @@ abstract final class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colors.background,
-      extensions: [colors],
+      extensions: [colors, assets],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.background,
         foregroundColor: colors.textPrimary,
@@ -100,9 +107,7 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: colors.primary,
-      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: colors.primary),
       dividerTheme: DividerThemeData(color: colors.outlineVariant),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colors.textPrimary,

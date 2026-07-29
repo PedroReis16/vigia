@@ -1,6 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/repository_providers/auth_repository.dart';
-import 'package:vigia_ui/core/providers/token_storage_provider.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
 import 'package:vigia_ui/domain/exceptions/unauthroized_exception.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
@@ -40,19 +39,6 @@ class AuthController extends _$AuthController {
       state = AuthState(isLoading: false, status: AuthStatus.unauthorized);
     } catch (e) {
       state = AuthState(isLoading: false, status: AuthStatus.error);
-    }
-  }
-
-  Future<void> logout() async {
-    try {
-      final refreshToken = await ref
-          .read(tokenStorageProvider)
-          .getRefreshToken();
-      if (refreshToken != null) {
-        await ref.read(authRepositoryProvider).logout(refreshToken);
-      }
-    } finally {
-      await ref.read(authSessionProvider.notifier).signOut();
     }
   }
 }

@@ -17,7 +17,8 @@ Dio dio(Ref ref) {
       dio: dio,
       refreshDio: refreshDio,
       tokenStorage: tokenStorage,
-      onRefreshFailed: () => ref.read(authSessionProvider.notifier).signOut(),
+      onRefreshFailed: () =>
+          ref.read(authSessionProvider.notifier).clearSession(),
     ),
   );
 

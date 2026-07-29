@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/repository_providers/auth_repository.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
 
 part 'auth_session_provider.g.dart';
@@ -22,8 +23,26 @@ class AuthSession extends _$AuthSession {
     state = const AsyncData(true);
   }
 
-  Future<void> signOut() async {
+  /// Clears local tokens and marks the session as signed out.
+  /// Safe to call from Dio interceptors (does not hit the network).
+  Future<void> clearSession() async {
     await ref.read(tokenStorageProvider).clearUserTokens();
     state = const AsyncData(false);
+  }
+
+  Future<void> signOut() async {
+    final tokenStorage = ref.read(tokenStorageProvider);
+    final authRepository = ref.read(authRepositoryProvider);
+    final refreshToken = await tokenStorage.getRefreshToken();
+
+    // Clear locally first so GoRouter redirect runs immediately.
+    await clearSession();
+
+    // Best-effort server revoke; failures must not block/undo local logout.
+    if (refreshToken != null) {
+      try {
+        await authRepository.logout(refreshToken);
+      } catch (_) {}
+    }
   }
 }

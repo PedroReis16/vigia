@@ -27,6 +27,15 @@
             "cwd": "${workspaceFolder}/vigia_ui",
             "program": "lib/main.dart",
             "flutterMode": "debug"
+        },
+    ],
+    "compounds": [
+        {
+            "name": "Debug All",
+            "configurations": [
+                "Vigia.API",
+                "Vigia.UI"
+            ]
         }
     ]
 }

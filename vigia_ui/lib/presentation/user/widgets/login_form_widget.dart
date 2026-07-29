@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vigia_ui/core/app_router.dart';
-import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/user/providers/auth_exit_transition_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_provider.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
@@ -45,6 +44,8 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   Future<void> _submit() async {
     if (ref.read(authControllerProvider).isLoading) return;
 
+    ref.read(authExitTransitionProvider.notifier).armLogin();
+
     await ref
         .read(authControllerProvider.notifier)
         .login(_emailController.text, _passwordController.text);
@@ -55,6 +56,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     switch (status) {
       case AuthStatus.unauthorized:
+        ref.read(authExitTransitionProvider.notifier).disarm();
         _showSnackBar(
           context,
           context.translations.invalidCredentials,
@@ -62,6 +64,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
         );
         break;
       case AuthStatus.error:
+        ref.read(authExitTransitionProvider.notifier).disarm();
         _showSnackBar(
           context,
           context.translations.loginError,
@@ -69,9 +72,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
         );
         break;
       case AuthStatus.authorized:
-        ref.read(appRouterProvider).go(AppRoutes.devicesPage);
+        // Navigation is handled by GoRouter redirect + auth exit transition.
         break;
       default:
+        ref.read(authExitTransitionProvider.notifier).disarm();
         break;
     }
   }

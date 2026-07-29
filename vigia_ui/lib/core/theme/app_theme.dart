@@ -27,13 +27,14 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: colors.background,
       extensions: [colors, assets],
       appBarTheme: AppBarTheme(
-        backgroundColor: colors.background,
-        foregroundColor: colors.textPrimary,
+        backgroundColor: colors.primary,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: IconThemeData(color: colors.textPrimary),
+        centerTitle: true,
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         titleTextStyle: TextStyle(
-          color: colors.textPrimary,
+          color: colorScheme.onPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),

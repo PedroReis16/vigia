@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vigia_ui/core/theme/app_assets.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shell/vigia_logo_hero.dart';
 import 'package:vigia_ui/presentation/user/widgets/login_form_widget.dart';
 import 'package:vigia_ui/presentation/user/widgets/register_form_widget.dart';
 
@@ -55,10 +55,16 @@ class _AuthPageState extends ConsumerState<AuthPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    AppAssets.dark.logo,
-                    height: 300,
-                    alignment: Alignment.center,
+                  Hero(
+                    tag: VigiaLogoHero.tag,
+                    placeholderBuilder: (context, size, child) =>
+                        SizedBox(width: size.width, height: size.height),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: VigiaLogoHero.image(
+                        height: VigiaLogoHero.authHeight,
+                      ),
+                    ),
                   ),
                 ],
               ),

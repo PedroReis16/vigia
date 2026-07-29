@@ -36,32 +36,45 @@ class DevicesPage extends ConsumerWidget {
   Widget _loadDevices(BuildContext context, WidgetRef ref) {
     final devicesAsync = ref.watch(devicesProvider);
 
-    return devicesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => Center(
-        child: Text(context.translations.errorWithMessage(error.toString())),
-      ),
-      data: (devices) {
-        if (devices.isEmpty) {
-          return Center(child: Text(context.translations.noDevicesFound));
-        }
-        return ListView.builder(
-          itemCount: devices.length,
-          itemBuilder: (context, index) {
-            return DeviceCard(
-              device: devices[index],
-              onTap: () {
-                context.push(
-                  AppRoutes.deviceStreamPage.replaceAll(
-                    ':deviceId',
-                    devices[index].id,
-                  ),
-                );
-              },
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: devicesAsync.when(
+        loading: () => const Center(
+          key: ValueKey('devices-loading'),
+          child: CircularProgressIndicator(),
+        ),
+        error: (error, stackTrace) => Center(
+          key: const ValueKey('devices-error'),
+          child: Text(context.translations.errorWithMessage(error.toString())),
+        ),
+        data: (devices) {
+          if (devices.isEmpty) {
+            return Center(
+              key: const ValueKey('devices-empty'),
+              child: Text(context.translations.noDevicesFound),
             );
-          },
-        );
-      },
+          }
+          return ListView.builder(
+            key: const ValueKey('devices-list'),
+            itemCount: devices.length,
+            itemBuilder: (context, index) {
+              return DeviceCard(
+                device: devices[index],
+                onTap: () {
+                  context.push(
+                    AppRoutes.deviceStreamPage.replaceAll(
+                      ':deviceId',
+                      devices[index].id,
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

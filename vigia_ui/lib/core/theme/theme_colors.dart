@@ -59,7 +59,7 @@ final class AppColors extends ThemeExtension<AppColors> {
   static const dark = AppColors(
     primary: Color(0xFF71A7D8),
     primaryContainer: Color(0xFF13365E),
-    secondary: Color(0xFF4FC3A3),
+    secondary: Color(0xFF12785D),
     secondaryContainer: Color(0xFF164D40),
     background: Color(0xFF071522),
     surface: Color(0xFF0D2235),

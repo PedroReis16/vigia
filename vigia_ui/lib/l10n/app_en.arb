@@ -79,5 +79,8 @@
   "passwordConfirm": "Confirm password",
   "emailInvalid": "The entered email address is not a valid address",
   "passwordInvalid": "The password must be at least 8 characters long",
-  "passwordConfirmationInvalid": "The entered passwords do not match"
+  "passwordConfirmationInvalid": "The entered passwords do not match",
+  "userEmailAlreadyInUse": "The email is already in use for another user",
+  "registerUnknownError": "An error occurred while attempting to create the account",
+  "welcomeToVigia": "Welcome to Vigia"
 }

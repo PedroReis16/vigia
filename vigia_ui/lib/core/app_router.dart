@@ -78,7 +78,7 @@ GoRouter appRouter(Ref ref) {
       StatefulShellRoute(
         pageBuilder: (context, state, navigationShell) {
           final kind = ref.read(authExitTransitionProvider);
-          final playLogin = kind == AuthTransitionKind.login;
+          final playLogin = kind == AuthTransitionKind.login || kind == AuthTransitionKind.register;
           if (playLogin) {
             Future.microtask(
               () => ref.read(authExitTransitionProvider.notifier).disarm(),

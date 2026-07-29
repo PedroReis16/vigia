@@ -453,6 +453,24 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'As senhas inseridas não coincidem'**
   String get passwordConfirmationInvalid;
+
+  /// No description provided for @userEmailAlreadyInUse.
+  ///
+  /// In pt, this message translates to:
+  /// **'O email já está sendo usado por outro usuário'**
+  String get userEmailAlreadyInUse;
+
+  /// No description provided for @registerUnknownError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ocorreu um erro ao realizar criar conta'**
+  String get registerUnknownError;
+
+  /// No description provided for @welcomeToVigia.
+  ///
+  /// In pt, this message translates to:
+  /// **'Bem-vindo ao Vigia'**
+  String get welcomeToVigia;
 }
 
 class _AppLocalizationsDelegate

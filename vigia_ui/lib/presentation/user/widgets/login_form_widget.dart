@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
 import 'package:vigia_ui/presentation/shared/extensions/text_editing_controller_stream.dart';
 import 'package:vigia_ui/presentation/shared/widgets/form_text_field.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_exit_transition_provider.dart';
@@ -30,16 +31,15 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     _validationSub =
         Rx.combineLatest2(
-              _emailController.toStream(),
-              _passwordController.toStream(),
-              (email, password) => email.isNotEmpty && password.isNotEmpty,
-            )
-            .debounceTime(const Duration(milliseconds: 400))
-            .distinct()
-            .listen((canSubmit) {
-              if (!mounted) return;
-              setState(() => _canSubmit = canSubmit);
-            });
+          _emailController.toStream(),
+          _passwordController.toStream(),
+          (email, password) => email.isNotEmpty && password.isNotEmpty,
+        ).debounceTime(const Duration(milliseconds: 400)).distinct().listen((
+          canSubmit,
+        ) {
+          if (!mounted) return;
+          setState(() => _canSubmit = canSubmit);
+        });
   }
 
   @override
@@ -66,18 +66,16 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     switch (status) {
       case AuthStatus.unauthorized:
         ref.read(authExitTransitionProvider.notifier).disarm();
-        _showSnackBar(
-          context,
-          context.translations.invalidCredentials,
-          Theme.of(context).colorScheme.error,
+        context.showSnackbar(
+          message: context.translations.invalidCredentials,
+          color: Theme.of(context).colorScheme.error,
         );
         break;
       case AuthStatus.error:
         ref.read(authExitTransitionProvider.notifier).disarm();
-        _showSnackBar(
-          context,
-          context.translations.loginError,
-          Theme.of(context).colorScheme.error,
+        context.showSnackbar(
+          message: context.translations.loginError,
+          color: Theme.of(context).colorScheme.error,
         );
         break;
       case AuthStatus.authorized:
@@ -162,17 +160,6 @@ class _LoginFormState extends ConsumerState<LoginForm> {
           ),
         ),
       ],
-    );
-  }
-
-  void _showSnackBar(BuildContext context, String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.fixed,
-        duration: const Duration(seconds: 2),
-      ),
     );
   }
 }

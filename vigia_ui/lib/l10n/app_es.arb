@@ -78,6 +78,7 @@
   "usernameForm": "Nombre completo",
   "passwordConfirm": "Confirmar contraseña",
   "emailInvalid": "La dirección de correo electrónico ingresada no es una dirección válida",
-  "passwordInvalid": "La contraseña debe tener al menos 8 caracteres",
-  "passwordConfirmationInvalid": "Las contraseñas ingresadas no coinciden"
+  "userEmailAlreadyInUse": "El correo electrónico ya está siendo utilizado por otro usuario",
+  "registerUnknownError": "Se produjo un error al intentar crear la cuenta",
+  "welcomeToVigia": "Bienvenido a Vigia"
 }

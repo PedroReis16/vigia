@@ -8,12 +8,30 @@ part of 'auth_exit_transition_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Controls whether the Auth ↔ Shell navigation plays the morph transition.
+///
+/// [AuthTransitionKind.login]  — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.register] — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.logout] — shell exits: AppBar expands to full-screen.
+/// [AuthTransitionKind.none]   — cold start / silent redirect, no animation.
 
 @ProviderFor(AuthExitTransition)
 final authExitTransitionProvider = AuthExitTransitionProvider._();
 
+/// Controls whether the Auth ↔ Shell navigation plays the morph transition.
+///
+/// [AuthTransitionKind.login]  — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.register] — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.logout] — shell exits: AppBar expands to full-screen.
+/// [AuthTransitionKind.none]   — cold start / silent redirect, no animation.
 final class AuthExitTransitionProvider
     extends $NotifierProvider<AuthExitTransition, AuthTransitionKind> {
+  /// Controls whether the Auth ↔ Shell navigation plays the morph transition.
+  ///
+  /// [AuthTransitionKind.login]  — shell enters: primary veil shrinks to AppBar.
+  /// [AuthTransitionKind.register] — shell enters: primary veil shrinks to AppBar.
+  /// [AuthTransitionKind.logout] — shell exits: AppBar expands to full-screen.
+  /// [AuthTransitionKind.none]   — cold start / silent redirect, no animation.
   AuthExitTransitionProvider._()
     : super(
         from: null,
@@ -41,7 +59,15 @@ final class AuthExitTransitionProvider
   }
 }
 
-String _$authExitTransitionHash() => r'auth_exit_transition_manual';
+String _$authExitTransitionHash() =>
+    r'6fc5e67bb5ce8821ecdb0139ff75534d407c5be9';
+
+/// Controls whether the Auth ↔ Shell navigation plays the morph transition.
+///
+/// [AuthTransitionKind.login]  — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.register] — shell enters: primary veil shrinks to AppBar.
+/// [AuthTransitionKind.logout] — shell exits: AppBar expands to full-screen.
+/// [AuthTransitionKind.none]   — cold start / silent redirect, no animation.
 
 abstract class _$AuthExitTransition extends $Notifier<AuthTransitionKind> {
   AuthTransitionKind build();

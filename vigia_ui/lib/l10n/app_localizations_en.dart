@@ -199,4 +199,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get passwordConfirmationInvalid =>
       'The entered passwords do not match';
+
+  @override
+  String get userEmailAlreadyInUse =>
+      'The email is already in use for another user';
+
+  @override
+  String get registerUnknownError =>
+      'An error occurred while attempting to create the account';
+
+  @override
+  String get welcomeToVigia => 'Welcome to Vigia';
 }

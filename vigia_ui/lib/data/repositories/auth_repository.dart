@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/user_credentials.dart';
+import 'package:vigia_ui/domain/enums/error_codes.dart';
 import 'package:vigia_ui/domain/exceptions/request_exception.dart';
 import 'package:vigia_ui/domain/exceptions/unauthroized_exception.dart';
 
@@ -8,21 +9,38 @@ class AuthRepository {
   AuthRepository(this._dio);
 
   Future<UserCredentials> login(String email, String password) async {
-    final response = await _dio.post(
-      '/auth/login',
-      data: {'email': email, 'password': password},
-    );
+    try {
+      final response = await _dio.post(
+        '/auth/login',
+        data: {'email': email, 'password': password},
+      );
 
-    switch (response.statusCode) {
-      case 200:
-        return UserCredentials(
-          accessToken: response.data['accessToken'],
-          refreshToken: response.data['refreshToken'],
+      if (response.statusCode != 200) {
+        throw RequestException(
+          message: 'Erro ao fazer login: ${response.statusCode}',
         );
-      case 401:
+      }
+
+      return UserCredentials(
+        accessToken: response.data['accessToken'],
+        refreshToken: response.data['refreshToken'],
+      );
+    } on DioException catch (requestException) {
+      if (requestException.response?.statusCode == 401) {
         throw UnauthorizedException('Credenciais inválidas');
-      default:
-        throw RequestException('Erro ao fazer login: ${response.statusCode}');
+      }
+
+      final data = requestException.response?.data;
+      final code = ErrorCodes.values.firstWhere(
+        (el) => el.value == data?['ErrorCode'],
+        orElse: () => ErrorCodes.unknownError,
+      );
+
+      throw RequestException(
+        message:
+            'Erro ao fazer login: ${requestException.response?.statusCode}',
+        errorCode: code,
+      );
     }
   }
 
@@ -32,9 +50,46 @@ class AuthRepository {
       data: {'refreshToken': refreshToken},
     );
 
-    if (response.statusCode == 200) {
-      return;
+    if (response.statusCode != 200) {
+      throw RequestException(
+        message: 'Erro ao fazer logout: ${response.statusCode}',
+      );
     }
-    throw Exception('Failed to logout');
+  }
+
+  Future<UserCredentials> register(
+    String name,
+    String email,
+    String password,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/auth/register',
+        data: {'name': name, 'email': email, 'password': password},
+      );
+
+      if (response.statusCode != 201) {
+        throw RequestException(
+          message: 'Erro ao registrar usuário: ${response.statusCode}',
+          errorCode: ErrorCodes.unknownError,
+        );
+      }
+
+      return UserCredentials(
+        accessToken: response.data['accessToken'],
+        refreshToken: response.data['refreshToken'],
+      );
+    } on DioException catch (requestException) {
+      final data = requestException.response?.data;
+      final code = ErrorCodes.values.firstWhere(
+        (el) => el.value == data?['ErrorCode'],
+        orElse: () => ErrorCodes.unknownError,
+      );
+      throw RequestException(
+        message:
+            'Erro ao registrar usuário: ${requestException.response?.statusCode}',
+        errorCode: code,
+      );
+    }
   }
 }

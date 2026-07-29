@@ -197,10 +197,19 @@ class AppLocalizationsEs extends AppLocalizations {
       'La dirección de correo electrónico ingresada no es una dirección válida';
 
   @override
-  String get passwordInvalid =>
-      'La contraseña debe tener al menos 8 caracteres';
+  String get passwordInvalid => 'A senha deve ter pelo menos 8 caracteres';
 
   @override
-  String get passwordConfirmationInvalid =>
-      'Las contraseñas ingresadas no coinciden';
+  String get passwordConfirmationInvalid => 'As senhas inseridas não coincidem';
+
+  @override
+  String get userEmailAlreadyInUse =>
+      'El correo electrónico ya está siendo utilizado por otro usuario';
+
+  @override
+  String get registerUnknownError =>
+      'Se produjo un error al intentar crear la cuenta';
+
+  @override
+  String get welcomeToVigia => 'Bienvenido a Vigia';
 }

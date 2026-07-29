@@ -79,5 +79,8 @@
   "passwordConfirm": "Confirmar senha",
   "emailInvalid": "O email inserido não representa um endereço válido",
   "passwordInvalid": "A senha deve ter pelo menos 8 caracteres",
-  "passwordConfirmationInvalid": "As senhas inseridas não coincidem"
+  "passwordConfirmationInvalid": "As senhas inseridas não coincidem",
+  "userEmailAlreadyInUse": "O email já está sendo usado por outro usuário",
+  "registerUnknownError": "Ocorreu um erro ao realizar criar conta",
+  "welcomeToVigia": "Bem-vindo ao Vigia"
 }

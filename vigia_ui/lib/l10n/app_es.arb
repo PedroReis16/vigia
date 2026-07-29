@@ -80,5 +80,6 @@
   "emailInvalid": "La dirección de correo electrónico ingresada no es una dirección válida",
   "userEmailAlreadyInUse": "El correo electrónico ya está siendo utilizado por otro usuario",
   "registerUnknownError": "Se produjo un error al intentar crear la cuenta",
-  "welcomeToVigia": "Bienvenido a Vigia"
+  "welcomeToVigia": "Bienvenido a Vigia",
+  "createAccount": "Inscribirse"
 }

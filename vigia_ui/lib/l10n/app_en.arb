@@ -82,5 +82,6 @@
   "passwordConfirmationInvalid": "The entered passwords do not match",
   "userEmailAlreadyInUse": "The email is already in use for another user",
   "registerUnknownError": "An error occurred while attempting to create the account",
-  "welcomeToVigia": "Welcome to Vigia"
+  "welcomeToVigia": "Welcome to Vigia",
+  "createAccount": "Sign up"
 }

@@ -53,6 +53,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   Future<void> _submit() async {
     if (ref.read(authControllerProvider).isLoading) return;
 
+    FocusScope.of(context).unfocus();
     ref.read(authExitTransitionProvider.notifier).armLogin();
 
     await ref
@@ -100,7 +101,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
           keyboardType: TextInputType.emailAddress,
         ),
         Padding(
-          padding: const EdgeInsetsGeometry.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: FormTextField(
             label: context.translations.password,
             icon: Icons.lock_outline,
@@ -124,26 +125,29 @@ class _LoginFormState extends ConsumerState<LoginForm> {
               t,
             )!;
 
-            return ElevatedButton(
-              onPressed: _canSubmit ? _submit : null,
-              style: ButtonStyle(
-                maximumSize: WidgetStateProperty.all(
-                  const Size(double.infinity, 50),
-                ),
-                minimumSize: WidgetStateProperty.all(
-                  const Size(double.infinity, 50),
-                ),
-                padding: WidgetStateProperty.all(EdgeInsets.zero),
-                shape: WidgetStateProperty.all(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: ElevatedButton(
+                onPressed: _canSubmit ? _submit : null,
+                style: ButtonStyle(
+                  maximumSize: WidgetStateProperty.all(
+                    const Size(double.infinity, 50),
                   ),
+                  minimumSize: WidgetStateProperty.all(
+                    const Size(double.infinity, 50),
+                  ),
+                  padding: WidgetStateProperty.all(EdgeInsets.zero),
+                  shape: WidgetStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  // Same color for all states so Material does not snap on disable.
+                  backgroundColor: WidgetStateProperty.all(background),
+                  foregroundColor: WidgetStateProperty.all(foreground),
                 ),
-                // Same color for all states so Material does not snap on disable.
-                backgroundColor: WidgetStateProperty.all(background),
-                foregroundColor: WidgetStateProperty.all(foreground),
+                child: child,
               ),
-              child: child,
             );
           },
           child: Wrap(

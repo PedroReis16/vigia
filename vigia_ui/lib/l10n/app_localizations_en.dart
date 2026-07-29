@@ -210,4 +210,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeToVigia => 'Welcome to Vigia';
+
+  @override
+  String get createAccount => 'Sign up';
 }

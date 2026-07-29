@@ -471,6 +471,12 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Bem-vindo ao Vigia'**
   String get welcomeToVigia;
+
+  /// No description provided for @createAccount.
+  ///
+  /// In pt, this message translates to:
+  /// **'Criar conta'**
+  String get createAccount;
 }
 
 class _AppLocalizationsDelegate

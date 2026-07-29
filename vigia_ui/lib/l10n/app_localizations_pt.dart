@@ -209,4 +209,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get welcomeToVigia => 'Bem-vindo ao Vigia';
+
+  @override
+  String get createAccount => 'Criar conta';
 }

@@ -82,5 +82,6 @@
   "passwordConfirmationInvalid": "As senhas inseridas não coincidem",
   "userEmailAlreadyInUse": "O email já está sendo usado por outro usuário",
   "registerUnknownError": "Ocorreu um erro ao realizar criar conta",
-  "welcomeToVigia": "Bem-vindo ao Vigia"
+  "welcomeToVigia": "Bem-vindo ao Vigia",
+  "createAccount": "Criar conta"
 }

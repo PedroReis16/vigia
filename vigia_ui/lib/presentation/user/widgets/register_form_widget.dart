@@ -129,6 +129,7 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
   Future<void> _submit() async {
     if (_busy || ref.read(authControllerProvider).isLoading) return;
 
+    FocusScope.of(context).unfocus();
     setState(() => _busy = true);
 
     final credentials = await ref
@@ -180,32 +181,19 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
         style: const TextStyle(fontSize: 16),
         textAlign: TextAlign.center,
       );
-    } else if (showLoading) {
-      key = 'loading';
-      child = Wrap(
-        spacing: 8,
-        alignment: WrapAlignment.center,
-        runAlignment: WrapAlignment.center,
-        runSpacing: 8,
-        children: [
-          const CircularProgressIndicator.adaptive(),
-          Text(
-            context.translations.login,
-            style: const TextStyle(fontSize: 16),
-          ),
-        ],
-      );
     } else {
-      key = 'idle';
+      key = showLoading ? 'loading' : 'idle';
       child = Wrap(
         spacing: 8,
         alignment: WrapAlignment.center,
         runAlignment: WrapAlignment.center,
         runSpacing: 8,
         children: [
-          const Icon(Icons.login_rounded, size: 20),
+          showLoading
+              ? const CircularProgressIndicator.adaptive()
+              : const Icon(Icons.login_rounded, size: 20),
           Text(
-            context.translations.login,
+            context.translations.createAccount,
             style: const TextStyle(fontSize: 16),
           ),
         ],
@@ -239,11 +227,8 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
     final isLoading = ref.watch(authControllerProvider).isLoading;
     final buttonActive = _canSubmit || _showWelcome;
 
-    return Wrap(
+    return Column(
       spacing: 16,
-      alignment: WrapAlignment.center,
-      runAlignment: WrapAlignment.start,
-      runSpacing: 16,
       children: [
         FormTextField(
           label: context.translations.usernameForm,

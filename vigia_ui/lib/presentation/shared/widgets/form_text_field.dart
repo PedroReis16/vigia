@@ -77,6 +77,8 @@ class _FormTextFieldState extends State<FormTextField> {
       obscureText: widget.isPassword && !isPasswordVisible,
       cursorColor: colorScheme.onPrimary,
       keyboardType: widget.keyboardType,
+      // Leave room below the focused field so the submit button stays visible.
+      scrollPadding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
       decoration: InputDecoration(
         filled: true,
         fillColor: colorScheme.surface,

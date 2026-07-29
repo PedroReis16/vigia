@@ -183,4 +183,20 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get signalWeak => 'Sinal fraco';
+
+  @override
+  String get usernameForm => 'Nome completo';
+
+  @override
+  String get passwordConfirm => 'Confirmar senha';
+
+  @override
+  String get emailInvalid =>
+      'O email inserido não representa um endereço válido';
+
+  @override
+  String get passwordInvalid => 'A senha deve ter pelo menos 8 caracteres';
+
+  @override
+  String get passwordConfirmationInvalid => 'As senhas inseridas não coincidem';
 }

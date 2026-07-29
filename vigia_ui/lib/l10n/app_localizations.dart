@@ -423,6 +423,36 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Sinal fraco'**
   String get signalWeak;
+
+  /// No description provided for @usernameForm.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nome completo'**
+  String get usernameForm;
+
+  /// No description provided for @passwordConfirm.
+  ///
+  /// In pt, this message translates to:
+  /// **'Confirmar senha'**
+  String get passwordConfirm;
+
+  /// No description provided for @emailInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'O email inserido não representa um endereço válido'**
+  String get emailInvalid;
+
+  /// No description provided for @passwordInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'A senha deve ter pelo menos 8 caracteres'**
+  String get passwordInvalid;
+
+  /// No description provided for @passwordConfirmationInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'As senhas inseridas não coincidem'**
+  String get passwordConfirmationInvalid;
 }
 
 class _AppLocalizationsDelegate

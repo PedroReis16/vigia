@@ -74,5 +74,10 @@
   "signalExcellent": "Señal excelente",
   "signalGood": "Señal buena",
   "signalFair": "Señal moderada",
-  "signalWeak": "Señal débil"
+  "signalWeak": "Señal débil",
+  "usernameForm": "Nombre completo",
+  "passwordConfirm": "Confirmar contraseña",
+  "emailInvalid": "La dirección de correo electrónico ingresada no es una dirección válida",
+  "passwordInvalid": "La contraseña debe tener al menos 8 caracteres",
+  "passwordConfirmationInvalid": "Las contraseñas ingresadas no coinciden"
 }

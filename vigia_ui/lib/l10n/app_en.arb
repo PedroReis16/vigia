@@ -74,5 +74,10 @@
   "signalExcellent": "Excellent signal",
   "signalGood": "Good signal",
   "signalFair": "Fair signal",
-  "signalWeak": "Weak signal"
+  "signalWeak": "Weak signal",
+  "usernameForm": "Full name",
+  "passwordConfirm": "Confirm password",
+  "emailInvalid": "The entered email address is not a valid address",
+  "passwordInvalid": "The password must be at least 8 characters long",
+  "passwordConfirmationInvalid": "The entered passwords do not match"
 }

@@ -185,4 +185,22 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get signalWeak => 'Señal débil';
+
+  @override
+  String get usernameForm => 'Nombre completo';
+
+  @override
+  String get passwordConfirm => 'Confirmar contraseña';
+
+  @override
+  String get emailInvalid =>
+      'La dirección de correo electrónico ingresada no es una dirección válida';
+
+  @override
+  String get passwordInvalid =>
+      'La contraseña debe tener al menos 8 caracteres';
+
+  @override
+  String get passwordConfirmationInvalid =>
+      'Las contraseñas ingresadas no coinciden';
 }

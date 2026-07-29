@@ -49,65 +49,69 @@ class _AuthPageState extends ConsumerState<AuthPage> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Theme.of(context).primaryColor,
-        body: SafeArea(
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Hero(
-                    tag: VigiaLogoHero.tag,
-                    placeholderBuilder: (context, size, child) =>
-                        SizedBox(width: size.width, height: size.height),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: VigiaLogoHero.image(
-                        height: VigiaLogoHero.authHeight,
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.opaque,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Hero(
+                      tag: VigiaLogoHero.tag,
+                      placeholderBuilder: (context, size, child) =>
+                          SizedBox(width: size.width, height: size.height),
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: VigiaLogoHero.image(
+                          height: VigiaLogoHero.authHeight,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: _forms,
+                  ],
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: _forms,
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _currentPage == 0
-                        ? context.translations.noAccount
-                        : context.translations.hasAccount,
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  TextButton(
-                    style: const ButtonStyle(
-                      splashFactory: NoSplash.splashFactory,
-                    ),
-                    onPressed: () {
-                      changePage(_currentPage == 0 ? 1 : 0);
-                    },
-                    child: Text(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
                       _currentPage == 0
-                          ? context.translations.register
-                          : context.translations.login,
-                      style: TextStyle(
-                        color: Theme.of(context).brightness == Brightness.light
-                            ? context.appColors.outline
-                            : context.appColors.primary,
+                          ? context.translations.noAccount
+                          : context.translations.hasAccount,
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    TextButton(
+                      style: const ButtonStyle(
+                        splashFactory: NoSplash.splashFactory,
+                      ),
+                      onPressed: () {
+                        changePage(_currentPage == 0 ? 1 : 0);
+                      },
+                      child: Text(
+                        _currentPage == 0
+                            ? context.translations.register
+                            : context.translations.login,
+                        style: TextStyle(
+                          color: Theme.of(context).brightness == Brightness.light
+                              ? context.appColors.outline
+                              : context.appColors.primary,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

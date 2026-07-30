@@ -19,11 +19,15 @@ class LoginForm extends ConsumerStatefulWidget {
 }
 
 class _LoginFormState extends ConsumerState<LoginForm> {
+  static const _welcomeHold = Duration(milliseconds: 1600);
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   late final StreamSubscription<bool> _validationSub;
   bool _canSubmit = false;
+  bool _busy = false;
+  bool _showWelcome = false;
 
   @override
   void initState() {
@@ -51,12 +55,12 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   }
 
   Future<void> _submit() async {
-    if (ref.read(authControllerProvider).isLoading) return;
+    if (_busy || ref.read(authControllerProvider).isLoading) return;
 
     FocusScope.of(context).unfocus();
-    ref.read(authExitTransitionProvider.notifier).armLogin();
+    setState(() => _busy = true);
 
-    await ref
+    final credentials = await ref
         .read(authControllerProvider.notifier)
         .login(_emailController.text, _passwordController.text);
 
@@ -64,33 +68,88 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     final status = ref.read(authControllerProvider).status;
 
-    switch (status) {
-      case AuthStatus.unauthorized:
-        ref.read(authExitTransitionProvider.notifier).disarm();
-        context.showSnackbar(
-          message: context.translations.invalidCredentials,
-          color: Theme.of(context).colorScheme.error,
-        );
-        break;
-      case AuthStatus.error:
-        ref.read(authExitTransitionProvider.notifier).disarm();
-        context.showSnackbar(
-          message: context.translations.loginError,
-          color: Theme.of(context).colorScheme.error,
-        );
-        break;
-      case AuthStatus.authorized:
-        // Navigation is handled by GoRouter redirect + auth exit transition.
-        break;
-      default:
-        ref.read(authExitTransitionProvider.notifier).disarm();
-        break;
+    if (status != AuthStatus.authorized || credentials == null) {
+      setState(() => _busy = false);
+
+      switch (status) {
+        case AuthStatus.unauthorized:
+          context.showSnackbar(
+            message: context.translations.invalidCredentials,
+            color: Theme.of(context).colorScheme.error,
+          );
+        case AuthStatus.error:
+          context.showSnackbar(
+            message: context.translations.loginError,
+            color: Theme.of(context).colorScheme.error,
+          );
+        default:
+          break;
+      }
+      return;
     }
+
+    setState(() => _showWelcome = true);
+
+    await Future.delayed(_welcomeHold);
+    if (!mounted) return;
+
+    ref.read(authExitTransitionProvider.notifier).armLogin();
+    await ref.read(authControllerProvider.notifier).commitSession(credentials);
+  }
+
+  Widget _buildButtonLabel({required bool isLoading}) {
+    final Widget child;
+    final String key;
+    final showLoading = (isLoading || _busy) && !_showWelcome;
+
+    if (_showWelcome) {
+      key = 'welcome';
+      child = Text(
+        context.translations.welcomeToVigia,
+        style: const TextStyle(fontSize: 16),
+        textAlign: TextAlign.center,
+      );
+    } else {
+      key = showLoading ? 'loading' : 'idle';
+      child = Wrap(
+        spacing: 8,
+        alignment: WrapAlignment.center,
+        runAlignment: WrapAlignment.center,
+        runSpacing: 8,
+        children: [
+          showLoading
+              ? const CircularProgressIndicator.adaptive()
+              : const Icon(Icons.login_rounded, size: 20),
+          Text(context.translations.login, style: const TextStyle(fontSize: 16)),
+        ],
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.15),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: KeyedSubtree(key: ValueKey(key), child: child),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+    final buttonActive = _canSubmit || _showWelcome;
 
     return Column(
       children: [
@@ -112,7 +171,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
         TweenAnimationBuilder<double>(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeInOut,
-          tween: Tween<double>(end: _canSubmit ? 1.0 : 0.0),
+          tween: Tween<double>(end: buttonActive ? 1.0 : 0.0),
           builder: (context, t, child) {
             final background = Color.lerp(
               colorScheme.surface,
@@ -128,7 +187,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: ElevatedButton(
-                onPressed: _canSubmit ? _submit : null,
+                onPressed: (_canSubmit && !_busy) ? _submit : null,
                 style: ButtonStyle(
                   maximumSize: WidgetStateProperty.all(
                     const Size(double.infinity, 50),
@@ -136,7 +195,9 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                   minimumSize: WidgetStateProperty.all(
                     const Size(double.infinity, 50),
                   ),
-                  padding: WidgetStateProperty.all(EdgeInsets.zero),
+                  padding: WidgetStateProperty.all(
+                    const EdgeInsets.symmetric(horizontal: 16),
+                  ),
                   shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -150,18 +211,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
               ),
             );
           },
-          child: Wrap(
-            spacing: 8,
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            runSpacing: 8,
-            children: [
-              ref.watch(authControllerProvider).isLoading
-                  ? const CircularProgressIndicator.adaptive()
-                  : const Icon(Icons.login_rounded, size: 20),
-              Text(context.translations.login, style: TextStyle(fontSize: 16)),
-            ],
-          ),
+          child: _buildButtonLabel(isLoading: isLoading),
         ),
       ],
     );

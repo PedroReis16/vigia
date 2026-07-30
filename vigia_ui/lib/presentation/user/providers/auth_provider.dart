@@ -23,7 +23,9 @@ class AuthController extends _$AuthController {
   @override
   AuthState build() => AuthState();
 
-  Future<void> login(String email, String password) async {
+  /// Authenticates and returns credentials without opening the session,
+  /// so the UI can show a welcome beat before navigating to the shell.
+  Future<UserCredentials?> login(String email, String password) async {
     state = AuthState(isLoading: true);
 
     try {
@@ -31,13 +33,14 @@ class AuthController extends _$AuthController {
           .read(authRepositoryProvider)
           .login(email, password);
 
-      await commitSession(credentials);
-
       state = AuthState(isLoading: false, status: AuthStatus.authorized);
+      return credentials;
     } on UnauthorizedException {
       state = AuthState(isLoading: false, status: AuthStatus.unauthorized);
+      return null;
     } catch (e) {
       state = AuthState(isLoading: false, status: AuthStatus.error);
+      return null;
     }
   }
 

@@ -23,4 +23,5 @@ public enum ErrorCodes
     GROUP_NOT_FOUND = 18,
     USER_GROUP_REQUIRED = 19,
     DEVICE_NOT_FOUND = 20,
+    INVALID_DEVICE_NAME = 21,
 }

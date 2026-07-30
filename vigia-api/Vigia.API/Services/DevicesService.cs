@@ -5,6 +5,9 @@ using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 using Vigia.Models.Extensions;
+using Vigia.Fiware.Contracts;
+using System.Text.RegularExpressions;
+using Group = Vigia.Models.Entities.Group;
 
 namespace Vigia.API.Services;
 
@@ -41,6 +44,9 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             using IServiceScope scope = _scopeFactory.CreateScope();
             IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
 
+            if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
+                throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
+
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
@@ -58,9 +64,34 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
                 return;
             }
 
-            await devicesDao.AddAsync(newDeviceEntity);
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
 
-            //TODO: Registrar o dispositivo no FIWARE
+            try
+            {
+                await fiwareService.RegisterSensorAsync(newDevice.Id, newDevice.Name);
+                _logger.LogInformation($"Dispositivo {newDevice.Id} registrado no FIWARE com sucesso");
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = $"Houve um erro ao tentar registrar o dispositivo no FIWARE: {ex.GetFullMessage()}";
+                _logger.LogError(errorMsg);
+                throw new Exception(errorMsg);
+            }
+
+            try
+            {
+                await devicesDao.AddAsync(newDeviceEntity);
+            }
+            catch (Exception ex)
+            {
+                // Se der erro ao salvar no banco, tenta apagar o sensor do FIWARE
+                await fiwareService.DeleteSensorAsync(newDevice.Id, newDevice.Name);
+                string errorMsg = $"Houve um erro ao registar o dispositivo no banco de dados: {ex.GetFullMessage()}";
+                _logger.LogError(errorMsg);
+                throw new Exception(errorMsg);
+            }
+
+            _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
         }
         catch (EntityValidationException) { throw; }
         catch (Exception ex)

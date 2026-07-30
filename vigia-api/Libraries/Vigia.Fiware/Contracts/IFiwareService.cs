@@ -20,4 +20,5 @@ public interface IFiwareService
     /// <see cref="Config.DeviceProperties"/> e sincroniza a registration de comandos no Orion.
     /// </summary>
     Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName);
+    Task DeleteSensorAsync(Guid id, string name);
 }

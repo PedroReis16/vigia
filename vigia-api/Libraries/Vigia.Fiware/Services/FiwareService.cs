@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Vigia.Fiware.Config;
 using Vigia.Fiware.Contracts;
 using Vigia.Fiware.Models.DeviceDTOs;
@@ -16,25 +17,26 @@ internal class FiwareService : IFiwareService
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<FiwareService> _logger;
     private readonly string _iotAgentPath;
     private readonly string _sthCommetPath;
     private readonly string _orionPath;
-    private readonly string _iotAgentFullPath;
+    private readonly string _iotAgentProviderUrl;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
-    public FiwareService(HttpClient httpClient, IConfiguration configuration)
+    public FiwareService(HttpClient httpClient, IConfiguration configuration, ILogger<FiwareService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _logger = logger;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _sthCommetPath = configuration.GetValue<string>("Fiware:Paths:SthComet")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
-
-        _iotAgentFullPath = $"{httpClient.BaseAddress}{_iotAgentPath}";
+       _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
     }
 
     #region Métodos de controle do serviço do FIWARE
@@ -157,7 +159,11 @@ internal class FiwareService : IFiwareService
 
                 if (!schemaMatches)
                 {
-                    bool updated = await UpdateDeviceSchemaAsync(device.DeviceId, expectedAttributes, expectedCommands);
+                    _logger.LogInformation(
+                        "Schema divergente no device {DeviceId}. Atualizando attributes/commands...",
+                        device.DeviceId);
+
+                    bool updated = await EnsureDeviceSchemaAsync(device, expectedAttributes, expectedCommands);
                     if (!updated)
                     {
                         allSucceeded = false;
@@ -208,6 +214,22 @@ internal class FiwareService : IFiwareService
         return (payload.Devices, payload.Count);
     }
 
+    private async Task<bool> EnsureDeviceSchemaAsync(
+        IotAgentDeviceDTO device,
+        List<DeviceAttributeDTO> attributes,
+        List<DeviceCommandDTO> commands)
+    {
+        bool updated = await UpdateDeviceSchemaAsync(device.DeviceId, attributes, commands);
+        if (updated)
+            return true;
+
+        _logger.LogWarning(
+            "PUT do device {DeviceId} falhou (comum quando a entidade não existe no Orion). Recriando device...",
+            device.DeviceId);
+
+        return await RecreateDeviceWithSchemaAsync(device, attributes, commands);
+    }
+
     private async Task<bool> UpdateDeviceSchemaAsync(
         string deviceId,
         List<DeviceAttributeDTO> attributes,
@@ -228,7 +250,78 @@ internal class FiwareService : IFiwareService
             $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId)}",
             content);
 
-        return response.IsSuccessStatusCode;
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        string errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogWarning(
+            "Falha ao atualizar schema do device {DeviceId}. Status={StatusCode}. Body={Body}",
+            deviceId,
+            (int)response.StatusCode,
+            errorBody);
+
+        return false;
+    }
+
+    private async Task<bool> RecreateDeviceWithSchemaAsync(
+        IotAgentDeviceDTO device,
+        List<DeviceAttributeDTO> attributes,
+        List<DeviceCommandDTO> commands)
+    {
+        HttpResponseMessage deleteResponse = await _httpClient.DeleteAsync(
+            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(device.DeviceId)}");
+
+        if (!deleteResponse.IsSuccessStatusCode
+            && deleteResponse.StatusCode != HttpStatusCode.NotFound
+            && deleteResponse.StatusCode != HttpStatusCode.NoContent)
+        {
+            string deleteBody = await deleteResponse.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Falha ao remover device {DeviceId} para recriação. Status={StatusCode}. Body={Body}",
+                device.DeviceId,
+                (int)deleteResponse.StatusCode,
+                deleteBody);
+            return false;
+        }
+
+        NewDevicesRequestDTO body = new()
+        {
+            Devices =
+            [
+                new NewDeviceDTO
+                {
+                    DeviceId = device.DeviceId,
+                    EntityName = device.EntityName,
+                    EntityType = device.EntityType,
+                    Protocol = string.IsNullOrWhiteSpace(device.Protocol)
+                        ? DeviceProperties.Protocol
+                        : device.Protocol,
+                    Transport = string.IsNullOrWhiteSpace(device.Transport)
+                        ? DeviceProperties.Transport
+                        : device.Transport,
+                    Attributes = attributes,
+                    Commands = commands
+                }
+            ]
+        };
+
+        using StringContent content = new(
+            JsonSerializer.Serialize(body, JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        HttpResponseMessage createResponse = await _httpClient.PostAsync($"{_iotAgentPath}/devices", content);
+        if (createResponse.IsSuccessStatusCode || createResponse.StatusCode == HttpStatusCode.Created)
+            return true;
+
+        string createBody = await createResponse.Content.ReadAsStringAsync();
+        _logger.LogError(
+            "Falha ao recriar device {DeviceId}. Status={StatusCode}. Body={Body}",
+            device.DeviceId,
+            (int)createResponse.StatusCode,
+            createBody);
+
+        return false;
     }
 
     private static bool SchemasMatch(
@@ -334,7 +427,7 @@ internal class FiwareService : IFiwareService
     {
         bool providerMatches = string.Equals(
             registration.Provider.Http.Url.TrimEnd('/'),
-            _iotAgentFullPath.TrimEnd('/'),
+            _iotAgentProviderUrl.TrimEnd('/'),
             StringComparison.OrdinalIgnoreCase);
 
         if (!providerMatches)
@@ -396,7 +489,7 @@ internal class FiwareService : IFiwareService
             {
                 Http = new OrionRegistrationHttpProviderDTO
                 {
-                    Url = _iotAgentFullPath
+                    Url = _iotAgentProviderUrl
                 },
                 LegacyForwarding = true
             }
@@ -454,7 +547,7 @@ internal class FiwareService : IFiwareService
             [
                 new NewDeviceDTO
                 {
-                    DeviceId = deviceId,
+                    DeviceId = deviceId.ToString(),
                     EntityName = entityName,
                     EntityType = entityType,
                     Protocol = DeviceProperties.Protocol,

@@ -18,12 +18,18 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
             IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
 
             //1. Verifica a existência e as condições do serviço do FIWARE
-            await fiwareService.AddOrUpdateServiceAsync();
-            _logger.LogInformation("Atualizações sobre o serviço do FIWARE realizadas com sucesso");
+            bool serviceSynced = await fiwareService.AddOrUpdateServiceAsync();
+            if (!serviceSynced)
+                _logger.LogWarning("Não foi possível garantir o serviço do FIWARE conforme as configurações");
+            else
+                _logger.LogInformation("Atualizações sobre o serviço do FIWARE realizadas com sucesso");
 
             //2. Sincroniza schema (attributes/commands) e registrations de comandos dos devices
-            await fiwareService.SyncDevicesSchemaAsync();
-            _logger.LogInformation("Sincronização do schema (attributes/commands) e registrations de comandos dos devices realizada com sucesso");
+            bool devicesSynced = await fiwareService.SyncDevicesSchemaAsync();
+            if (!devicesSynced)
+                _logger.LogWarning("Sincronização de schema/registrations dos devices finalizou com falhas");
+            else
+                _logger.LogInformation("Sincronização do schema (attributes/commands) e registrations de comandos dos devices realizada com sucesso");
         }
         catch (Exception ex)
         {

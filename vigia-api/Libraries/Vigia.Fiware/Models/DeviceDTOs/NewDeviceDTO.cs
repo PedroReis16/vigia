@@ -5,7 +5,7 @@ namespace Vigia.Fiware.Models.DeviceDTOs;
 public class NewDeviceDTO
 {
     [JsonPropertyName("device_id")]
-    public Guid DeviceId { get; set; }
+    public string DeviceId { get; set; } = string.Empty;
 
     [JsonPropertyName("entity_name")]
     public string EntityName { get; set; } = string.Empty;

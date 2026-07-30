@@ -44,7 +44,7 @@ builder.Services.AddHttpContextAccessor();
 
 // Services
 builder.Services.AddTransient<IUserService, UserService>();
-builder.Services.AddTransient<IDeviceService, DeviceService>();
+builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IAuthService, AuthService>();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
@@ -58,6 +58,7 @@ builder.Services.AddScoped<IGroupDao, GroupDao>();
 
 // Dao Cache
 builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();
+builder.Services.AddSingleton<IDevicesDaoCache, DevicesDaoCache>();
 
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();

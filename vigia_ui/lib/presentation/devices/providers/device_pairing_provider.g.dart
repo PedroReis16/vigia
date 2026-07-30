@@ -41,7 +41,7 @@ final class DevicePairingProvider
   }
 }
 
-String _$devicePairingHash() => r'b98b608fb501a1002fbba58ea4e0f96553b41f18';
+String _$devicePairingHash() => r'1245cb0531d5fdb59ba70c8e0dc63b419a59f425';
 
 abstract class _$DevicePairing extends $Notifier<DevicePairingState> {
   DevicePairingState build();

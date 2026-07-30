@@ -1,79 +1,87 @@
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:flutter/material.dart';
+import 'package:vigia_ui/core/theme/app_assets.dart';
+import 'package:vigia_ui/core/theme/theme_colors.dart';
 
 abstract final class AppTheme {
   static const _inputBorderRadius = BorderRadius.all(Radius.circular(10));
   static const _buttonBorderRadius = BorderRadius.all(Radius.circular(12));
   static const _cardBorderRadius = BorderRadius.all(Radius.circular(16));
 
-  static ThemeData get light {
+  static ThemeData get light =>
+      _build(AppColors.light, AppAssets.light, Brightness.light);
+
+  static ThemeData get dark =>
+      _build(AppColors.dark, AppAssets.dark, Brightness.dark);
+
+  static ThemeData _build(
+    AppColors colors,
+    AppAssets assets,
+    Brightness brightness,
+  ) {
+    final colorScheme = colors.toColorScheme(brightness);
+
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: ThemeColors.background,
-      colorScheme: ColorScheme.light(
-        primary: ThemeColors.accent,
-        onPrimary: Colors.white,
-        secondary: ThemeColors.border,
-        onSecondary: ThemeColors.label,
-        surface: ThemeColors.cardBackground,
-        onSurface: ThemeColors.label,
-        error: Colors.red.shade400,
-        onError: Colors.white,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: ThemeColors.background,
-        foregroundColor: ThemeColors.label,
+      brightness: brightness,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colors.background,
+      extensions: [colors, assets],
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.primary,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        iconTheme: IconThemeData(color: ThemeColors.label),
+        centerTitle: true,
+        iconTheme: IconThemeData(color: colorScheme.onPrimary),
         titleTextStyle: TextStyle(
-          color: ThemeColors.label,
+          color: colorScheme.onPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
       ),
-      cardTheme: const CardThemeData(
-        color: ThemeColors.cardBackground,
+      cardTheme: CardThemeData(
+        color: colors.surface,
         elevation: 0,
-        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: _cardBorderRadius,
-          side: BorderSide(color: ThemeColors.border),
+          side: BorderSide(color: colors.outlineVariant),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: ThemeColors.fieldBackground,
+        fillColor: colors.primaryContainer,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 12,
         ),
-        border: const OutlineInputBorder(
+        border: OutlineInputBorder(
           borderRadius: _inputBorderRadius,
-          borderSide: BorderSide(color: ThemeColors.border),
+          borderSide: BorderSide(color: colors.outline),
         ),
-        enabledBorder: const OutlineInputBorder(
+        enabledBorder: OutlineInputBorder(
           borderRadius: _inputBorderRadius,
-          borderSide: BorderSide(color: ThemeColors.border),
+          borderSide: BorderSide(color: colors.outline),
         ),
-        focusedBorder: const OutlineInputBorder(
+        focusedBorder: OutlineInputBorder(
           borderRadius: _inputBorderRadius,
-          borderSide: BorderSide(color: ThemeColors.accent, width: 1.5),
+          borderSide: BorderSide(color: colors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: _inputBorderRadius,
-          borderSide: BorderSide(color: Colors.red.shade400),
+          borderSide: BorderSide(color: colors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: _inputBorderRadius,
-          borderSide: BorderSide(color: Colors.red.shade400, width: 1.5),
+          borderSide: BorderSide(color: colors.error, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: ThemeColors.hint),
+        hintStyle: TextStyle(color: colors.textSecondary),
+        labelStyle: TextStyle(color: colors.textSecondary),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: ThemeColors.accent,
-          foregroundColor: Colors.white,
+          backgroundColor: colors.primary,
+          foregroundColor: colorScheme.onPrimary,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: const RoundedRectangleBorder(
             borderRadius: _buttonBorderRadius,
@@ -82,58 +90,62 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: ThemeColors.label,
-          side: const BorderSide(color: ThemeColors.border),
+          foregroundColor: colors.textPrimary,
+          side: BorderSide(color: colors.outline),
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: const RoundedRectangleBorder(
             borderRadius: _buttonBorderRadius,
           ),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: ThemeColors.accent,
-        foregroundColor: Colors.white,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colors.primary,
+        foregroundColor: colorScheme.onPrimary,
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: ThemeColors.background,
-        shape: RoundedRectangleBorder(
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colors.surface,
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: ThemeColors.accent,
-      ),
-      dividerTheme: const DividerThemeData(color: ThemeColors.border),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: colors.primary),
+      dividerTheme: DividerThemeData(color: colors.outlineVariant),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: ThemeColors.label,
-        contentTextStyle: const TextStyle(color: Colors.white),
+        backgroundColor: colors.textPrimary,
+        contentTextStyle: TextStyle(
+          color: brightness == Brightness.light
+              ? colors.surface
+              : colors.background,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         behavior: SnackBarBehavior.floating,
       ),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: ThemeColors.label),
-        bodyMedium: TextStyle(color: ThemeColors.label),
-        bodySmall: TextStyle(color: ThemeColors.hint),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: colors.textPrimary),
+        bodyMedium: TextStyle(color: colors.textPrimary),
+        bodySmall: TextStyle(color: colors.textSecondary),
         titleLarge: TextStyle(
-          color: ThemeColors.label,
+          color: colors.textPrimary,
           fontWeight: FontWeight.w700,
         ),
         titleMedium: TextStyle(
-          color: ThemeColors.label,
+          color: colors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
       ),
       datePickerTheme: DatePickerThemeData(
-        backgroundColor: ThemeColors.background,
-        headerBackgroundColor: ThemeColors.accent,
-        headerForegroundColor: Colors.white,
+        backgroundColor: colors.surface,
+        headerBackgroundColor: colors.primary,
+        headerForegroundColor: colorScheme.onPrimary,
         dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return Colors.white;
-          return ThemeColors.label;
+          if (states.contains(WidgetState.selected)) {
+            return colorScheme.onPrimary;
+          }
+          return colors.textPrimary;
         }),
         dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return ThemeColors.accent;
+            return colors.primary;
           }
           return null;
         }),

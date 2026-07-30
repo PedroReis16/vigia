@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 
 class StepTile extends StatelessWidget {
   const StepTile({
@@ -15,7 +14,9 @@ class StepTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -24,14 +25,14 @@ class StepTile extends StatelessWidget {
           width: 28,
           height: 28,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: ThemeColors.accent,
+          decoration: BoxDecoration(
+            color: colorScheme.primary,
             shape: BoxShape.circle,
           ),
           child: Text(
             '$number',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: colorScheme.onPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 13,
             ),

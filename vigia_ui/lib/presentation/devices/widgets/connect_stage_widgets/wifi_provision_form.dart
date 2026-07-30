@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class WifiProvisionForm extends StatefulWidget {
   const WifiProvisionForm({
@@ -67,7 +67,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
         _networks = networks;
         _loadingNetworks = false;
         if (networks.isEmpty) {
-          _scanError = 'Nenhuma rede encontrada. Tente atualizar a lista.';
+          _scanError = context.translations.noNetworksFound;
         }
       });
     } catch (error) {
@@ -112,7 +112,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     final ssid = _selectedSsid;
     if (ssid == null || ssid.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione ou informe uma rede Wi‑Fi.')),
+        SnackBar(content: Text(context.translations.selectOrEnterWifi)),
       );
       return;
     }
@@ -131,7 +131,9 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
     final busy = _submitting || widget.isSubmitting;
     final hasSelection =
         _selectedNetwork != null ||
@@ -142,19 +144,19 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Adicionar dispositivo', style: textTheme.titleLarge),
+          Text(context.translations.addDevice, style: textTheme.titleLarge),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: Text(
-                  'Rede Wi‑Fi',
+                  context.translations.wifiNetwork,
                   style: textTheme.titleMedium,
                 ),
               ),
               if (_wifiScan.isScanSupported)
                 IconButton(
-                  tooltip: 'Atualizar redes',
+                  tooltip: context.translations.refreshNetworks,
                   onPressed: busy || _loadingNetworks ? null : _loadNetworks,
                   icon: _loadingNetworks
                       ? const SizedBox(
@@ -169,19 +171,19 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           const SizedBox(height: 4),
           Text(
             _wifiScan.isScanSupported
-                ? 'Selecione a rede que o Vigia deve usar.'
-                : 'No iOS, informe manualmente o nome da rede.',
+                ? context.translations.selectWifiHint
+                : context.translations.manualWifiHintIos,
             style: textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
           if (_scanError != null) ...[
             Text(
               _scanError!,
-              style: textTheme.bodySmall?.copyWith(color: Colors.red.shade700),
+              style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
             ),
             const SizedBox(height: 8),
           ],
-          Expanded(child: _buildNetworkSection(textTheme, busy)),
+          Expanded(child: _buildNetworkSection(textTheme, colorScheme, busy)),
           if (hasSelection) ...[
             const SizedBox(height: 12),
             if (_requiresPassword) ...[
@@ -192,9 +194,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
-                  labelText: 'Senha da rede',
-                  filled: true,
-                  fillColor: ThemeColors.fieldBackground,
+                  labelText: context.translations.networkPassword,
                   suffixIcon: IconButton(
                     onPressed: busy
                         ? null
@@ -211,14 +211,14 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 validator: (value) {
                   if (!_requiresPassword) return null;
                   if (value == null || value.isEmpty) {
-                    return 'Informe a senha da rede';
+                    return context.translations.networkPasswordRequired;
                   }
                   return null;
                 },
               ),
             ] else
               Text(
-                'Rede aberta — senha não necessária.',
+                context.translations.openNetworkNoPassword,
                 style: textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -232,14 +232,18 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Enviar credenciais'),
+                : Text(context.translations.sendCredentials),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNetworkSection(TextTheme textTheme, bool busy) {
+  Widget _buildNetworkSection(
+    TextTheme textTheme,
+    ColorScheme colorScheme,
+    bool busy,
+  ) {
     if (_manualEntry) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -249,17 +253,15 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             enabled: !busy,
             textInputAction: TextInputAction.next,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: 'Nome da rede (SSID)',
-              filled: true,
-              fillColor: ThemeColors.fieldBackground,
+            decoration: InputDecoration(
+              labelText: context.translations.networkSsid,
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
             const SizedBox(height: 8),
             TextButton(
               onPressed: busy ? null : _loadNetworks,
-              child: const Text('Voltar para redes encontradas'),
+              child: Text(context.translations.backToFoundNetworks),
             ),
           ],
         ],
@@ -276,14 +278,14 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Nenhuma rede disponível',
+              context.translations.noNetworksAvailable,
               style: textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: busy ? null : _enableManualEntry,
-              child: const Text('Informar rede manualmente'),
+              child: Text(context.translations.enterNetworkManually),
             ),
           ],
         ),
@@ -302,10 +304,10 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
 
               return ListTile(
                 selected: selected,
-                selectedTileColor: ThemeColors.fieldBackground,
+                selectedTileColor: colorScheme.primaryContainer,
                 leading: Icon(
                   network.isSecure ? Icons.lock_outline : Icons.wifi,
-                  color: selected ? ThemeColors.accent : null,
+                  color: selected ? colorScheme.primary : null,
                 ),
                 title: Text(network.ssid),
                 subtitle: Text(_signalLabel(network.signalLevel)),
@@ -317,17 +319,17 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
         ),
         TextButton(
           onPressed: busy ? null : _enableManualEntry,
-          child: const Text('Informar outra rede'),
+          child: Text(context.translations.enterAnotherNetwork),
         ),
       ],
     );
   }
 
   String _signalLabel(int level) {
-    if (level >= -50) return 'Sinal excelente';
-    if (level >= -60) return 'Sinal bom';
-    if (level >= -70) return 'Sinal moderado';
-    return 'Sinal fraco';
+    if (level >= -50) return context.translations.signalExcellent;
+    if (level >= -60) return context.translations.signalGood;
+    if (level >= -70) return context.translations.signalFair;
+    return context.translations.signalWeak;
   }
 }
 
@@ -338,6 +340,7 @@ class _SignalIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final bars = switch (level) {
       >= -50 => 3,
       >= -65 => 2,
@@ -356,8 +359,8 @@ class _SignalIcon extends StatelessWidget {
             margin: const EdgeInsets.only(left: 2),
             decoration: BoxDecoration(
               color: i < bars
-                  ? ThemeColors.accent
-                  : ThemeColors.hint.withValues(alpha: 0.4),
+                  ? colorScheme.primary
+                  : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(1),
             ),
           ),

@@ -20,10 +20,13 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     {
         using IServiceScope scope = _scopeFactory.CreateScope();
         IUserService userService = scope.ServiceProvider.GetRequiredService<IUserService>();
-
+        
         await userService.RegisterNewUserAsync(newUserDTO);
+        AuthResponseDTO? responseToken = await LogingUser(new LoginUserDTO(newUserDTO.Email, newUserDTO.Password));
+        if (responseToken == null)
+            return Unauthorized();
 
-        return CreatedAtAction(nameof(Login), new { email = newUserDTO.Email, password = newUserDTO.Password });
+        return CreatedAtAction(nameof(Login), responseToken);
     }
 
     /// <summary>
@@ -34,17 +37,22 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginUserDTO loginUserDTO)
     {
+        AuthResponseDTO? responseToken = await LogingUser(loginUserDTO);
+        if (responseToken == null)
+            return Unauthorized();
+
+        return Ok(responseToken);
+    }
+
+    private async Task<AuthResponseDTO?> LogingUser(LoginUserDTO loginUser)
+    {
         string requestIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
         using IServiceScope scope = _scopeFactory.CreateScope();
         IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
 
-        AuthResponseDTO? responseToken = await authService.LoginUserAsync(loginUserDTO, requestIp);
-
-        if (responseToken == null)
-            return Unauthorized();
-
-        return Ok(responseToken);
+        AuthResponseDTO? responseToken = await authService.LoginUserAsync(loginUser, requestIp);
+        return responseToken;
     }
 
     /// <summary>

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
+import 'package:vigia_ui/core/theme/app_theme.dart';
+import 'package:vigia_ui/l10n/app_localizations.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,15 +18,39 @@ Future<void> main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(appRouterProvider);
+
     return MaterialApp.router(
-      title: 'Vigia',
+      onGenerateTitle: (context) => context.translations.appTitle,
       debugShowCheckedModeBanner: false,
-      routerConfig: appRouter,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.light,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeResolutionCallback: (locale, supportedLocales) {
+        if (locale != null) {
+          for (final supported in supportedLocales) {
+            if (supported.languageCode == locale.languageCode) {
+              return supported;
+            }
+          }
+        }
+        return supportedLocales.first;
+      },
+      routerConfig: router,
+      builder: (context, child) {
+        // Context below MaterialApp has MediaQuery — safe for ResizeImage DPR.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AuthTransitionWarmUp.precacheLogos(context);
+        });
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }

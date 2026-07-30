@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/new_device_modal.dart';
@@ -35,31 +36,45 @@ class DevicesPage extends ConsumerWidget {
   Widget _loadDevices(BuildContext context, WidgetRef ref) {
     final devicesAsync = ref.watch(devicesProvider);
 
-    return devicesAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) =>
-          Center(child: Text('Error: ${error.toString()}')),
-      data: (devices) {
-        if (devices.isEmpty) {
-          return const Center(child: Text('No devices found'));
-        }
-        return ListView.builder(
-          itemCount: devices.length,
-          itemBuilder: (context, index) {
-            return DeviceCard(
-              device: devices[index],
-              onTap: () {
-                context.push(
-                  AppRoutes.deviceDetails.replaceAll(
-                    ':deviceId',
-                    devices[index].id,
-                  ),
-                );
-              },
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: devicesAsync.when(
+        loading: () => const Center(
+          key: ValueKey('devices-loading'),
+          child: CircularProgressIndicator(),
+        ),
+        error: (error, stackTrace) => Center(
+          key: const ValueKey('devices-error'),
+          child: Text(context.translations.errorWithMessage(error.toString())),
+        ),
+        data: (devices) {
+          if (devices.isEmpty) {
+            return Center(
+              key: const ValueKey('devices-empty'),
+              child: Text(context.translations.noDevicesFound),
             );
-          },
-        );
-      },
+          }
+          return ListView.builder(
+            key: const ValueKey('devices-list'),
+            itemCount: devices.length,
+            itemBuilder: (context, index) {
+              return DeviceCard(
+                device: devices[index],
+                onTap: () {
+                  context.push(
+                    AppRoutes.deviceStreamPage.replaceAll(
+                      ':deviceId',
+                      devices[index].id,
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

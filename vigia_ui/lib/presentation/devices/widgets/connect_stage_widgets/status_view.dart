@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class StatusView extends StatelessWidget {
   const StatusView({
@@ -21,15 +22,11 @@ class StatusView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Adicionar dispositivo', style: textTheme.titleLarge),
+        Text(context.translations.addDevice, style: textTheme.titleLarge),
         const Spacer(),
         Center(child: icon),
         const SizedBox(height: 20),
-        Text(
-          title,
-          style: textTheme.titleLarge,
-          textAlign: TextAlign.center,
-        ),
+        Text(title, style: textTheme.titleLarge, textAlign: TextAlign.center),
         const SizedBox(height: 8),
         Text(
           description,

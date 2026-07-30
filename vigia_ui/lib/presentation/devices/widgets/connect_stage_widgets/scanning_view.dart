@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/step_tile.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/video_preview.dart';
 
@@ -20,12 +21,9 @@ class ScanningView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Adicionar dispositivo', style: textTheme.titleLarge),
+        Text(context.translations.addDevice, style: textTheme.titleLarge),
         const SizedBox(height: 4),
-        Text(
-          'Siga o tutorial e aproxime o celular do Vigia. A busca já está em andamento.',
-          style: textTheme.bodySmall,
-        ),
+        Text(context.translations.scanningHint, style: textTheme.bodySmall),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: VideoPreview(controller: videoController),

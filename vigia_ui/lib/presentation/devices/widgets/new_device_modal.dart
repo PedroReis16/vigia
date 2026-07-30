@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_pairing_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/scanning_view.dart';
@@ -17,24 +17,6 @@ class NewDeviceModal extends ConsumerStatefulWidget {
 }
 
 class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
-  static const _steps = [
-    (
-      title: 'Ligue o dispositivo',
-      description:
-          'Conecte o Vigia à tomada e aguarde até que a luz indique que ele está pronto para a configuração.',
-    ),
-    (
-      title: 'Vincule ao aplicativo',
-      description:
-          'Aproxime o celular do Vigia para iniciar o vínculo com o aplicativo.',
-    ),
-    (
-      title: 'Aguarde a confirmação',
-      description:
-          'Aguarde alguns segundos até que a configuração seja concluída com sucesso.',
-    ),
-  ];
-
   late final VideoPlayerController _videoController;
 
   @override
@@ -72,6 +54,23 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
     Navigator.of(context).pop();
   }
 
+  List<({String title, String description})> _steps(BuildContext context) {
+    return [
+      (
+        title: context.translations.stepPowerOnTitle,
+        description: context.translations.stepPowerOnDescription,
+      ),
+      (
+        title: context.translations.stepPairTitle,
+        description: context.translations.stepPairDescription,
+      ),
+      (
+        title: context.translations.stepWaitTitle,
+        description: context.translations.stepWaitDescription,
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final pairing = ref.watch(devicePairingProvider);
@@ -82,19 +81,17 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
         child: switch (pairing.stage) {
           DevicePairingStage.scanning => ScanningView(
             videoController: _videoController,
-            steps: _steps,
+            steps: _steps(context),
           ),
-          DevicePairingStage.connecting => const StatusView(
-            icon: CircularProgressIndicator(),
-            title: 'Conectando',
-            description:
-                'Dispositivo encontrado. Estabelecendo a conexão com o Vigia…',
+          DevicePairingStage.connecting => StatusView(
+            icon: const CircularProgressIndicator(),
+            title: context.translations.connectingTitle,
+            description: context.translations.connectingDescription,
           ),
-          DevicePairingStage.authenticating => const StatusView(
-            icon: CircularProgressIndicator(),
-            title: 'Validando dispositivo',
-            description:
-                'Confirmando a identidade do Vigia e autenticando o aplicativo…',
+          DevicePairingStage.authenticating => StatusView(
+            icon: const CircularProgressIndicator(),
+            title: context.translations.authenticatingTitle,
+            description: context.translations.authenticatingDescription,
           ),
           DevicePairingStage.provisioning => WifiProvisionForm(
             onSubmit: (ssid, password) {
@@ -104,17 +101,18 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             },
           ),
           DevicePairingStage.connected => StatusView(
-            icon: const Icon(
+            icon: Icon(
               Icons.check_circle_rounded,
-              color: ThemeColors.accent,
+              color: Theme.of(context).colorScheme.primary,
               size: 56,
             ),
-            title: 'Conexão estabelecida',
-            description:
-                '${pairing.device?.description ?? 'Vigia'} foi vinculado com sucesso.',
+            title: context.translations.connectionEstablished,
+            description: context.translations.deviceLinkedSuccess(
+              pairing.device?.description ?? context.translations.appTitle,
+            ),
             action: FilledButton(
               onPressed: _onConfirm,
-              child: const Text('Confirmar'),
+              child: Text(context.translations.confirm),
             ),
           ),
           DevicePairingStage.error => StatusView(
@@ -123,14 +121,13 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
               color: Colors.red.shade400,
               size: 56,
             ),
-            title: 'Não foi possível conectar',
+            title: context.translations.connectionFailed,
             description:
                 pairing.errorMessage ??
-                'Ocorreu um erro ao procurar ou conectar ao dispositivo.',
+                context.translations.connectionErrorFallback,
             action: OutlinedButton(
-              onPressed: () =>
-                  ref.read(devicePairingProvider.notifier).retry(),
-              child: const Text('Tentar novamente'),
+              onPressed: () => ref.read(devicePairingProvider.notifier).retry(),
+              child: Text(context.translations.tryAgain),
             ),
           ),
         },

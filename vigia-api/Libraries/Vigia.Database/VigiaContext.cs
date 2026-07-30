@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Vigia.Database.Configurations;
 using Vigia.Models.Entities;
+using Vigia.Models.Enums;
 
 public class VigiaDbContext : DbContext
 {
@@ -21,7 +22,6 @@ public class VigiaDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
 
         _ = modelBuilder.ApplyConfiguration(new UserRolesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new DevicesConfiguration());

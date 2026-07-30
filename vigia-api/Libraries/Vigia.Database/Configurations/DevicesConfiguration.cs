@@ -23,11 +23,15 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .IsRequired()
             .HasColumnName("mac_address");
 
+        _ = builder.Property(e => e.Room)
+            .HasColumnName("room");
+
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices);
 
         _ = builder.HasIndex(e => e.Name);
         _ = builder.HasIndex(e => e.Nickname);
         _ = builder.HasIndex(e => e.MacAddress);
+        _ = builder.HasIndex(e => e.Room);
     }
 }

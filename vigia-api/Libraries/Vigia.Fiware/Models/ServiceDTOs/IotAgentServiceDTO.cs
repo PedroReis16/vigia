@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Vigia.Fiware.Models;
+namespace Vigia.Fiware.Models.ServiceDTOs;
 
 
 public class IotAgentServicePayloadDTO

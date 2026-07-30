@@ -19,8 +19,11 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
 
             //1. Verifica a existência e as condições do serviço do FIWARE
             await fiwareService.AddOrUpdateServiceAsync();
-
             _logger.LogInformation("Atualizações sobre o serviço do FIWARE realizadas com sucesso");
+
+            //2. Sincroniza schema (attributes/commands) e registrations de comandos dos devices
+            await fiwareService.SyncDevicesSchemaAsync();
+            _logger.LogInformation("Sincronização do schema (attributes/commands) e registrations de comandos dos devices realizada com sucesso");
         }
         catch (Exception ex)
         {

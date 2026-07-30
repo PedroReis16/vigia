@@ -1,5 +1,5 @@
 using Vigia.API.Contracts;
-using Vigia.API.Database.Contracts;
+using Vigia.Database.Contracts;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;

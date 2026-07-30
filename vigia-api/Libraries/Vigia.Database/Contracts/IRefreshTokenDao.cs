@@ -1,7 +1,6 @@
-using Vigia.Database.Contracts;
 using Vigia.Models.Entities;
 
-namespace Vigia.API.Database.Contracts;
+namespace Vigia.Database.Contracts;
 
 public interface IRefreshTokenDao : IRepository<RefreshToken>
 {

@@ -1,6 +1,6 @@
 using Vigia.Models.Entities;
 
-namespace Vigia.Database.Cache;
+namespace Vigia.Database.CacheContracts;
 
 public interface IRepositoryCache<TEntity> where TEntity : BaseEntity
 {

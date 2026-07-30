@@ -1,9 +1,9 @@
-using Vigia.API.Database.CacheContracts;
-using Vigia.API.Database.Contracts;
+using Vigia.Database.CacheContracts;
+using Vigia.Database.Contracts;
 using Vigia.Database.EFDao;
 using Vigia.Models.Entities;
 
-namespace Vigia.API.Database.EFDao;
+namespace Vigia.Database.EFDao;
 
 internal class GroupDao(VigiaDbContext context, IGroupDaoCache? cache = null) : BaseDao<Group>(context, cache), IGroupDao
 {

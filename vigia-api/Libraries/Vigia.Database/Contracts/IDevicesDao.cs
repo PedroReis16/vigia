@@ -1,8 +1,7 @@
-using Vigia.Database.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 
-namespace Vigia.API.Database.Contracts;
+namespace Vigia.Database.Contracts;
 
 public interface IDevicesDao : IRepository<Device>
 {

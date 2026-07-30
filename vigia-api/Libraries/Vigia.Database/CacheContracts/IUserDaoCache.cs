@@ -1,6 +1,6 @@
-using Vigia.Database.Cache;
+using Vigia.Database.CacheContracts;
 using Vigia.Models.Entities;
 
-namespace Vigia.API.Database.CacheContracts;
+namespace Vigia.Database.CacheContracts;
 
 public interface IUserDaoCache : IRepositoryCache<User> { }

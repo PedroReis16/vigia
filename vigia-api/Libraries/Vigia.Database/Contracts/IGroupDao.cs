@@ -1,7 +1,6 @@
 using Vigia.Models.Entities;
-using Vigia.Database.Contracts;
 
-namespace Vigia.API.Database.Contracts;
+namespace Vigia.Database.Contracts;
 
 public interface IGroupDao : IRepository<Group>
 {

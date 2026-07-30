@@ -1,14 +1,14 @@
 using Microsoft.EntityFrameworkCore;
-using Vigia.API.Database.Contracts;
-using Vigia.Database.Cache;
+using Vigia.Database.Contracts;
+using Vigia.Database.CacheContracts;
 using Vigia.Database.EFDao;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
-namespace Vigia.API.Database.EFDao;
+namespace Vigia.Database.EFDao;
 
-public class RefreshTokenDao(VigiaDbContext context) : BaseDao<RefreshToken>(context), IRefreshTokenDao
+internal class RefreshTokenDao(VigiaDbContext context) : BaseDao<RefreshToken>(context), IRefreshTokenDao
 {
     protected override IRepositoryCache<RefreshToken>? GetCache()
     {

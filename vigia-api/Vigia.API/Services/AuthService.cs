@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Vigia.API.Contracts;
 using Vigia.API.Contracts.CacheServices;
-using Vigia.API.Database.Contracts;
+using Vigia.Database.Contracts;
 using Vigia.API.Models.DTOs.Auth;
 using Vigia.Models.Entities;
 using Vigia.Models.Exceptions;

@@ -7,10 +7,6 @@ using Vigia.API.Contracts;
 using Vigia.API.Services;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
-using Vigia.API.Database.Contracts;
-using Vigia.API.Database.EFDao;
-using Vigia.API.Database.CacheContracts;
-using Vigia.API.Database.Cache;
 using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Services.CacheServices;
 using Vigia.Models.Extensions;
@@ -54,21 +50,11 @@ builder.Services.AddTransient<IAuthService, AuthService>();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
 
-
-// Dao Services
-builder.Services.AddScoped<IRefreshTokenDao, RefreshTokenDao>();
-builder.Services.AddScoped<IDevicesDao, DevicesDao>();
-builder.Services.AddScoped<IUserDao, UserDao>();
-builder.Services.AddScoped<IGroupDao, GroupDao>();
-
-// Dao Cache
-builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();
-builder.Services.AddSingleton<IDevicesDaoCache, DevicesDaoCache>();
+// Repository Services
+builder.Services.AddRepositoryServices();
 
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
-
-
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

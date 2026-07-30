@@ -1,7 +1,6 @@
 using Vigia.Models.Entities;
-using Vigia.Database.Cache;
 
-namespace Vigia.API.Database.CacheContracts;
+namespace Vigia.Database.CacheContracts;
 
 public interface IGroupDaoCache : IRepositoryCache<Group>
 {

@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using Vigia.API.Database.CacheContracts;
-using Vigia.API.Database.Contracts;
-using Vigia.Database.EFDao;
+using Vigia.Database.CacheContracts;
+using Vigia.Database.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
-namespace Vigia.API.Database.EFDao;
+
+
+namespace Vigia.Database.EFDao;
 
 internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null) : BaseDao<Device>(context, cache), IDevicesDao
 {

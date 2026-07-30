@@ -23,8 +23,6 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo é obrigatório", ErrorCodes.MAC_ADDRESS_REQUIRED);
             if (!Vigia.Models.Helpers.Validators.IsValidMacAddress(device.MacAddress))
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo não é válido", ErrorCodes.INVALID_MAC_ADDRESS);
-            if (device.Group == null)
-                throw new EntityValidationException(nameof(device.Group), "Para realizar o registro de um dispositivo, é necessário que ele esteja vinculado a um grupo de usuários", ErrorCodes.USER_GROUP_REQUIRED);
         }
         return Task.CompletedTask;
     }
@@ -71,20 +69,12 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
             .Include(d => d.Group)
             .FirstOrDefaultAsync();
 
-        Group? userGroup = await Context.Set<Group>()
-            .Where(g => g.OwnerId == newDevice.Group!.OwnerId && g.DeletedAt == null)
-            .FirstOrDefaultAsync();
-
-        if (userGroup == null)
-            throw new EntityValidationException(nameof(Group), $"O grupo relacionado ao usuário {newDevice.Group!.OwnerId} não foi encontrado", ErrorCodes.GROUP_NOT_FOUND);
-
         if (trackedDevice == null)
             dbSet.Add(newDevice);
         else
         {
             trackedDevice.Name = newDevice.Name;
             trackedDevice.MacAddress = newDevice.MacAddress;
-            trackedDevice.Group = userGroup;
             trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
             trackedDevice.DeletedAt = null;
 

@@ -23,7 +23,7 @@ public class DevicesController(IDevicesService service) : ControllerBase
     {
         await _service.RegisterDeviceAsync(newDevice);
 
-        return CreatedAtAction(nameof(RegisterDevice), new { id = newDevice.Id });
+        return CreatedAtAction(nameof(GetDevice), new { id = newDevice.Id });
     }
 
     ///<summary>

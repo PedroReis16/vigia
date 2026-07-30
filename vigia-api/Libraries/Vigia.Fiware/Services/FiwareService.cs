@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Vigia.Fiware.Config;
 using Vigia.Fiware.Contracts;
 using Vigia.Fiware.Models.DeviceDTOs;
@@ -18,6 +19,7 @@ internal class FiwareService : IFiwareService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<FiwareService> _logger;
+    private readonly DeviceSchemaOptions _deviceSchema;
     private readonly string _iotAgentPath;
     private readonly string _sthCommetPath;
     private readonly string _orionPath;
@@ -28,11 +30,16 @@ internal class FiwareService : IFiwareService
         PropertyNameCaseInsensitive = true
     };
 
-    public FiwareService(HttpClient httpClient, IConfiguration configuration, ILogger<FiwareService> logger)
+    public FiwareService(
+        HttpClient httpClient,
+        IConfiguration configuration,
+        IOptions<DeviceSchemaOptions> deviceSchemaOptions,
+        ILogger<FiwareService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
+        _deviceSchema = deviceSchemaOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _sthCommetPath = configuration.GetValue<string>("Fiware:Paths:SthComet")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
@@ -138,8 +145,8 @@ internal class FiwareService : IFiwareService
     #region Métodos de sincronização de devices
     public async Task<bool> SyncDevicesSchemaAsync()
     {
-        List<DeviceAttributeDTO> expectedAttributes = DeviceProperties.GetCameraAttributes();
-        List<DeviceCommandDTO> expectedCommands = DeviceProperties.GetCameraCommands();
+        List<DeviceAttributeDTO> expectedAttributes = _deviceSchema.GetAttributes();
+        List<DeviceCommandDTO> expectedCommands = _deviceSchema.GetCommands();
         List<OrionRegistrationDTO> registrationsCache = await ListRegistrationsAsync();
 
         bool allSucceeded = true;
@@ -294,10 +301,10 @@ internal class FiwareService : IFiwareService
                     EntityName = device.EntityName,
                     EntityType = device.EntityType,
                     Protocol = string.IsNullOrWhiteSpace(device.Protocol)
-                        ? DeviceProperties.Protocol
+                        ? _deviceSchema.Protocol
                         : device.Protocol,
                     Transport = string.IsNullOrWhiteSpace(device.Transport)
-                        ? DeviceProperties.Transport
+                        ? _deviceSchema.Transport
                         : device.Transport,
                     Attributes = attributes,
                     Commands = commands
@@ -538,8 +545,8 @@ internal class FiwareService : IFiwareService
         string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
         string entityName = $"urn:ngsi-ld:{deviceName}";
 
-        List<DeviceAttributeDTO> attributes = DeviceProperties.GetCameraAttributes();
-        List<DeviceCommandDTO> commands = DeviceProperties.GetCameraCommands();
+        List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
+        List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
         NewDevicesRequestDTO body = new()
         {
@@ -550,8 +557,8 @@ internal class FiwareService : IFiwareService
                     DeviceId = deviceId.ToString(),
                     EntityName = entityName,
                     EntityType = entityType,
-                    Protocol = DeviceProperties.Protocol,
-                    Transport = DeviceProperties.Transport,
+                    Protocol = _deviceSchema.Protocol,
+                    Transport = _deviceSchema.Transport,
                     Attributes = attributes,
                     Commands = commands
                 }

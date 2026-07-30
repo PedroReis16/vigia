@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Vigia.Fiware.BackgroundJobs;
+using Vigia.Fiware.Config;
 using Vigia.Fiware.Contracts;
 using Vigia.Fiware.Services;
 using Vigia.Models.Middlewares;
@@ -14,6 +15,8 @@ public static class FiwareExtension
 
     public static IServiceCollection AddFiware(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<DeviceSchemaOptions>(configuration.GetSection(DeviceSchemaOptions.SectionName));
+
         services.AddHttpClient<IFiwareService, FiwareService>(httpClient =>
         {
             IConfigurationSection apiSection = configuration.GetSection(ApiUrlsSection);

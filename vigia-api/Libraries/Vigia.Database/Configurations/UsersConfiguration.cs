@@ -51,7 +51,7 @@ internal class UsersConfiguration : BaseConfiguration<User>
             Id = new Guid("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b"),
             Name = "Super usuário",
             Email = "admin",
-            Password = new byte[32]{ 247, 20, 118, 226, 219, 244, 66, 63, 99, 191, 56, 69, 182, 188, 218, 205, 232, 246, 129, 67, 89, 225, 107, 134, 235, 44, 161, 82, 105, 104, 181, 107 }, // Password: admin123
+            Password = new byte[32]{ 81, 63, 165, 86, 58, 124, 112, 36, 10, 178, 217, 152, 172, 164, 210, 132, 253, 161, 96, 153, 164, 26, 37, 230, 224, 66, 50, 93, 84, 223, 94, 216 }, // Password: admin123
             Salt = new byte[16]{ 2, 20, 73, 2, 70, 73, 43, 120, 27, 233, 195, 53, 98, 210, 219, 129 },
             CreatedAt = new DateTime(2026, 7, 27, 17, 42, 22, 525, DateTimeKind.Utc).AddTicks(2940),
             UpdatedAt = null,

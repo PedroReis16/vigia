@@ -15,6 +15,7 @@ using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Services.CacheServices;
 using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
+using Vigia.Fiware.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -37,9 +38,13 @@ builder.Services.AddInMemoryCache(builder.Configuration);
 // Auth
 builder.Services.ConfigureOAuth(builder.Configuration);
 
+// Fiware
+builder.Services.AddFiware(builder.Configuration);
+
 // Middlewares
 builder.Services.AddScoped<GlobalExceptionHandler>();
 builder.Services.AddScoped<HttpResponseCacheHandler>();
+builder.Services.AddTransient<ForwardingHandler>();
 builder.Services.AddHttpContextAccessor();
 
 // Services
@@ -62,6 +67,8 @@ builder.Services.AddSingleton<IDevicesDaoCache, DevicesDaoCache>();
 
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
+
+
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -91,7 +98,6 @@ builder.Services.AddSwaggerGen(option =>
         option.IncludeXmlComments(xmlPath);
     }
 });
-
 
 WebApplication app = builder.Build();
 

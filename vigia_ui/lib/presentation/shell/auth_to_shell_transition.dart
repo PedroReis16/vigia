@@ -1,19 +1,28 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:vigia_ui/presentation/shell/vigia_logo_hero.dart';
 
 /// Morphs a full-screen primary veil into the AppBar (or vice-versa).
 ///
 /// Login: the shell stays fully built underneath. A primary veil shrinks to the
-/// AppBar and a soft body scrim dissolves last, so list/FAB/nav don't pop in.
-/// Logout: the Auth page stays built underneath while the veil expands, then
-/// dissolves to reveal the form.
+/// AppBar; an opaque body scrim covers list/FAB/nav until the bar settles.
+/// Logout: an opaque veil expands from the AppBar while the logo flies on it;
+/// Auth stays painted underneath (not [Offstage]) so the logo/forms decode
+/// before the veil drops — otherwise devices show empty primary, then pop-in.
+///
+/// When [flyLogo] is true, the logo is drawn on the veil — avoiding Flutter
+/// Hero, whose placeholders flash shell widgets on physical devices (Impeller).
+///
+/// Solid overlays intentionally avoid [Opacity] (saveLayer per frame).
 class AuthToShellTransition extends StatelessWidget {
   const AuthToShellTransition({
     super.key,
     required this.animation,
     required this.child,
     this.reverse = false,
+    this.flyLogo = false,
+    this.logoFromCenter = false,
   });
 
   static const duration = Duration(milliseconds: 780);
@@ -21,13 +30,13 @@ class AuthToShellTransition extends StatelessWidget {
   final Animation<double> animation;
   final Widget child;
   final bool reverse;
+  final bool flyLogo;
+
+  /// Enter: centered cold-start origin. Ignored on logout (AppBar → form top).
+  final bool logoFromCenter;
 
   @override
   Widget build(BuildContext context) {
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeInOutCubic,
-    );
     final colorScheme = Theme.of(context).colorScheme;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final media = MediaQuery.of(context);
@@ -35,67 +44,109 @@ class AuthToShellTransition extends StatelessWidget {
     final fullHeight = media.size.height;
 
     return AnimatedBuilder(
-      animation: curved,
-      builder: (context, _) {
-        final t = curved.value;
+      animation: animation,
+      child: RepaintBoundary(child: child),
+      builder: (context, cachedChild) {
+        final t = Curves.easeInOutCubic.transform(animation.value);
 
         final barHeight = reverse
             ? lerpDouble(appBarHeight, fullHeight, t)!
             : lerpDouble(fullHeight, appBarHeight, t)!;
 
-        // Primary veil stays solid while resizing, then softens away once it
-        // matches the AppBar (login) / fills the screen (logout).
-        final veilOpacity =
-            1.0 -
-            const Interval(0.82, 1.0, curve: Curves.easeOut).transform(t);
+        // Opaque veil until settled — no alpha fade (Impeller handoff flash).
+        final showVeil = t < 0.98;
 
-        // Covers body + bottom nav so devices spinner / FAB don't flash while
-        // the bar is still morphing. Dissolves after the veil has settled.
-        final bodyScrimOpacity = reverse
+        final bodyScrimAlpha = reverse
             ? 0.0
             : 1.0 -
-                const Interval(0.62, 1.0, curve: Curves.easeOutCubic)
+                const Interval(0.62, 0.92, curve: Curves.easeOutCubic)
                     .transform(t);
 
-        // On logout, hold Auth hidden until the veil has mostly expanded so
-        // the form doesn't flash over the departing shell.
-        final childOpacity = reverse
-            ? const Interval(0.55, 0.95, curve: Curves.easeOut).transform(t)
-            : 1.0;
+        // Logout: keep Auth painting from frame 0 (decode logo/forms under the
+        // veil). Reveal only once the veil covers the screen — never Offstage.
+        final showAuthUnderVeil = !reverse || t >= 0.82;
+
+        Widget? logoFlight;
+        if (flyLogo && showVeil) {
+          final double logoH;
+          final double logoTop;
+          final endTopAppBar =
+              media.padding.top +
+              (kToolbarHeight - VigiaLogoHero.appBarHeight) / 2;
+          final formTop = media.padding.top;
+          final centerTop =
+              media.padding.top +
+              ((fullHeight -
+                          media.padding.vertical -
+                          VigiaLogoHero.authHeight) /
+                      2)
+                  .clamp(0.0, double.infinity);
+
+          if (reverse) {
+            // AppBar logo → auth form logo while the bar expands.
+            logoH = lerpDouble(
+              VigiaLogoHero.appBarHeight,
+              VigiaLogoHero.authHeight,
+              t,
+            )!;
+            logoTop = lerpDouble(endTopAppBar, formTop, t)!;
+          } else {
+            logoH = lerpDouble(
+              VigiaLogoHero.authHeight,
+              VigiaLogoHero.appBarHeight,
+              t,
+            )!;
+            final startTop = logoFromCenter ? centerTop : formTop;
+            logoTop = lerpDouble(startTop, endTopAppBar, t)!;
+          }
+
+          logoFlight = Positioned(
+            top: logoTop,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Center(
+                child: VigiaLogoHero.image(height: logoH),
+              ),
+            ),
+          );
+        }
+
+        final Widget shellLayer;
+        if (showAuthUnderVeil) {
+          shellLayer = cachedChild!;
+        } else {
+          // Opacity 0 still paints → Image decode / layout happen under veil.
+          shellLayer = Opacity(opacity: 0, child: cachedChild);
+        }
 
         return Stack(
           fit: StackFit.expand,
           children: [
-            Opacity(
-              opacity: childOpacity.clamp(0.0, 1.0),
-              child: child,
-            ),
-            if (bodyScrimOpacity > 0.001)
+            shellLayer,
+            if (bodyScrimAlpha > 0.001)
               Positioned(
                 top: appBarHeight,
                 left: 0,
                 right: 0,
                 bottom: 0,
                 child: IgnorePointer(
-                  child: Opacity(
-                    opacity: bodyScrimOpacity.clamp(0.0, 1.0),
-                    child: ColoredBox(color: scaffoldBg),
+                  child: ColoredBox(
+                    color: scaffoldBg.withValues(alpha: bodyScrimAlpha),
                   ),
                 ),
               ),
-            if (veilOpacity > 0.001)
+            if (showVeil)
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
                 height: barHeight,
                 child: IgnorePointer(
-                  child: Opacity(
-                    opacity: veilOpacity.clamp(0.0, 1.0),
-                    child: ColoredBox(color: colorScheme.primary),
-                  ),
+                  child: ColoredBox(color: colorScheme.primary),
                 ),
               ),
+            ?logoFlight,
           ],
         );
       },

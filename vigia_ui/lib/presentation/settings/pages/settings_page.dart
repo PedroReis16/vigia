@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_exit_transition_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
 
@@ -12,7 +13,9 @@ class SettingsPage extends ConsumerWidget {
     return Scaffold(
       body: Center(
         child: TextButton(
-          onPressed: () {
+          onPressed: () async {
+            await AuthTransitionWarmUp.precacheLogos(context);
+            if (!context.mounted) return;
             ref.read(authExitTransitionProvider.notifier).armLogout();
             ref.read(authSessionProvider.notifier).signOut();
           },

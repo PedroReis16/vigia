@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/providers/app_bar_config.dart';
 import 'package:vigia_ui/presentation/shared/widgets/menu_component.dart';
 import 'package:vigia_ui/presentation/shell/vigia_logo_hero.dart';
 
-class BasePage extends ConsumerWidget {
+class BasePage extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
   const BasePage({super.key, required this.navigationShell});
 
@@ -18,9 +17,11 @@ class BasePage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final config = AppBarConfig.fromState(context, GoRouterState.of(context));
     final colorScheme = Theme.of(context).colorScheme;
+    // Logo flight is drawn on the enter morph veil — no AppBar Hero
+    // (Hero placeholders flash shell content on physical devices).
 
     return Scaffold(
       appBar: !config.showAppBar
@@ -30,18 +31,9 @@ class BasePage extends ConsumerWidget {
               foregroundColor: colorScheme.onPrimary,
               systemOverlayStyle: SystemUiOverlayStyle.light,
               centerTitle: true,
-              // Title text temporarily replaced by the centered logo.
-              title: Hero(
-                tag: VigiaLogoHero.tag,
-                // Avoid a second logo flash while the flight is in progress.
-                placeholderBuilder: (context, size, child) =>
-                    SizedBox(width: size.width, height: size.height),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: VigiaLogoHero.image(
-                    height: VigiaLogoHero.appBarHeight,
-                  ),
-                ),
+              title: Material(
+                type: MaterialType.transparency,
+                child: VigiaLogoHero.image(height: VigiaLogoHero.appBarHeight),
               ),
             ),
       body: navigationShell,

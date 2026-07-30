@@ -5,6 +5,7 @@ import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +44,13 @@ class MyApp extends ConsumerWidget {
         return supportedLocales.first;
       },
       routerConfig: router,
+      builder: (context, child) {
+        // Context below MaterialApp has MediaQuery — safe for ResizeImage DPR.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AuthTransitionWarmUp.precacheLogos(context);
+        });
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }

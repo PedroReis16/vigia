@@ -68,6 +68,8 @@ public class JwtConverterService(IConfiguration configuration)
                 ValidIssuer = jwtSettings.Issuer,
                 ValidateAudience = true,
                 ValidAudience = jwtSettings.Audience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromSeconds(30),
             }, out SecurityToken? validatedToken);
 
 

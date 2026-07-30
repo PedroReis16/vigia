@@ -17,8 +17,8 @@
     <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.1-dev-02317" />
     <PackageReference Include="Serilog.Expressions" Version="5.1.0-dev-02301" />
-    <PackageReference Include="NetDevPack.Security.JwtExtensions" Version="8.0.0" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.21.0" />
 
   </ItemGroup>

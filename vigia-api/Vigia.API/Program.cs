@@ -5,19 +5,16 @@ using Microsoft.OpenApi;
 using Vigia.API.Config;
 using Vigia.API.Contracts;
 using Vigia.API.Services;
-using Vigia.Models.Middlewares;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
 using Vigia.API.Database.Contracts;
 using Vigia.API.Database.EFDao;
 using Vigia.API.Database.CacheContracts;
 using Vigia.API.Database.Cache;
-using Vigia.API.Middlewares;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Services.CacheServices;
+using Vigia.Models.Extensions;
+using Vigia.Models.Middlewares;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -37,9 +34,10 @@ builder.Services.AddPostgres(builder.Configuration.GetConnectionString("VigiaDb"
 // Cache
 builder.Services.AddInMemoryCache(builder.Configuration);
 
+// Auth
+builder.Services.ConfigureOAuth(builder.Configuration);
 
-// Middlewares 
-builder.Services.AddScoped<AuthUserMiddleware>();
+// Middlewares
 builder.Services.AddScoped<GlobalExceptionHandler>();
 builder.Services.AddScoped<HttpResponseCacheHandler>();
 builder.Services.AddHttpContextAccessor();
@@ -61,7 +59,7 @@ builder.Services.AddScoped<IGroupDao, GroupDao>();
 // Dao Cache
 builder.Services.AddSingleton<IUserDaoCache, UserDaoCache>();
 
-// Cache Services 
+// Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -116,10 +114,8 @@ app.UseSwaggerUI(options =>
 // Aplicação dos middlewares
 app.UseMiddleware<GlobalExceptionHandler>();
 app.UseMiddleware<HttpResponseCacheHandler>();
-app.UseMiddleware<AuthUserMiddleware>();
 
 app.UsePathBase($"/{basePath}");
-
 
 app.UseAuthentication();
 app.UseAuthorization();

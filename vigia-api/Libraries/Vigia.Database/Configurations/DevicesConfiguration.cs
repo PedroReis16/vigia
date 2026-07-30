@@ -19,14 +19,15 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasColumnName("nickname")
             .HasMaxLength(64);
 
-        _ = builder.Property(e => e.PublicKey)
+        _ = builder.Property(e => e.MacAddress)
             .IsRequired()
-            .HasColumnName("public_key")
-            .HasMaxLength(256);
+            .HasColumnName("mac_address");
 
+        _ = builder.HasOne(e => e.Group)
+            .WithMany(g => g.Devices);
 
         _ = builder.HasIndex(e => e.Name);
         _ = builder.HasIndex(e => e.Nickname);
-        _ = builder.HasIndex(e => e.PublicKey);
+        _ = builder.HasIndex(e => e.MacAddress);
     }
 }

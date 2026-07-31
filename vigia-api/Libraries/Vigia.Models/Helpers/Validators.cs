@@ -14,6 +14,15 @@ public static class Validators
         return !string.IsNullOrWhiteSpace(macAddress) && (commomPattern.IsMatch(macAddress) || ciscoPattern.IsMatch(macAddress));
     }
 
+    /// <summary>Ed25519 raw public key encoded as 64 hex characters (32 bytes).</summary>
+    public static bool IsValidEd25519PublicKeyHex(string? publicKeyHex)
+    {
+        if (string.IsNullOrWhiteSpace(publicKeyHex) || publicKeyHex.Length != 64)
+            return false;
+
+        return Regex.IsMatch(publicKeyHex, @"^[0-9A-Fa-f]{64}$", RegexOptions.Compiled);
+    }
+
     public static bool ValidateIpAddress(this string ipAddress)
     {
         UriHostNameType hostName = Uri.CheckHostName(ipAddress);

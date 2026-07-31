@@ -23,6 +23,10 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo é obrigatório", ErrorCodes.MAC_ADDRESS_REQUIRED);
             if (!Vigia.Models.Helpers.Validators.IsValidMacAddress(device.MacAddress))
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo não é válido", ErrorCodes.INVALID_MAC_ADDRESS);
+            if (string.IsNullOrWhiteSpace(device.SignPublicKey))
+                throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
+            if (!Vigia.Models.Helpers.Validators.IsValidEd25519PublicKeyHex(device.SignPublicKey))
+                throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
         }
         return Task.CompletedTask;
     }
@@ -75,6 +79,7 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         {
             trackedDevice.Name = newDevice.Name;
             trackedDevice.MacAddress = newDevice.MacAddress;
+            trackedDevice.SignPublicKey = newDevice.SignPublicKey;
             trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
             trackedDevice.DeletedAt = null;
 

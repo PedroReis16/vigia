@@ -18,5 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Vigia.Models\Vigia.Models.csproj" />
+    <ProjectReference Include="..\Vigia.Database\Vigia.Database.csproj" />
   </ItemGroup>
 </Project>

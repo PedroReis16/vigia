@@ -4,11 +4,13 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Vigia.Database.Contracts;
 using Vigia.Fiware.Config;
 using Vigia.Fiware.Contracts;
 using Vigia.Fiware.Models.DeviceDTOs;
 using Vigia.Fiware.Models.RegistrationDTOs;
 using Vigia.Fiware.Models.ServiceDTOs;
+using Vigia.Models.Entities;
 
 namespace Vigia.Fiware.Services;
 
@@ -19,6 +21,7 @@ internal class FiwareService : IFiwareService
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<FiwareService> _logger;
+    private readonly IFiwarePropertiesDao _fiwarePropertiesDao;
     private readonly DeviceSchemaOptions _deviceSchema;
     private readonly string _iotAgentPath;
     private readonly string _sthCommetPath;
@@ -33,17 +36,19 @@ internal class FiwareService : IFiwareService
     public FiwareService(
         HttpClient httpClient,
         IConfiguration configuration,
-        IOptions<DeviceSchemaOptions> deviceSchemaOptions,
+        IOptionsSnapshot<DeviceSchemaOptions> deviceSchemaOptions,
+        IFiwarePropertiesDao fiwarePropertiesDao,
         ILogger<FiwareService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
+        _fiwarePropertiesDao = fiwarePropertiesDao;
         _deviceSchema = deviceSchemaOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _sthCommetPath = configuration.GetValue<string>("Fiware:Paths:SthComet")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
-       _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
+        _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
     }
 
     #region Métodos de controle do serviço do FIWARE
@@ -147,7 +152,23 @@ internal class FiwareService : IFiwareService
     {
         List<DeviceAttributeDTO> expectedAttributes = _deviceSchema.GetAttributes();
         List<DeviceCommandDTO> expectedCommands = _deviceSchema.GetCommands();
-        List<OrionRegistrationDTO> registrationsCache = await ListRegistrationsAsync();
+        string expectedProtocol = _deviceSchema.Protocol;
+        string expectedTransport = _deviceSchema.Transport;
+
+        FiwareProperties? savedProperties = (await _fiwarePropertiesDao.AllAsync()).FirstOrDefault();
+
+        if (savedProperties is not null
+            && PropertiesMatch(savedProperties, expectedProtocol, expectedTransport, expectedAttributes, expectedCommands))
+        {
+            _logger.LogInformation(
+                "Schema FIWARE já sincronizado com FiwareProperties. Nenhuma atualização necessária.");
+            return true;
+        }
+
+        _logger.LogInformation(
+            "Schema FIWARE divergente de FiwareProperties. Attributes=[{Attributes}] Commands=[{Commands}]. Iniciando varredura...",
+            string.Join(", ", expectedAttributes.Select(a => a.Name)),
+            string.Join(", ", expectedCommands.Select(c => c.Name)));
 
         bool allSucceeded = true;
         int offset = 0;
@@ -162,29 +183,25 @@ internal class FiwareService : IFiwareService
             foreach (IotAgentDeviceDTO device in devices)
             {
                 bool schemaMatches = SchemasMatch(device.Attributes, expectedAttributes)
-                    && SchemasMatch(device.Commands, expectedCommands);
+                    && SchemasMatch(device.Commands, expectedCommands)
+                    && string.Equals(device.Protocol ?? expectedProtocol, expectedProtocol, StringComparison.Ordinal)
+                    && string.Equals(device.Transport ?? expectedTransport, expectedTransport, StringComparison.Ordinal);
 
-                if (!schemaMatches)
-                {
-                    _logger.LogInformation(
-                        "Schema divergente no device {DeviceId}. Atualizando attributes/commands...",
-                        device.DeviceId);
+                if (schemaMatches)
+                    continue;
 
-                    bool updated = await EnsureDeviceSchemaAsync(device, expectedAttributes, expectedCommands);
-                    if (!updated)
-                    {
-                        allSucceeded = false;
-                        continue;
-                    }
-                }
+                _logger.LogInformation(
+                    "Device {DeviceId} desatualizado. Atualizando via PUT...",
+                    device.DeviceId);
 
-                bool registrationSynced = await SyncCommandRegistrationAsync(
-                    device.EntityName,
-                    device.EntityType,
-                    expectedCommands,
-                    registrationsCache);
+                bool updated = await UpdateDeviceAsync(
+                    device,
+                    expectedProtocol,
+                    expectedTransport,
+                    expectedAttributes,
+                    expectedCommands);
 
-                if (!registrationSynced)
+                if (!updated)
                     allSucceeded = false;
             }
 
@@ -194,7 +211,18 @@ internal class FiwareService : IFiwareService
                 break;
         }
 
-        return allSucceeded;
+        if (!allSucceeded)
+            return false;
+
+        await PersistFiwarePropertiesAsync(
+            savedProperties,
+            expectedProtocol,
+            expectedTransport,
+            expectedAttributes,
+            expectedCommands);
+
+        _logger.LogInformation("FiwareProperties atualizado com o schema de Fiware:Devices.");
+        return true;
     }
 
     private async Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit)
@@ -221,29 +249,19 @@ internal class FiwareService : IFiwareService
         return (payload.Devices, payload.Count);
     }
 
-    private async Task<bool> EnsureDeviceSchemaAsync(
+    private async Task<bool> UpdateDeviceAsync(
         IotAgentDeviceDTO device,
+        string protocol,
+        string transport,
         List<DeviceAttributeDTO> attributes,
         List<DeviceCommandDTO> commands)
     {
-        bool updated = await UpdateDeviceSchemaAsync(device.DeviceId, attributes, commands);
-        if (updated)
-            return true;
-
-        _logger.LogWarning(
-            "PUT do device {DeviceId} falhou (comum quando a entidade não existe no Orion). Recriando device...",
-            device.DeviceId);
-
-        return await RecreateDeviceWithSchemaAsync(device, attributes, commands);
-    }
-
-    private async Task<bool> UpdateDeviceSchemaAsync(
-        string deviceId,
-        List<DeviceAttributeDTO> attributes,
-        List<DeviceCommandDTO> commands)
-    {
-        UpdateDeviceSchemaDTO body = new()
+        UpdateDeviceDTO body = new()
         {
+            EntityName = device.EntityName,
+            EntityType = device.EntityType,
+            Protocol = protocol,
+            Transport = transport,
             Attributes = attributes,
             Commands = commands
         };
@@ -254,111 +272,128 @@ internal class FiwareService : IFiwareService
             "application/json");
 
         HttpResponseMessage response = await _httpClient.PutAsync(
-            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId)}",
+            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(device.DeviceId)}",
             content);
 
-        if (response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NoContent)
             return true;
 
         string errorBody = await response.Content.ReadAsStringAsync();
-        _logger.LogWarning(
-            "Falha ao atualizar schema do device {DeviceId}. Status={StatusCode}. Body={Body}",
-            deviceId,
+        _logger.LogError(
+            "Falha ao atualizar device {DeviceId}. Status={StatusCode}. Body={Body}",
+            device.DeviceId,
             (int)response.StatusCode,
             errorBody);
 
         return false;
     }
 
-    private async Task<bool> RecreateDeviceWithSchemaAsync(
-        IotAgentDeviceDTO device,
+    private async Task PersistFiwarePropertiesAsync(
+        FiwareProperties? existing,
+        string protocol,
+        string transport,
         List<DeviceAttributeDTO> attributes,
         List<DeviceCommandDTO> commands)
     {
-        HttpResponseMessage deleteResponse = await _httpClient.DeleteAsync(
-            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(device.DeviceId)}");
+        List<SensorAttribute> sensorAttributes = attributes
+            .Select(a => new SensorAttribute
+            {
+                ObjectId = a.ObjectId,
+                Name = a.Name,
+                Type = a.Type
+            })
+            .ToList();
 
-        if (!deleteResponse.IsSuccessStatusCode
-            && deleteResponse.StatusCode != HttpStatusCode.NotFound
-            && deleteResponse.StatusCode != HttpStatusCode.NoContent)
+        List<SensorCommand> sensorCommands = commands
+            .Select(c => new SensorCommand
+            {
+                Name = c.Name,
+                Type = c.Type
+            })
+            .ToList();
+
+        if (existing is null)
         {
-            string deleteBody = await deleteResponse.Content.ReadAsStringAsync();
-            _logger.LogError(
-                "Falha ao remover device {DeviceId} para recriação. Status={StatusCode}. Body={Body}",
-                device.DeviceId,
-                (int)deleteResponse.StatusCode,
-                deleteBody);
+            await _fiwarePropertiesDao.AddAsync(new FiwareProperties
+            {
+                Protocol = protocol,
+                Transport = transport,
+                Attributes = sensorAttributes,
+                Commands = sensorCommands
+            });
+            return;
+        }
+
+        existing.Protocol = protocol;
+        existing.Transport = transport;
+        existing.Attributes = sensorAttributes;
+        existing.Commands = sensorCommands;
+
+        await _fiwarePropertiesDao.UpdateAsync(existing);
+    }
+
+    private static bool PropertiesMatch(
+        FiwareProperties saved,
+        string protocol,
+        string transport,
+        IEnumerable<DeviceAttributeDTO> attributes,
+        IEnumerable<DeviceCommandDTO> commands)
+    {
+        if (!string.Equals(saved.Protocol, protocol, StringComparison.Ordinal)
+            || !string.Equals(saved.Transport, transport, StringComparison.Ordinal))
+        {
             return false;
         }
 
-        NewDevicesRequestDTO body = new()
-        {
-            Devices =
-            [
-                new NewDeviceDTO
+        return SchemasMatch(
+                saved.Attributes.Select(a => new DeviceAttributeDTO
                 {
-                    DeviceId = device.DeviceId,
-                    EntityName = device.EntityName,
-                    EntityType = device.EntityType,
-                    Protocol = string.IsNullOrWhiteSpace(device.Protocol)
-                        ? _deviceSchema.Protocol
-                        : device.Protocol,
-                    Transport = string.IsNullOrWhiteSpace(device.Transport)
-                        ? _deviceSchema.Transport
-                        : device.Transport,
-                    Attributes = attributes,
-                    Commands = commands
-                }
-            ]
-        };
-
-        using StringContent content = new(
-            JsonSerializer.Serialize(body, JsonOptions),
-            Encoding.UTF8,
-            "application/json");
-
-        HttpResponseMessage createResponse = await _httpClient.PostAsync($"{_iotAgentPath}/devices", content);
-        if (createResponse.IsSuccessStatusCode || createResponse.StatusCode == HttpStatusCode.Created)
-            return true;
-
-        string createBody = await createResponse.Content.ReadAsStringAsync();
-        _logger.LogError(
-            "Falha ao recriar device {DeviceId}. Status={StatusCode}. Body={Body}",
-            device.DeviceId,
-            (int)createResponse.StatusCode,
-            createBody);
-
-        return false;
+                    ObjectId = a.ObjectId,
+                    Name = a.Name,
+                    Type = a.Type
+                }),
+                attributes)
+            && SchemasMatch(
+                saved.Commands.Select(c => new DeviceCommandDTO
+                {
+                    Name = c.Name,
+                    Type = c.Type
+                }),
+                commands);
     }
 
     private static bool SchemasMatch(
         IEnumerable<DeviceAttributeDTO> current,
         IEnumerable<DeviceAttributeDTO> expected)
     {
-        HashSet<string> currentKeys = current
+        List<string> currentKeys = current
             .Select(a => $"{a.ObjectId}|{a.Name}|{a.Type}")
-            .ToHashSet(StringComparer.Ordinal);
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
 
-        HashSet<string> expectedKeys = expected
+        List<string> expectedKeys = expected
             .Select(a => $"{a.ObjectId}|{a.Name}|{a.Type}")
-            .ToHashSet(StringComparer.Ordinal);
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
 
-        return currentKeys.SetEquals(expectedKeys);
+        return currentKeys.SequenceEqual(expectedKeys, StringComparer.Ordinal);
     }
 
     private static bool SchemasMatch(
         IEnumerable<DeviceCommandDTO> current,
         IEnumerable<DeviceCommandDTO> expected)
     {
-        HashSet<string> currentKeys = current
+        List<string> currentKeys = current
             .Select(c => $"{c.Name}|{c.Type}")
-            .ToHashSet(StringComparer.Ordinal);
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
 
-        HashSet<string> expectedKeys = expected
+        List<string> expectedKeys = expected
             .Select(c => $"{c.Name}|{c.Type}")
-            .ToHashSet(StringComparer.Ordinal);
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToList();
 
-        return currentKeys.SetEquals(expectedKeys);
+        return currentKeys.SequenceEqual(expectedKeys, StringComparer.Ordinal);
     }
     #endregion
 
@@ -513,8 +548,8 @@ internal class FiwareService : IFiwareService
             return (false, null);
 
         string? registrationId = null;
-        if (response.Headers.Location is not null)
-            registrationId = response.Headers.Location.Segments.LastOrDefault()?.TrimEnd('/');
+        // if (response.Headers.Location is not null)
+        //     registrationId = response.Headers.Location.Segments.LastOrDefault()?.TrimEnd('/');
 
         OrionRegistrationDTO createdRegistration = new()
         {
@@ -548,6 +583,12 @@ internal class FiwareService : IFiwareService
         List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
         List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
+        _logger.LogInformation(
+            "Provisionando device {DeviceId} no IoT Agent com Attributes=[{Attributes}] Commands=[{Commands}]",
+            deviceId,
+            string.Join(", ", attributes.Select(a => a.Name)),
+            string.Join(", ", commands.Select(c => c.Name)));
+
         NewDevicesRequestDTO body = new()
         {
             Devices =
@@ -571,8 +612,16 @@ internal class FiwareService : IFiwareService
             "application/json");
 
         HttpResponseMessage response = await _httpClient.PostAsync($"{_iotAgentPath}/devices", content);
-        if (!response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.Created)
+        {
+            string errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Falha ao provisionar device {DeviceId}. Status={StatusCode}. Body={Body}",
+                deviceId,
+                (int)response.StatusCode,
+                errorBody);
             return false;
+        }
 
         return await SyncCommandRegistrationAsync(entityName, entityType, commands);
     }

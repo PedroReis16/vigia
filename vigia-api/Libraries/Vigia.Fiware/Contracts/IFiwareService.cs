@@ -9,9 +9,9 @@ public interface IFiwareService
     Task<bool> AddOrUpdateServiceAsync();
 
     /// <summary>
-    /// Sincroniza attributes/commands de todos os devices provisionados no IoT Agent
-    /// com os valores definidos em <c>Fiware:Devices</c> (appsettings), e garante
-    /// que as registrations de comandos no Orion estejam alinhadas.
+    /// Compara o schema de <c>Fiware:Devices</c> com o último valor persistido em
+    /// <c>FiwareProperties</c>. Se houver divergência, atualiza os devices no IoT Agent
+    /// via PUT e persiste o novo schema no banco.
     /// </summary>
     Task<bool> SyncDevicesSchemaAsync();
 

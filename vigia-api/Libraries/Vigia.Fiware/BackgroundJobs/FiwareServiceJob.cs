@@ -12,28 +12,56 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
-        {
-            using IServiceScope scope = _scopeFactory.CreateScope();
-            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+        const int maxAttempts = 5;
 
-            //1. Verifica a existência e as condições do serviço do FIWARE
-            bool serviceSynced = await fiwareService.AddOrUpdateServiceAsync();
-            if (!serviceSynced)
-                _logger.LogWarning("Não foi possível garantir o serviço do FIWARE conforme as configurações");
-            else
-                _logger.LogInformation("Atualizações sobre o serviço do FIWARE realizadas com sucesso");
-
-            //2. Sincroniza schema (attributes/commands) e registrations de comandos dos devices
-            bool devicesSynced = await fiwareService.SyncDevicesSchemaAsync();
-            if (!devicesSynced)
-                _logger.LogWarning("Sincronização de schema/registrations dos devices finalizou com falhas");
-            else
-                _logger.LogInformation("Sincronização do schema (attributes/commands) e registrations de comandos dos devices realizada com sucesso");
-        }
-        catch (Exception ex)
+        for (int attempt = 1; attempt <= maxAttempts && !stoppingToken.IsCancellationRequested; attempt++)
         {
-            _logger.LogError(ex, "Erro ao realizar as atualizações sobre o serviço do FIWARE");
+            try
+            {
+                using IServiceScope scope = _scopeFactory.CreateScope();
+                IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+
+                //1. Verifica a existência e as condições do serviço do FIWARE
+                bool serviceSynced = await fiwareService.AddOrUpdateServiceAsync();
+                if (!serviceSynced)
+                {
+                    _logger.LogWarning(
+                        "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o serviço do FIWARE conforme as configurações",
+                        attempt,
+                        maxAttempts);
+                }
+                else
+                {
+                    _logger.LogInformation("Atualizações sobre o serviço do FIWARE realizadas com sucesso");
+                }
+
+                //2. Sincroniza schema (attributes/commands) dos devices quando Fiware:Devices divergir de FiwareProperties
+                bool devicesSynced = await fiwareService.SyncDevicesSchemaAsync();
+                if (!devicesSynced)
+                {
+                    _logger.LogWarning(
+                        "Tentativa {Attempt}/{MaxAttempts}: sincronização de schema dos devices finalizou com falhas",
+                        attempt,
+                        maxAttempts);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Sincronização do schema (attributes/commands) dos devices realizada com sucesso");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Tentativa {Attempt}/{MaxAttempts}: erro ao sincronizar FIWARE",
+                    attempt,
+                    maxAttempts);
+            }
+
+            if (attempt < maxAttempts)
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(30, attempt * 3)), stoppingToken);
         }
     }
 }

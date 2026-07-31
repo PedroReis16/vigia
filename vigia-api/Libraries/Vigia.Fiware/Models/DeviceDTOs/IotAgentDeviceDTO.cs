@@ -35,15 +35,6 @@ public class IotAgentDeviceDTO
     public List<DeviceCommandDTO> Commands { get; set; } = [];
 }
 
-public class UpdateDeviceSchemaDTO
-{
-    [JsonPropertyName("attributes")]
-    public List<DeviceAttributeDTO> Attributes { get; set; } = [];
-
-    [JsonPropertyName("commands")]
-    public List<DeviceCommandDTO> Commands { get; set; } = [];
-}
-
 public class NewDevicesRequestDTO
 {
     [JsonPropertyName("devices")]

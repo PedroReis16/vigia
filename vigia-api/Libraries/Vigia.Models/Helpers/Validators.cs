@@ -31,21 +31,30 @@ public static class Validators
 
     public static bool IsPrivateIpAddress(string ipAddress)
     {
-        if (ipAddress == "localhost" || ipAddress == "127.0.0.1" || ipAddress == "::1")
+        if (string.IsNullOrWhiteSpace(ipAddress))
+            return false;
+
+        if (ipAddress is "localhost" or "127.0.0.1" or "::1")
             return true;
 
-        int[] ipParts = ipAddress
-            .Split(".", StringSplitOptions.RemoveEmptyEntries)
-            .Select(static s => int.Parse(s.Replace(":", "").Replace("f", ""))).ToArray();
+        // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+        const string ipv4MappedPrefix = "::ffff:";
+        if (ipAddress.StartsWith(ipv4MappedPrefix, StringComparison.OrdinalIgnoreCase))
+            ipAddress = ipAddress[ipv4MappedPrefix.Length..];
 
-        if (ipParts[0] == 10 ||
-            (ipParts[0] == 192 && ipParts[1] == 168) ||
-            (ipParts[0] == 172 && ipParts[1] >= 16 && ipParts[1] <= 31))
-        {
+        if (ipAddress.StartsWith("127."))
             return true;
-        }
 
-        return false;
+        if (!IPAddress.TryParse(ipAddress, out IPAddress? parsed))
+            return false;
+
+        if (parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return parsed.IsIPv6LinkLocal || parsed.IsIPv6UniqueLocal;
+
+        byte[] bytes = parsed.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31);
     }
 
 }

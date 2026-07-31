@@ -13,15 +13,23 @@ public class AllowAnonymousAuthenticationHandler(
     ILoggerFactory logger,
     UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
+    public static readonly Guid AdminUserId = new("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b");
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, new Guid("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b").ToString()),
-            new Claim(ClaimTypes.NameIdentifier, "anonymous"),
-            new Claim(ClaimTypes.Role, ServiceRoles.ADMIN),
+            new Claim(JwtRegisteredClaimNames.Sub, AdminUserId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("role", ServiceRoles.ADMIN),
+            new Claim("role", ServiceRoles.USER),
         };
-        var identity = new ClaimsIdentity(claims, Scheme.Name);
+
+        var identity = new ClaimsIdentity(
+            claims,
+            Scheme.Name,
+            JwtRegisteredClaimNames.Sub,
+            "role");
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 

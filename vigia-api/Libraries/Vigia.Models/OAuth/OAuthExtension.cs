@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -57,24 +58,11 @@ public static class OAuthExtension
             {
                 options.ForwardDefaultSelector = context =>
                 {
-                    var remoteIpAddress = context.Connection.RemoteIpAddress?.ToString();
-                    var localIpAddress = context.Connection.LocalIpAddress?.ToString();
-
-                    bool canExternalUseAnonymous = true;
-
-#if RELEASE
-                    canExternalUseAnonymous = false;
-#endif
-
-                    string authHeader = context.Request.Headers.Authorization.ToString();
-
-                    if (remoteIpAddress != null && authHeader.Contains($"Bearer {serviceSecretToken}"))
+                    // Test/dev bypass: Bearer {OAuth:ServiceToken} → ADMIN principal
+                    if (!string.IsNullOrEmpty(serviceSecretToken) &&
+                        TryResolveServiceTokenAsAdmin(context, serviceSecretToken))
                     {
-                        if (
-                            canExternalUseAnonymous && Helpers.Validators.IsPrivateIpAddress(remoteIpAddress) ||
-                            !canExternalUseAnonymous && remoteIpAddress.Equals(localIpAddress)
-                        )
-                            return AllowAnonymousDefaults.AllowAnonymousScheme;
+                        return AllowAnonymousDefaults.AllowAnonymousScheme;
                     }
 
                     return "OAuth";
@@ -89,5 +77,27 @@ public static class OAuthExtension
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Returns true when the request carries the fixed service token and originates
+    /// from an allowed network (private IPs in non-RELEASE; loopback-only in RELEASE).
+    /// </summary>
+    private static bool TryResolveServiceTokenAsAdmin(HttpContext context, string serviceSecretToken)
+    {
+        string authHeader = context.Request.Headers.Authorization.ToString();
+        if (!authHeader.Equals($"Bearer {serviceSecretToken}", StringComparison.Ordinal))
+            return false;
+
+        string? remoteIpAddress = context.Connection.RemoteIpAddress?.ToString();
+        if (remoteIpAddress is null)
+            return false;
+
+#if RELEASE
+        string? localIpAddress = context.Connection.LocalIpAddress?.ToString();
+        return remoteIpAddress.Equals(localIpAddress, StringComparison.Ordinal);
+#else
+        return Helpers.Validators.IsPrivateIpAddress(remoteIpAddress);
+#endif
     }
 }

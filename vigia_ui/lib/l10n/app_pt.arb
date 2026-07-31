@@ -56,6 +56,7 @@
   "connectionFailed": "Não foi possível conectar",
   "connectionErrorFallback": "Ocorreu um erro ao procurar ou conectar ao dispositivo.",
   "tryAgain": "Tentar novamente",
+  "devicesLoadError": "Parece que estamos passando por problemas técnicos.",
   "wifiNetwork": "Rede Wi‑Fi",
   "refreshNetworks": "Atualizar redes",
   "selectWifiHint": "Selecione a rede que o Vigia deve usar.",

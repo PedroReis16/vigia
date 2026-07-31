@@ -10,11 +10,11 @@ import 'package:vigia_ui/presentation/devices/widgets/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/new_device_modal.dart';
 import 'package:vigia_ui/presentation/shared/widgets/custom_refresh_indicator.dart';
+import 'package:vigia_ui/presentation/user/widgets/devices_load_erro.dart';
 
 class DevicesPage extends ConsumerWidget {
   const DevicesPage({super.key});
 
-  
   static const _scrollPhysics = AlwaysScrollableScrollPhysics(
     parent: ClampingScrollPhysics(),
   );
@@ -27,6 +27,7 @@ class DevicesPage extends ConsumerWidget {
         switchInCurve: Curves.easeOut,
         switchOutCurve: Curves.easeIn,
         child: CustomRefreshIndicator(
+          enabled: !ref.watch(devicesProvider).hasError,
           onRefresh: () => ref.read(devicesProvider.notifier).refresh(),
           useIndicator: false,
           child: Consumer(
@@ -61,19 +62,8 @@ class DevicesPage extends ConsumerWidget {
           },
         ),
       ),
-      error: (error, stackTrace) => ListView(
-        key: const ValueKey('devices-error'),
-        physics: _scrollPhysics,
-        children: [
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.6,
-            child: Center(
-              child: Text(
-                context.translations.errorWithMessage(error.toString()),
-              ),
-            ),
-          ),
-        ],
+      error: (error, stackTrace) => DevicesLoadError(
+        onTryAgain: () => ref.read(devicesProvider.notifier).refresh(),
       ),
       data: (devices) {
         if (devices.isEmpty) {
@@ -83,9 +73,7 @@ class DevicesPage extends ConsumerWidget {
             children: [
               SizedBox(
                 height: MediaQuery.sizeOf(context).height * 0.6,
-                child: Center(
-                  child: Text(context.translations.noDevicesFound),
-                ),
+                child: Center(child: Text(context.translations.noDevicesFound)),
               ),
             ],
           );

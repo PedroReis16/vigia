@@ -310,6 +310,12 @@ abstract class AppLocalizations {
   /// **'Tentar novamente'**
   String get tryAgain;
 
+  /// No description provided for @devicesLoadError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Parece que estamos passando por problemas técnicos.'**
+  String get devicesLoadError;
+
   /// No description provided for @wifiNetwork.
   ///
   /// In pt, this message translates to:

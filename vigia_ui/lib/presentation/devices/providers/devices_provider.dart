@@ -1,10 +1,17 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:uuid/uuid.dart';
 import 'package:vigia_ui/core/providers/repository_providers/devices_repository_provider.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
-import 'package:vigia_ui/domain/enums/device_rooms.dart';
+import 'package:vigia_ui/domain/enums/error_codes.dart';
 
 part 'devices_provider.g.dart';
+
+class DevicesState {
+  final String? errorMessage;
+  final ErrorCodes? errorCode;
+  final List<Device> devices;
+
+  DevicesState({this.errorMessage, this.errorCode, this.devices = const []});
+}
 
 @riverpod
 Future<List<Device>> getDevices(Ref ref) async {
@@ -25,16 +32,19 @@ class Devices extends _$Devices {
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(_loadDevices);
+    state = await AsyncValue.guard(() async => await _loadDevices());
   }
 
   Future<List<Device>> _loadDevices() async {
     try {
+      await Future.delayed(
+        const Duration(milliseconds: 1000),
+      ); //Delay para esperar a animação de transição se concluída antes de realizar o carregamento dos dispositivos
+
       final devices = await ref.read(devicesRepositoryProvider).getDevices();
       return devices;
     } catch (e) {
-      throw Exception('Failed to load devices');
+      rethrow;
     }
   }
 

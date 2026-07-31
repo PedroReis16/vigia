@@ -21,7 +21,7 @@ class Device {
       nickname: json['nickname'] ?? json['name'],
       ownerId: json['ownerId'],
       thumbnailUrl: json['thumbnailUrl'],
-      room: json['deviceRoom'],
+      room: DeviceRoomsExtension.fromString(json['room']),
     );
   }
 }

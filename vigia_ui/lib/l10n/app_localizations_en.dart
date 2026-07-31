@@ -127,6 +127,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tryAgain => 'Try again';
 
   @override
+  String get devicesLoadError =>
+      'It looks like we\'re experiencing technical issues.';
+
+  @override
   String get wifiNetwork => 'Wi‑Fi network';
 
   @override

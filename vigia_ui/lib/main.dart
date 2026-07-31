@@ -15,7 +15,7 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  runApp(const ProviderScope(child: MyApp()));
+  runApp(ProviderScope(retry: (retryCount, error) => null, child: MyApp()));
 }
 
 class MyApp extends ConsumerWidget {

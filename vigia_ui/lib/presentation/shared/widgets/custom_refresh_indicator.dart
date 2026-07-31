@@ -13,6 +13,7 @@ class CustomRefreshIndicator extends StatefulWidget {
     this.maxOffset = 112,
     this.releaseLabel = 'Solte para atualizar a listagem',
     this.useIndicator = true,
+    this.enabled = true,
   });
 
   final Future<void> Function() onRefresh;
@@ -29,6 +30,9 @@ class CustomRefreshIndicator extends StatefulWidget {
   /// When true, keeps a spinner in the pull header until [onRefresh] completes.
   /// When false, collapses immediately so the page can show its own loading UI.
   final bool useIndicator;
+
+  /// When false, pull-to-refresh gestures are ignored and [onRefresh] is never called.
+  final bool enabled;
 
   @override
   State<CustomRefreshIndicator> createState() => _CustomRefreshIndicatorState();
@@ -49,8 +53,19 @@ class _CustomRefreshIndicatorState extends State<CustomRefreshIndicator> {
     return _pullOffset;
   }
 
+  @override
+  void didUpdateWidget(covariant CustomRefreshIndicator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && (_pullOffset > 0 || _refreshing)) {
+      setState(() {
+        _pullOffset = 0;
+        _refreshing = false;
+      });
+    }
+  }
+
   bool _onScrollNotification(ScrollNotification notification) {
-    if (_refreshing) return false;
+    if (!widget.enabled || _refreshing) return false;
     if (notification.metrics.axis != Axis.vertical) return false;
 
     // Clamped lists report past-edge drag as OverscrollNotification.
@@ -88,7 +103,7 @@ class _CustomRefreshIndicatorState extends State<CustomRefreshIndicator> {
   }
 
   Future<void> _onReleased() async {
-    if (_refreshing) return;
+    if (!widget.enabled || _refreshing) return;
 
     if (_armed) {
       setState(() {

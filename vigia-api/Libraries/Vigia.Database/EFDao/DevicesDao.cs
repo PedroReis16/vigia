@@ -114,22 +114,31 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
     {
         DbSet<Device> dbSet = Context.Set<Device>();
 
-        IQueryable<Device> query = dbSet.Where(d => d.DeletedAt == null)
+        IQueryable<Device> query = dbSet
+            .Where(
+                d => d.DeletedAt == null &&
+                d.Group != null && d.Group.LinkedUsers!.Any(u => u.Id == userId)
+            )
             .Include(d => d.Group)
             .ThenInclude(g => g!.LinkedUsers!.Where(u => u.DeletedAt == null))
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(nickname))
-            query = query.Where(d => d.Nickname != null && d.Nickname.Contains(nickname) || d.Name.Contains(nickname));
+            query = query.Where(
+                d => d.Nickname != null && d.Nickname.Contains(nickname) ||
+                d.Name.Contains(nickname)
+            );
 
         if (room != null)
             query = query.Where(d => d.Room != null && d.Room == room);
 
         if (onlyShared)
-            query = query.Where(d => d.Group != null && d.Group.OwnerId != userId && d.Group.LinkedUsers!.Any(u => u.Id == userId));
+            query = query.Where(
+                d => d.Group!.OwnerId != userId
+                );
 
         if (onlyOwned)
-            query = query.Where(d => d.Group != null && d.Group.OwnerId == userId);
+            query = query.Where(d => d.Group!.OwnerId == userId);
 
         if (page > 0 && pageSize > 0)
             query = query.Skip((page - 1) * pageSize).Take(pageSize);

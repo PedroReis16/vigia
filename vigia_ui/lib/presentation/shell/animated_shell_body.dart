@@ -49,11 +49,9 @@ class _AnimatedShellBodyState extends State<AnimatedShellBody> {
 
   @override
   Widget build(BuildContext context) {
-    final config = AppBarConfig.fromState(context, GoRouterState.of(context));
-
     return PageView(
       controller: _pageController,
-      physics: !config.showAppBar ? const NeverScrollableScrollPhysics() : null,
+      physics: const NeverScrollableScrollPhysics(),
       onPageChanged: (index) {
         // Swipe entre abas → atualiza a rota
         widget.navigationShell.goBranch(index);

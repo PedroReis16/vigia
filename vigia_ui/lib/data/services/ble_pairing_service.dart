@@ -157,7 +157,7 @@ class BlePairingService {
     BluetoothDevice device, {
     required String ssid,
     required String password,
-    String apiToken = Constants.localDevApiToken,
+    String apiToken = "ASDBASDA",
   }) async {
     final characteristic = await _requireCharacteristic(
       device,

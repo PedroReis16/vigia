@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/environments.dart';
 
 class DeviceCard extends StatelessWidget {
   final Device device;
@@ -23,7 +24,10 @@ class DeviceCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: thumbnail != null && thumbnail.isNotEmpty
-                    ? Image.network(thumbnail, fit: BoxFit.cover)
+                    ? Image.network(
+                        "$Environments.apiUrl/$thumbnail",
+                        fit: BoxFit.cover,
+                      )
                     : Container(
                         color: Theme.of(
                           context,

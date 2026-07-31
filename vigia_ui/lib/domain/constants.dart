@@ -17,7 +17,4 @@ class Constants {
 
   /// Matches [helpers_create_device_name] in vigia-fall/shared/helpers.py
   static const String deviceNamePrefix = 'Vigia-';
-
-  /// Placeholder until real API bind exists.
-  static const String localDevApiToken = 'local-dev';
 }

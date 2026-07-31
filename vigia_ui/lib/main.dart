@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
@@ -9,6 +11,15 @@ import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  String envFile = "";
+  if (kDebugMode) {
+    envFile = "homolog.env";
+  } else {
+    envFile = ".env";
+  }
+
+  await dotenv.load(fileName: envFile);
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

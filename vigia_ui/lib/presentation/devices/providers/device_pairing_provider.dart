@@ -7,8 +7,8 @@ import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
-import 'package:vigia_ui/domain/constants.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
+import 'package:vigia_ui/domain/environments.dart';
 
 part 'device_pairing_provider.g.dart';
 
@@ -98,7 +98,7 @@ class DevicePairing extends _$DevicePairing {
         device,
         ssid: ssid.trim(),
         password: password,
-        apiToken: Constants.localDevApiToken,
+        apiToken: Environments.apiUrl,
       );
 
       state = DevicePairingState(

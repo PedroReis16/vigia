@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vigia.Database.Configurations;
 using Vigia.Models.Entities;
-using Vigia.Models.Enums;
 
 public class VigiaDbContext : DbContext
 {
@@ -10,6 +9,7 @@ public class VigiaDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<FiwareProperties> FiwareProperties { get; set; } = null!;
 
     public VigiaDbContext(DbContextOptions<VigiaDbContext> options) : base(options)
     {
@@ -28,6 +28,7 @@ public class VigiaDbContext : DbContext
         _ = modelBuilder.ApplyConfiguration(new GroupsConfiguration());
         _ = modelBuilder.ApplyConfiguration(new UsersConfiguration());
         _ = modelBuilder.ApplyConfiguration(new RefreshTokensConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new FiwarePropertiesConfiguration());
 
         _ = modelBuilder.Ignore<BaseEntity>();
     }

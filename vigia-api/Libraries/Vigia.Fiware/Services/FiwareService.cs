@@ -11,6 +11,9 @@ using Vigia.Fiware.Models.DeviceDTOs;
 using Vigia.Fiware.Models.RegistrationDTOs;
 using Vigia.Fiware.Models.ServiceDTOs;
 using Vigia.Models.Entities;
+#if DEBUG
+using Vigia.Models.Seed;
+#endif
 
 namespace Vigia.Fiware.Services;
 
@@ -574,6 +577,46 @@ internal class FiwareService : IFiwareService
     }
     #endregion
 
+#if DEBUG
+    public async Task<bool> EnsureSeedDeviceAsync()
+    {
+        Guid deviceId = TestDeviceSeed.Id;
+        string deviceName = TestDeviceSeed.Name;
+
+        HttpResponseMessage existing = await _httpClient.GetAsync(
+            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId.ToString())}");
+
+        if (existing.IsSuccessStatusCode)
+        {
+            _logger.LogInformation(
+                "Device seed {DeviceId} ({DeviceName}) já provisionado no FIWARE",
+                deviceId,
+                deviceName);
+
+            string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+            string entityName = $"urn:ngsi-ld:{deviceName}";
+            return await SyncCommandRegistrationAsync(entityName, entityType, _deviceSchema.GetCommands());
+        }
+
+        if (existing.StatusCode != HttpStatusCode.NotFound)
+        {
+            string errorBody = await existing.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Falha ao consultar device seed {DeviceId}. Status={StatusCode}. Body={Body}",
+                deviceId,
+                (int)existing.StatusCode,
+                errorBody);
+            return false;
+        }
+
+        _logger.LogInformation(
+            "Device seed {DeviceId} ({DeviceName}) ausente no FIWARE. Provisionando...",
+            deviceId,
+            deviceName);
+
+        return await RegisterSensorAsync(deviceId, deviceName);
+    }
+#endif
 
     public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
     {

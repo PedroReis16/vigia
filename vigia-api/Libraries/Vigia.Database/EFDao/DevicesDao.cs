@@ -117,15 +117,6 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         IQueryable<Device> query = dbSet.Where(d => d.DeletedAt == null)
             .Include(d => d.Group)
             .ThenInclude(g => g!.LinkedUsers!.Where(u => u.DeletedAt == null))
-            .Select(d => new Device
-            {
-                Id = d.Id,
-                Name = d.Name,
-                Nickname = d.Nickname,
-                MacAddress = d.MacAddress,
-                Room = d.Room,
-                Group = new() { Id = d.Group!.Id, OwnerId = d.Group!.OwnerId }
-            })
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(nickname))

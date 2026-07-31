@@ -48,7 +48,25 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
                 {
                     _logger.LogInformation(
                         "Sincronização do schema (attributes/commands) dos devices realizada com sucesso");
+
+#if DEBUG
+                    //3. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
+                    bool seedDeviceReady = await fiwareService.EnsureSeedDeviceAsync();
+                    if (!seedDeviceReady)
+                    {
+                        _logger.LogWarning(
+                            "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o device seed no FIWARE",
+                            attempt,
+                            maxAttempts);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
+                        return;
+                    }
+#else
                     return;
+#endif
                 }
             }
             catch (Exception ex)

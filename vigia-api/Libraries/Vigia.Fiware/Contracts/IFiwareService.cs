@@ -20,5 +20,14 @@ public interface IFiwareService
     /// <c>Fiware:Devices</c> e sincroniza a registration de comandos no Orion.
     /// </summary>
     Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName);
+
+#if DEBUG
+    /// <summary>
+    /// Garante que o dispositivo de teste (<c>TestDeviceSeed</c>) esteja provisionado
+    /// no IoT Agent e com registration de comandos no Orion. Idempotente.
+    /// </summary>
+    Task<bool> EnsureSeedDeviceAsync();
+#endif
+
     Task DeleteSensorAsync(Guid id, string name);
 }

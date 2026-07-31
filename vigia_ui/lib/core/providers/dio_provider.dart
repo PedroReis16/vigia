@@ -9,8 +9,8 @@ part 'dio_provider.g.dart';
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
-  final dio = Dio(BaseOptions(baseUrl: 'http://10.0.0.106:8090/vigia'));
-  final refreshDio = Dio(BaseOptions(baseUrl: 'http://10.0.0.106:8090/vigia'));
+  final dio = Dio(BaseOptions(baseUrl: 'http://localhost:8090/vigia'));
+  final refreshDio = Dio(BaseOptions(baseUrl: 'http://localhost:8090/vigia'));
 
   dio.interceptors.add(
     AuthInterceptor(

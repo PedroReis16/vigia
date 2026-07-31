@@ -108,7 +108,7 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             ),
             title: context.translations.connectionEstablished,
             description: context.translations.deviceLinkedSuccess(
-              pairing.device?.description ?? context.translations.appTitle,
+              pairing.device?.nickname ?? context.translations.appTitle,
             ),
             action: FilledButton(
               onPressed: _onConfirm,

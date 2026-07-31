@@ -17,8 +17,8 @@ import 'package:vigia_ui/presentation/user/providers/cold_start_provider.dart';
 part 'app_router.g.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _sheetsNavigatorKey = GlobalKey<NavigatorState>();
-final _libraryNavigatorKey = GlobalKey<NavigatorState>();
+final _devicesNavigatorKey = GlobalKey<NavigatorState>();
+final _settingsNavigatorKey = GlobalKey<NavigatorState>();
 
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
@@ -80,7 +80,8 @@ GoRouter appRouter(Ref ref) {
           if (playLogout) {
             // Extra slack covers precache + hold frame before the morph ticks.
             Future<void>.delayed(
-              AuthToShellTransition.duration + const Duration(milliseconds: 120),
+              AuthToShellTransition.duration +
+                  const Duration(milliseconds: 120),
               () {
                 ref.read(authExitTransitionProvider.notifier).disarm();
               },
@@ -95,16 +96,15 @@ GoRouter appRouter(Ref ref) {
                 : Duration.zero,
             reverseTransitionDuration: Duration.zero,
             opaque: !playLogout,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (!playLogout) return child;
-                  return AuthToShellTransitionDriver(
-                    reverse: true,
-                    // Keep logo on the expanding veil (empty veil → pop-in on device).
-                    flyLogo: true,
-                    child: child,
-                  );
-                },
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              if (!playLogout) return child;
+              return AuthToShellTransitionDriver(
+                reverse: true,
+                // Keep logo on the expanding veil (empty veil → pop-in on device).
+                flyLogo: true,
+                child: child,
+              );
+            },
           );
         },
       ),
@@ -119,7 +119,8 @@ GoRouter appRouter(Ref ref) {
             // Disarm after morph + warm-up hold — not in a microtask — so a
             // refresh cannot rebuild this page with Duration.zero mid-flight.
             Future<void>.delayed(
-              AuthToShellTransition.duration + const Duration(milliseconds: 120),
+              AuthToShellTransition.duration +
+                  const Duration(milliseconds: 120),
               () {
                 ref.read(authExitTransitionProvider.notifier).disarm();
               },
@@ -134,16 +135,15 @@ GoRouter appRouter(Ref ref) {
                 : Duration.zero,
             reverseTransitionDuration: Duration.zero,
             opaque: !playLogin,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (!playLogin) return child;
-                  return AuthToShellTransitionDriver(
-                    // Always fly the logo on the veil — Hero flashes on devices.
-                    flyLogo: true,
-                    logoFromCenter: kind == AuthTransitionKind.coldStart,
-                    child: child,
-                  );
-                },
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              if (!playLogin) return child;
+              return AuthToShellTransitionDriver(
+                // Always fly the logo on the veil — Hero flashes on devices.
+                flyLogo: true,
+                logoFromCenter: kind == AuthTransitionKind.coldStart,
+                child: child,
+              );
+            },
           );
         },
         navigatorContainerBuilder: (context, navigationShell, children) {
@@ -154,7 +154,7 @@ GoRouter appRouter(Ref ref) {
         },
         branches: [
           StatefulShellBranch(
-            navigatorKey: _sheetsNavigatorKey,
+            navigatorKey: _devicesNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.devicesPage,
@@ -192,7 +192,7 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _libraryNavigatorKey,
+            navigatorKey: _settingsNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.settingsPage,

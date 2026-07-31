@@ -3,16 +3,16 @@ import 'package:vigia_ui/domain/DTOs/device.dart';
 
 class DeviceCard extends StatelessWidget {
   final Device device;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
-  const DeviceCard({super.key, required this.device, required this.onTap});
+  const DeviceCard({super.key, required this.device, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final thumbnail = device.thumbnail;
+    final thumbnail = device.thumbnailUrl;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap?.call,
       child: Card(
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(
@@ -23,7 +23,7 @@ class DeviceCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: thumbnail != null && thumbnail.isNotEmpty
-                    ? Image.memory(thumbnail, fit: BoxFit.cover)
+                    ? Image.network(thumbnail, fit: BoxFit.cover)
                     : Container(
                         color: Theme.of(
                           context,
@@ -37,13 +37,23 @@ class DeviceCard extends StatelessWidget {
                 flex: 1,
                 child: Padding(
                   padding: const EdgeInsets.all(8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      device.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        device.nickname,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (device.room != null)
+                        Text(
+                          device.room.toString(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                    ],
                   ),
                 ),
               ),

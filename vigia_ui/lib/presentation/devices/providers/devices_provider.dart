@@ -1,28 +1,38 @@
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vigia_ui/core/providers/repository_providers/devices_repository_provider.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/enums/device_rooms.dart';
 
 part 'devices_provider.g.dart';
+
+@riverpod
+Future<List<Device>> getDevices(Ref ref) async {
+  try {
+    await Future.delayed(const Duration(seconds: 10));
+
+    return [];
+  } catch (e) {
+    throw Exception('Failed to load devices');
+  }
+}
 
 @Riverpod(keepAlive: true)
 class Devices extends _$Devices {
   @override
-  Future<List<Device>> build() async {
+  Future<List<Device>> build() {
+    return _loadDevices();
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(_loadDevices);
+  }
+
+  Future<List<Device>> _loadDevices() async {
     try {
-      final thumbnailData = await rootBundle.load(
-        'assets/images/fake_thumb.JPG',
-      );
-      final thumbnail = thumbnailData.buffer.asUint8List();
-      return [
-        Device(
-          id: const Uuid().v4(),
-          description: 'Device 1',
-          thumbnail: thumbnail,
-        ),
-        Device(id: const Uuid().v4(), description: 'Device 2'),
-        Device(id: const Uuid().v4(), description: 'Device 3'),
-      ];
+      final devices = await ref.read(devicesRepositoryProvider).getDevices();
+      return devices;
     } catch (e) {
       throw Exception('Failed to load devices');
     }

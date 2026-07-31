@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
@@ -104,7 +105,8 @@ class DevicePairing extends _$DevicePairing {
         stage: DevicePairingStage.connected,
         device: Device(
           id: identity.deviceId,
-          description: _bleName ?? 'Vigia',
+          nickname: _bleName ?? 'Vigia',
+          ownerId: Uuid().v4(),
         ),
       );
     } catch (error) {
@@ -134,7 +136,9 @@ class DevicePairing extends _$DevicePairing {
           : result.device.platformName.trim();
       _bleName = name;
 
-      state = const DevicePairingState(stage: DevicePairingStage.authenticating);
+      state = const DevicePairingState(
+        stage: DevicePairingStage.authenticating,
+      );
 
       final identity = await _ble.readIdentity(result.device);
       _deviceIdentity = identity;

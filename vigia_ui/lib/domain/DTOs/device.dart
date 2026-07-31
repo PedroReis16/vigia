@@ -1,10 +1,27 @@
-import 'dart:typed_data';
-
+import 'package:vigia_ui/domain/enums/device_rooms.dart';
 
 class Device {
   final String id;
-  final String description;
-  final Uint8List? thumbnail;
+  final String nickname;
+  final String ownerId;
+  final String? thumbnailUrl;
+  final DeviceRooms? room;
 
-  Device({required this.id, required this.description, this.thumbnail});
+  Device({
+    required this.id,
+    required this.nickname,
+    required this.ownerId,
+    this.room,
+    this.thumbnailUrl,
+  });
+
+  factory Device.fromJson(Map<String, dynamic> json) {
+    return Device(
+      id: json['id'],
+      nickname: json['nickname'] ?? json['name'],
+      ownerId: json['ownerId'],
+      thumbnailUrl: json['thumbnailUrl'],
+      room: json['deviceRoom'],
+    );
+  }
 }

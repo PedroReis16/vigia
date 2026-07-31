@@ -246,8 +246,12 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
         }
     }
 
-    private string GetDeviceThumbnailUrl(IServiceScope scope, Guid userId, Guid deviceId)
+    private string? GetDeviceThumbnailUrl(IServiceScope scope, Guid userId, Guid deviceId)
     {
+
+        byte[]? frame = GetDeviceFrame(deviceId);
+        if (frame == null)
+            return null;
 
         IFrameAccessTokenProvider frameAccessTokenProvider =
             scope.ServiceProvider.GetRequiredService<IFrameAccessTokenProvider>();

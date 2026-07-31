@@ -9,6 +9,7 @@ using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
 using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Services.CacheServices;
+using Vigia.Models.Contracts;
 using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
 using Vigia.Fiware.Extensions;
@@ -55,6 +56,12 @@ builder.Services.AddRepositoryServices();
 
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
+builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
+builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
+builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
+
+builder.Services.AddSingleton<IDeviceSignPublicKeyProvider, DeviceSignPublicKeyProvider>();
+builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

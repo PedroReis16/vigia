@@ -9,4 +9,5 @@ public class DeviceDTO
     public string MacAddress { get; set; } = string.Empty;
     public DeviceRooms? Room { get; set; }
     public Guid? OwnerId { get; set; }
+    public string? ThumbnailUrl { get; set; }
 }

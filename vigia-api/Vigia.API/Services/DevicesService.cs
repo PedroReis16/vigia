@@ -9,6 +9,8 @@ using Vigia.Fiware.Contracts;
 using System.Text.RegularExpressions;
 using Group = Vigia.Models.Entities.Group;
 using Vigia.API.Contracts.CacheServices;
+using Vigia.Models.Contracts;
+using Vigia.Models.Helpers;
 
 namespace Vigia.API.Services;
 
@@ -48,14 +50,21 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
                 throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
 
+            if (string.IsNullOrWhiteSpace(newDevice.SignPublicKey))
+                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
+
+            if (!Validators.IsValidEd25519PublicKeyHex(newDevice.SignPublicKey))
+                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
+
+            string normalizedSignPublicKey = newDevice.SignPublicKey.ToLowerInvariant();
+
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
                 Name = newDevice.Name,
-                MacAddress = newDevice.MacAddress
+                MacAddress = newDevice.MacAddress,
+                SignPublicKey = normalizedSignPublicKey
             };
-
-            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
 
             Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id);
 
@@ -91,6 +100,9 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
                 _logger.LogError(errorMsg);
                 throw new Exception(errorMsg);
             }
+
+            IDeviceSignPublicKeyProvider signPublicKeyProvider = scope.ServiceProvider.GetRequiredService<IDeviceSignPublicKeyProvider>();
+            signPublicKeyProvider.SetSignPublicKey(newDevice.Id, normalizedSignPublicKey);
 
             _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
         }
@@ -214,7 +226,13 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
                 pageSize
             );
 
-            return devices.Select(MapDeviceToDTO).ToList();
+
+            return devices.Select(device =>
+            {
+                DeviceDTO dto = MapDeviceToDTO(device);
+                dto.ThumbnailUrl = GetDeviceThumbnailUrl(scope, userId, device.Id);
+                return dto;
+            }).ToList();
         }
         catch (EntityValidationException)
         {
@@ -226,6 +244,19 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             _logger.LogError(errorMsg);
             throw;
         }
+    }
+
+    private string GetDeviceThumbnailUrl(IServiceScope scope, Guid userId, Guid deviceId)
+    {
+
+        IFrameAccessTokenProvider frameAccessTokenProvider =
+            scope.ServiceProvider.GetRequiredService<IFrameAccessTokenProvider>();
+        IConfiguration configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        string apiBasePath = configuration.GetValue<string>("BasePath")?.Trim('/') ?? string.Empty;
+        string urlPrefix = string.IsNullOrEmpty(apiBasePath) ? string.Empty : $"/{apiBasePath}";
+
+        string accessToken = frameAccessTokenProvider.IssueToken(userId, deviceId);
+        return $"{urlPrefix}/devices/{deviceId}/frame?accessToken={accessToken}";
     }
 
     private DeviceDTO MapDeviceToDTO(Device device)

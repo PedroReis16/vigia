@@ -32,6 +32,10 @@ public static class OAuthExtension
             })
             .AddScheme<AuthenticationSchemeOptions, AllowAnonymousAuthenticationHandler>(
                 AllowAnonymousDefaults.AllowAnonymousScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, DeviceSignatureAuthenticationHandler>(
+                DeviceSignatureDefaults.AuthenticationScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, FrameAccessTokenAuthenticationHandler>(
+                FrameAccessTokenDefaults.AuthenticationScheme, _ => { })
             .AddJwtBearer("OAuth", options =>
             {
                 options.MapInboundClaims = false;

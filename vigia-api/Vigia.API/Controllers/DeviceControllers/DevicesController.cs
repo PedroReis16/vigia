@@ -5,7 +5,7 @@ using Vigia.API.Helpers;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Models.Enums;
 
-namespace Vigia.API.Controllers;
+namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
 [Route("[controller]")]

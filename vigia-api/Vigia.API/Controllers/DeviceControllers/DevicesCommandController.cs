@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Vigia.API.Controllers;
+namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
 [Route("devices/{deviceId}/command")]

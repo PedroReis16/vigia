@@ -8,6 +8,7 @@ using Vigia.Models.Extensions;
 using Vigia.Fiware.Contracts;
 using System.Text.RegularExpressions;
 using Group = Vigia.Models.Entities.Group;
+using Vigia.API.Contracts.CacheServices;
 
 namespace Vigia.API.Services;
 
@@ -213,7 +214,7 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
                 pageSize
             );
 
-            return devices.Select(device => MapDeviceToDTO(device)).ToList();
+            return devices.Select(MapDeviceToDTO).ToList();
         }
         catch (EntityValidationException)
         {
@@ -288,6 +289,46 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             string errorMsg = $"Houve um erro ao tentar atualizar o dispositivo {deviceId}: {ex.GetFullMessage()}";
             _logger.LogError(errorMsg);
             throw;
+        }
+    }
+
+    public void SaveDeviceFrame(Guid deviceId, Stream frame)
+    {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            IDeviceFrameCacheService cacheService = scope.ServiceProvider.GetRequiredService<IDeviceFrameCacheService>();
+
+            byte[] frameBytes = new byte[frame.Length];
+            _ = frame.Read(frameBytes, 0, frameBytes.Length);
+
+            cacheService.SetFrame(deviceId, frameBytes);
+
+            _logger.LogInformation($"Frame do dispositivo {deviceId} salvo com sucesso");
+        }
+        catch (Exception ex)
+        {
+            string errorMsg = $"Houve um erro ao tentar salvar o frame do dispositivo {deviceId}: {ex.GetFullMessage()}";
+            _logger.LogError(errorMsg);
+        }
+    }
+
+    public byte[]? GetDeviceFrame(Guid deviceId)
+    {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            IDeviceFrameCacheService cacheService = scope.ServiceProvider.GetRequiredService<IDeviceFrameCacheService>();
+
+            return cacheService.GetFrame(deviceId);
+        }
+        catch (Exception ex)
+        {
+            string errorMsg = $"Houve um erro ao tentar obter o frame do dispositivo {deviceId}: {ex.GetFullMessage()}";
+            _logger.LogError(errorMsg);
+            return null;
         }
     }
 }

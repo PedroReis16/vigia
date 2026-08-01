@@ -255,12 +255,9 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
 
         IFrameAccessTokenProvider frameAccessTokenProvider =
             scope.ServiceProvider.GetRequiredService<IFrameAccessTokenProvider>();
-        IConfiguration configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        string apiBasePath = configuration.GetValue<string>("BasePath")?.Trim('/') ?? string.Empty;
-        string urlPrefix = string.IsNullOrEmpty(apiBasePath) ? string.Empty : $"/{apiBasePath}";
-
+    
         string accessToken = frameAccessTokenProvider.IssueToken(userId, deviceId);
-        return $"{urlPrefix}/devices/{deviceId}/frame?accessToken={accessToken}";
+        return $"devices/{deviceId}/frame?accessToken={accessToken}";
     }
 
     private DeviceDTO MapDeviceToDTO(Device device)

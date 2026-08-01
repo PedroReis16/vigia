@@ -7,6 +7,7 @@ import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
+import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
 import 'package:vigia_ui/domain/environments.dart';
 
@@ -20,12 +21,12 @@ class DevicePairingState {
   });
 
   final DevicePairingStage stage;
-  final Device? device;
+  final NewDevice? device;
   final String? errorMessage;
 
   DevicePairingState copyWith({
     DevicePairingStage? stage,
-    Device? device,
+    NewDevice? device,
     String? errorMessage,
   }) {
     return DevicePairingState(
@@ -103,10 +104,11 @@ class DevicePairing extends _$DevicePairing {
 
       state = DevicePairingState(
         stage: DevicePairingStage.connected,
-        device: Device(
+        device: NewDevice(
           id: identity.deviceId,
-          nickname: _bleName ?? 'Vigia',
-          ownerId: Uuid().v4(),
+          name: _bleName ?? 'Vigia',
+          signPublicKey: identity.signPub,
+          macAddress: identity.macAddress,
         ),
       );
     } catch (error) {

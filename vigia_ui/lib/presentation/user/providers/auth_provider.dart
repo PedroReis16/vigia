@@ -1,5 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:vigia_ui/core/providers/repository_providers/auth_repository.dart';
+import 'package:vigia_ui/core/providers/repository_providers/auth_repository_provider.dart';
 import 'package:vigia_ui/domain/DTOs/user_credentials.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
 import 'package:vigia_ui/domain/enums/error_codes.dart';

@@ -2,7 +2,19 @@
   <Folder Name="/Libraries/">
     <Project Path="Libraries/Vigia.Cache/Vigia.Cache.csproj" />
     <Project Path="Libraries/Vigia.Database/Vigia.Database.csproj" />
+    <Project Path="Libraries/Vigia.Fiware/Vigia.Fiware.csproj" />
     <Project Path="Libraries/Vigia.Models/Vigia.Models.csproj" />
+  </Folder>
+  <Folder Name="/Tests/" />
+  <Folder Name="/Tests/Integration/">
+    <Project Path="Tests/Integration/Vigia.IntegrationTests/Vigia.IntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/Tests/Unit/">
+    <Project Path="Tests/Unit/Vigia.API.UnitTests/Vigia.API.UnitTests.csproj" />
+    <Project Path="Tests/Unit/Vigia.Cache.UnitTests/Vigia.Cache.UnitTests.csproj" />
+    <Project Path="Tests/Unit/Vigia.Database.UnitTests/Vigia.Database.UnitTests.csproj" />
+    <Project Path="Tests/Unit/Vigia.Fiware.UnitTests/Vigia.Fiware.UnitTests.csproj" />
+    <Project Path="Tests/Unit/Vigia.Models.UnitTests/Vigia.Models.UnitTests.csproj" />
   </Folder>
   <Project Path="Vigia.API/Vigia.API.csproj" />
 </Solution>

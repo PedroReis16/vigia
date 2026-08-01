@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/presentation/devices/pages/device_live_page.dart';
+import 'package:vigia_ui/core/invite_deep_link.dart';
+import 'package:vigia_ui/domain/ui_models/device_ui.dart';
+import 'package:vigia_ui/presentation/devices/pages/accept_invite_page.dart';
+import 'package:vigia_ui/presentation/devices/pages/device_clips_page.dart';
+import 'package:vigia_ui/presentation/devices/pages/device_details_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
+import 'package:vigia_ui/presentation/devices/providers/pending_invite_provider.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
 import 'package:vigia_ui/presentation/shell/auth_to_shell_transition.dart';
@@ -17,13 +22,16 @@ import 'package:vigia_ui/presentation/user/providers/cold_start_provider.dart';
 part 'app_router.g.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _sheetsNavigatorKey = GlobalKey<NavigatorState>();
-final _libraryNavigatorKey = GlobalKey<NavigatorState>();
+final _devicesNavigatorKey = GlobalKey<NavigatorState>();
+final _settingsNavigatorKey = GlobalKey<NavigatorState>();
 
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(authSessionProvider, (_, _) {
+    refresh.value++;
+  });
+  ref.listen(pendingInviteTokenProvider, (_, _) {
     refresh.value++;
   });
   // Only refresh when an enter morph is armed. Listening to disarm() would
@@ -40,8 +48,24 @@ GoRouter appRouter(Ref ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.authPage,
+    // Custom scheme `vigia://invite/...` is not an in-app path. Let app_links
+    // handle it; otherwise GoRouter shows PageNotFound on open.
+    overridePlatformDefaultLocation: true,
     refreshListenable: refresh,
     debugLogDiagnostics: false,
+    onException: (context, state, router) {
+      final inviteLocation = InviteDeepLink.inviteLocationFromUri(state.uri);
+      if (inviteLocation != null) {
+        final token = InviteDeepLink.extractToken(state.uri);
+        if (token != null) {
+          ref.read(pendingInviteTokenProvider.notifier).setToken(token);
+        }
+        final loggedIn = ref.read(authSessionProvider).asData?.value ?? false;
+        router.go(loggedIn ? inviteLocation : AppRoutes.authPage);
+        return;
+      }
+      router.go(AppRoutes.devicesPage);
+    },
     redirect: (context, state) {
       final auth = ref.read(authSessionProvider);
 
@@ -49,6 +73,24 @@ GoRouter appRouter(Ref ref) {
 
       final loggedIn = auth.asData?.value ?? false;
       final onAuth = state.matchedLocation == AppRoutes.authPage;
+      final onInvite = state.matchedLocation.startsWith('/invite/');
+      final pendingInvite = ref.read(pendingInviteTokenProvider);
+
+      // If the platform still surfaces the custom scheme as the location,
+      // rewrite it to the in-app invite path before matching fails.
+      final inviteFromUri = InviteDeepLink.inviteLocationFromUri(state.uri);
+      if (inviteFromUri != null && state.matchedLocation != inviteFromUri) {
+        final token = InviteDeepLink.extractToken(state.uri)!;
+        ref.read(pendingInviteTokenProvider.notifier).setToken(token);
+        if (!loggedIn) return AppRoutes.authPage;
+        return inviteFromUri;
+      }
+
+      if (!loggedIn && onInvite && state.pathParameters['token'] != null) {
+        ref
+            .read(pendingInviteTokenProvider.notifier)
+            .setToken(state.pathParameters['token']);
+      }
 
       if (!loggedIn && !onAuth) return AppRoutes.authPage;
 
@@ -59,11 +101,17 @@ GoRouter appRouter(Ref ref) {
         if (kind == AuthTransitionKind.login ||
             kind == AuthTransitionKind.register ||
             kind == AuthTransitionKind.coldStart) {
+          if (pendingInvite != null && pendingInvite.isNotEmpty) {
+            return AppRoutes.invitePagePath(pendingInvite);
+          }
           return AppRoutes.devicesPage;
         }
         // Still on first-boot cold start — keep AuthPage visible.
         if (!ref.read(coldStartCompletedProvider)) {
           return null;
+        }
+        if (pendingInvite != null && pendingInvite.isNotEmpty) {
+          return AppRoutes.invitePagePath(pendingInvite);
         }
         // Edge case (cold start already completed): leave without morph.
         return AppRoutes.devicesPage;
@@ -80,7 +128,8 @@ GoRouter appRouter(Ref ref) {
           if (playLogout) {
             // Extra slack covers precache + hold frame before the morph ticks.
             Future<void>.delayed(
-              AuthToShellTransition.duration + const Duration(milliseconds: 120),
+              AuthToShellTransition.duration +
+                  const Duration(milliseconds: 120),
               () {
                 ref.read(authExitTransitionProvider.notifier).disarm();
               },
@@ -95,17 +144,24 @@ GoRouter appRouter(Ref ref) {
                 : Duration.zero,
             reverseTransitionDuration: Duration.zero,
             opaque: !playLogout,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (!playLogout) return child;
-                  return AuthToShellTransitionDriver(
-                    reverse: true,
-                    // Keep logo on the expanding veil (empty veil → pop-in on device).
-                    flyLogo: true,
-                    child: child,
-                  );
-                },
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              if (!playLogout) return child;
+              return AuthToShellTransitionDriver(
+                reverse: true,
+                // Keep logo on the expanding veil (empty veil → pop-in on device).
+                flyLogo: true,
+                child: child,
+              );
+            },
           );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.invitePage,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final token = state.pathParameters['token']!;
+          return AcceptInvitePage(token: token);
         },
       ),
       StatefulShellRoute(
@@ -119,7 +175,8 @@ GoRouter appRouter(Ref ref) {
             // Disarm after morph + warm-up hold — not in a microtask — so a
             // refresh cannot rebuild this page with Duration.zero mid-flight.
             Future<void>.delayed(
-              AuthToShellTransition.duration + const Duration(milliseconds: 120),
+              AuthToShellTransition.duration +
+                  const Duration(milliseconds: 120),
               () {
                 ref.read(authExitTransitionProvider.notifier).disarm();
               },
@@ -134,16 +191,15 @@ GoRouter appRouter(Ref ref) {
                 : Duration.zero,
             reverseTransitionDuration: Duration.zero,
             opaque: !playLogin,
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (!playLogin) return child;
-                  return AuthToShellTransitionDriver(
-                    // Always fly the logo on the veil — Hero flashes on devices.
-                    flyLogo: true,
-                    logoFromCenter: kind == AuthTransitionKind.coldStart,
-                    child: child,
-                  );
-                },
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              if (!playLogin) return child;
+              return AuthToShellTransitionDriver(
+                // Always fly the logo on the veil — Hero flashes on devices.
+                flyLogo: true,
+                logoFromCenter: kind == AuthTransitionKind.coldStart,
+                child: child,
+              );
+            },
           );
         },
         navigatorContainerBuilder: (context, navigationShell, children) {
@@ -154,45 +210,61 @@ GoRouter appRouter(Ref ref) {
         },
         branches: [
           StatefulShellBranch(
-            navigatorKey: _sheetsNavigatorKey,
+            navigatorKey: _devicesNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.devicesPage,
                 builder: (context, state) => const DevicesPage(),
                 routes: [
                   GoRoute(
-                    path: AppRoutes.deviceStreamRelative,
+                    path: AppRoutes.deviceDetailsRelative,
                     pageBuilder: (context, state) {
                       final String deviceId = state.pathParameters['deviceId']!;
+                      final device = state.extra is DeviceUIModel
+                          ? state.extra as DeviceUIModel
+                          : null;
 
                       return CustomTransitionPage(
                         key: state.pageKey,
-                        child: DeviceLivePage(deviceId: deviceId),
+                        opaque: false,
+                        child: DeviceDetailsPage(
+                          deviceId: deviceId,
+                          device: device,
+                        ),
+                        transitionDuration: const Duration(milliseconds: 340),
+                        reverseTransitionDuration: const Duration(
+                          milliseconds: 300,
+                        ),
                         transitionsBuilder:
                             (context, animation, secondaryAnimation, child) {
-                              const begin = Offset(1.0, 0.0);
-                              const end = Offset.zero;
-                              const curve = Curves.ease;
+                              final fade = CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                                reverseCurve: Curves.easeInCubic,
+                              );
 
-                              final tween = Tween(
-                                begin: begin,
-                                end: end,
-                              ).chain(CurveTween(curve: curve));
-
-                              return SlideTransition(
-                                position: animation.drive(tween),
+                              return FadeTransition(
+                                opacity: fade,
                                 child: child,
                               );
                             },
                       );
                     },
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.deviceClipsRelative,
+                        builder: (context, state) => DeviceClipsPage(
+                          deviceId: state.pathParameters['deviceId']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
           StatefulShellBranch(
-            navigatorKey: _libraryNavigatorKey,
+            navigatorKey: _settingsNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.settingsPage,

@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+    <PackageReference Include="NSec.Cryptography" Version="25.4.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="10.2.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">
@@ -23,6 +24,7 @@
     <ProjectReference Include="..\Libraries\Vigia.Models\Vigia.Models.csproj" />
     <ProjectReference Include="..\Libraries\Vigia.Database\Vigia.Database.csproj" />
     <ProjectReference Include="..\Libraries\Vigia.Cache\Vigia.Cache.csproj" />
+    <ProjectReference Include="..\Libraries\Vigia.Fiware\Vigia.Fiware.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,12 +1,12 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Vigia.Database.Cache;
+using Vigia.Database.CacheContracts;
 using Vigia.Database.Contracts;
 using Vigia.Models.Entities;
 
 namespace Vigia.Database.EFDao;
 
-public abstract class BaseDao<TEntity>(VigiaDbContext context, IRepositoryCache<TEntity>? cache = null) : IRepository<TEntity> where TEntity : BaseEntity
+internal abstract class BaseDao<TEntity>(VigiaDbContext context, IRepositoryCache<TEntity>? cache = null) : IRepository<TEntity> where TEntity : BaseEntity
 {
     protected VigiaDbContext Context = context;
 

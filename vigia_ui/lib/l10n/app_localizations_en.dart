@@ -127,6 +127,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tryAgain => 'Try again';
 
   @override
+  String get devicesLoadError =>
+      'It looks like we\'re experiencing technical issues.';
+
+  @override
   String get wifiNetwork => 'Wi‑Fi network';
 
   @override
@@ -213,4 +217,168 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createAccount => 'Sign up';
+
+  @override
+  String get deviceNickname => 'Name';
+
+  @override
+  String get deviceName => 'Device name';
+
+  @override
+  String get deviceRoom => 'Room';
+
+  @override
+  String get deviceIdLabel => 'Identifier';
+
+  @override
+  String get bedroom => 'Bedroom';
+
+  @override
+  String get livingRoom => 'Living room';
+
+  @override
+  String get kitchen => 'Kitchen';
+
+  @override
+  String get bathroom => 'Bathroom';
+
+  @override
+  String get office => 'Office';
+
+  @override
+  String get garage => 'Garage';
+
+  @override
+  String get backyard => 'Backyard';
+
+  @override
+  String get frontyard => 'Front yard';
+
+  @override
+  String get online => 'Online';
+
+  @override
+  String get offline => 'Offline';
+
+  @override
+  String get roomNotDefined => 'Room not defined';
+
+  @override
+  String get saveClips => 'Save clips';
+
+  @override
+  String get whatAreClips => 'What are clips?';
+
+  @override
+  String get whenEnabledClipsWillStoreClipsForAnalysis =>
+      'When enabled, Vigia will store short video clips for later analysis of possible fall situations.';
+
+  @override
+  String get saveChanges => 'Save changes';
+
+  @override
+  String get deviceUpdatedSuccess => 'Device updated successfully';
+
+  @override
+  String get deviceUpdateError => 'Could not update the device';
+
+  @override
+  String get discardChangesTitle => 'Discard changes?';
+
+  @override
+  String get discardChangesMessage => 'There are unsaved changes.';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get deviceUsers => 'Users';
+
+  @override
+  String get noUsersFound => 'No users found';
+
+  @override
+  String get back => 'Back';
+
+  @override
+  String get seeAllUsers => 'See all';
+
+  @override
+  String deviceUsersCount(int current, int max) {
+    return '$current/$max';
+  }
+
+  @override
+  String get shareDevice => 'Share';
+
+  @override
+  String get shareLimitReached => 'User limit reached';
+
+  @override
+  String get shareDeviceInviteSubject => 'Vigia invite';
+
+  @override
+  String get shareLinkCopied =>
+      'Link copied. Share it with who you want to invite.';
+
+  @override
+  String get shareLinkError => 'Could not generate the share link';
+
+  @override
+  String get deviceOwner => 'Owner';
+
+  @override
+  String get removeUserTitle => 'Remove user?';
+
+  @override
+  String removeUserMessage(String name) {
+    return 'Remove $name from access to this group\'s devices?';
+  }
+
+  @override
+  String get removeUserConfirm => 'Remove';
+
+  @override
+  String get leaveGroupTitle => 'Leave group?';
+
+  @override
+  String get leaveGroupMessage =>
+      'You will lose access to the shared devices in this group.';
+
+  @override
+  String get leaveGroupConfirm => 'Leave';
+
+  @override
+  String get userRemovedSuccess => 'User removed successfully';
+
+  @override
+  String get leftGroupSuccess => 'You left the group';
+
+  @override
+  String get userRemoveError => 'Could not remove the user';
+
+  @override
+  String get acceptingInvite => 'Accepting invite…';
+
+  @override
+  String get inviteAcceptedSuccess =>
+      'Invite accepted. Shared devices are now available.';
+
+  @override
+  String get inviteAcceptedError => 'Could not accept the invite';
+
+  @override
+  String get clips => 'Clips';
+
+  @override
+  String get viewClips => 'View clips';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get session => 'Session';
 }

@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vigia.API.Contracts;
+using Vigia.API.Helpers;
 using Vigia.API.Models.DTOs.Auth;
 
 namespace Vigia.API.Controllers;
@@ -15,6 +17,7 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// </summary>
     /// <param name="newUserDTO"></param>
     /// <returns></returns>
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] NewUserDTO newUserDTO)
     {
@@ -34,6 +37,7 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// </summary>
     /// <param name="loginUserDTO"></param>
     /// <returns></returns>
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginUserDTO loginUserDTO)
     {
@@ -60,6 +64,7 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     /// </summary>
     /// <param name="refreshToken"></param>
     /// <returns></returns>
+    [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDTO refreshToken)
     {
@@ -98,8 +103,8 @@ public class AuthController(IServiceScopeFactory scopeFactory) : ControllerBase
     {
         using IServiceScope scope = _scopeFactory.CreateScope();
 
-        Guid tokenId = (Guid)HttpContext.Items["tokenId"]!;
-        DateTime expiresAt = (DateTime)HttpContext.Items["expiresAt"]!;
+        Guid tokenId = User.GetTokenId();
+        DateTime expiresAt = User.GetExpiresAt();
 
         IAuthService authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
 

@@ -48,7 +48,7 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
   Future<void> _onConfirm() async {
     final paired = ref.read(devicePairingProvider).device;
     if (paired != null) {
-      ref.read(devicesProvider.notifier).addDevice(paired);
+      ref.read(addDeviceProvider(paired));
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -108,7 +108,7 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             ),
             title: context.translations.connectionEstablished,
             description: context.translations.deviceLinkedSuccess(
-              pairing.device?.description ?? context.translations.appTitle,
+              pairing.device?.name ?? context.translations.appTitle,
             ),
             action: FilledButton(
               onPressed: _onConfirm,

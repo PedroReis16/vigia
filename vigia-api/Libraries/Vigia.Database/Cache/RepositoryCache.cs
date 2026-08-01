@@ -1,11 +1,12 @@
 using Vigia.Cache.Services;
 using Vigia.Models.Entities;
+using Vigia.Database.CacheContracts;
 
 namespace Vigia.Database.Cache;
 
-public class RepositoryCache<TEntity>(IInMemoryCacheService cacheService) : IRepositoryCache<TEntity> where TEntity : BaseEntity
+public class RepositoryCache<TEntity>(IRedisCacheService cacheService) : IRepositoryCache<TEntity> where TEntity : BaseEntity
 {
-    protected IInMemoryCacheService _cacheService = cacheService;
+    protected IRedisCacheService _cacheService = cacheService;
     private static string GetCacheKey(string key) => $"{typeof(TEntity).Name}-{key}";
 
     public virtual void AddEntity(TEntity entity)
@@ -38,7 +39,6 @@ public class RepositoryCache<TEntity>(IInMemoryCacheService cacheService) : IRep
 
     public virtual TEntity? GetEntity(string key)
     {
-        return _cacheService.Get(RepositoryCache<TEntity>.GetCacheKey(key)) as TEntity;
+        return _cacheService.Get<TEntity>(RepositoryCache<TEntity>.GetCacheKey(key));
     }
-
 }

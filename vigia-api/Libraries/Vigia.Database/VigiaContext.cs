@@ -9,6 +9,8 @@ public class VigiaDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserRole> UserRoles { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+    public DbSet<FiwareProperties> FiwareProperties { get; set; } = null!;
+    public DbSet<GroupInvite> GroupInvites { get; set; } = null!;
 
     public VigiaDbContext(DbContextOptions<VigiaDbContext> options) : base(options)
     {
@@ -22,12 +24,13 @@ public class VigiaDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-
         _ = modelBuilder.ApplyConfiguration(new UserRolesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new DevicesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new GroupsConfiguration());
         _ = modelBuilder.ApplyConfiguration(new UsersConfiguration());
         _ = modelBuilder.ApplyConfiguration(new RefreshTokensConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new FiwarePropertiesConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new GroupInvitesConfiguration());
 
         _ = modelBuilder.Ignore<BaseEntity>();
     }

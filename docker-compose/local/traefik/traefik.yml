@@ -1,6 +1,6 @@
 api:
   dashboard: true
-  insecure: false
+  insecure: true
 
 entryPoints:
   web:
@@ -10,4 +10,13 @@ entryPoints:
   mqtt:
     address: ":1883"
 
+providers:
+  docker:
+    exposedByDefault: false
+    network: vigia-network
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
 
+log:
+  level: INFO

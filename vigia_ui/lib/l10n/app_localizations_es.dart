@@ -127,6 +127,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tryAgain => 'Intentar de nuevo';
 
   @override
+  String get devicesLoadError =>
+      'Parece que estamos teniendo problemas técnicos.';
+
+  @override
   String get wifiNetwork => 'Red Wi‑Fi';
 
   @override
@@ -197,10 +201,12 @@ class AppLocalizationsEs extends AppLocalizations {
       'La dirección de correo electrónico ingresada no es una dirección válida';
 
   @override
-  String get passwordInvalid => 'A senha deve ter pelo menos 8 caracteres';
+  String get passwordInvalid =>
+      'La contraseña debe tener al menos 8 caracteres';
 
   @override
-  String get passwordConfirmationInvalid => 'As senhas inseridas não coincidem';
+  String get passwordConfirmationInvalid =>
+      'Las contraseñas ingresadas no coinciden';
 
   @override
   String get userEmailAlreadyInUse =>
@@ -215,4 +221,168 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get createAccount => 'Inscribirse';
+
+  @override
+  String get deviceNickname => 'Nombre';
+
+  @override
+  String get deviceName => 'Nombre del dispositivo';
+
+  @override
+  String get deviceRoom => 'Habitación';
+
+  @override
+  String get deviceIdLabel => 'Identificador';
+
+  @override
+  String get bedroom => 'Dormitorio';
+
+  @override
+  String get livingRoom => 'Sala de estar';
+
+  @override
+  String get kitchen => 'Cocina';
+
+  @override
+  String get bathroom => 'Baño';
+
+  @override
+  String get office => 'Oficina';
+
+  @override
+  String get garage => 'Garaje';
+
+  @override
+  String get backyard => 'Patio trasero';
+
+  @override
+  String get frontyard => 'Patio delantero';
+
+  @override
+  String get online => 'Activo';
+
+  @override
+  String get offline => 'Inactivo';
+
+  @override
+  String get roomNotDefined => 'Habitación no definida';
+
+  @override
+  String get saveClips => 'Guardar clips';
+
+  @override
+  String get whatAreClips => '¿Qué son los clips?';
+
+  @override
+  String get whenEnabledClipsWillStoreClipsForAnalysis =>
+      'Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.';
+
+  @override
+  String get saveChanges => 'Guardar cambios';
+
+  @override
+  String get deviceUpdatedSuccess => 'Dispositivo actualizado con éxito';
+
+  @override
+  String get deviceUpdateError => 'No se pudo actualizar el dispositivo';
+
+  @override
+  String get discardChangesTitle => '¿Descartar cambios?';
+
+  @override
+  String get discardChangesMessage => 'Hay cambios que aún no se han guardado.';
+
+  @override
+  String get discard => 'Descartar';
+
+  @override
+  String get cancel => 'Cancelar';
+
+  @override
+  String get deviceUsers => 'Usuarios';
+
+  @override
+  String get noUsersFound => 'No se encontraron usuarios';
+
+  @override
+  String get back => 'Volver';
+
+  @override
+  String get seeAllUsers => 'Ver todos';
+
+  @override
+  String deviceUsersCount(int current, int max) {
+    return '$current/$max';
+  }
+
+  @override
+  String get shareDevice => 'Compartir';
+
+  @override
+  String get shareLimitReached => 'Límite de usuarios alcanzado';
+
+  @override
+  String get shareDeviceInviteSubject => 'Invitación a Vigia';
+
+  @override
+  String get shareLinkCopied =>
+      'Enlace copiado. Compártelo con quien quieras invitar.';
+
+  @override
+  String get shareLinkError => 'No se pudo generar el enlace de compartición';
+
+  @override
+  String get deviceOwner => 'Propietario';
+
+  @override
+  String get removeUserTitle => '¿Eliminar usuario?';
+
+  @override
+  String removeUserMessage(String name) {
+    return '¿Eliminar a $name del acceso a los dispositivos de este grupo?';
+  }
+
+  @override
+  String get removeUserConfirm => 'Eliminar';
+
+  @override
+  String get leaveGroupTitle => '¿Salir del grupo?';
+
+  @override
+  String get leaveGroupMessage =>
+      'Perderás el acceso a los dispositivos compartidos de este grupo.';
+
+  @override
+  String get leaveGroupConfirm => 'Salir';
+
+  @override
+  String get userRemovedSuccess => 'Usuario eliminado con éxito';
+
+  @override
+  String get leftGroupSuccess => 'Saliste del grupo';
+
+  @override
+  String get userRemoveError => 'No se pudo eliminar el usuario';
+
+  @override
+  String get acceptingInvite => 'Aceptando invitación…';
+
+  @override
+  String get inviteAcceptedSuccess =>
+      'Invitación aceptada. Los dispositivos compartidos ya están disponibles.';
+
+  @override
+  String get inviteAcceptedError => 'No se pudo aceptar la invitación';
+
+  @override
+  String get clips => 'Clips';
+
+  @override
+  String get viewClips => 'Ver clips';
+
+  @override
+  String get account => 'Cuenta';
+
+  @override
+  String get session => 'Sesión';
 }

@@ -13,6 +13,17 @@ services:
       retries: 5
     networks:
       - vigia-network
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: vigia-redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - vigia-network
+    depends_on:
+      - redis
   # ─── POSTGRES ────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:15
@@ -54,33 +65,7 @@ services:
       - vigia-network
 
   # ─── VIGIA ────────────────────────────────────────────────────────────────
-  vigia:
-    container_name: vigia
-    restart: always
-    build: 
-      context: ../
-      dockerfile: dockerfiles/vigia-api.dockerfile
-    env_file:
-      - default.env
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
-      - "traefik.http.routers.vigia.entrypoints=websecure"
-      - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vigia.loadbalancer.server.port=8000"
-      - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
-      - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
-    networks:
-      - vigia-network
+  
 
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
@@ -89,12 +74,15 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "81:80"   # ApiUrls.Fiware → http://localhost:81/fiware
       - "443:443"
+      - "1883:1883"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     networks:
       - vigia-network
 
@@ -134,12 +122,14 @@ services:
   # ─── ORION ────────────────────────────────────────────────────────────────
   orion:
     image: fiware/orion:3.11.0
+    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-orion
     hostname: orion
     profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
+      - traefik
     expose:
       - "1026"
     command: >
@@ -151,10 +141,8 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/orion`)"
-      - "traefik.http.routers.orion.entrypoints=websecure"
-      - "traefik.http.routers.orion.tls=true"
-      - "traefik.http.routers.orion.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/orion`)"
+      - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
       - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/fiware/orion"
@@ -162,14 +150,16 @@ services:
       - vigia-network
 
   # ─── STH-COMET ────────────────────────────────────────────────────────────
-  fiware-sth-comet:
+  sth-comet:
     image: telefonicaiot/fiware-sth-comet
+    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-sth-comet
     hostname: sth-comet
     profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
+      - traefik
     expose:
       - "8666"
     environment:
@@ -183,10 +173,8 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/sth-comet`)"
-      - "traefik.http.routers.sth.entrypoints=websecure"
-      - "traefik.http.routers.sth.tls=true"
-      - "traefik.http.routers.sth.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/sth-comet`)"
+      - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
       - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/fiware/sth-comet"
@@ -196,6 +184,7 @@ services:
   # ─── IOT AGENT ────────────────────────────────────────────────────────────
   iot-agent:
     image: fiware/iotagent-ul:latest
+    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-iot-agent
     hostname: iot-agent
@@ -203,6 +192,7 @@ services:
     depends_on:
       - mongo-db-internal
       - mosquitto
+      - traefik
     expose:
       - "4041"
     environment:
@@ -220,14 +210,12 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/iot-agent`)"
-      - "traefik.http.routers.iot.entrypoints=websecure"
-      - "traefik.http.routers.iot.tls=true"
-      - "traefik.http.routers.iot.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/iot`)"
+      - "traefik.http.routers.iot.entrypoints=web"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
-      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware/iot-agent"
-
+      # Strip só /fiware para preservar /iot/... esperado pelo IoT Agent (ex: /iot/about)
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware"
     networks:
       - vigia-network
 
@@ -241,14 +229,14 @@ services:
     expose:
       - "1883"
       - "9001"
+    depends_on:
+      - traefik
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/mosquitto`)"
-      - "traefik.http.routers.mqttws.entrypoints=websecure"
-      - "traefik.http.routers.mqttws.tls=true"
-      - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
       - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
       - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
@@ -288,4 +276,6 @@ volumes:
 
 networks:
   vigia-network:
+    name: vigia-network
     driver: bridge
+

@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
-import 'package:vigia_ui/domain/constants.dart';
+import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
+import 'package:vigia_ui/domain/environments.dart';
 
 part 'device_pairing_provider.g.dart';
 
@@ -19,12 +21,12 @@ class DevicePairingState {
   });
 
   final DevicePairingStage stage;
-  final Device? device;
+  final NewDevice? device;
   final String? errorMessage;
 
   DevicePairingState copyWith({
     DevicePairingStage? stage,
-    Device? device,
+    NewDevice? device,
     String? errorMessage,
   }) {
     return DevicePairingState(
@@ -97,14 +99,16 @@ class DevicePairing extends _$DevicePairing {
         device,
         ssid: ssid.trim(),
         password: password,
-        apiToken: Constants.localDevApiToken,
+        apiToken: Environments.apiUrl,
       );
 
       state = DevicePairingState(
         stage: DevicePairingStage.connected,
-        device: Device(
+        device: NewDevice(
           id: identity.deviceId,
-          description: _bleName ?? 'Vigia',
+          name: _bleName ?? 'Vigia',
+          signPublicKey: identity.signPub,
+          macAddress: identity.macAddress,
         ),
       );
     } catch (error) {
@@ -134,7 +138,9 @@ class DevicePairing extends _$DevicePairing {
           : result.device.platformName.trim();
       _bleName = name;
 
-      state = const DevicePairingState(stage: DevicePairingStage.authenticating);
+      state = const DevicePairingState(
+        stage: DevicePairingStage.authenticating,
+      );
 
       final identity = await _ble.readIdentity(result.device);
       _deviceIdentity = identity;

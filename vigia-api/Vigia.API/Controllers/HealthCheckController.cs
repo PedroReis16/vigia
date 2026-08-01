@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Vigia.API.Controllers;
@@ -6,6 +7,7 @@ namespace Vigia.API.Controllers;
 [Route("[controller]")]
 public class HealthCheckController : ControllerBase
 {
+    [AllowAnonymous]
     [HttpGet]
     public IActionResult Get()
     {

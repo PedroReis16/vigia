@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 
-class MenuComponent extends StatelessWidget {
+class MenuComponent extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onItemTap;
 
@@ -11,7 +13,7 @@ class MenuComponent extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -22,7 +24,14 @@ class MenuComponent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           IconButton(
-            onPressed: () => onItemTap(0),
+            onPressed: () {
+              if (!ref.watch(devicesProvider).isLoading && currentIndex == 0) {
+                ref.read(devicesProvider.notifier).refresh();
+                return;
+              }
+
+              onItemTap(0);
+            },
             icon: Icon(
               Icons.dashboard_rounded,
               color: currentIndex == 0

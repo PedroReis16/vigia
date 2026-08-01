@@ -13,17 +13,14 @@ typedef GroupMembershipHandler = void Function(GroupMembershipChanged event);
 /// Thin wrapper around the ASP.NET Core SignalR device-groups hub.
 class DeviceGroupsRealtimeService {
   DeviceGroupsRealtimeService({
-    required TokenStorageService tokenStorage,
-    required Dio refreshDio,
-  }) : _tokenStorage = tokenStorage,
-       _refreshDio = refreshDio;
-
-  static const _hubPath = '/hubs/device-groups';
-  static const _membershipChangedEvent = 'GroupMembershipChanged';
+    required this._tokenStorage,
+    required this._refreshDio,
+  });
 
   final TokenStorageService _tokenStorage;
   final Dio _refreshDio;
-
+  static const _hubPath = '/hubs/device-groups';
+  static const _membershipChangedEvent = 'GroupMembershipChanged';
   HubConnection? _connection;
   final _handlers = <GroupMembershipHandler>{};
 

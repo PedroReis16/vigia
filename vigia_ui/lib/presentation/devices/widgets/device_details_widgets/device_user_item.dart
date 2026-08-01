@@ -35,7 +35,7 @@ class DeviceUserItem extends StatelessWidget {
                       ? Image.network(
                           user.userPicture!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => ColoredBox(
+                          errorBuilder: (_, _, _) => ColoredBox(
                             color: Colors.grey.shade300,
                             child: const Icon(Icons.person),
                           ),
@@ -51,10 +51,7 @@ class DeviceUserItem extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      user.name,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(user.name, overflow: TextOverflow.ellipsis),
                     if (user.isOwner)
                       Text(
                         t.deviceOwner,

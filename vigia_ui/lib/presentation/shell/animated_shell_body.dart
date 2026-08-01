@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vigia_ui/core/providers/app_bar_config.dart';
 
 class AnimatedShellBody extends StatefulWidget {
   final StatefulNavigationShell navigationShell;

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 #if DEBUG
+using Vigia.Models.Entities;
 using Vigia.Models.Seed;
 #endif
 
@@ -45,15 +46,27 @@ public class MigrationStartupFilter<TContext> : IStartupFilter where TContext : 
         if (context is not VigiaDbContext db)
             return;
 
-        if (db.Devices.Any(d => d.Id == TestDeviceSeed.Id))
+        Device? existing = db.Devices.FirstOrDefault(d => d.Id == TestDeviceSeed.Id);
+        if (existing == null)
+        {
+            db.Devices.Add(TestDeviceSeed.Create());
+            db.SaveChanges();
+            logger?.LogInformation(
+                "Device de teste {DeviceId} ({DeviceName}) seedado no banco (DEBUG)",
+                TestDeviceSeed.Id,
+                TestDeviceSeed.Name);
             return;
+        }
 
-        db.Devices.Add(TestDeviceSeed.Create());
-        db.SaveChanges();
-        logger?.LogInformation(
-            "Device de teste {DeviceId} ({DeviceName}) seedado no banco (DEBUG)",
-            TestDeviceSeed.Id,
-            TestDeviceSeed.Name);
+        // Keep DEBUG test device sign key in sync with TestDeviceSeed (pair used by seed-codes).
+        if (!string.Equals(existing.SignPublicKey, TestDeviceSeed.SignPublicKey, StringComparison.OrdinalIgnoreCase))
+        {
+            existing.SignPublicKey = TestDeviceSeed.SignPublicKey;
+            db.SaveChanges();
+            logger?.LogInformation(
+                "SignPublicKey do device de teste {DeviceId} atualizada (DEBUG)",
+                TestDeviceSeed.Id);
+        }
     }
 #endif
 }

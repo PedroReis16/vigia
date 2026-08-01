@@ -35,7 +35,7 @@ namespace Vigia.Database.Migrations
 
                     b.HasIndex("LinkedUsersId");
 
-                    b.ToTable("GroupUser");
+                    b.ToTable("GroupUser", (string)null);
                 });
 
             modelBuilder.Entity("UserUserRole", b =>
@@ -50,7 +50,7 @@ namespace Vigia.Database.Migrations
 
                     b.HasIndex("UsersId");
 
-                    b.ToTable("UserUserRole");
+                    b.ToTable("UserUserRole", (string)null);
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.Device", b =>

@@ -10,7 +10,22 @@ enum DeviceRooms {
 }
 
 extension DeviceRoomsExtension on DeviceRooms {
-  static DeviceRooms? fromString(String value) {
+  String toApiString() {
+    return switch (this) {
+      DeviceRooms.bedroom => 'Bedroom',
+      DeviceRooms.livingRoom => 'LivingRoom',
+      DeviceRooms.kitchen => 'Kitchen',
+      DeviceRooms.bathroom => 'Bathroom',
+      DeviceRooms.office => 'Office',
+      DeviceRooms.garage => 'Garage',
+      DeviceRooms.backyard => 'Backyard',
+      DeviceRooms.frontyard => 'Frontyard',
+    };
+  }
+
+  static DeviceRooms? fromString(String? value) {
+    if (value == null) return null;
+
     switch (value) {
       case 'Bedroom':
         return DeviceRooms.bedroom;

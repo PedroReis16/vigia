@@ -5,7 +5,7 @@ class StepTile extends StatelessWidget {
     required this.number,
     required this.title,
     required this.description,
-    super.key
+    super.key,
   });
 
   final int number;
@@ -31,10 +31,9 @@ class StepTile extends StatelessWidget {
           ),
           child: Text(
             '$number',
-            style: TextStyle(
+            style: textTheme.labelLarge?.copyWith(
               color: colorScheme.onPrimary,
               fontWeight: FontWeight.w700,
-              fontSize: 13,
             ),
           ),
         ),
@@ -45,7 +44,12 @@ class StepTile extends StatelessWidget {
             children: [
               Text(title, style: textTheme.titleMedium),
               const SizedBox(height: 2),
-              Text(description, style: textTheme.bodySmall),
+              Text(
+                description,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),

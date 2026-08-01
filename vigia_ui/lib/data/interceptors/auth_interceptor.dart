@@ -3,14 +3,11 @@ import 'package:vigia_ui/data/services/token_storage_service.dart';
 
 class AuthInterceptor extends QueuedInterceptor {
   AuthInterceptor({
-    required Dio dio,
-    required Dio refreshDio,
-    required TokenStorageService tokenStorage,
-    required Future<void> Function() onRefreshFailed,
-  }) : _dio = dio,
-       _refreshDio = refreshDio,
-       _tokenStorage = tokenStorage,
-       _onRefreshFailed = onRefreshFailed;
+    required this._dio,
+    required this._refreshDio,
+    required this._tokenStorage,
+    required this._onRefreshFailed,
+  });
 
   final Dio _dio;
   final Dio _refreshDio;

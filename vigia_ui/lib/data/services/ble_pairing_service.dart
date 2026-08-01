@@ -153,11 +153,12 @@ class BlePairingService {
     }
   }
 
+  /// Writes Wi‑Fi credentials. Device replies with CONNECTING and connects async.
   Future<void> provision(
     BluetoothDevice device, {
     required String ssid,
     required String password,
-    String apiToken = "ASDBASDA",
+    required String apiBaseUrl,
   }) async {
     final characteristic = await _requireCharacteristic(
       device,
@@ -167,7 +168,7 @@ class BlePairingService {
     final payload = jsonEncode({
       'ssid': ssid,
       'password': password,
-      'api_token': apiToken,
+      'api_base_url': apiBaseUrl,
     });
 
     await characteristic.write(
@@ -175,11 +176,45 @@ class BlePairingService {
       withoutResponse: false,
       allowLongWrite: true,
     );
+  }
 
-    final status = utf8.decode(await characteristic.read()).trim();
-    if (status != 'SUCCESS') {
-      throw StateError('Provisionamento BLE falhou: $status');
+  Future<String> readProvisionStatus(BluetoothDevice device) async {
+    final characteristic = await _requireCharacteristic(
+      device,
+      Constants.charProvisionUuid,
+    );
+    return utf8.decode(await characteristic.read()).trim();
+  }
+
+  /// Polls provision status until a terminal value or [timeout].
+  ///
+  /// Terminal: SUCCESS, WIFI_FAIL, UNAUTHORIZED, ERROR_PAYLOAD.
+  Future<String> pollProvisionStatus(
+    BluetoothDevice device, {
+    Duration timeout = const Duration(seconds: 60),
+    Duration interval = const Duration(milliseconds: 500),
+  }) async {
+    const terminal = {
+      'SUCCESS',
+      'WIFI_FAIL',
+      'UNAUTHORIZED',
+      'ERROR_PAYLOAD',
+    };
+
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      final status = await readProvisionStatus(device);
+      if (terminal.contains(status)) {
+        return status;
+      }
+      await Future<void>.delayed(interval);
     }
+
+    throw TimeoutException(
+      'Tempo esgotado aguardando conexão Wi‑Fi do dispositivo.',
+      timeout,
+    );
   }
 
   Future<void> disconnect(BluetoothDevice? device) async {

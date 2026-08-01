@@ -2,11 +2,11 @@
 Variáveis de ambiente do projeto
 """
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
-import os
-from .helpers import helpers_convert_to_bool
 from dotenv import load_dotenv
+from .helpers import helpers_convert_to_bool
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     frame_rate: int = 12
     slider_window_size: int = 30
     data_dir: str = "/opt/vigia"
+    debug: bool = True
+    wifi_mock_result: str = "success"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,7 +36,9 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             yolo_pose_model=os.getenv("YOLO_POSE_MODEL", "yolo26s-pose"),
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
-            data_dir=os.getenv("DATA_DIR"),
+            data_dir=os.getenv("DATA_DIR", "/opt/vigia") or "/opt/vigia",
+            debug=helpers_convert_to_bool(os.getenv("DEBUG", "true")),
+            wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
         )
 
 

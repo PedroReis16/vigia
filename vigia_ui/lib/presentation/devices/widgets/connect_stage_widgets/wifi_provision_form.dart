@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
 
 class WifiProvisionForm extends StatefulWidget {
   const WifiProvisionForm({
@@ -111,8 +112,9 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
 
     final ssid = _selectedSsid;
     if (ssid == null || ssid.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.translations.selectOrEnterWifi)),
+      context.showSnackbar(
+        message: context.translations.selectOrEnterWifi,
+        color: Theme.of(context).colorScheme.error,
       );
       return;
     }
@@ -121,6 +123,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
     try {
       await widget.onSubmit(ssid, _passwordController.text);
@@ -159,12 +162,18 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                   tooltip: context.translations.refreshNetworks,
                   onPressed: busy || _loadingNetworks ? null : _loadNetworks,
                   icon: _loadingNetworks
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.primary,
+                          ),
                         )
-                      : const Icon(Icons.refresh),
+                      : Icon(
+                          Icons.refresh_rounded,
+                          color: colorScheme.primary,
+                        ),
                 ),
             ],
           ),
@@ -173,7 +182,9 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             _wifiScan.isScanSupported
                 ? context.translations.selectWifiHint
                 : context.translations.manualWifiHintIos,
-            style: textTheme.bodySmall,
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           if (_scanError != null) ...[
@@ -183,10 +194,16 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             ),
             const SizedBox(height: 8),
           ],
-          Expanded(child: _buildNetworkSection(textTheme, colorScheme, busy)),
+          // List mode expands to fill; manual entry stacks fields naturally.
+          if (_manualEntry)
+            _buildNetworkSection(textTheme, colorScheme, busy)
+          else
+            Expanded(
+              child: _buildNetworkSection(textTheme, colorScheme, busy),
+            ),
           if (hasSelection) ...[
             const SizedBox(height: 12),
-            if (_requiresPassword) ...[
+            if (_requiresPassword)
               TextFormField(
                 controller: _passwordController,
                 enabled: !busy,
@@ -195,6 +212,10 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                 onFieldSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
                   labelText: context.translations.networkPassword,
+                  prefixIcon: Icon(
+                    Icons.lock_outline,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   suffixIcon: IconButton(
                     onPressed: busy
                         ? null
@@ -215,24 +236,33 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                   }
                   return null;
                 },
-              ),
-            ] else
+              )
+            else
               Text(
                 context.translations.openNetworkNoPassword,
-                style: textTheme.bodySmall,
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 textAlign: TextAlign.center,
               ),
           ],
+          if (_manualEntry) const Spacer(),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: busy || !hasSelection ? null : _submit,
-            child: busy
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(context.translations.sendCredentials),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: busy || !hasSelection ? null : _submit,
+              child: busy
+                  ? SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.onPrimary,
+                      ),
+                    )
+                  : Text(context.translations.sendCredentials),
+            ),
           ),
         ],
       ),
@@ -246,6 +276,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
   ) {
     if (_manualEntry) {
       return Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextFormField(
@@ -255,12 +286,17 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.translations.networkSsid,
+              prefixIcon: Icon(
+                Icons.wifi,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
             const SizedBox(height: 8),
             TextButton(
               onPressed: busy ? null : _loadNetworks,
+              style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
               child: Text(context.translations.backToFoundNetworks),
             ),
           ],
@@ -269,7 +305,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     }
 
     if (_loadingNetworks) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
 
     if (_networks.isEmpty) {
@@ -279,7 +315,9 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           children: [
             Text(
               context.translations.noNetworksAvailable,
-              style: textTheme.bodyMedium,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -295,30 +333,83 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     return Column(
       children: [
         Expanded(
-          child: ListView.separated(
-            itemCount: _networks.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final network = _networks[index];
-              final selected = _selectedNetwork?.ssid == network.ssid;
+          child: Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            child: ListView.separated(
+              itemCount: _networks.length,
+              separatorBuilder: (_, _) => Divider(
+                height: 1,
+                indent: 52,
+                color: colorScheme.outlineVariant,
+              ),
+              itemBuilder: (context, index) {
+                final network = _networks[index];
+                final selected = _selectedNetwork?.ssid == network.ssid;
 
-              return ListTile(
-                selected: selected,
-                selectedTileColor: colorScheme.primaryContainer,
-                leading: Icon(
-                  network.isSecure ? Icons.lock_outline : Icons.wifi,
-                  color: selected ? colorScheme.primary : null,
-                ),
-                title: Text(network.ssid),
-                subtitle: Text(_signalLabel(network.signalLevel)),
-                trailing: _SignalIcon(level: network.signalLevel),
-                onTap: busy ? null : () => _selectNetwork(network),
-              );
-            },
+                return InkWell(
+                  onTap: busy ? null : () => _selectNetwork(network),
+                  child: ColoredBox(
+                    color: selected
+                        ? colorScheme.primaryContainer
+                        : Colors.transparent,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            network.isSecure
+                                ? Icons.lock_outline
+                                : Icons.wifi,
+                            size: 22,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  network.ssid,
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _signalLabel(network.signalLevel),
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          _SignalIcon(level: network.signalLevel),
+                          if (selected) ...[
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.check_rounded,
+                              size: 20,
+                              color: colorScheme.primary,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
         TextButton(
           onPressed: busy ? null : _enableManualEntry,
+          style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
           child: Text(context.translations.enterAnotherNetwork),
         ),
       ],

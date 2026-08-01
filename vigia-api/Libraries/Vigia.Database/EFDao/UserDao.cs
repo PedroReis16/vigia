@@ -29,8 +29,16 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
         {
             result = Cache.GetEntity(key.ToString()!);
 
-            if (result != null)
+            // Ignore stale login stubs cached without Name/LinkedGroups.
+            if (result != null &&
+                !string.IsNullOrEmpty(result.Name) &&
+                result.LinkedGroups != null)
+            {
                 return result;
+            }
+
+            if (result != null)
+                Cache.RemoveEntity(result);
         }
 
         IQueryable<User> query = Context.Set<User>()
@@ -68,9 +76,8 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
 
         result = await query.FirstOrDefaultAsync();
 
-        if (result != null)
-            Cache?.AddEntity(result);
-
+        // Never cache this projection: it omits Name/Email/LinkedGroups and would
+        // poison FindAsync(userId) used by track/claim and other flows.
         return result;
     }
 

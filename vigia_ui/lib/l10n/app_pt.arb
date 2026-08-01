@@ -43,6 +43,10 @@
   "connectingDescription": "Dispositivo encontrado. Estabelecendo a conexão com o Vigia…",
   "authenticatingTitle": "Validando dispositivo",
   "authenticatingDescription": "Confirmando a identidade do Vigia e autenticando o aplicativo…",
+  "registeringTitle": "Registrando dispositivo",
+  "registeringDescription": "Criando o registro do dispositivo nos servidores Vigia…",
+  "testingNetworkTitle": "Testando a rede",
+  "testingNetworkDescription": "Aguardando o Vigia conectar ao Wi‑Fi…",
   "connectionEstablished": "Conexão estabelecida",
   "deviceLinkedSuccess": "{deviceName} foi vinculado com sucesso.",
   "@deviceLinkedSuccess": {

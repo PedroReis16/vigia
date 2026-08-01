@@ -23,11 +23,11 @@ class Device {
 
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
-      id: json['id'],
-      name: json['name'],
-      nickname: json['nickname'],
-      ownerId: json['ownerId'],
-      thumbnailUrl: json['thumbnailUrl'],
+      id: json['id'].toString(),
+      name: json['name'] as String? ?? '',
+      nickname: json['nickname'] as String?,
+      ownerId: json['ownerId']?.toString() ?? '',
+      thumbnailUrl: json['thumbnailUrl'] as String?,
       room: DeviceRoomsExtension.fromString(json['room'] as String?),
       isRunning: json['isRunning'] as bool? ?? false,
       isClipsEnabled: json['isClipsEnabled'] as bool? ?? false,

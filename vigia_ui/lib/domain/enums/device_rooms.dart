@@ -1,4 +1,5 @@
 enum DeviceRooms {
+  notDefined,
   bedroom,
   livingRoom,
   kitchen,
@@ -20,6 +21,7 @@ extension DeviceRoomsExtension on DeviceRooms {
       DeviceRooms.garage => 'Garage',
       DeviceRooms.backyard => 'Backyard',
       DeviceRooms.frontyard => 'Frontyard',
+      _ => throw UnimplementedError(),
     };
   }
 

@@ -6,20 +6,36 @@ class VideoPreview extends StatelessWidget {
 
   final VideoPlayerController controller;
 
+  static const _borderRadius = BorderRadius.all(Radius.circular(16));
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (!controller.value.isInitialized) {
-      return const SizedBox(
+      return Container(
         height: 180,
-        child: Center(child: CircularProgressIndicator()),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: _borderRadius,
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: const CircularProgressIndicator(strokeWidth: 2),
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: AspectRatio(
-        aspectRatio: controller.value.aspectRatio,
-        child: VideoPlayer(controller),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: _borderRadius,
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: ClipRRect(
+        borderRadius: _borderRadius,
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: VideoPlayer(controller),
+        ),
       ),
     );
   }

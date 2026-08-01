@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives import serialization
 is_connected: bool = False
 
 
-def __register_device() -> tuple[UUID, str]:
+def __register_device() -> tuple[UUID, str, str]:
     """
     Registro das informações iniciais do dispositivo
     """
@@ -27,11 +27,11 @@ def __register_device() -> tuple[UUID, str]:
     tracked_device = get_device()
 
     if tracked_device:
-        return tracked_device.id, tracked_device.name
+        return tracked_device.id, tracked_device.name, tracked_device.mac_address
 
     device = create_device(device_name, mac_address)
 
-    return device.id, device.name
+    return device.id, device.name, device.mac_address
 
 
 def __load_or_create_device_identity(
@@ -97,12 +97,14 @@ async def initialize_device() -> None:
 
     create_database()
 
-    device_id, device_name = __register_device()
+    device_id, device_name, mac_address = __register_device()
     sign_priv, ecdh_priv = __load_or_create_device_identity(device_id, device_name)
 
-    await init_register_beacon(device_id, device_name, sign_priv, ecdh_priv)
+    await init_register_beacon(
+        device_id, device_name, mac_address, sign_priv, ecdh_priv
+    )
 
-    # while not is_connected:
-    #     await asyncio.sleep(1)
+    while not is_connected:
+        await asyncio.sleep(1)
 
-    # print("Device connected")
+    print("Device connected")

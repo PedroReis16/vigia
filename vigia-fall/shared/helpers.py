@@ -23,5 +23,9 @@ def helpers_get_mac_address() -> str:
     """
     Retorna o endereço MAC do dispositivo principal
     """
-    main_mac = get_mac_address() # Retorna o endereço MAC do dispositivo principal
+    main_mac = get_mac_address()  # Retorna o endereço MAC do dispositivo principal
+    if not main_mac:
+        raise RuntimeError(
+            "Não foi possível obter o endereço MAC do dispositivo"
+        )
     return main_mac

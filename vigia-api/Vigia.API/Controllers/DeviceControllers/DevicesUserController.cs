@@ -9,9 +9,10 @@ namespace Vigia.API.Controllers.DeviceControllers;
 [ApiController]
 [Route("devices/{deviceId}/users")]
 [Authorize]
-public class DevicesUsersController(IDeviceUsersService service) : ControllerBase
+public class DevicesUsersController(IDeviceUsersService service, IDevicesService devicesService) : ControllerBase
 {
     private readonly IDeviceUsersService _service = service;
+    private readonly IDevicesService _devicesService = devicesService;
 
     /// <summary>
     /// Listar usuários de um dispositivo
@@ -57,11 +58,19 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
     [HttpPatch("track")]
     public async Task<IActionResult> TrackDeviceUser(Guid deviceId)
     {
-        Guid userId = User.GetUserId();
+        try
+        {
+            Guid userId = User.GetUserId();
 
-        // await _service.TrackDeviceUserAsync(deviceId, userId);
+            await _devicesService.TrackDeviceUserAsync(deviceId, userId);
 
-        return Ok(new { message = "Dispositivo vinculado ao usuário com sucesso" });
+            return Ok(new { message = "Dispositivo vinculado ao usuário com sucesso" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception) { throw; }
     }
 
     /// <summary>
@@ -74,7 +83,7 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
         {
             Guid userId = User.GetUserId();
 
-            // await _service.UntrackedDeviceUserAsync(deviceId, userId);
+            await _devicesService.UntrackedDeviceUserAsync(deviceId, userId);
 
             return Ok(new { message = "Dispositivo desvinculado do usuário com sucesso" });
         }
@@ -82,9 +91,6 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
         {
             return Forbid();
         }
-        catch (Exception)
-        {
-            throw;
-        }
+        catch (Exception) { throw; }
     }
 }

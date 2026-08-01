@@ -106,6 +106,20 @@ class AppLocalizationsEs extends AppLocalizations {
       'Confirmando la identidad del Vigia y autenticando la aplicación…';
 
   @override
+  String get registeringTitle => 'Registrando dispositivo';
+
+  @override
+  String get registeringDescription =>
+      'Creando el registro del dispositivo en los servidores Vigia…';
+
+  @override
+  String get testingNetworkTitle => 'Probando la red';
+
+  @override
+  String get testingNetworkDescription =>
+      'Esperando a que Vigia se conecte al Wi‑Fi…';
+
+  @override
   String get connectionEstablished => 'Conexión establecida';
 
   @override

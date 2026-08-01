@@ -19,13 +19,15 @@ class DeviceDetailsPage extends ConsumerStatefulWidget {
   ConsumerState<DeviceDetailsPage> createState() => _DeviceDetailsPageState();
 }
 
-class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
+class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
+    with WidgetsBindingObserver {
   late final VideoPlayerController _controller;
   bool _fullscreen = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = VideoPlayerController.asset('assets/videos/demo.mp4')
       ..setLooping(true)
       ..initialize().then((_) {
@@ -37,9 +39,16 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _restoreSystemUi();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // Rebuild when the soft keyboard opens/closes so the video can collapse.
+    if (mounted) setState(() {});
   }
 
   DeviceUIModel? _resolveDevice(List<DeviceUIModel>? devices) {
@@ -133,7 +142,14 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
       );
     }
 
+    // BasePage's Scaffold already consumes MediaQuery.viewInsets, so reading
+    // viewInsetsOf here is always 0. Use the platform view inset instead, and
+    // depend on size so we still rebuild when the keyboard opens/closes.
+    MediaQuery.sizeOf(context);
+    final keyboardVisible = View.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: _RouteReveal(
@@ -150,13 +166,21 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: DeviceVideoPlayer(
-              controller: _controller,
-              fullscreen: false,
-              onToggleFullscreen: _toggleFullscreen,
-              heroTag: heroTag,
+          ClipRect(
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              heightFactor: keyboardVisible ? 0 : 1,
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: DeviceVideoPlayer(
+                  controller: _controller,
+                  fullscreen: false,
+                  onToggleFullscreen: _toggleFullscreen,
+                  heroTag: heroTag,
+                ),
+              ),
             ),
           ),
           Expanded(

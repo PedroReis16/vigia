@@ -109,5 +109,44 @@
   "discardChangesTitle": "¿Descartar cambios?",
   "discardChangesMessage": "Hay cambios que aún no se han guardado.",
   "discard": "Descartar",
-  "cancel": "Cancelar"
+  "cancel": "Cancelar",
+  "deviceUsers": "Usuarios",
+  "noUsersFound": "No se encontraron usuarios",
+  "back": "Volver",
+  "seeAllUsers": "Ver todos",
+  "deviceUsersCount": "{current}/{max}",
+  "@deviceUsersCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "shareDevice": "Compartir",
+  "shareLimitReached": "Límite de usuarios alcanzado",
+  "shareDeviceInviteSubject": "Invitación a Vigia",
+  "shareLinkCopied": "Enlace copiado. Compártelo con quien quieras invitar.",
+  "shareLinkError": "No se pudo generar el enlace de compartición",
+  "deviceOwner": "Propietario",
+  "removeUserTitle": "¿Eliminar usuario?",
+  "removeUserMessage": "¿Eliminar a {name} del acceso a los dispositivos de este grupo?",
+  "@removeUserMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "removeUserConfirm": "Eliminar",
+  "leaveGroupTitle": "¿Salir del grupo?",
+  "leaveGroupMessage": "Perderás el acceso a los dispositivos compartidos de este grupo.",
+  "leaveGroupConfirm": "Salir",
+  "userRemovedSuccess": "Usuario eliminado con éxito",
+  "leftGroupSuccess": "Saliste del grupo",
+  "userRemoveError": "No se pudo eliminar el usuario",
+  "acceptingInvite": "Aceptando invitación…",
+  "inviteAcceptedSuccess": "Invitación aceptada. Los dispositivos compartidos ya están disponibles.",
+  "inviteAcceptedError": "No se pudo aceptar la invitación",
+  "clips": "Clips",
+  "viewClips": "Ver clips",
+  "account": "Cuenta",
+  "session": "Sesión"
 }
+

@@ -109,5 +109,44 @@
   "discardChangesTitle": "Discard changes?",
   "discardChangesMessage": "There are unsaved changes.",
   "discard": "Discard",
-  "cancel": "Cancel"
+  "cancel": "Cancel",
+  "deviceUsers": "Users",
+  "noUsersFound": "No users found",
+  "back": "Back",
+  "seeAllUsers": "See all",
+  "deviceUsersCount": "{current}/{max}",
+  "@deviceUsersCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "shareDevice": "Share",
+  "shareLimitReached": "User limit reached",
+  "shareDeviceInviteSubject": "Vigia invite",
+  "shareLinkCopied": "Link copied. Share it with who you want to invite.",
+  "shareLinkError": "Could not generate the share link",
+  "deviceOwner": "Owner",
+  "removeUserTitle": "Remove user?",
+  "removeUserMessage": "Remove {name} from access to this group's devices?",
+  "@removeUserMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "removeUserConfirm": "Remove",
+  "leaveGroupTitle": "Leave group?",
+  "leaveGroupMessage": "You will lose access to the shared devices in this group.",
+  "leaveGroupConfirm": "Leave",
+  "userRemovedSuccess": "User removed successfully",
+  "leftGroupSuccess": "You left the group",
+  "userRemoveError": "Could not remove the user",
+  "acceptingInvite": "Accepting invite…",
+  "inviteAcceptedSuccess": "Invite accepted. Shared devices are now available.",
+  "inviteAcceptedError": "Could not accept the invite",
+  "clips": "Clips",
+  "viewClips": "View clips",
+  "account": "Account",
+  "session": "Session"
 }
+

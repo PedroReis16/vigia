@@ -633,6 +633,168 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Cancelar'**
   String get cancel;
+
+  /// No description provided for @deviceUsers.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usuários'**
+  String get deviceUsers;
+
+  /// No description provided for @noUsersFound.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nenhum usuário encontrado'**
+  String get noUsersFound;
+
+  /// No description provided for @back.
+  ///
+  /// In pt, this message translates to:
+  /// **'Voltar'**
+  String get back;
+
+  /// No description provided for @seeAllUsers.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ver todos'**
+  String get seeAllUsers;
+
+  /// No description provided for @deviceUsersCount.
+  ///
+  /// In pt, this message translates to:
+  /// **'{current}/{max}'**
+  String deviceUsersCount(int current, int max);
+
+  /// No description provided for @shareDevice.
+  ///
+  /// In pt, this message translates to:
+  /// **'Compartilhar'**
+  String get shareDevice;
+
+  /// No description provided for @shareLimitReached.
+  ///
+  /// In pt, this message translates to:
+  /// **'Limite de usuários atingido'**
+  String get shareLimitReached;
+
+  /// No description provided for @shareDeviceInviteSubject.
+  ///
+  /// In pt, this message translates to:
+  /// **'Convite para o Vigia'**
+  String get shareDeviceInviteSubject;
+
+  /// No description provided for @shareLinkCopied.
+  ///
+  /// In pt, this message translates to:
+  /// **'Link copiado. Compartilhe com quem deseja convidar.'**
+  String get shareLinkCopied;
+
+  /// No description provided for @shareLinkError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível gerar o link de compartilhamento'**
+  String get shareLinkError;
+
+  /// No description provided for @deviceOwner.
+  ///
+  /// In pt, this message translates to:
+  /// **'Proprietário'**
+  String get deviceOwner;
+
+  /// No description provided for @removeUserTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Remover usuário?'**
+  String get removeUserTitle;
+
+  /// No description provided for @removeUserMessage.
+  ///
+  /// In pt, this message translates to:
+  /// **'Remover {name} do acesso aos dispositivos deste grupo?'**
+  String removeUserMessage(String name);
+
+  /// No description provided for @removeUserConfirm.
+  ///
+  /// In pt, this message translates to:
+  /// **'Remover'**
+  String get removeUserConfirm;
+
+  /// No description provided for @leaveGroupTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sair do grupo?'**
+  String get leaveGroupTitle;
+
+  /// No description provided for @leaveGroupMessage.
+  ///
+  /// In pt, this message translates to:
+  /// **'Você perderá o acesso aos dispositivos compartilhados neste grupo.'**
+  String get leaveGroupMessage;
+
+  /// No description provided for @leaveGroupConfirm.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sair'**
+  String get leaveGroupConfirm;
+
+  /// No description provided for @userRemovedSuccess.
+  ///
+  /// In pt, this message translates to:
+  /// **'Usuário removido com sucesso'**
+  String get userRemovedSuccess;
+
+  /// No description provided for @leftGroupSuccess.
+  ///
+  /// In pt, this message translates to:
+  /// **'Você saiu do grupo'**
+  String get leftGroupSuccess;
+
+  /// No description provided for @userRemoveError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível remover o usuário'**
+  String get userRemoveError;
+
+  /// No description provided for @acceptingInvite.
+  ///
+  /// In pt, this message translates to:
+  /// **'Aceitando convite…'**
+  String get acceptingInvite;
+
+  /// No description provided for @inviteAcceptedSuccess.
+  ///
+  /// In pt, this message translates to:
+  /// **'Convite aceito. Os dispositivos compartilhados já estão disponíveis.'**
+  String get inviteAcceptedSuccess;
+
+  /// No description provided for @inviteAcceptedError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível aceitar o convite'**
+  String get inviteAcceptedError;
+
+  /// No description provided for @clips.
+  ///
+  /// In pt, this message translates to:
+  /// **'Clips'**
+  String get clips;
+
+  /// No description provided for @viewClips.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ver clips'**
+  String get viewClips;
+
+  /// No description provided for @account.
+  ///
+  /// In pt, this message translates to:
+  /// **'Conta'**
+  String get account;
+
+  /// No description provided for @session.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sessão'**
+  String get session;
 }
 
 class _AppLocalizationsDelegate

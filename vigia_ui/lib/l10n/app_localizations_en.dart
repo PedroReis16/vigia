@@ -293,4 +293,92 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cancel => 'Cancel';
+
+  @override
+  String get deviceUsers => 'Users';
+
+  @override
+  String get noUsersFound => 'No users found';
+
+  @override
+  String get back => 'Back';
+
+  @override
+  String get seeAllUsers => 'See all';
+
+  @override
+  String deviceUsersCount(int current, int max) {
+    return '$current/$max';
+  }
+
+  @override
+  String get shareDevice => 'Share';
+
+  @override
+  String get shareLimitReached => 'User limit reached';
+
+  @override
+  String get shareDeviceInviteSubject => 'Vigia invite';
+
+  @override
+  String get shareLinkCopied =>
+      'Link copied. Share it with who you want to invite.';
+
+  @override
+  String get shareLinkError => 'Could not generate the share link';
+
+  @override
+  String get deviceOwner => 'Owner';
+
+  @override
+  String get removeUserTitle => 'Remove user?';
+
+  @override
+  String removeUserMessage(String name) {
+    return 'Remove $name from access to this group\'s devices?';
+  }
+
+  @override
+  String get removeUserConfirm => 'Remove';
+
+  @override
+  String get leaveGroupTitle => 'Leave group?';
+
+  @override
+  String get leaveGroupMessage =>
+      'You will lose access to the shared devices in this group.';
+
+  @override
+  String get leaveGroupConfirm => 'Leave';
+
+  @override
+  String get userRemovedSuccess => 'User removed successfully';
+
+  @override
+  String get leftGroupSuccess => 'You left the group';
+
+  @override
+  String get userRemoveError => 'Could not remove the user';
+
+  @override
+  String get acceptingInvite => 'Accepting invite…';
+
+  @override
+  String get inviteAcceptedSuccess =>
+      'Invite accepted. Shared devices are now available.';
+
+  @override
+  String get inviteAcceptedError => 'Could not accept the invite';
+
+  @override
+  String get clips => 'Clips';
+
+  @override
+  String get viewClips => 'View clips';
+
+  @override
+  String get account => 'Account';
+
+  @override
+  String get session => 'Session';
 }

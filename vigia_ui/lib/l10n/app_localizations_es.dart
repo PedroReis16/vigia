@@ -297,4 +297,92 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cancel => 'Cancelar';
+
+  @override
+  String get deviceUsers => 'Usuarios';
+
+  @override
+  String get noUsersFound => 'No se encontraron usuarios';
+
+  @override
+  String get back => 'Volver';
+
+  @override
+  String get seeAllUsers => 'Ver todos';
+
+  @override
+  String deviceUsersCount(int current, int max) {
+    return '$current/$max';
+  }
+
+  @override
+  String get shareDevice => 'Compartir';
+
+  @override
+  String get shareLimitReached => 'Límite de usuarios alcanzado';
+
+  @override
+  String get shareDeviceInviteSubject => 'Invitación a Vigia';
+
+  @override
+  String get shareLinkCopied =>
+      'Enlace copiado. Compártelo con quien quieras invitar.';
+
+  @override
+  String get shareLinkError => 'No se pudo generar el enlace de compartición';
+
+  @override
+  String get deviceOwner => 'Propietario';
+
+  @override
+  String get removeUserTitle => '¿Eliminar usuario?';
+
+  @override
+  String removeUserMessage(String name) {
+    return '¿Eliminar a $name del acceso a los dispositivos de este grupo?';
+  }
+
+  @override
+  String get removeUserConfirm => 'Eliminar';
+
+  @override
+  String get leaveGroupTitle => '¿Salir del grupo?';
+
+  @override
+  String get leaveGroupMessage =>
+      'Perderás el acceso a los dispositivos compartidos de este grupo.';
+
+  @override
+  String get leaveGroupConfirm => 'Salir';
+
+  @override
+  String get userRemovedSuccess => 'Usuario eliminado con éxito';
+
+  @override
+  String get leftGroupSuccess => 'Saliste del grupo';
+
+  @override
+  String get userRemoveError => 'No se pudo eliminar el usuario';
+
+  @override
+  String get acceptingInvite => 'Aceptando invitación…';
+
+  @override
+  String get inviteAcceptedSuccess =>
+      'Invitación aceptada. Los dispositivos compartidos ya están disponibles.';
+
+  @override
+  String get inviteAcceptedError => 'No se pudo aceptar la invitación';
+
+  @override
+  String get clips => 'Clips';
+
+  @override
+  String get viewClips => 'Ver clips';
+
+  @override
+  String get account => 'Cuenta';
+
+  @override
+  String get session => 'Sesión';
 }

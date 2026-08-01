@@ -338,10 +338,17 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             byte[] frameBytes = new byte[frame.Length];
             _ = frame.Read(frameBytes, 0, frameBytes.Length);
 
+            if (!Validators.IsJpeg(frameBytes))
+            {
+                _logger.LogInformation($"O frame destinado ao dispositivo '{deviceId}' não é um JPEG válido. O armazenamento do frame foi ignorado");
+                return;
+            }
+
             cacheService.SetFrame(deviceId, frameBytes);
 
             _logger.LogInformation($"Frame do dispositivo {deviceId} salvo com sucesso");
         }
+        catch (EntityValidationException) { throw; }
         catch (Exception ex)
         {
             string errorMsg = $"Houve um erro ao tentar salvar o frame do dispositivo {deviceId}: {ex.GetFullMessage()}";

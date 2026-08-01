@@ -57,4 +57,12 @@ public static class Validators
             || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31);
     }
 
+
+    public static bool IsJpeg(ReadOnlySpan<byte> data)
+    {
+        return data.Length >= 3
+            && data[0] == 0xFF
+            && data[1] == 0xD8
+            && data[2] == 0xFF;
+    }
 }

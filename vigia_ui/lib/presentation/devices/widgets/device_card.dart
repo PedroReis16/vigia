@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
 import 'package:vigia_ui/domain/environments.dart';
+import 'package:vigia_ui/domain/helpers/converters.dart';
 import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 
@@ -43,11 +44,13 @@ class DeviceCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (device.room != null)
-                            Text(
-                              _translateRoomName(context, device.room!),
-                              style: TextStyle(color: Colors.grey.shade600),
+                          Text(
+                            Converters.translateDeviceRoom(
+                              context,
+                              device.room ?? DeviceRooms.notDefined,
                             ),
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
                           _buildRunningStatus(context, device.isRunning),
                         ],
                       ),
@@ -107,18 +110,5 @@ class DeviceCard extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _translateRoomName(BuildContext context, DeviceRooms room) {
-    return switch (room) {
-      DeviceRooms.livingRoom => context.translations.livingRoom,
-      DeviceRooms.kitchen => context.translations.kitchen,
-      DeviceRooms.bathroom => context.translations.bathroom,
-      DeviceRooms.office => context.translations.office,
-      DeviceRooms.garage => context.translations.garage,
-      DeviceRooms.backyard => context.translations.backyard,
-      DeviceRooms.frontyard => context.translations.frontyard,
-      _ => context.translations.bedroom,
-    };
   }
 }

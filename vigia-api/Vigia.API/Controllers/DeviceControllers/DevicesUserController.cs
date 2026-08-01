@@ -16,15 +16,13 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
     /// <summary>
     /// Listar usuários de um dispositivo
     /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
     [HttpGet]
     public async Task<IActionResult> GetDeviceUsers(Guid deviceId)
     {
         try
         {
-            List<DeviceUserDTO> users = await _service.GetDeviceUsersAsync(deviceId);
-
+            Guid userId = User.GetUserId();
+            List<DeviceUserDTO> users = await _service.GetDeviceUsersAsync(deviceId, userId);
             return Ok(users);
         }
         catch (UnauthorizedAccessException)
@@ -35,19 +33,16 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
     }
 
     /// <summary>
-    /// Gera link de convite para um ou mais usuários para um dispositivo
+    /// Remove um usuário do grupo do dispositivo (owner remove outro) ou o próprio usuário sai do grupo
     /// </summary>
-    /// <param name="deviceId"></param>
-    [HttpPost("invite")]
-    public async Task<IActionResult> GenerateInviteLink(Guid deviceId)
+    [HttpDelete("{userId:guid}")]
+    public async Task<IActionResult> RemoveDeviceUser(Guid deviceId, Guid userId)
     {
         try
         {
-            Guid userId = User.GetUserId();
-
-            // await _service.GenerateInviteLinkAsync(deviceId, userId);
-
-            return Ok(new { message = "Link de convite gerado com sucesso" });
+            Guid requestingUserId = User.GetUserId();
+            await _service.RemoveDeviceUserAsync(deviceId, userId, requestingUserId);
+            return Ok(new { message = "Usuário desvinculado do dispositivo com sucesso" });
         }
         catch (UnauthorizedAccessException)
         {
@@ -57,10 +52,8 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
     }
 
     /// <summary>
-    /// Vincular um dispositivo a um usuário
+    /// Vincular um dispositivo a um usuário (pareamento / claim de ownership)
     /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
     [HttpPatch("track")]
     public async Task<IActionResult> TrackDeviceUser(Guid deviceId)
     {
@@ -71,11 +64,9 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
         return Ok(new { message = "Dispositivo vinculado ao usuário com sucesso" });
     }
 
-    ///<summary>
-    /// Excluir dispositivo do usuário
+    /// <summary>
+    /// Excluir dispositivo do usuário (pareamento / unclaim)
     /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
     [HttpDelete("untrack")]
     public async Task<IActionResult> UntrackDeviceUser(Guid deviceId)
     {
@@ -96,5 +87,4 @@ public class DevicesUsersController(IDeviceUsersService service) : ControllerBas
             throw;
         }
     }
-
 }

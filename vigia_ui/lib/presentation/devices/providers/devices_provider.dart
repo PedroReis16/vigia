@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/repository_providers/devices_repository_provider.dart';
 import 'package:vigia_ui/data/services/token_storage_service.dart';
@@ -88,6 +90,6 @@ class Devices extends _$Devices {
 
 @riverpod
 void addDevice(Ref ref, NewDevice newDevice) {
-  final current = ref.read(devicesProvider.notifier).state.asData?.value ?? [];
-  
+  // Claim (track) already happened during pairing; refresh the user's list.
+  unawaited(ref.read(devicesProvider.notifier).refresh(withDelay: false));
 }

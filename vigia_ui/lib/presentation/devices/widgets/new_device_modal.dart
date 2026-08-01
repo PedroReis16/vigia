@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
+import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_pairing_provider.dart';
@@ -18,6 +19,8 @@ class NewDeviceModal extends ConsumerStatefulWidget {
 
 class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
   late final VideoPlayerController _videoController;
+
+  static const _padding = EdgeInsets.fromLTRB(16, 0, 16, 24);
 
   @override
   void initState() {
@@ -71,27 +74,41 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
     ];
   }
 
+  Widget _progressIcon() {
+    return const SizedBox(
+      width: 40,
+      height: 40,
+      child: CircularProgressIndicator(strokeWidth: 3),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pairing = ref.watch(devicePairingProvider);
+    final colors = context.appColors;
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: _padding,
         child: switch (pairing.stage) {
           DevicePairingStage.scanning => ScanningView(
             videoController: _videoController,
             steps: _steps(context),
           ),
           DevicePairingStage.connecting => StatusView(
-            icon: const CircularProgressIndicator(),
+            icon: _progressIcon(),
             title: context.translations.connectingTitle,
             description: context.translations.connectingDescription,
           ),
           DevicePairingStage.authenticating => StatusView(
-            icon: const CircularProgressIndicator(),
+            icon: _progressIcon(),
             title: context.translations.authenticatingTitle,
             description: context.translations.authenticatingDescription,
+          ),
+          DevicePairingStage.registering => StatusView(
+            icon: _progressIcon(),
+            title: context.translations.registeringTitle,
+            description: context.translations.registeringDescription,
           ),
           DevicePairingStage.provisioning => WifiProvisionForm(
             onSubmit: (ssid, password) {
@@ -100,34 +117,46 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
                   .submitWifi(ssid: ssid, password: password);
             },
           ),
+          DevicePairingStage.testingNetwork => StatusView(
+            icon: _progressIcon(),
+            title: context.translations.testingNetworkTitle,
+            description: context.translations.testingNetworkDescription,
+          ),
           DevicePairingStage.connected => StatusView(
             icon: Icon(
               Icons.check_circle_rounded,
-              color: Theme.of(context).colorScheme.primary,
+              color: colors.success,
               size: 56,
             ),
             title: context.translations.connectionEstablished,
             description: context.translations.deviceLinkedSuccess(
               pairing.device?.name ?? context.translations.appTitle,
             ),
-            action: FilledButton(
-              onPressed: _onConfirm,
-              child: Text(context.translations.confirm),
+            action: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _onConfirm,
+                child: Text(context.translations.confirm),
+              ),
             ),
           ),
           DevicePairingStage.error => StatusView(
             icon: Icon(
               Icons.error_outline_rounded,
-              color: Colors.red.shade400,
+              color: colors.error,
               size: 56,
             ),
             title: context.translations.connectionFailed,
             description:
                 pairing.errorMessage ??
                 context.translations.connectionErrorFallback,
-            action: OutlinedButton(
-              onPressed: () => ref.read(devicePairingProvider.notifier).retry(),
-              child: Text(context.translations.tryAgain),
+            action: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () =>
+                    ref.read(devicePairingProvider.notifier).retry(),
+                child: Text(context.translations.tryAgain),
+              ),
             ),
           ),
         },

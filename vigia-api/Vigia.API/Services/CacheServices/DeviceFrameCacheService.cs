@@ -1,27 +1,30 @@
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Primitives;
 using Vigia.API.Contracts.CacheServices;
-using Vigia.Cache.Config;
 using Vigia.Cache.Services;
 
 namespace Vigia.API.Services.CacheServices;
 
-internal class DeviceFrameCacheService(InMemoryCacheConfig config, IMemoryCache memoryCache) : InMemoryCacheService(config, memoryCache), IDeviceFrameCacheService
+internal class DeviceFrameCacheService(IRedisCacheService cacheService) : IDeviceFrameCacheService
 {
+    private static readonly TimeSpan FrameTtl = TimeSpan.FromSeconds(120);
+
     private static string GetCacheKey(Guid deviceId) => $"device-frame-{deviceId}";
+
+    public bool HasFrame(Guid deviceId)
+    {
+        byte[]? frame = cacheService.Get<byte[]>(GetCacheKey(deviceId));
+        return frame is { Length: > 0 };
+    }
 
     public byte[]? GetFrame(Guid deviceId)
     {
-        return Get(GetCacheKey(deviceId)) as byte[];
+        byte[]? frame = cacheService.Get<byte[]>(GetCacheKey(deviceId));
+        if (frame is not { Length: > 0 })
+            return null;
+
+        // Copy so callers cannot mutate the buffer that may still be referenced.
+        return frame.ToArray();
     }
 
-    public void SetFrame(Guid deviceId, byte[] frame)
-    {
-        MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(TimeSpan.FromSeconds(120));
-
-        _ = cacheEntryOptions.AddExpirationToken(new CancellationChangeToken(ResetCacheSource.Token));
-
-        _ = MemoryCache.Set(GetCacheKey(deviceId).ToUpperInvariant(), frame, cacheEntryOptions);
-    }
+    public void SetFrame(Guid deviceId, byte[] frame) =>
+        cacheService.Add(GetCacheKey(deviceId), frame.ToArray(), FrameTtl);
 }

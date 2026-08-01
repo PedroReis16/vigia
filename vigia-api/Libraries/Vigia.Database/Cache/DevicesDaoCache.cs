@@ -4,7 +4,7 @@ using Vigia.Database.CacheContracts;
 
 namespace Vigia.Database.Cache;
 
-internal class DevicesDaoCache(IInMemoryCacheService cacheService) : RepositoryCache<Device>(cacheService), IDevicesDaoCache
+internal class DevicesDaoCache(IRedisCacheService cacheService) : RepositoryCache<Device>(cacheService), IDevicesDaoCache
 {
 
 }

@@ -4,7 +4,7 @@ using Vigia.Database.CacheContracts;
 
 namespace Vigia.Database.Cache;
 
-internal class GroupDaoCache(IInMemoryCacheService cacheService) : RepositoryCache<Group>(cacheService), IGroupDaoCache
+internal class GroupDaoCache(IRedisCacheService cacheService) : RepositoryCache<Group>(cacheService), IGroupDaoCache
 {
 
 }

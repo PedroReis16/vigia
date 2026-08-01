@@ -248,16 +248,31 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
 
     private string? GetDeviceThumbnailUrl(IServiceScope scope, Guid userId, Guid deviceId)
     {
-
-        byte[]? frame = GetDeviceFrame(deviceId);
-        if (frame == null)
+        if (!HasDeviceFrame(deviceId))
             return null;
 
         IFrameAccessTokenProvider frameAccessTokenProvider =
             scope.ServiceProvider.GetRequiredService<IFrameAccessTokenProvider>();
-    
+
         string accessToken = frameAccessTokenProvider.IssueToken(userId, deviceId);
         return $"devices/{deviceId}/frame?accessToken={accessToken}";
+    }
+
+    private bool HasDeviceFrame(Guid deviceId)
+    {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+            IDeviceFrameCacheService cacheService =
+                scope.ServiceProvider.GetRequiredService<IDeviceFrameCacheService>();
+            return cacheService.HasFrame(deviceId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                $"Houve um erro ao verificar o frame do dispositivo {deviceId}: {ex.GetFullMessage()}");
+            return false;
+        }
     }
 
     private DeviceDTO MapDeviceToDTO(Device device)
@@ -332,8 +347,9 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
 
             IDeviceFrameCacheService cacheService = scope.ServiceProvider.GetRequiredService<IDeviceFrameCacheService>();
 
-            byte[] frameBytes = new byte[frame.Length];
-            _ = frame.Read(frameBytes, 0, frameBytes.Length);
+            using MemoryStream buffer = new();
+            frame.CopyTo(buffer);
+            byte[] frameBytes = buffer.ToArray();
 
             if (!Validators.IsJpeg(frameBytes))
             {

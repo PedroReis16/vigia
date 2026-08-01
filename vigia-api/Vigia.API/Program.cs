@@ -30,7 +30,7 @@ builder.Services.AddControllers(options =>
 builder.Services.AddPostgres(builder.Configuration.GetConnectionString("VigiaDb")!);
 
 // Cache
-builder.Services.AddInMemoryCache(builder.Configuration);
+builder.Services.AddRedisCache(builder.Configuration);
 
 // Auth
 builder.Services.ConfigureOAuth(builder.Configuration);

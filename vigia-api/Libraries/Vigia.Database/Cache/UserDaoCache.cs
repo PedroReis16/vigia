@@ -4,7 +4,7 @@ using Vigia.Database.CacheContracts;
 
 namespace Vigia.Database.Cache;
 
-internal class UserDaoCache(IInMemoryCacheService cacheService) : RepositoryCache<User>(cacheService), IUserDaoCache
+internal class UserDaoCache(IRedisCacheService cacheService) : RepositoryCache<User>(cacheService), IUserDaoCache
 {
 
 }

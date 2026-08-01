@@ -1,20 +1,17 @@
 using System.Security.Cryptography;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Primitives;
 using Vigia.API.Contracts.CacheServices;
-using Vigia.Cache.Config;
 using Vigia.Cache.Services;
 
 namespace Vigia.API.Services.CacheServices;
 
 /// <summary>
 /// Tokens de thumb reutilizáveis dentro do TTL (adequado a &lt;img&gt;).
-/// Nova listagem rotaciona o token do par user+device e invalida o anterior.
+/// Novas listagens reaproveitam o token vigente em vez de invalidá-lo.
 /// </summary>
-internal class FrameAccessCacheService(InMemoryCacheConfig config, IMemoryCache memoryCache)
-    : InMemoryCacheService(config, memoryCache), IFrameAccessCacheService
+internal class FrameAccessCacheService(IRedisCacheService cacheService) : IFrameAccessCacheService
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(90);
+    /// <summary>Aligned with <see cref="DeviceFrameCacheService"/> frame TTL.</summary>
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(120);
 
     private static string GetTokenCacheKey(string token) => $"frame-access-{token}";
 
@@ -25,22 +22,25 @@ internal class FrameAccessCacheService(InMemoryCacheConfig config, IMemoryCache 
     {
         string ownerKey = GetOwnerCacheKey(userId, deviceId);
 
-        if (Get(ownerKey) is string previousToken)
-            Remove(GetTokenCacheKey(previousToken));
+        string? existingToken = cacheService.Get<string>(ownerKey);
+        if (!string.IsNullOrEmpty(existingToken))
+        {
+            FrameAccessTokenEntry? existing = cacheService.Get<FrameAccessTokenEntry>(
+                GetTokenCacheKey(existingToken));
+
+            if (existing is not null
+                && existing.UserId == userId
+                && existing.DeviceId == deviceId)
+            {
+                return existingToken;
+            }
+        }
 
         string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         FrameAccessTokenEntry entry = new(userId, deviceId);
 
-        MemoryCacheEntryOptions cacheEntryOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(CacheTtl);
-
-        _ = cacheEntryOptions.AddExpirationToken(new CancellationChangeToken(ResetCacheSource.Token));
-
-        string tokenKey = GetTokenCacheKey(token).ToUpperInvariant();
-        string ownerKeyNormalized = ownerKey.ToUpperInvariant();
-
-        _ = MemoryCache.Set(tokenKey, entry, cacheEntryOptions);
-        _ = MemoryCache.Set(ownerKeyNormalized, token, cacheEntryOptions);
+        cacheService.Add(GetTokenCacheKey(token), entry, CacheTtl);
+        cacheService.Add(ownerKey, token, CacheTtl);
 
         return token;
     }
@@ -50,6 +50,6 @@ internal class FrameAccessCacheService(InMemoryCacheConfig config, IMemoryCache 
         if (string.IsNullOrWhiteSpace(token))
             return null;
 
-        return Get(GetTokenCacheKey(token)) as FrameAccessTokenEntry;
+        return cacheService.Get<FrameAccessTokenEntry>(GetTokenCacheKey(token));
     }
 }

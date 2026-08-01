@@ -42,47 +42,6 @@ public class DevicesController(IDevicesService service) : ControllerBase
     }
 
     /// <summary>
-    /// Vincular um dispositivo a um usuário
-    /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
-    [HttpPatch("{deviceId}/track-user")]
-    public async Task<IActionResult> TrackDeviceUser(Guid deviceId)
-    {
-        Guid userId = User.GetUserId();
-
-        await _service.TrackDeviceUserAsync(deviceId, userId);
-
-        return Ok(new { message = "Dispositivo vinculado ao usuário com sucesso" });
-    }
-
-    ///<summary>
-    /// Excluir dispositivo do usuário
-    /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
-    [HttpDelete("{deviceId}/untrack-user")]
-    public async Task<IActionResult> UntrackDeviceUser(Guid deviceId)
-    {
-        try
-        {
-            Guid userId = User.GetUserId();
-
-            await _service.UntrackedDeviceUserAsync(deviceId, userId);
-
-            return Ok(new { message = "Dispositivo desvinculado do usuário com sucesso" });
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return Forbid();
-        }
-        catch (Exception)
-        {
-            throw;
-        }
-    }
-
-    /// <summary>
     /// Lista todos os dispositivos registrados no sistema
     /// </summary>
     /// <param name="nickname">Nome do dispositivo</param>

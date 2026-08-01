@@ -10,4 +10,5 @@ public class DeviceDTO
     public DeviceRooms? Room { get; set; }
     public Guid? OwnerId { get; set; }
     public string? ThumbnailUrl { get; set; }
+    public bool IsRunning { get; set; }
 }

@@ -7,6 +7,7 @@ using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 using Vigia.Models.Extensions;
 using Vigia.Models.Helpers;
+using Vigia.API.Models.DTOs.Users;
 
 namespace Vigia.API.Services;
 
@@ -69,5 +70,40 @@ internal class UserService(ILogger<UserService> logger, IServiceScopeFactory sco
             throw new EntityValidationException(nameof(newUserDTO.Password), "A senha do usuário é obrigatória", ErrorCodes.USER_PASSWORD_IS_REQUIRED);
     }
 
-    
+
+    public async Task<List<UserDTO>> GetGroupUsersAsync(Guid groupId)
+    {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
+
+            List<User> result = await userDao.GetUsersByGroupAsync(groupId);
+
+            return result.Select(user => MapUserToDTO(user)).ToList();
+        }
+        catch (EntityValidationException) { throw; }
+        catch (Exception ex)
+        {
+            string errorMessage = $"Houve um erro ao realizar a busca de usuários vinculados ao grupo '{groupId}': {ex.Message}";
+            _logger.LogError(errorMessage);
+            throw new Exception(errorMessage);
+        }
+    }
+
+    private UserDTO MapUserToDTO(User user)
+    {
+        //TODO: Adicionar a lógica para montagem da URL com a foto dos usuários
+
+        string? pictureUrl = null;
+
+        return new UserDTO
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email,
+            UserPictureUrl = pictureUrl,
+        };
+    }
 }

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Vigia.Database.CacheContracts;
 using Vigia.Database.Contracts;
-using Vigia.Database.EFDao;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
@@ -107,5 +106,13 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
         }
 
         return await Context.SaveChangesAsync();
+    }
+    
+    public async Task<List<User>> GetUsersByGroupAsync(Guid groupId)
+    {
+        return await Context.Set<User>()
+            .Where(u => u.LinkedGroups.Any(g => g.Id == groupId) && u.DeletedAt == null)
+            .AsNoTracking()
+            .ToListAsync();
     }
 }

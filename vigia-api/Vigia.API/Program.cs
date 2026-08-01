@@ -47,6 +47,7 @@ builder.Services.AddHttpContextAccessor();
 // Services
 builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
+builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IAuthService, AuthService>();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT

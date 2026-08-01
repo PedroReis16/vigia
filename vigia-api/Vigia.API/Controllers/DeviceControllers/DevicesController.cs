@@ -65,9 +65,6 @@ public class DevicesController(IDevicesService service) : ControllerBase
 
         List<DeviceDTO> devices = await _service.ListDevicesAsync(userId, nickname, room, onlyShared, onlyOwned, page, pageSize);
 
-        if (devices.Count == 0)
-            return NoContent();
-
         return Ok(devices);
     }
 

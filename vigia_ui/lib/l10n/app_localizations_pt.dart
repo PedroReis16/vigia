@@ -216,4 +216,13 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get createAccount => 'Criar conta';
+
+  @override
+  String get deviceNickname => 'Nome';
+
+  @override
+  String get deviceRoom => 'Cômodo';
+
+  @override
+  String get deviceIdLabel => 'Identificador';
 }

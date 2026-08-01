@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/presentation/devices/pages/device_live_page.dart';
+import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/presentation/devices/pages/device_details_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
@@ -161,26 +162,34 @@ GoRouter appRouter(Ref ref) {
                 builder: (context, state) => const DevicesPage(),
                 routes: [
                   GoRoute(
-                    path: AppRoutes.deviceStreamRelative,
+                    path: AppRoutes.deviceDetailsRelative,
                     pageBuilder: (context, state) {
                       final String deviceId = state.pathParameters['deviceId']!;
+                      final device = state.extra is Device
+                          ? state.extra as Device
+                          : null;
 
                       return CustomTransitionPage(
                         key: state.pageKey,
-                        child: DeviceLivePage(deviceId: deviceId),
+                        opaque: false,
+                        child: DeviceDetailsPage(
+                          deviceId: deviceId,
+                          device: device,
+                        ),
+                        transitionDuration: const Duration(milliseconds: 340),
+                        reverseTransitionDuration: const Duration(
+                          milliseconds: 300,
+                        ),
                         transitionsBuilder:
                             (context, animation, secondaryAnimation, child) {
-                              const begin = Offset(1.0, 0.0);
-                              const end = Offset.zero;
-                              const curve = Curves.ease;
+                              final fade = CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                                reverseCurve: Curves.easeInCubic,
+                              );
 
-                              final tween = Tween(
-                                begin: begin,
-                                end: end,
-                              ).chain(CurveTween(curve: curve));
-
-                              return SlideTransition(
-                                position: animation.drive(tween),
+                              return FadeTransition(
+                                opacity: fade,
                                 child: child,
                               );
                             },

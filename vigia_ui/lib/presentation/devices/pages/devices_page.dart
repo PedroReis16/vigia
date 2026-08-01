@@ -53,9 +53,9 @@ class DevicesPage extends ConsumerWidget {
           itemBuilder: (context, index) {
             return DeviceCard(
               device: Device(
-                id: '1',
+                id: 'skeleton-$index',
                 nickname: 'Device posicionado na sala',
-                ownerId: '1',
+                ownerId: 'skeleton',
                 room: DeviceRooms.livingRoom,
               ),
             );
@@ -87,10 +87,11 @@ class DevicesPage extends ConsumerWidget {
                 device: device,
                 onTap: () {
                   context.push(
-                    AppRoutes.deviceStreamPage.replaceAll(
+                    AppRoutes.deviceDetailsPage.replaceAll(
                       ':deviceId',
                       device.id,
                     ),
+                    extra: device,
                   );
                 },
               ),

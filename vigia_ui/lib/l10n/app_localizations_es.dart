@@ -219,4 +219,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get createAccount => 'Inscribirse';
+
+  @override
+  String get deviceNickname => 'Nombre';
+
+  @override
+  String get deviceRoom => 'Habitación';
+
+  @override
+  String get deviceIdLabel => 'Identificador';
 }

@@ -84,5 +84,8 @@
   "userEmailAlreadyInUse": "The email is already in use for another user",
   "registerUnknownError": "An error occurred while attempting to create the account",
   "welcomeToVigia": "Welcome to Vigia",
-  "createAccount": "Sign up"
+  "createAccount": "Sign up",
+  "deviceNickname": "Name",
+  "deviceRoom": "Room",
+  "deviceIdLabel": "Identifier"
 }

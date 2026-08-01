@@ -23,19 +23,7 @@ class DeviceCard extends StatelessWidget {
             children: [
               Expanded(
                 flex: 2,
-                child: thumbnail != null && thumbnail.isNotEmpty
-                    ? Image.network(
-                        "${Environments.apiUrl}/$thumbnail",
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        child: const Center(
-                          child: Icon(Icons.videocam_off_outlined),
-                        ),
-                      ),
+                child: _buildThumbnail(context, thumbnail),
               ),
               Expanded(
                 flex: 1,
@@ -55,7 +43,6 @@ class DeviceCard extends StatelessWidget {
                           device.room.toString(),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                     ],
                   ),
@@ -64,6 +51,32 @@ class DeviceCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(BuildContext context, String? thumbnail) {
+    final child = thumbnail != null && thumbnail.isNotEmpty
+        ? Image.network(
+            "${Environments.apiUrl}/$thumbnail",
+            fit: BoxFit.cover,
+          )
+        : Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: const Center(
+              child: Icon(Icons.videocam_off_outlined),
+            ),
+          );
+
+    // Skeleton placeholders omit [onTap] and must not share Hero tags.
+    if (onTap == null) return child;
+
+    return Hero(
+      tag: 'device-thumb-${device.id}',
+      createRectTween: (begin, end) => RectTween(begin: begin, end: end),
+      child: Material(
+        type: MaterialType.transparency,
+        child: child,
       ),
     );
   }

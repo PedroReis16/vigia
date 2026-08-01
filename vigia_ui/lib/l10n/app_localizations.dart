@@ -483,6 +483,24 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Criar conta'**
   String get createAccount;
+
+  /// No description provided for @deviceNickname.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nome'**
+  String get deviceNickname;
+
+  /// No description provided for @deviceRoom.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cômodo'**
+  String get deviceRoom;
+
+  /// No description provided for @deviceIdLabel.
+  ///
+  /// In pt, this message translates to:
+  /// **'Identificador'**
+  String get deviceIdLabel;
 }
 
 class _AppLocalizationsDelegate

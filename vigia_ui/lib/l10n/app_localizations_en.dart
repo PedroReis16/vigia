@@ -217,4 +217,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createAccount => 'Sign up';
+
+  @override
+  String get deviceNickname => 'Name';
+
+  @override
+  String get deviceRoom => 'Room';
+
+  @override
+  String get deviceIdLabel => 'Identifier';
 }

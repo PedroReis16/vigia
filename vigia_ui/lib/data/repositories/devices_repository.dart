@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
+import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/DTOs/user.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
 import 'package:vigia_ui/domain/exceptions/unauthroized_exception.dart';
@@ -37,6 +38,81 @@ class DevicesRepository {
     } catch (e) {
       throw Exception('Failed to get devices');
     }
+  }
+
+  /// Returns null when the device is not registered (API 204 / empty body).
+  Future<Device?> getDevice(String id) async {
+    try {
+      final response = await dio.get("$_devicesEndpoint/$id");
+
+      if (response.statusCode == 204 || response.data == null) {
+        return null;
+      }
+
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        return null;
+      }
+
+      return Device.fromJson(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para acessar os dispositivos.",
+        );
+      }
+      throw Exception('Failed to get device');
+    } catch (e) {
+      throw Exception('Failed to get device');
+    }
+  }
+
+  Future<void> registerDevice(NewDevice device) async {
+    try {
+      await dio.post(
+        "$_devicesEndpoint/register",
+        data: {
+          'id': device.id,
+          'name': device.name,
+          'macAddress': device.macAddress,
+          'signPublicKey': device.signPublicKey,
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para registrar o dispositivo.",
+        );
+      }
+      final message = e.response?.data is Map
+          ? (e.response?.data['errorMessage'] as String?)
+          : null;
+      throw Exception(message ?? 'Failed to register device');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> trackDevice(String id) async {
+    try {
+      await dio.patch("$_devicesEndpoint/$id/users/track");
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para vincular o dispositivo.",
+        );
+      }
+      throw Exception(_apiErrorMessage(e) ?? 'Failed to track device');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  String? _apiErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is! Map) return null;
+    final message = data['errorMessage'] ?? data['ErrorMessage'];
+    return message is String && message.isNotEmpty ? message : null;
   }
 
   Future<List<DeviceUser>> getDeviceUsers(String deviceId) async {

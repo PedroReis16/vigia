@@ -11,6 +11,8 @@ public class Device : BaseEntity
     /// <summary>Ed25519 public key (raw 32 bytes as hex).</summary>
     public string SignPublicKey { get; set; } = null!;
 
+    public bool IsClipsEnabled { get; set; }
+
     public Guid? GroupId { get; set; }
     public Group? Group { get; set; } = null;   // Group != null -> Dispositivo vinculado a um grupo de usuários
 }

@@ -280,10 +280,12 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
         return new DeviceDTO
         {
             Id = device.Id,
-            Nickname = device.Nickname ?? device.Name,
+            Name = device.Name,
+            Nickname = device.Nickname,
             MacAddress = device.MacAddress,
             Room = device.Room,
-            OwnerId = device.Group?.OwnerId
+            OwnerId = device.Group?.OwnerId,
+            IsClipsEnabled = device.IsClipsEnabled
         };
     }
 
@@ -306,22 +308,26 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
 
             IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
 
-            Device updatedDeviceEntity = new()
-            {
-                Id = deviceId,
-                Nickname = updatedDevice.Nickname ?? device.Nickname,
-                Room = updatedDevice.Room ?? device.Room
-            };
+            string? nextNickname = updatedDevice.Nickname ?? device.Nickname;
+            DeviceRooms? nextRoom = updatedDevice.Room ?? device.Room;
+            bool nextIsClipsEnabled = updatedDevice.IsClipsEnabled ?? device.IsClipsEnabled;
 
             if (
-                !string.IsNullOrEmpty(updatedDevice.Nickname) &&
-                !string.IsNullOrEmpty(device.Nickname) &&
-                updatedDevice.Nickname == device.Nickname &&
-                updatedDevice.Room == device.Room)
+                nextNickname == device.Nickname &&
+                nextRoom == device.Room &&
+                nextIsClipsEnabled == device.IsClipsEnabled)
             {
                 _logger.LogInformation($"A solicitação de atualização do dispositivo '{deviceId}' foi ignorada pois a solicitação não aplica mudanças efetivas sobre o dispositivo");
                 return;
             }
+
+            Device updatedDeviceEntity = new()
+            {
+                Id = deviceId,
+                Nickname = nextNickname,
+                Room = nextRoom,
+                IsClipsEnabled = nextIsClipsEnabled
+            };
 
             //TODO: Criar log com as alterações de antes e depois do dispositivo
 

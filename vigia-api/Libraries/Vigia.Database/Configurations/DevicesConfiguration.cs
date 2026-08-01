@@ -31,6 +31,11 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasColumnName("sign_public_key")
             .HasMaxLength(64);
 
+        _ = builder.Property(e => e.IsClipsEnabled)
+            .IsRequired()
+            .HasColumnName("is_clips_enabled")
+            .HasDefaultValue(false);
+
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices)
             .HasForeignKey(e => e.GroupId);
@@ -39,5 +44,6 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.HasIndex(e => e.Nickname);
         _ = builder.HasIndex(e => e.MacAddress);
         _ = builder.HasIndex(e => e.Room);
+        _ = builder.HasIndex(e => e.IsClipsEnabled);
     }
 }

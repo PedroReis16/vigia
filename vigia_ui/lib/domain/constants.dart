@@ -17,4 +17,7 @@ class Constants {
 
   /// Matches [helpers_create_device_name] in vigia-fall/shared/helpers.py
   static const String deviceNamePrefix = 'Vigia-';
+
+  /// Max members per device group (including owner).
+  static const int maxGroupUsers = 10;
 }

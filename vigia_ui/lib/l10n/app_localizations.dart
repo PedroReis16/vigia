@@ -274,6 +274,30 @@ abstract class AppLocalizations {
   /// **'Confirmando a identidade do Vigia e autenticando o aplicativo…'**
   String get authenticatingDescription;
 
+  /// No description provided for @registeringTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Registrando dispositivo'**
+  String get registeringTitle;
+
+  /// No description provided for @registeringDescription.
+  ///
+  /// In pt, this message translates to:
+  /// **'Criando o registro do dispositivo nos servidores Vigia…'**
+  String get registeringDescription;
+
+  /// No description provided for @testingNetworkTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Testando a rede'**
+  String get testingNetworkTitle;
+
+  /// No description provided for @testingNetworkDescription.
+  ///
+  /// In pt, this message translates to:
+  /// **'Aguardando o Vigia conectar ao Wi‑Fi…'**
+  String get testingNetworkDescription;
+
   /// No description provided for @connectionEstablished.
   ///
   /// In pt, this message translates to:

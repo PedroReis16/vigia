@@ -108,10 +108,16 @@ class DevicesPage extends ConsumerWidget {
         useRootNavigator: true,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (context) => SizedBox(
-          height: MediaQuery.of(context).size.height * 0.65,
-          width: MediaQuery.of(context).size.width,
-          child: const NewDeviceModal(),
-        ),
+        builder: (context) {
+          final media = MediaQuery.of(context);
+          return Padding(
+            padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+            child: SizedBox(
+              height: media.size.height * 0.65,
+              width: media.size.width,
+              child: const NewDeviceModal(),
+            ),
+          );
+        },
       );
 }

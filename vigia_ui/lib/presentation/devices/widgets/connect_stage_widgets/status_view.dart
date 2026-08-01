@@ -17,20 +17,39 @@ class StatusView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(context.translations.addDevice, style: textTheme.titleLarge),
         const Spacer(),
-        Center(child: icon),
+        Center(
+          child: Container(
+            width: 88,
+            height: 88,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: icon,
+          ),
+        ),
         const SizedBox(height: 20),
-        Text(title, style: textTheme.titleLarge, textAlign: TextAlign.center),
+        Text(
+          title,
+          style: textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 8),
         Text(
           description,
-          style: textTheme.bodySmall,
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
         const Spacer(),

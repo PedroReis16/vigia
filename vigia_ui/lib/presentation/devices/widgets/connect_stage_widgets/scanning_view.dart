@@ -16,14 +16,21 @@ class ScanningView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(context.translations.addDevice, style: textTheme.titleLarge),
-        const SizedBox(height: 4),
-        Text(context.translations.scanningHint, style: textTheme.bodySmall),
+        const SizedBox(height: 8),
+        Text(
+          context.translations.scanningHint,
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: VideoPreview(controller: videoController),

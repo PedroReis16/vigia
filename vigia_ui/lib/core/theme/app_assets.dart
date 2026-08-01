@@ -9,6 +9,9 @@ class AppAssets extends ThemeExtension<AppAssets> {
   static const light = AppAssets(logo: "assets/images/vigia_logo.png");
   static const dark = AppAssets(logo: "assets/images/vigia_logo_dark.png");
 
+  /// App icon used for launcher and share previews.
+  static const String icon = "assets/images/vigia_icon.png";
+
   @override
   AppAssets copyWith({String? logo}) {
     return AppAssets(logo: logo ?? this.logo);

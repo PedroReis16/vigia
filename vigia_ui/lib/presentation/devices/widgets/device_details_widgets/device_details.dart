@@ -79,6 +79,8 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
           returnToPreviousPage: _returnToDeviceDetails,
         ),
         DeviceUsers(
+          deviceId: widget.device.id,
+          isOwner: widget.device.isOwner,
           users: _users,
           returnToPreviousPage: _returnToDeviceDetails,
         ),
@@ -117,55 +119,61 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
           ),
         _buildInfoTile(context, t.deviceIdLabel, widget.device.id),
 
-        Text("Usuários"),
+        Text(t.deviceUsers, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          child: ref
-              .watch(getDeviceUsersProvider(widget.device.id))
-              .when(
-                error: (error, stackTrace) =>
-                    Center(child: Text(error.toString())),
-                loading: () => Skeletonizer(
-                  child: DeviceUserItem(
-                    user: UserUIModel(id: "", name: "", isOwner: false),
-                  ),
+        ref
+            .watch(getDeviceUsersProvider(widget.device.id))
+            .when(
+              error: (error, stackTrace) =>
+                  Center(child: Text(error.toString())),
+              loading: () => Skeletonizer(
+                child: DeviceUserItem(
+                  user: UserUIModel(id: "", name: "", isOwner: false),
                 ),
-                data: (users) {
-                  if (users.isEmpty) {
-                    return Text("Nenhum usuário encontrado");
-                  }
-
-                  _users = users;
-
-                  // bool hasManyUsers = users.length > 1;
-                  bool hasManyUsers = true;
-
-                  return GestureDetector(
-                    onTap: hasManyUsers ? () => _routeToDeviceUsers() : null,
-                    child: hasManyUsers
-                        ? DeviceUserItem(
-                            user: users.first,
-                            showActionIcon: false,
-                          )
-                        : Column(
-                            children: [
-                              ...users
-                                  .map(
-                                    (user) => DeviceUserItem(
-                                      user: user,
-                                      showActionIcon: user.isOwner,
-                                    ),
-                                  )
-                                  .take(3),
-                            ],
-                          ),
-                  );
-                },
               ),
-        ),
+              data: (users) {
+                if (users.isEmpty) {
+                  return Text(t.noUsersFound);
+                }
+
+                _users = users;
+
+                final hasManyUsers = users.length > 3;
+                final previewUsers = users.take(3).toList();
+
+                return GestureDetector(
+                  onTap: () => _routeToDeviceUsers(),
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    children: [
+                      ...previewUsers.map(
+                        (user) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: DeviceUserItem(
+                            user: user,
+                            showActionIcon: hasManyUsers && user == previewUsers.last,
+                            actionIcon: hasManyUsers ? Icons.arrow_forward_ios : null,
+                          ),
+                        ),
+                      ),
+                      if (hasManyUsers)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            t.seeAllUsers,
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text("Clips"),
+          child: Text(t.clips, style: theme.textTheme.titleMedium),
         ),
         TextButton(
           onPressed: () {
@@ -176,7 +184,7 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
               ),
             );
           },
-          child: Text("Ver Clips", textAlign: TextAlign.start),
+          child: Text(t.viewClips, textAlign: TextAlign.start),
         ),
       ],
     );

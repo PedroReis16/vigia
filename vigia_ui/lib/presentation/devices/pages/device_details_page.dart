@@ -6,14 +6,11 @@ import 'package:video_player/video_player.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
+import 'package:vigia_ui/presentation/devices/widgets/device_details_widgets/device_details.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_video_player.dart';
 
 class DeviceDetailsPage extends ConsumerStatefulWidget {
-  const DeviceDetailsPage({
-    super.key,
-    required this.deviceId,
-    this.device,
-  });
+  const DeviceDetailsPage({super.key, required this.deviceId, this.device});
 
   final String deviceId;
   final Device? device;
@@ -168,7 +165,7 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
               slide: const Offset(0, 0.02),
               child: device == null
                   ? Center(child: Text(context.translations.noDevicesFound))
-                  : _DeviceInfoSection(device: device),
+                  : DeviceDetails(device: device),
             ),
           ),
         ],
@@ -180,11 +177,7 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
 /// Fades (and optionally slides) in with the enclosing route animation so the
 /// Hero media leads and the rest of the page settles in quietly.
 class _RouteReveal extends StatelessWidget {
-  const _RouteReveal({
-    required this.child,
-    this.begin = 0.2,
-    this.slide,
-  });
+  const _RouteReveal({required this.child, this.begin = 0.2, this.slide});
 
   final Widget child;
   final double begin;
@@ -209,70 +202,5 @@ class _RouteReveal extends StatelessWidget {
       );
     }
     return result;
-  }
-}
-
-class _DeviceInfoSection extends StatelessWidget {
-  const _DeviceInfoSection({required this.device});
-
-  final Device device;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.translations;
-    final theme = Theme.of(context);
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        Text(
-          device.nickname,
-          style: theme.textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 16),
-        _InfoTile(
-          label: t.deviceNickname,
-          value: device.nickname,
-        ),
-        if (device.room != null)
-          _InfoTile(
-            label: t.deviceRoom,
-            value: device.room.toString(),
-          ),
-        _InfoTile(
-          label: t.deviceIdLabel,
-          value: device.id,
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(value, style: theme.textTheme.bodyLarge),
-        ],
-      ),
-    );
   }
 }

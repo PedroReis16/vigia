@@ -225,4 +225,34 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get deviceIdLabel => 'Identificador';
+
+  @override
+  String get bedroom => 'Quarto';
+
+  @override
+  String get livingRoom => 'Sala';
+
+  @override
+  String get kitchen => 'Cozinha';
+
+  @override
+  String get bathroom => 'Banheiro';
+
+  @override
+  String get office => 'Escritório';
+
+  @override
+  String get garage => 'Garagem';
+
+  @override
+  String get backyard => 'Quintal';
+
+  @override
+  String get frontyard => 'Frente';
+
+  @override
+  String get online => 'Ativo';
+
+  @override
+  String get offline => 'Desabilitado';
 }

@@ -501,6 +501,66 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Identificador'**
   String get deviceIdLabel;
+
+  /// No description provided for @bedroom.
+  ///
+  /// In pt, this message translates to:
+  /// **'Quarto'**
+  String get bedroom;
+
+  /// No description provided for @livingRoom.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sala'**
+  String get livingRoom;
+
+  /// No description provided for @kitchen.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cozinha'**
+  String get kitchen;
+
+  /// No description provided for @bathroom.
+  ///
+  /// In pt, this message translates to:
+  /// **'Banheiro'**
+  String get bathroom;
+
+  /// No description provided for @office.
+  ///
+  /// In pt, this message translates to:
+  /// **'Escritório'**
+  String get office;
+
+  /// No description provided for @garage.
+  ///
+  /// In pt, this message translates to:
+  /// **'Garagem'**
+  String get garage;
+
+  /// No description provided for @backyard.
+  ///
+  /// In pt, this message translates to:
+  /// **'Quintal'**
+  String get backyard;
+
+  /// No description provided for @frontyard.
+  ///
+  /// In pt, this message translates to:
+  /// **'Frente'**
+  String get frontyard;
+
+  /// No description provided for @online.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ativo'**
+  String get online;
+
+  /// No description provided for @offline.
+  ///
+  /// In pt, this message translates to:
+  /// **'Desabilitado'**
+  String get offline;
 }
 
 class _AppLocalizationsDelegate

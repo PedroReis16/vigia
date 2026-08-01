@@ -87,5 +87,15 @@
   "createAccount": "Criar conta",
   "deviceNickname": "Nome",
   "deviceRoom": "Cômodo",
-  "deviceIdLabel": "Identificador"
+  "deviceIdLabel": "Identificador",
+  "bedroom": "Quarto",
+  "livingRoom": "Sala",
+  "kitchen": "Cozinha",
+  "bathroom": "Banheiro",
+  "office": "Escritório",
+  "garage": "Garagem",
+  "backyard": "Quintal",
+  "frontyard": "Frente",
+  "online": "Ativo",
+  "offline": "Desabilitado"
 }

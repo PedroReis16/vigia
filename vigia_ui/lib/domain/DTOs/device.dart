@@ -6,6 +6,7 @@ class Device {
   final String ownerId;
   final String? thumbnailUrl;
   final DeviceRooms? room;
+  final bool isRunning;
 
   Device({
     required this.id,
@@ -13,6 +14,7 @@ class Device {
     required this.ownerId,
     this.room,
     this.thumbnailUrl,
+    this.isRunning = false,
   });
 
   factory Device.fromJson(Map<String, dynamic> json) {
@@ -22,6 +24,7 @@ class Device {
       ownerId: json['ownerId'],
       thumbnailUrl: json['thumbnailUrl'],
       room: DeviceRoomsExtension.fromString(json['room']),
+      isRunning: json['isRunning'],
     );
   }
 }

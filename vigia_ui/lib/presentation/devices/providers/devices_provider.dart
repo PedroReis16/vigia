@@ -42,6 +42,7 @@ class Devices extends _$Devices {
       ); //Delay para esperar a animação de transição se concluída antes de realizar o carregamento dos dispositivos
 
       final devices = await ref.read(devicesRepositoryProvider).getDevices();
+
       return devices;
     } catch (e) {
       rethrow;

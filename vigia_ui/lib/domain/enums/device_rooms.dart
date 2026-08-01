@@ -12,21 +12,21 @@ enum DeviceRooms {
 extension DeviceRoomsExtension on DeviceRooms {
   static DeviceRooms? fromString(String value) {
     switch (value) {
-      case 'BEDROOM':
+      case 'Bedroom':
         return DeviceRooms.bedroom;
-      case 'LIVING_ROOM':
+      case 'LivingRoom':
         return DeviceRooms.livingRoom;
-      case 'KITCHEN':
+      case 'Kitchen':
         return DeviceRooms.kitchen;
-      case 'BATHROOM':
+      case 'Bathroom':
         return DeviceRooms.bathroom;
-      case 'OFFICE':
+      case 'Office':
         return DeviceRooms.office;
-      case 'GARAGE':
+      case 'Garage':
         return DeviceRooms.garage;
-      case 'BACKYARD':
+      case 'Backyard':
         return DeviceRooms.backyard;
-      case 'FRONTYARD':
+      case 'Frontyard':
         return DeviceRooms.frontyard;
       default:
         return null;

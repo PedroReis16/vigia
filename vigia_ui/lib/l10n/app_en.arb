@@ -87,5 +87,15 @@
   "createAccount": "Sign up",
   "deviceNickname": "Name",
   "deviceRoom": "Room",
-  "deviceIdLabel": "Identifier"
+  "deviceIdLabel": "Identifier",
+  "bedroom": "Bedroom",
+  "livingRoom": "Living room",
+  "kitchen": "Kitchen",
+  "bathroom": "Bathroom",
+  "office": "Office",
+  "garage": "Garage",
+  "backyard": "Backyard",
+  "frontyard": "Front yard",
+  "online": "Online",
+  "offline": "Offline"
 }

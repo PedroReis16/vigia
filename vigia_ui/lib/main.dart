@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/deep_link_listener.dart';
+import 'package:vigia_ui/presentation/devices/providers/device_groups_realtime_provider.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
@@ -36,6 +37,8 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    // Keep SignalR bridge alive for the whole app session.
+    ref.watch(deviceGroupsRealtimeBridgeProvider);
 
     return MaterialApp.router(
       onGenerateTitle: (context) => context.translations.appTitle,

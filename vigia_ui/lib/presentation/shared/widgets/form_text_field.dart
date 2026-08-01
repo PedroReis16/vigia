@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class FormTextField extends StatefulWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final TextEditingController controller;
   final bool isPassword;
   final bool? isPasswordVisible;
@@ -12,7 +12,7 @@ class FormTextField extends StatefulWidget {
   const FormTextField({
     super.key,
     required this.label,
-    required this.icon,
+    this.icon,
     required this.controller,
     this.isPassword = false,
     this.isPasswordVisible,
@@ -82,7 +82,9 @@ class _FormTextFieldState extends State<FormTextField> {
       decoration: InputDecoration(
         filled: true,
         fillColor: colorScheme.surface,
-        prefixIcon: Icon(widget.icon, color: colorScheme.onSurfaceVariant),
+        prefixIcon: widget.icon != null
+            ? Icon(widget.icon, color: colorScheme.onSurfaceVariant)
+            : null,
         labelText: widget.label,
         labelStyle: TextStyle(color: colorScheme.onSurfaceVariant),
         floatingLabelBehavior: FloatingLabelBehavior.auto,

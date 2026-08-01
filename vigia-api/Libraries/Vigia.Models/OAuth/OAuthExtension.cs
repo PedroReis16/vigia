@@ -53,6 +53,23 @@ public static class OAuthExtension
                     RoleClaimType = "role",
                     NameClaimType = JwtRegisteredClaimNames.Sub,
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        // SignalR WebSockets cannot send Authorization headers; token arrives as query.
+                        string? accessToken = context.Request.Query["access_token"];
+                        PathString path = context.HttpContext.Request.Path;
+                        // PathBase may leave Path as "/hubs/..." or include negotiate suffix.
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            (path.StartsWithSegments("/hubs") ||
+                             path.Value?.Contains("/hubs/", StringComparison.OrdinalIgnoreCase) == true))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             })
             .AddPolicyScheme(JwtBearerDefaults.AuthenticationScheme, JwtBearerDefaults.AuthenticationScheme, options =>
             {

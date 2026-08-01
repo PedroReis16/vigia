@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.OpenApi;
 using Vigia.API.Config;
 using Vigia.API.Contracts;
+using Vigia.API.Hubs;
 using Vigia.API.Services;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
@@ -13,6 +14,7 @@ using Vigia.Models.Contracts;
 using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
 using Vigia.Fiware.Extensions;
+using Microsoft.AspNetCore.SignalR;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +51,9 @@ builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IAuthService, AuthService>();
+builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
+builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
+builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
 
@@ -122,5 +127,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<DeviceGroupsHub>("/hubs/device-groups");
 
 app.Run();

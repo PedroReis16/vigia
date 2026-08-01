@@ -110,6 +110,14 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         await Context.SaveChangesAsync();
     }
 
+    public async Task<List<Guid>> GetDeviceIdsByGroupAsync(Guid groupId)
+    {
+        return await Context.Set<Device>()
+            .Where(d => d.GroupId == groupId && d.DeletedAt == null)
+            .Select(d => d.Id)
+            .ToListAsync();
+    }
+
     public async Task<List<Device>> GetUserDevicesAsync(Guid userId, string? nickname = null, DeviceRooms? room = null, bool onlyShared = false, bool onlyOwned = false, int page = 1, int pageSize = 10)
     {
         DbSet<Device> dbSet = Context.Set<Device>();

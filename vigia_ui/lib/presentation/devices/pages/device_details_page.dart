@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
-import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_details_widgets/device_details.dart';
@@ -13,7 +13,7 @@ class DeviceDetailsPage extends ConsumerStatefulWidget {
   const DeviceDetailsPage({super.key, required this.deviceId, this.device});
 
   final String deviceId;
-  final Device? device;
+  final DeviceUIModel? device;
 
   @override
   ConsumerState<DeviceDetailsPage> createState() => _DeviceDetailsPageState();
@@ -42,13 +42,13 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage> {
     super.dispose();
   }
 
-  Device? _resolveDevice(List<Device>? devices) {
-    if (widget.device != null) return widget.device;
-    if (devices == null) return null;
-    for (final device in devices) {
-      if (device.id == widget.deviceId) return device;
+  DeviceUIModel? _resolveDevice(List<DeviceUIModel>? devices) {
+    if (devices != null) {
+      for (final device in devices) {
+        if (device.id == widget.deviceId) return device;
+      }
     }
-    return null;
+    return widget.device;
   }
 
   /// Switch layout first, then rotate — avoids portrait Column overflowing

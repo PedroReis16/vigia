@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
-import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
 import 'package:vigia_ui/domain/environments.dart';
+import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class DeviceCard extends StatelessWidget {
-  final Device device;
+  final DeviceUIModel device;
   final VoidCallback? onTap;
 
   const DeviceCard({super.key, required this.device, this.onTap});
@@ -33,7 +33,7 @@ class DeviceCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        device.nickname,
+                        device.nickname ?? device.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium,
@@ -63,12 +63,18 @@ class DeviceCard extends StatelessWidget {
   }
 
   Widget _buildThumbnail(BuildContext context, String? thumbnail) {
+    Widget placeholder() => Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: const Center(child: Icon(Icons.videocam_off_outlined)),
+    );
+
     final child = thumbnail != null && thumbnail.isNotEmpty
-        ? Image.network("${Environments.apiUrl}/$thumbnail", fit: BoxFit.cover)
-        : Container(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: const Center(child: Icon(Icons.videocam_off_outlined)),
-          );
+        ? Image.network(
+            "${Environments.apiUrl}/$thumbnail",
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => placeholder(),
+          )
+        : placeholder();
 
     // Skeleton placeholders omit [onTap] and must not share Hero tags.
     if (onTap == null) return child;

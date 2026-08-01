@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/ui_models/device_ui.dart';
+import 'package:vigia_ui/presentation/devices/pages/device_clips_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/device_details_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
@@ -165,8 +167,8 @@ GoRouter appRouter(Ref ref) {
                     path: AppRoutes.deviceDetailsRelative,
                     pageBuilder: (context, state) {
                       final String deviceId = state.pathParameters['deviceId']!;
-                      final device = state.extra is Device
-                          ? state.extra as Device
+                      final device = state.extra is DeviceUIModel
+                          ? state.extra as DeviceUIModel
                           : null;
 
                       return CustomTransitionPage(
@@ -195,6 +197,14 @@ GoRouter appRouter(Ref ref) {
                             },
                       );
                     },
+                    routes: [
+                      GoRoute(
+                        path: AppRoutes.deviceClipsRelative,
+                        builder: (context, state) => DeviceClipsPage(
+                          deviceId: state.pathParameters['deviceId']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

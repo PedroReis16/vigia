@@ -7,5 +7,9 @@ abstract final class AppRoutes {
 
   static const deviceDetailsPage = '$devicesPage/:deviceId';
 
+  static const deviceClipsRelative = 'clips';
+
+  static const deviceClipsPage = '$deviceDetailsPage/$deviceClipsRelative';
+
   static const settingsPage = '/settings';
 }

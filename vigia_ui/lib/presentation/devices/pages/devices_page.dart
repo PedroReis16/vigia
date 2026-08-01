@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/domain/DTOs/device.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
+import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_card.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
@@ -52,10 +52,11 @@ class DevicesPage extends ConsumerWidget {
           itemCount: 3,
           itemBuilder: (context, index) {
             return DeviceCard(
-              device: Device(
+              device: DeviceUIModel(
                 id: 'skeleton-$index',
+                name: 'Device posicionado na sala',
                 nickname: 'Device posicionado na sala',
-                ownerId: 'skeleton',
+                isOwner: false,
                 room: DeviceRooms.livingRoom,
               ),
             );

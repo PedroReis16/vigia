@@ -222,6 +222,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deviceNickname => 'Name';
 
   @override
+  String get deviceName => 'Device name';
+
+  @override
   String get deviceRoom => 'Room';
 
   @override
@@ -256,4 +259,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get offline => 'Offline';
+
+  @override
+  String get roomNotDefined => 'Room not defined';
+
+  @override
+  String get saveClips => 'Save clips';
+
+  @override
+  String get whatAreClips => 'What are clips?';
+
+  @override
+  String get whenEnabledClipsWillStoreClipsForAnalysis =>
+      'When enabled, Vigia will store short video clips for later analysis of possible fall situations.';
+
+  @override
+  String get saveChanges => 'Save changes';
+
+  @override
+  String get deviceUpdatedSuccess => 'Device updated successfully';
+
+  @override
+  String get deviceUpdateError => 'Could not update the device';
+
+  @override
+  String get discardChangesTitle => 'Discard changes?';
+
+  @override
+  String get discardChangesMessage => 'There are unsaved changes.';
+
+  @override
+  String get discard => 'Discard';
+
+  @override
+  String get cancel => 'Cancel';
 }

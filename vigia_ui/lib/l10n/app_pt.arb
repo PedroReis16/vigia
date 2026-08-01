@@ -86,6 +86,7 @@
   "welcomeToVigia": "Bem-vindo ao Vigia",
   "createAccount": "Criar conta",
   "deviceNickname": "Nome",
+  "deviceName": "Nome do dispositivo",
   "deviceRoom": "Cômodo",
   "deviceIdLabel": "Identificador",
   "bedroom": "Quarto",
@@ -97,5 +98,16 @@
   "backyard": "Quintal",
   "frontyard": "Frente",
   "online": "Ativo",
-  "offline": "Desabilitado"
+  "offline": "Desabilitado",
+  "roomNotDefined": "Ambiente indefinido",
+  "saveClips": "Salvar clips",
+  "whatAreClips": "O que são clips?",
+  "whenEnabledClipsWillStoreClipsForAnalysis": "Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda",
+  "saveChanges": "Salvar alterações",
+  "deviceUpdatedSuccess": "Dispositivo atualizado com sucesso",
+  "deviceUpdateError": "Não foi possível atualizar o dispositivo",
+  "discardChangesTitle": "Descartar alterações?",
+  "discardChangesMessage": "Existem alterações que ainda não foram salvas.",
+  "discard": "Descartar",
+  "cancel": "Cancelar"
 }

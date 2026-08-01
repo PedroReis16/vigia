@@ -86,6 +86,7 @@
   "welcomeToVigia": "Welcome to Vigia",
   "createAccount": "Sign up",
   "deviceNickname": "Name",
+  "deviceName": "Device name",
   "deviceRoom": "Room",
   "deviceIdLabel": "Identifier",
   "bedroom": "Bedroom",
@@ -97,5 +98,16 @@
   "backyard": "Backyard",
   "frontyard": "Front yard",
   "online": "Online",
-  "offline": "Offline"
+  "offline": "Offline",
+  "roomNotDefined": "Room not defined",
+  "saveClips": "Save clips",
+  "whatAreClips": "What are clips?",
+  "whenEnabledClipsWillStoreClipsForAnalysis": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+  "saveChanges": "Save changes",
+  "deviceUpdatedSuccess": "Device updated successfully",
+  "deviceUpdateError": "Could not update the device",
+  "discardChangesTitle": "Discard changes?",
+  "discardChangesMessage": "There are unsaved changes.",
+  "discard": "Discard",
+  "cancel": "Cancel"
 }

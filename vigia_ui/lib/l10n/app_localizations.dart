@@ -490,6 +490,12 @@ abstract class AppLocalizations {
   /// **'Nome'**
   String get deviceNickname;
 
+  /// No description provided for @deviceName.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nome do dispositivo'**
+  String get deviceName;
+
   /// No description provided for @deviceRoom.
   ///
   /// In pt, this message translates to:
@@ -561,6 +567,72 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Desabilitado'**
   String get offline;
+
+  /// No description provided for @roomNotDefined.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ambiente indefinido'**
+  String get roomNotDefined;
+
+  /// No description provided for @saveClips.
+  ///
+  /// In pt, this message translates to:
+  /// **'Salvar clips'**
+  String get saveClips;
+
+  /// No description provided for @whatAreClips.
+  ///
+  /// In pt, this message translates to:
+  /// **'O que são clips?'**
+  String get whatAreClips;
+
+  /// No description provided for @whenEnabledClipsWillStoreClipsForAnalysis.
+  ///
+  /// In pt, this message translates to:
+  /// **'Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda'**
+  String get whenEnabledClipsWillStoreClipsForAnalysis;
+
+  /// No description provided for @saveChanges.
+  ///
+  /// In pt, this message translates to:
+  /// **'Salvar alterações'**
+  String get saveChanges;
+
+  /// No description provided for @deviceUpdatedSuccess.
+  ///
+  /// In pt, this message translates to:
+  /// **'Dispositivo atualizado com sucesso'**
+  String get deviceUpdatedSuccess;
+
+  /// No description provided for @deviceUpdateError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível atualizar o dispositivo'**
+  String get deviceUpdateError;
+
+  /// No description provided for @discardChangesTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Descartar alterações?'**
+  String get discardChangesTitle;
+
+  /// No description provided for @discardChangesMessage.
+  ///
+  /// In pt, this message translates to:
+  /// **'Existem alterações que ainda não foram salvas.'**
+  String get discardChangesMessage;
+
+  /// No description provided for @discard.
+  ///
+  /// In pt, this message translates to:
+  /// **'Descartar'**
+  String get discard;
+
+  /// No description provided for @cancel.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cancelar'**
+  String get cancel;
 }
 
 class _AppLocalizationsDelegate

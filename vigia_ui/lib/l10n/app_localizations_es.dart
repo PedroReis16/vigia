@@ -201,10 +201,12 @@ class AppLocalizationsEs extends AppLocalizations {
       'La dirección de correo electrónico ingresada no es una dirección válida';
 
   @override
-  String get passwordInvalid => 'A senha deve ter pelo menos 8 caracteres';
+  String get passwordInvalid =>
+      'La contraseña debe tener al menos 8 caracteres';
 
   @override
-  String get passwordConfirmationInvalid => 'As senhas inseridas não coincidem';
+  String get passwordConfirmationInvalid =>
+      'Las contraseñas ingresadas no coinciden';
 
   @override
   String get userEmailAlreadyInUse =>
@@ -222,6 +224,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get deviceNickname => 'Nombre';
+
+  @override
+  String get deviceName => 'Nombre del dispositivo';
 
   @override
   String get deviceRoom => 'Habitación';
@@ -254,8 +259,42 @@ class AppLocalizationsEs extends AppLocalizations {
   String get frontyard => 'Patio delantero';
 
   @override
-  String get online => 'activo';
+  String get online => 'Activo';
 
   @override
-  String get offline => 'inactivo';
+  String get offline => 'Inactivo';
+
+  @override
+  String get roomNotDefined => 'Habitación no definida';
+
+  @override
+  String get saveClips => 'Guardar clips';
+
+  @override
+  String get whatAreClips => '¿Qué son los clips?';
+
+  @override
+  String get whenEnabledClipsWillStoreClipsForAnalysis =>
+      'Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.';
+
+  @override
+  String get saveChanges => 'Guardar cambios';
+
+  @override
+  String get deviceUpdatedSuccess => 'Dispositivo actualizado con éxito';
+
+  @override
+  String get deviceUpdateError => 'No se pudo actualizar el dispositivo';
+
+  @override
+  String get discardChangesTitle => '¿Descartar cambios?';
+
+  @override
+  String get discardChangesMessage => 'Hay cambios que aún no se han guardado.';
+
+  @override
+  String get discard => 'Descartar';
+
+  @override
+  String get cancel => 'Cancelar';
 }

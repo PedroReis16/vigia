@@ -116,180 +116,145 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.translations;
+    final theme = Theme.of(context);
+
     return Padding(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.start,
         children: [
+          Wrap(
+            runSpacing: 8,
+            alignment: WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                onPressed: _handleBack,
+                icon: const Icon(Icons.arrow_back_ios),
+              ),
+              Text(
+                widget.device.nickname ?? widget.device.name,
+                style: theme.textTheme.titleLarge,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: ListView(
               children: [
-                _buildFormHeader(),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: FormTextField(
-                            controller: _nicknameController,
-                            label: context.translations.deviceName,
-                          ),
-                        ),
-                        Wrap(
-                          children: [
-                            Text(context.translations.deviceRoom),
-                            DropdownButtonFormField<DeviceRooms>(
-                              initialValue: widget.device.room,
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              items: DeviceRooms.values
-                                  .map(
-                                    (e) => DropdownMenuItem(
-                                      value: e,
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        Converters.translateDeviceRoom(
-                                          context,
-                                          e,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: _isSaving
-                                  ? null
-                                  : (value) {
-                                      setState(() {
-                                        _selectedRoom = value;
-                                      });
-                                    },
-                            ),
-                          ],
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: SwitchListTile(
-                            title: Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Text(context.translations.saveClips),
-                                IconButton(
-                                  onPressed: () => showModalBottomSheet(
-                                    context: context,
-                                    builder: (context) => SizedBox(
-                                      width: double.infinity,
-                                      height: 200,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment
-                                                      .spaceBetween,
-                                              children: [
-                                                Text(
-                                                  context
-                                                      .translations
-                                                      .whatAreClips,
-                                                  style: Theme.of(
-                                                    context,
-                                                  ).textTheme.titleMedium,
-                                                ),
-                                                IconButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(context),
-                                                  icon: Icon(Icons.close),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Expanded(
-                                              child: Text(
-                                                context
-                                                    .translations
-                                                    .whenEnabledClipsWillStoreClipsForAnalysis,
-                                                textAlign: TextAlign.justify,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  icon: Icon(Icons.info_outline),
-                                ),
-                              ],
-                            ),
-                            value: _isClipsEnabled,
-                            onChanged: _isSaving
-                                ? null
-                                : (value) {
-                                    setState(() {
-                                      _isClipsEnabled = value;
-                                    });
-                                  },
-                          ),
-                        ),
-                      ],
+                FormTextField(
+                  controller: _nicknameController,
+                  label: t.deviceName,
+                ),
+                const SizedBox(height: 16),
+                Text(t.deviceRoom, style: theme.textTheme.labelLarge),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<DeviceRooms>(
+                  initialValue: widget.device.room,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
+                  items: DeviceRooms.values
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          alignment: Alignment.center,
+                          child: Text(
+                            Converters.translateDeviceRoom(context, e),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _selectedRoom = value;
+                          });
+                        },
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(t.saveClips),
+                      IconButton(
+                        onPressed: () => showModalBottomSheet(
+                          context: context,
+                          builder: (context) => SizedBox(
+                            width: double.infinity,
+                            height: 200,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        t.whatAreClips,
+                                        style: theme.textTheme.titleMedium,
+                                      ),
+                                      IconButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context),
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Expanded(
+                                    child: Text(
+                                      t.whenEnabledClipsWillStoreClipsForAnalysis,
+                                      textAlign: TextAlign.justify,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.info_outline),
+                      ),
+                    ],
+                  ),
+                  value: _isClipsEnabled,
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _isClipsEnabled = value;
+                          });
+                        },
                 ),
               ],
             ),
           ),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: _isSaving ? null : _saveChanges,
-              child: _isSaving
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      context.translations.saveChanges,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _isSaving ? null : _saveChanges,
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(t.saveChanges),
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFormHeader() {
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      runAlignment: WrapAlignment.start,
-      spacing: 8,
-      children: [
-        IconButton(
-          onPressed: _handleBack,
-          icon: Icon(Icons.arrow_back_ios, size: 16),
-          style: IconButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ),
-        Text(
-          widget.device.nickname ?? widget.device.name,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ],
     );
   }
 }

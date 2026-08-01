@@ -25,7 +25,7 @@ class DeviceCard extends StatelessWidget {
                 flex: 2,
                 child: thumbnail != null && thumbnail.isNotEmpty
                     ? Image.network(
-                        "$Environments.apiUrl/$thumbnail",
+                        "${Environments.apiUrl}/$thumbnail",
                         fit: BoxFit.cover,
                       )
                     : Container(

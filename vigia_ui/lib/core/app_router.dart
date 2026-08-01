@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/app_routes.dart';
-import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/core/invite_deep_link.dart';
 import 'package:vigia_ui/domain/ui_models/device_ui.dart';
+import 'package:vigia_ui/presentation/devices/pages/accept_invite_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/device_clips_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/device_details_page.dart';
 import 'package:vigia_ui/presentation/devices/pages/devices_page.dart';
+import 'package:vigia_ui/presentation/devices/providers/pending_invite_provider.dart';
 import 'package:vigia_ui/presentation/settings/pages/settings_page.dart';
 import 'package:vigia_ui/presentation/shell/animated_shell_body.dart';
 import 'package:vigia_ui/presentation/shell/auth_to_shell_transition.dart';
@@ -29,6 +31,9 @@ GoRouter appRouter(Ref ref) {
   ref.listen(authSessionProvider, (_, _) {
     refresh.value++;
   });
+  ref.listen(pendingInviteTokenProvider, (_, _) {
+    refresh.value++;
+  });
   // Only refresh when an enter morph is armed. Listening to disarm() would
   // rebuild the shell page mid-transition (Duration.zero) and flash on device.
   ref.listen(authExitTransitionProvider, (previous, next) {
@@ -43,8 +48,24 @@ GoRouter appRouter(Ref ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.authPage,
+    // Custom scheme `vigia://invite/...` is not an in-app path. Let app_links
+    // handle it; otherwise GoRouter shows PageNotFound on open.
+    overridePlatformDefaultLocation: true,
     refreshListenable: refresh,
     debugLogDiagnostics: false,
+    onException: (context, state, router) {
+      final inviteLocation = InviteDeepLink.inviteLocationFromUri(state.uri);
+      if (inviteLocation != null) {
+        final token = InviteDeepLink.extractToken(state.uri);
+        if (token != null) {
+          ref.read(pendingInviteTokenProvider.notifier).setToken(token);
+        }
+        final loggedIn = ref.read(authSessionProvider).asData?.value ?? false;
+        router.go(loggedIn ? inviteLocation : AppRoutes.authPage);
+        return;
+      }
+      router.go(AppRoutes.devicesPage);
+    },
     redirect: (context, state) {
       final auth = ref.read(authSessionProvider);
 
@@ -52,6 +73,24 @@ GoRouter appRouter(Ref ref) {
 
       final loggedIn = auth.asData?.value ?? false;
       final onAuth = state.matchedLocation == AppRoutes.authPage;
+      final onInvite = state.matchedLocation.startsWith('/invite/');
+      final pendingInvite = ref.read(pendingInviteTokenProvider);
+
+      // If the platform still surfaces the custom scheme as the location,
+      // rewrite it to the in-app invite path before matching fails.
+      final inviteFromUri = InviteDeepLink.inviteLocationFromUri(state.uri);
+      if (inviteFromUri != null && state.matchedLocation != inviteFromUri) {
+        final token = InviteDeepLink.extractToken(state.uri)!;
+        ref.read(pendingInviteTokenProvider.notifier).setToken(token);
+        if (!loggedIn) return AppRoutes.authPage;
+        return inviteFromUri;
+      }
+
+      if (!loggedIn && onInvite && state.pathParameters['token'] != null) {
+        ref
+            .read(pendingInviteTokenProvider.notifier)
+            .setToken(state.pathParameters['token']);
+      }
 
       if (!loggedIn && !onAuth) return AppRoutes.authPage;
 
@@ -62,11 +101,17 @@ GoRouter appRouter(Ref ref) {
         if (kind == AuthTransitionKind.login ||
             kind == AuthTransitionKind.register ||
             kind == AuthTransitionKind.coldStart) {
+          if (pendingInvite != null && pendingInvite.isNotEmpty) {
+            return AppRoutes.invitePagePath(pendingInvite);
+          }
           return AppRoutes.devicesPage;
         }
         // Still on first-boot cold start — keep AuthPage visible.
         if (!ref.read(coldStartCompletedProvider)) {
           return null;
+        }
+        if (pendingInvite != null && pendingInvite.isNotEmpty) {
+          return AppRoutes.invitePagePath(pendingInvite);
         }
         // Edge case (cold start already completed): leave without morph.
         return AppRoutes.devicesPage;
@@ -109,6 +154,14 @@ GoRouter appRouter(Ref ref) {
               );
             },
           );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.invitePage,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final token = state.pathParameters['token']!;
+          return AcceptInvitePage(token: token);
         },
       ),
       StatefulShellRoute(

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
+import 'package:vigia_ui/core/deep_link_listener.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
@@ -60,7 +61,7 @@ class MyApp extends ConsumerWidget {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           AuthTransitionWarmUp.precacheLogos(context);
         });
-        return child ?? const SizedBox.shrink();
+        return DeepLinkListener(child: child ?? const SizedBox.shrink());
       },
     );
   }

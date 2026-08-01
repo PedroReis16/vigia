@@ -1,33 +1,53 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Vigia.API.Contracts;
+using Vigia.API.Helpers;
+using Vigia.API.Models.DTOs.Devices;
 
 namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
-[Route("devices/{deviceId}/share")]
+[Route("devices")]
 [Authorize]
-public class DeviceShareController() : ControllerBase
+public class DeviceShareController(IDeviceShareService service) : ControllerBase
 {
+    private readonly IDeviceShareService _service = service;
 
     /// <summary>
-    /// Gera um link de compartilhamento para um dispositivo para outros usuários
+    /// Gera um link de compartilhamento para o grupo do dispositivo
     /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
-    [HttpGet("generate")]
-    public async Task<IActionResult> ShareDevice(Guid deviceId)
+    [HttpGet("{deviceId:guid}/share/generate")]
+    public async Task<IActionResult> GenerateShareLink(Guid deviceId)
     {
-        return Ok();
+        try
+        {
+            Guid userId = User.GetUserId();
+            DeviceShareInviteDTO invite = await _service.GenerateInviteAsync(deviceId, userId);
+            return Ok(invite);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception) { throw; }
     }
 
     /// <summary>
-    /// Confirmação de compartilhamento de um dispositivo entre usuários
+    /// Aceita um convite de compartilhamento e vincula o usuário autenticado ao grupo
     /// </summary>
-    /// <param name="deviceId"></param>
-    /// <returns></returns>
-    [HttpPost("accept")]
-    public async Task<IActionResult> AcceptDeviceShare(Guid deviceId)
+    [HttpPost("share/accept")]
+    public async Task<IActionResult> AcceptDeviceShare([FromBody] AcceptDeviceShareDTO body)
     {
-        return Ok();
+        try
+        {
+            Guid userId = User.GetUserId();
+            await _service.AcceptInviteAsync(body.Token, userId);
+            return Ok(new { message = "Convite aceito com sucesso" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception) { throw; }
     }
 }

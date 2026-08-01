@@ -50,6 +50,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
+builder.Services.AddTransient<IDeviceShareService, DeviceShareService>();
 builder.Services.AddTransient<IAuthService, AuthService>();
 builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();

@@ -135,10 +135,21 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             if (deviceOwner == null)
                 throw new EntityValidationException(nameof(User), "Usuário não encontrado", ErrorCodes.USER_NOT_FOUND);
 
-            Group userGroup = deviceOwner.LinkedGroups.First(g => g.OwnerId == userId);
-
             if (device.Group != null && device.Group.OwnerId != userId)
                 throw new EntityValidationException(nameof(Device), "O dispositivo já esta vinculado a outro usuário", ErrorCodes.DEVICE_ALREADY_IN_USE);
+
+            // Idempotent: already claimed by this user.
+            if (device.Group != null && device.Group.OwnerId == userId)
+            {
+                _logger.LogInformation($"Dispositivo {deviceId} já estava vinculado ao usuário {userId}");
+                return;
+            }
+
+            Group? userGroup = deviceOwner.LinkedGroups?
+                .FirstOrDefault(g => g.OwnerId == userId);
+
+            if (userGroup == null)
+                throw new EntityValidationException(nameof(Group), "Grupo do usuário não encontrado", ErrorCodes.GROUP_NOT_FOUND);
 
             device.Group = userGroup;
 

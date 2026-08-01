@@ -38,6 +38,7 @@ internal class UserService(ILogger<UserService> logger, IServiceScopeFactory sco
 
             User newUser = new()
             {
+                Id = newUserId,
                 Name = newUserDTO.Name,
                 Email = newUserDTO.Email,
                 Password = passwordHash,

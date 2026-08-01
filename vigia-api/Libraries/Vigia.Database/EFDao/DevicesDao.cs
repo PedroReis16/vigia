@@ -93,19 +93,34 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
     {
         DbSet<Device> dbSet = Context.Set<Device>();
 
-        Group? userGroup = await Context.Set<Group>()
-            .Where(g => g.OwnerId == device.Group!.OwnerId && g.DeletedAt == null)
+        Device? trackedDevice = await dbSet
+            .Where(d => d.Id == device.Id && d.DeletedAt == null)
             .FirstOrDefaultAsync();
 
-        if (userGroup == null)
-            throw new EntityValidationException(nameof(Group), $"O grupo relacionado ao usuário {device.Group!.OwnerId} não foi encontrado", ErrorCodes.GROUP_NOT_FOUND);
+        if (trackedDevice == null)
+            throw new EntityValidationException(nameof(Device), $"O dispositivo '{device.Id}' não foi encontrado", ErrorCodes.DEVICE_NOT_FOUND);
 
-        device.Group = userGroup;
-        device.UpdatedAt = DateTime.Now.ToUniversalTime();
+        if (device.Group == null)
+        {
+            trackedDevice.GroupId = null;
+            trackedDevice.Group = null;
+        }
+        else
+        {
+            Group? userGroup = await Context.Set<Group>()
+                .Where(g => g.OwnerId == device.Group.OwnerId && g.DeletedAt == null)
+                .FirstOrDefaultAsync();
 
-        dbSet.Update(device);
+            if (userGroup == null)
+                throw new EntityValidationException(nameof(Group), $"O grupo relacionado ao usuário {device.Group.OwnerId} não foi encontrado", ErrorCodes.GROUP_NOT_FOUND);
 
-        Cache?.RemoveEntity(device);
+            trackedDevice.GroupId = userGroup.Id;
+            trackedDevice.Group = userGroup;
+        }
+
+        trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
+
+        Cache?.RemoveEntity(trackedDevice);
 
         await Context.SaveChangesAsync();
     }

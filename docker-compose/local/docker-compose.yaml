@@ -76,6 +76,8 @@ services:
       - "81:80" # ApiUrls.Fiware → http://localhost:81/fiware
       - "443:443"
       - "1883:1883"
+      # RTMP ingest fica no MediaMTX (porta 1935), não no Traefik
+      - "8080:8080"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
@@ -240,24 +242,23 @@ services:
 
   mediamtx:
     image: bluenviron/mediamtx:latest
-    container_name: vigia-mediamtx
+    container_name: mediamtx
     restart: unless-stopped
+    ports:
+      # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
+      - "1935:1935"
+      # WebRTC ICE/RTP — obrigatório para o vídeo não ficar preto no browser
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+      # HLS (alternativa HTTP)
+      - "8888:8888"
     labels:
       - "traefik.enable=true"
-      # Playback via HTTPS
-      - "traefik.http.routers.mediamtx-play.rule=(Host(`www.vigia-deteccoes.duckdns.org`) || Host(`vigia-deteccoes.duckdns.org`)) && PathPrefix(`/live`)"
-      - "traefik.http.routers.mediamtx-play.entrypoints=websecure"
-      - "traefik.http.routers.mediamtx-play.tls=true"
-      - "traefik.http.routers.mediamtx-play.tls.certresolver=letsencrypt"
+      # Playback WebRTC (signaling HTTP). Mídia usa :8189 no host.
+      - "traefik.http.routers.mediamtx-play.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/live`)"
+      - "traefik.http.routers.mediamtx-play.entrypoints=web"
       - "traefik.http.routers.mediamtx-play.priority=100"
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
-
-      # Ingest RTMPS em 443 (host separado recomendado)
-      - "traefik.tcp.routers.mediamtx-ingest.rule=HostSNI(`ingest-vigia-deteccoes.duckdns.org`)"
-      - "traefik.tcp.routers.mediamtx-ingest.entrypoints=websecure"
-      - "traefik.tcp.routers.mediamtx-ingest.tls=true"
-      - "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt"
-      - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
     networks:

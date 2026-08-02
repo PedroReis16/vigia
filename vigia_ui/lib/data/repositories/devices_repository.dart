@@ -249,4 +249,29 @@ class DevicesRepository {
       throw Exception('Failed to update device');
     }
   }
+
+  Future<void> sendCommand(
+    String deviceId,
+    String command, {
+    String? commandValue,
+  }) async {
+    try {
+      await dio.patch(
+        '$_devicesEndpoint/$deviceId/command',
+        data: {
+          'command': command,
+          'commandValue': commandValue ?? '',
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para enviar o comando.",
+        );
+      }
+      throw Exception(_apiErrorMessage(e) ?? 'Failed to send device command');
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

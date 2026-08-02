@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:video_player/video_player.dart';
+import 'package:vigia_ui/data/services/whep_live_session.dart';
 import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/devices/providers/device_live_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_details_widgets/device_details.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_video_player.dart';
@@ -21,34 +24,64 @@ class DeviceDetailsPage extends ConsumerStatefulWidget {
 
 class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
     with WidgetsBindingObserver {
-  late final VideoPlayerController _controller;
+  late final WhepLiveSession _session;
   bool _fullscreen = false;
+  bool _starting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _controller = VideoPlayerController.asset('assets/videos/demo.mp4')
-      ..setLooping(true)
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {});
-        _controller.play();
-      });
+    _session = WhepLiveSession(whepUrl: deviceWhepUrl(widget.deviceId));
+    _session.addListener(_onSessionUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startLive());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _controller.dispose();
+    _session.removeListener(_onSessionUpdate);
+    // Close peer/tracks only — STOP_STREAMING is owned by MediaMTX unDemand.
+    unawaited(_session.close());
     _restoreSystemUi();
     super.dispose();
+  }
+
+  void _onSessionUpdate() {
+    if (mounted) setState(() {});
   }
 
   @override
   void didChangeMetrics() {
     // Rebuild when the soft keyboard opens/closes so the video can collapse.
     if (mounted) setState(() {});
+  }
+
+  Future<void> _startLive() async {
+    if (_starting || !mounted) return;
+    _starting = true;
+    _session.beginConnecting();
+
+    try {
+      await _session.initialize();
+      if (!mounted) return;
+
+      ref.invalidate(startDeviceStreamingProvider(widget.deviceId));
+      await ref.read(startDeviceStreamingProvider(widget.deviceId).future);
+      if (!mounted) return;
+
+      await _session.connect();
+    } catch (e) {
+      if (!mounted) return;
+      _session.markError(e);
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _retryLive() async {
+    if (_starting) return;
+    await _startLive();
   }
 
   DeviceUIModel? _resolveDevice(List<DeviceUIModel>? devices) {
@@ -123,9 +156,10 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
           fit: StackFit.expand,
           children: [
             DeviceVideoPlayer(
-              controller: _controller,
+              session: _session,
               fullscreen: true,
               onToggleFullscreen: _toggleFullscreen,
+              onRetry: _retryLive,
             ),
             SafeArea(
               child: Align(
@@ -175,9 +209,10 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: DeviceVideoPlayer(
-                  controller: _controller,
+                  session: _session,
                   fullscreen: false,
                   onToggleFullscreen: _toggleFullscreen,
+                  onRetry: _retryLive,
                   heroTag: heroTag,
                 ),
               ),

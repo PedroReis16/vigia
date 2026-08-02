@@ -110,7 +110,7 @@ final class AddDeviceProvider extends $FunctionalProvider<void, void, void>
   }
 }
 
-String _$addDeviceHash() => r'702c991bad9fa8962176ef9276934ab8ab03f5e7';
+String _$addDeviceHash() => r'70138b8818780a6500de5030e14f9d7c02aa9ce3';
 
 final class AddDeviceFamily extends $Family
     with $FunctionalFamilyOverride<void, NewDevice> {

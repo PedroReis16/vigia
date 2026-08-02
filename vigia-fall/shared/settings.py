@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
 from .helpers import helpers_convert_to_bool
+from . import test_device_seed
 
 
 @dataclass(frozen=True)
@@ -97,13 +98,55 @@ class DeviceIdentity:
             ecdh_priv=identity["ecdh_priv"],
         )
 
+    def with_sign_priv(self, sign_priv: str) -> "DeviceIdentity":
+        return DeviceIdentity(
+            device_id=self.device_id,
+            device_name=self.device_name,
+            sign_priv=sign_priv,
+            ecdh_priv=self.ecdh_priv,
+        )
+
+
+def _align_test_device_sign_key(identity: DeviceIdentity) -> DeviceIdentity:
+    """
+    Em DEBUG, se identity aponta ao device seedado da API, garante o
+    SignPrivateKey do TestDeviceSeed (a API sobrescreve SignPublicKey).
+    """
+    if not get_settings().debug:
+        return identity
+
+    if identity.device_id.lower() != test_device_seed.DEVICE_ID:
+        return identity
+
+    if identity.sign_priv.lower() == test_device_seed.SIGN_PRIVATE_KEY:
+        return identity
+
+    aligned = identity.with_sign_priv(test_device_seed.SIGN_PRIVATE_KEY)
+    identity_path = get_identity_path()
+    identity_path.write_text(
+        json.dumps(
+            {
+                "device_id": aligned.device_id,
+                "device_name": aligned.device_name,
+                "sign_priv": aligned.sign_priv,
+                "ecdh_priv": aligned.ecdh_priv,
+            }
+        )
+    )
+    identity_path.chmod(0o600)
+    print(
+        "Device identity: SignPrivateKey alinhada ao TestDeviceSeed (DEBUG) "
+        f"para device_id={aligned.device_id}"
+    )
+    return aligned
+
 
 @lru_cache(maxsize=1)
 def get_device_identity() -> DeviceIdentity:
     """
     Retorna a identidade do dispositivo
     """
-    return DeviceIdentity.from_json()
+    return _align_test_device_sign_key(DeviceIdentity.from_json())
 
 
 # Network Settings

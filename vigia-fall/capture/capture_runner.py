@@ -13,6 +13,7 @@ from shared import (
     init_stream_event,
 )
 from capture.frame_worker import get_worker
+from capture.frame_uploader import maybe_upload_thumbnail
 from capture.capture_stream import is_streaming, shutdown_stream, stop_stream, stream_video
 
 
@@ -68,6 +69,9 @@ def run_capture(stream_event: EventType | None = None):
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
+
+            # Thumbnail para a API (cadência interna ~60s; não bloqueia captura).
+            maybe_upload_thumbnail(flipped_frame)
 
             if get_stream_status():
                 stream_video(flipped_frame)

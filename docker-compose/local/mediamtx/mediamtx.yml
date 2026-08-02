@@ -1,5 +1,9 @@
 logLevel: info
 
+# Control API used by on_unread hook to count remaining readers (localhost only).
+api: yes
+apiAddress: :9997
+
 # Protocolos habilitados para teste de latencia
 rtsp: yes
 rtmp: yes
@@ -24,6 +28,13 @@ hlsPartDuration: 200ms
 hlsSegmentCount: 6
 
 paths:
+  # Device RTMP publish: rtmp://…/live/{deviceId}
+  # $G1 = device UUID capturado do path
+  # NOTE: runOnUnDemand only runs in the runOnDemand lifecycle (HasOnDemandPublisher
+  # requires runOnDemand). Devices publish RTMP themselves, so use runOnUnread +
+  # Control API reader check (see /hooks/on_unread_stop_streaming.sh).
+  "~^live/([0-9a-fA-F-]+)$":
+    source: publisher
+    runOnUnread: sh /hooks/on_unread_stop_streaming.sh
   all:
-    # Permite publicar qualquer stream, ex.: /live/cam1
     source: publisher

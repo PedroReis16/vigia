@@ -69,10 +69,15 @@ log "Minio OK."
  
 # ─── MEDIAMTX ─────────────────────────────────────────────────────────────────
 log "Subindo MediaMTX..."
+# Official image lacks curl/sh/jq; build Alpine image for runOnUnread hooks.
+docker build -t vigia-mediamtx:deploy -f "$BASE_DIR/../dockerfiles/mediamtx.dockerfile" "$BASE_DIR/.."
 docker run -d \
   --name vigia-mediamtx \
   --restart unless-stopped \
   --network vigia-network \
+  -e VIGIA_API_BASE=http://vigia-api:8000 \
+  -e VIGIA_MEDIAMTX_TOKEN=CHANGE_ME_MEDIAMTX_WEBHOOK_TOKEN \
+  -e UNDEMAND_GRACE_SECONDS=3 \
   --label "traefik.enable=true" \
   --label "traefik.http.routers.mediamtx-play.rule=(Host(\`www.vigia-deteccoes.duckdns.org\`) || Host(\`vigia-deteccoes.duckdns.org\`)) && PathPrefix(\`/live\`)" \
   --label "traefik.http.routers.mediamtx-play.entrypoints=websecure" \
@@ -86,7 +91,8 @@ docker run -d \
   --label "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt" \
   --label "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935" \
   -v "$BASE_DIR/mediamtx/mediamtx.yml":/mediamtx.yml:ro \
-  bluenviron/mediamtx:latest
+  -v "$BASE_DIR/../mediamtx-hooks/on_unread_stop_streaming.sh":/hooks/on_unread_stop_streaming.sh:ro \
+  vigia-mediamtx:deploy
 log "MediaMTX OK."
  
 # ─── TRAEFIK ──────────────────────────────────────────────────────────────────

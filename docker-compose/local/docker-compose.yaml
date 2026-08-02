@@ -65,7 +65,6 @@ services:
       - vigia-network
 
   # ─── VIGIA ────────────────────────────────────────────────────────────────
-  
 
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
@@ -74,7 +73,7 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "81:80"   # ApiUrls.Fiware → http://localhost:81/fiware
+      - "81:80" # ApiUrls.Fiware → http://localhost:81/fiware
       - "443:443"
       - "1883:1883"
     command:
@@ -92,7 +91,6 @@ services:
     container_name: fiware-mongo-historical
     restart: always
     hostname: mongo-db-historical
-    profiles: ["fiware"]
     ports:
       - "27077:27017"
     environment:
@@ -112,7 +110,6 @@ services:
     hostname: mongo-db-internal
     ports:
       - "27067:27017"
-    profiles: ["fiware"]
     command: ["mongod", "--nojournal"]
     volumes:
       - mongo-internal-data:/data/db
@@ -122,11 +119,10 @@ services:
   # ─── ORION ────────────────────────────────────────────────────────────────
   orion:
     image: fiware/orion:3.11.0
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-orion
     hostname: orion
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
       - traefik
@@ -145,18 +141,17 @@ services:
       - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
-      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/fiware/orion"
+      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/vigia/fiware/orion"
     networks:
       - vigia-network
 
   # ─── STH-COMET ────────────────────────────────────────────────────────────
   sth-comet:
     image: telefonicaiot/fiware-sth-comet
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-sth-comet
     hostname: sth-comet
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
       - traefik
@@ -177,18 +172,17 @@ services:
       - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
-      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/fiware/sth-comet"
+      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/vigia/fiware/sth-comet"
     networks:
       - vigia-network
 
   # ─── IOT AGENT ────────────────────────────────────────────────────────────
   iot-agent:
     image: fiware/iotagent-ul:latest
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-iot-agent
     hostname: iot-agent
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-internal
       - mosquitto
@@ -215,7 +209,7 @@ services:
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
       # Strip só /fiware para preservar /iot/... esperado pelo IoT Agent (ex: /iot/about)
-      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware"
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/vigia/fiware"
     networks:
       - vigia-network
 
@@ -225,7 +219,6 @@ services:
     restart: always
     container_name: fiware-mosquitto
     hostname: mosquitto
-    profiles: ["fiware"]
     expose:
       - "1883"
       - "9001"
@@ -238,12 +231,12 @@ services:
       - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
+      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/vigia/fiware/mosquitto"
       - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
     networks:
       - vigia-network
 
-#  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
+  #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
     image: bluenviron/mediamtx:latest
@@ -278,4 +271,3 @@ networks:
   vigia-network:
     name: vigia-network
     driver: bridge
-

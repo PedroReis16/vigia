@@ -24,10 +24,10 @@ def _on_connect(client, userdata, flags, reason_code, properties=None):
 
 def _on_message(client, userdata, message):
     try:
-        payload = json.loads(message.payload.decode())
+        # payload = json.loads(message.payload.decode())
 
+        print(f"Message received")
         # TODO: Realizar o processamento dos dados recebidos
-        print(f"Message received: {payload}")
 
     except Exception as e:
         print(f"Error parsing message: {e}")
@@ -55,7 +55,7 @@ def run_fiware():
     device_id = identity.device_id
     broker_host, broker_port = _mqtt_endpoint(network_settings.api_base_url)
 
-    fiware_topic = f"/${network_settings.fiware_api_key}/${device_id}/topic"
+    fiware_topic = f"/{network_settings.fiware_api_key}/{device_id}/cmd"
 
     fiware_client = mqtt.Client(
         callback_api_version=CallbackAPIVersion.VERSION2,

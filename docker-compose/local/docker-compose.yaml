@@ -141,7 +141,7 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/orion`)"
+      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/orion`)"
       - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
@@ -173,7 +173,7 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/sth-comet`)"
+      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/sth-comet`)"
       - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
@@ -210,7 +210,7 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/iot`)"
+      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/iot`)"
       - "traefik.http.routers.iot.entrypoints=web"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
@@ -235,7 +235,7 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
       - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"

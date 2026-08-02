@@ -34,6 +34,7 @@ dependencies:
   app_links: ^6.4.0
   share_plus: ^10.1.4
   signalr_netcore: ^1.4.4
+  flutter_webrtc: ^1.5.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -62,15 +62,15 @@ def run_capture(stream_event: EventType | None = None):
             #     frame_worker.insert_raw_frame(frame.copy())
             #     last_capture = now
 
+            flipped_frame = cv2.flip(frame, 1)
             if show_video:
-                display = cv2.flip(frame, 1)
-                cv2.imshow("Preview", display)
+                cv2.imshow("Preview", flipped_frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
             if get_stream_status():
-                stream_video(frame)
+                stream_video(flipped_frame)
             elif is_streaming():
                 stop_stream()
 

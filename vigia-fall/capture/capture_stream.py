@@ -31,9 +31,19 @@ def _rtmp_publish_url(api_base_url: str, device_id: str) -> str:
     MediaMTX local escuta RTMP plain em :1935 (não RTMPS).
     """
     _ = urlparse(api_base_url)
-    # Preferir IPv4 explícito — "localhost" pode resolver em ::1.
-    host = api_base_url.split("://")[1].split(":")[0] or "localhost"
-    return f"rtmp://{host}:1935/live/{device_id}"
+    if api_base_url.startswith("https"):
+        protocol = "rtmps"
+    else:
+        protocol = "rtmp"
+
+    if api_base_url.startswith("https"):
+        host = api_base_url.split("://")[1].split(":")[0]
+    else:
+        host = (
+            f"{api_base_url.split("://")[1].split(":")[0]}:{1935}" or "localhost:1935"
+        )
+
+    return f"{protocol}://{host}/live/{device_id}"
 
 
 class RtmpPublisher:

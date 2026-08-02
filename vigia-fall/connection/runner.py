@@ -86,8 +86,7 @@ async def init_register_beacon():
 
     # Start advertising and handling requests
     await server.start()
-    print("Beacon de registro do dispositivo embarcado com bluetooth iniciado...")
-
+    
     # Keep the server alive
     try:
         while True:

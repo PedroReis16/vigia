@@ -2,32 +2,63 @@
 Módulo para controle e inicialização da integração entre o dispositivo e o FIWARE
 """
 
-import json
+from typing import Any
 from urllib.parse import urlparse
+from multiprocessing.synchronize import Event as EventType
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 
-from shared import get_device_identity, get_network_settings
+from shared import (
+    get_device_identity,
+    get_network_settings,
+    init_stream_event,
+    set_stream_status,
+)
 
 
 fiware_client: mqtt.Client = None
 fiware_topic: str = None
 
 
-def _on_connect(client, userdata, flags, reason_code, properties=None):
-    global fiware_client, fiware_topic
-
+def _on_connect(
+    client: mqtt.Client,
+    _: Any,
+    __: Any,
+    ___: Any,
+    ____: Any,
+) -> None:
+    """
+    Callback para conexão com o broker MQTT
+    """
     print("Connected to MQTT broker")
     client.subscribe(fiware_topic)
 
 
-def _on_message(client, userdata, message):
+def _on_message(_: mqtt.Client, __: Any, message: mqtt.MQTTMessage) -> None:
+    """
+    Callback para recebimento de mensagens do FIWARE
+    """
     try:
-        # payload = json.loads(message.payload.decode())
+        print(f"Message received: {message.payload.decode()}")
+        message_parts = message.payload.decode().split("@")
 
-        print(f"Message received")
-        # TODO: Realizar o processamento dos dados recebidos
+        if (
+            len(message_parts) == 0
+            or message_parts[0] != get_device_identity().device_id
+        ):
+            return
+
+        command = message_parts[1].replace("|", "")
+
+        match command:
+            case "stream_on":
+                set_stream_status(True)
+            case "stream_off":
+                set_stream_status(False)
+            case _:
+                print(f"Unknown command: {message_parts[1]}")
+                return
 
     except Exception as e:
         print(f"Error parsing message: {e}")
@@ -43,11 +74,14 @@ def _mqtt_endpoint(api_base_url: str) -> tuple[str, int]:
     return host, port
 
 
-def run_fiware():
+def run_fiware(stream_event: EventType | None = None):
     """
     Executa a rotina principal do FIWARE para recebimento de dados do dispositivo.
     """
     global fiware_client, fiware_topic
+
+    if stream_event is not None:
+        init_stream_event(stream_event)
 
     identity = get_device_identity()
     network_settings = get_network_settings()

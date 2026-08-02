@@ -19,7 +19,7 @@ def process_frame(frame: np.ndarray) -> None:
         if len(results) <= 0:
             return
 
-        print(results)
+        # print(results)
         
         get_worker().insert_slider_window(frame)
 

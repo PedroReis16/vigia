@@ -62,4 +62,30 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
             throw;
         }
     }
+
+    public async Task<bool> SendUndemandStopStreamingAsync(Guid deviceId)
+    {
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
+
+            IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
+            Device? device = await devicesDao.FindAsync(deviceId);
+
+            if (device is null)
+                throw new EntityValidationException(nameof(Device), "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
+
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+
+            return await fiwareService.SendCommandAsync(
+                deviceName: device.Name,
+                command: DeviceCommands.STOP_STREAMING,
+                commandValue: null);
+        }
+        catch (Exception ex) when (ex is not EntityValidationException)
+        {
+            _logger.LogError(ex, "Error sending undemand STOP_STREAMING to device {DeviceId}", deviceId);
+            throw;
+        }
+    }
 }

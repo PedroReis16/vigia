@@ -5,7 +5,6 @@ Implementação do BLE para o dispositivo
 import asyncio
 import json
 import os
-from pathlib import Path
 from typing import Any, Optional
 from uuid import UUID
 
@@ -19,7 +18,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
-from shared import get_settings
+from shared import get_network_path
 from .wifi_service import get_wifi_service
 
 server: BlessServer = None
@@ -61,8 +60,7 @@ def __set_provision_status(
 
 
 def __persist_network_credentials(ssid: str, password: str, api_base_url: str) -> None:
-    settings = get_settings()
-    network_path = Path(settings.data_dir) / "network.json"
+    network_path = get_network_path()
     network_path.parent.mkdir(parents=True, exist_ok=True)
     network_path.write_text(
         json.dumps(

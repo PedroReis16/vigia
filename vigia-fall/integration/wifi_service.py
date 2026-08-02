@@ -61,20 +61,33 @@ class NmcliWifiService(WifiService):
             stderr=asyncio.subprocess.PIPE,
         )
         check_out, check_err = await check.communicate()
-        status = (check_out or check_err or b"").decode("utf-8", errors="replace").strip().lower()
+        status = (
+            (check_out or check_err or b"")
+            .decode("utf-8", errors="replace")
+            .strip()
+            .lower()
+        )
         if check.returncode != 0 or status in ("none", "unknown", ""):
-            raise RuntimeError(f"Wi‑Fi sem conectividade após nmcli: {status or 'falha'}")
+            raise RuntimeError(
+                f"Wi‑Fi sem conectividade após nmcli: {status or 'falha'}"
+            )
 
 
 class MockWifiService(WifiService):
     """Simula conexão Wi‑Fi conforme `WIFI_MOCK_RESULT`."""
 
-    def __init__(self, result: Optional[str] = None, delay_seconds: float = 0.5) -> None:
-        self._result = (result or get_settings().wifi_mock_result or "success").strip().lower()
+    def __init__(
+        self, result: Optional[str] = None, delay_seconds: float = 0.5
+    ) -> None:
+        self._result = (
+            (result or get_settings().wifi_mock_result or "success").strip().lower()
+        )
         self._delay_seconds = delay_seconds
 
     async def connect(self, ssid: str, password: str) -> None:
-        logger.info("MockWifiService: conectando a ssid=%r (result=%s)", ssid, self._result)
+        logger.info(
+            "MockWifiService: conectando a ssid=%r (result=%s)", ssid, self._result
+        )
         await asyncio.sleep(self._delay_seconds)
         if self._result == "fail":
             raise RuntimeError(f"Mock Wi‑Fi falhou para ssid={ssid!r}")

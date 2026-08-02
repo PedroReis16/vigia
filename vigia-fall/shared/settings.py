@@ -5,6 +5,7 @@ Variáveis de ambiente do projeto
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from dotenv import load_dotenv
 from .helpers import helpers_convert_to_bool
 
@@ -30,6 +31,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         Carrega as configurações do ambiente
         """
         load_dotenv()
+
         return cls(
             capture_source=int(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=helpers_convert_to_bool(os.getenv("SHOW_VIDEO", "false")),
@@ -41,10 +43,21 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
         )
 
-
 @lru_cache
 def get_settings() -> Settings:
     """
     Carregas as configurações de ambiente
     """
     return Settings.from_env()
+
+def get_identity_path() -> Path:
+    """
+    Retorna o caminho do arquivo de identidade do dispositivo
+    """
+    return Path(os.path.join(get_settings().data_dir, "identity.json"))
+
+def get_network_path() -> Path:
+    """
+    Retorna o caminho do arquivo de credenciais de rede do dispositivo
+    """
+    return Path(os.path.join(get_settings().data_dir, "network.json"))

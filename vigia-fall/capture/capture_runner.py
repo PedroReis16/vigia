@@ -13,7 +13,7 @@ from shared import (
     init_stream_event,
 )
 from capture.frame_worker import get_worker
-from capture.capture_stream import stream_video
+from capture.capture_stream import is_streaming, shutdown_stream, stop_stream, stream_video
 
 
 def run_capture(stream_event: EventType | None = None):
@@ -23,6 +23,9 @@ def run_capture(stream_event: EventType | None = None):
 
     if stream_event is not None:
         init_stream_event(stream_event)
+
+    frame_worker = None
+    executor = None
 
     try:
         settings = get_settings()
@@ -68,6 +71,8 @@ def run_capture(stream_event: EventType | None = None):
 
             if get_stream_status():
                 stream_video(frame)
+            elif is_streaming():
+                stop_stream()
 
             if key == ord("q"):
                 break
@@ -77,6 +82,9 @@ def run_capture(stream_event: EventType | None = None):
         print(f"Erro ao executar a captura: {e}")
         raise e
     finally:
+        shutdown_stream()
         cv2.destroyAllWindows()
-        frame_worker.stop()
-        executor.shutdown(wait=True, cancel_futures=True)
+        if frame_worker is not None:
+            frame_worker.stop()
+        if executor is not None:
+            executor.shutdown(wait=True, cancel_futures=True)

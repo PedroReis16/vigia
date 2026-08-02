@@ -45,6 +45,8 @@
   "authenticatingDescription": "Confirmando la identidad del Vigia y autenticando la aplicación…",
   "registeringTitle": "Registrando dispositivo",
   "registeringDescription": "Creando el registro del dispositivo en los servidores Vigia…",
+  "fetchingConfigTitle": "Preparando la configuración",
+  "fetchingConfigDescription": "Obteniendo la información necesaria para conectar el Vigia…",
   "testingNetworkTitle": "Probando la red",
   "testingNetworkDescription": "Esperando a que Vigia se conecte al Wi‑Fi…",
   "connectionEstablished": "Conexión establecida",

@@ -3,6 +3,7 @@ enum DevicePairingStage {
   connecting,
   authenticating,
   registering,
+  fetchingConfig,
   provisioning,
   testingNetwork,
   connected,

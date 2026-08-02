@@ -6,6 +6,7 @@ import 'package:vigia_ui/core/providers/repository_providers/devices_repository_
 import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
+import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
 import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/enums/device_pairing_stage.dart';
 import 'package:vigia_ui/domain/environments.dart';
@@ -16,21 +17,25 @@ class DevicePairingState {
   const DevicePairingState({
     required this.stage,
     this.device,
+    this.provisionConfig,
     this.errorMessage,
   });
 
   final DevicePairingStage stage;
   final NewDevice? device;
+  final DeviceProvisionConfig? provisionConfig;
   final String? errorMessage;
 
   DevicePairingState copyWith({
     DevicePairingStage? stage,
     NewDevice? device,
+    DeviceProvisionConfig? provisionConfig,
     String? errorMessage,
   }) {
     return DevicePairingState(
       stage: stage ?? this.stage,
       device: device ?? this.device,
+      provisionConfig: provisionConfig ?? this.provisionConfig,
       errorMessage: errorMessage,
     );
   }
@@ -44,6 +49,7 @@ class DevicePairing extends _$DevicePairing {
   StreamSubscription<ScanResult>? _scanSubscription;
   BluetoothDevice? _connectedBleDevice;
   DeviceIdentity? _deviceIdentity;
+  DeviceProvisionConfig? _provisionConfig;
   String? _bleName;
   var _started = false;
   var _registered = false;
@@ -76,8 +82,12 @@ class DevicePairing extends _$DevicePairing {
     // Keep BLE session and return to Wi‑Fi form after provision/network errors.
     if (_connectedBleDevice != null &&
         _deviceIdentity != null &&
-        _registered) {
-      state = const DevicePairingState(stage: DevicePairingStage.provisioning);
+        _registered &&
+        _provisionConfig != null) {
+      state = DevicePairingState(
+        stage: DevicePairingStage.provisioning,
+        provisionConfig: _provisionConfig,
+      );
       return;
     }
 
@@ -92,7 +102,8 @@ class DevicePairing extends _$DevicePairing {
   }) async {
     final device = _connectedBleDevice;
     final identity = _deviceIdentity;
-    if (device == null || identity == null) {
+    final provisionConfig = _provisionConfig;
+    if (device == null || identity == null || provisionConfig == null) {
       state = const DevicePairingState(
         stage: DevicePairingStage.error,
         errorMessage: 'Sessão BLE inválida. Tente novamente.',
@@ -103,8 +114,9 @@ class DevicePairing extends _$DevicePairing {
     if (state.stage != DevicePairingStage.provisioning) return;
 
     try {
-      state = const DevicePairingState(
+      state = DevicePairingState(
         stage: DevicePairingStage.testingNetwork,
+        provisionConfig: provisionConfig,
       );
 
       await _ble.provision(
@@ -112,13 +124,15 @@ class DevicePairing extends _$DevicePairing {
         ssid: ssid.trim(),
         password: password,
         apiBaseUrl: Environments.apiUrl,
+        fiwareApiKey: provisionConfig.fiwareApiKey,
       );
 
       final status = await _ble.pollProvisionStatus(device);
 
       if (status == 'WIFI_FAIL') {
-        state = const DevicePairingState(
+        state = DevicePairingState(
           stage: DevicePairingStage.error,
+          provisionConfig: provisionConfig,
           errorMessage:
               'Não foi possível conectar ao Wi‑Fi. Verifique a rede e a senha e tente novamente.',
         );
@@ -128,6 +142,7 @@ class DevicePairing extends _$DevicePairing {
       if (status != 'SUCCESS') {
         state = DevicePairingState(
           stage: DevicePairingStage.error,
+          provisionConfig: provisionConfig,
           errorMessage: 'Falha no provisionamento: $status',
         );
         return;
@@ -140,6 +155,7 @@ class DevicePairing extends _$DevicePairing {
       } catch (error) {
         state = DevicePairingState(
           stage: DevicePairingStage.error,
+          provisionConfig: provisionConfig,
           errorMessage: 'Não foi possível vincular o dispositivo: $error',
         );
         return;
@@ -148,10 +164,12 @@ class DevicePairing extends _$DevicePairing {
       state = DevicePairingState(
         stage: DevicePairingStage.connected,
         device: newDevice,
+        provisionConfig: provisionConfig,
       );
     } catch (error) {
       state = DevicePairingState(
         stage: DevicePairingStage.error,
+        provisionConfig: provisionConfig,
         errorMessage: 'Falha no provisionamento: $error',
       );
     }
@@ -203,11 +221,21 @@ class DevicePairing extends _$DevicePairing {
       await _registerDevice(_deviceIdentity!);
       _registered = true;
 
-      state = const DevicePairingState(stage: DevicePairingStage.provisioning);
+      state = const DevicePairingState(stage: DevicePairingStage.fetchingConfig);
+
+      final config = await ref
+          .read(devicesRepositoryProvider)
+          .getProvisionConfig();
+      _provisionConfig = config;
+
+      state = DevicePairingState(
+        stage: DevicePairingStage.provisioning,
+        provisionConfig: config,
+      );
     } catch (error) {
       state = DevicePairingState(
         stage: DevicePairingStage.error,
-        errorMessage: 'Não foi possível registrar o dispositivo: $error',
+        errorMessage: 'Não foi possível preparar o dispositivo: $error',
       );
     }
   }
@@ -237,6 +265,7 @@ class DevicePairing extends _$DevicePairing {
     await _ble.disconnect(_connectedBleDevice);
     _connectedBleDevice = null;
     _deviceIdentity = null;
+    _provisionConfig = null;
     _bleName = null;
     _registered = false;
   }

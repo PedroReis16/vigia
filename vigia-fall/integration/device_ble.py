@@ -59,7 +59,9 @@ def __set_provision_status(
         target.value = bytearray(status)
 
 
-def __persist_network_credentials(ssid: str, password: str, api_base_url: str) -> None:
+def __persist_network_credentials(
+    ssid: str, password: str, api_base_url: str, fiware_api_key: str
+) -> None:
     network_path = get_network_path()
     network_path.parent.mkdir(parents=True, exist_ok=True)
     network_path.write_text(
@@ -68,6 +70,7 @@ def __persist_network_credentials(ssid: str, password: str, api_base_url: str) -
                 "ssid": ssid,
                 "password": password,
                 "api_base_url": api_base_url,
+                "fiware_api_key": fiware_api_key,
             }
         )
     )
@@ -158,6 +161,7 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             wifi_password = payload.get("password")
             # api_base_url preferencial; api_token aceito como alias legado da URL
             api_base_url = payload.get("api_base_url") or payload.get("api_token")
+            fiware_api_key = payload.get("fiware_api_key")
 
             if not wifi_ssid or wifi_password is None or not api_base_url:
                 raise ValueError("payload incompleto")
@@ -165,9 +169,10 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             device_context["wifi_ssid"] = wifi_ssid
             device_context["wifi_password"] = wifi_password
             device_context["api_base_url"] = api_base_url
+            device_context["fiware_api_key"] = fiware_api_key
             device_context["provision_characteristic"] = characteristic
 
-            __persist_network_credentials(wifi_ssid, wifi_password, api_base_url)
+            __persist_network_credentials(wifi_ssid, wifi_password, api_base_url, fiware_api_key)
             __set_provision_status(b"CONNECTING", characteristic)
 
             print(

@@ -14,10 +14,14 @@ using Vigia.Models.Helpers;
 
 namespace Vigia.API.Services;
 
-internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFactory scopeFactory) : IDevicesService
+internal class DevicesService(
+    ILogger<DevicesService> logger,
+    IServiceScopeFactory scopeFactory,
+    IConfiguration configuration) : IDevicesService
 {
     private readonly ILogger<DevicesService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+    private readonly IConfiguration _configuration = configuration;
 
     public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId)
     {
@@ -113,6 +117,22 @@ internal class DevicesService(ILogger<DevicesService> logger, IServiceScopeFacto
             _logger.LogError(errorMsg);
             throw;
         }
+    }
+
+    public DeviceProvisionConfigDTO GetProvisionConfig()
+    {
+        string? fiwareApiKey = _configuration.GetValue<string>("Fiware:Services:ApiKey");
+
+        if (string.IsNullOrWhiteSpace(fiwareApiKey))
+        {
+            throw new InvalidOperationException(
+                "Fiware:Services:ApiKey não está configurada no servidor.");
+        }
+
+        return new DeviceProvisionConfigDTO
+        {
+            FiwareApiKey = fiwareApiKey,
+        };
     }
 
     public async Task TrackDeviceUserAsync(Guid deviceId, Guid userId)

@@ -113,6 +113,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Creating the device record on the Vigia servers…';
 
   @override
+  String get fetchingConfigTitle => 'Preparing configuration';
+
+  @override
+  String get fetchingConfigDescription =>
+      'Fetching the information needed to connect Vigia…';
+
+  @override
   String get testingNetworkTitle => 'Testing network';
 
   @override

@@ -159,6 +159,7 @@ class BlePairingService {
     required String ssid,
     required String password,
     required String apiBaseUrl,
+    required String fiwareApiKey,
   }) async {
     final characteristic = await _requireCharacteristic(
       device,
@@ -169,6 +170,7 @@ class BlePairingService {
       'ssid': ssid,
       'password': password,
       'api_base_url': apiBaseUrl,
+      'fiware_api_key': fiwareApiKey,
     });
 
     await characteristic.write(

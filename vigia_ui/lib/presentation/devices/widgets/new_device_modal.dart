@@ -110,6 +110,11 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             title: context.translations.registeringTitle,
             description: context.translations.registeringDescription,
           ),
+          DevicePairingStage.fetchingConfig => StatusView(
+            icon: _progressIcon(),
+            title: context.translations.fetchingConfigTitle,
+            description: context.translations.fetchingConfigDescription,
+          ),
           DevicePairingStage.provisioning => WifiProvisionForm(
             onSubmit: (ssid, password) {
               return ref

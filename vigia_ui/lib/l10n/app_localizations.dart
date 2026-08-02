@@ -286,6 +286,18 @@ abstract class AppLocalizations {
   /// **'Criando o registro do dispositivo nos servidores Vigia…'**
   String get registeringDescription;
 
+  /// No description provided for @fetchingConfigTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Preparando configuração'**
+  String get fetchingConfigTitle;
+
+  /// No description provided for @fetchingConfigDescription.
+  ///
+  /// In pt, this message translates to:
+  /// **'Obtendo as informações necessárias para conectar o Vigia…'**
+  String get fetchingConfigDescription;
+
   /// No description provided for @testingNetworkTitle.
   ///
   /// In pt, this message translates to:

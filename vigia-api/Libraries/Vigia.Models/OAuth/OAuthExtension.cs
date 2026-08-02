@@ -37,6 +37,8 @@ public static class OAuthExtension
                 DeviceSignatureDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, FrameAccessTokenAuthenticationHandler>(
                 FrameAccessTokenDefaults.AuthenticationScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, MediaMtxTokenAuthenticationHandler>(
+                MediaMtxTokenDefaults.AuthenticationScheme, _ => { })
             .AddJwtBearer("OAuth", options =>
             {
                 options.MapInboundClaims = false;

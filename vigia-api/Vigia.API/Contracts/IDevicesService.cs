@@ -10,6 +10,7 @@ public interface IDevicesService
     byte[]? GetDeviceFrame(Guid deviceId);
     Task<List<DeviceDTO>> ListDevicesAsync(Guid userId, string? nickname, DeviceRooms? room, bool onlyShared, bool onlyOwned, int page, int pageSize);
     Task RegisterDeviceAsync(NewDeviceDTO newDevice);
+    DeviceProvisionConfigDTO GetProvisionConfig();
     void SaveDeviceFrame(Guid deviceId, Stream stream);
     Task TrackDeviceUserAsync(Guid deviceId, Guid userId);
     Task UntrackedDeviceUserAsync(Guid deviceId, Guid userId);

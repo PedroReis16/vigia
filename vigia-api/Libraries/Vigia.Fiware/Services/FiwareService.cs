@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
@@ -11,6 +12,8 @@ using Vigia.Fiware.Models.DeviceDTOs;
 using Vigia.Fiware.Models.RegistrationDTOs;
 using Vigia.Fiware.Models.ServiceDTOs;
 using Vigia.Models.Entities;
+using Vigia.Models.Enums;
+
 #if DEBUG
 using Vigia.Models.Seed;
 #endif
@@ -693,5 +696,22 @@ internal class FiwareService : IFiwareService
             $"{_orionPath}/v2/entities/{entityName}");
 
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<bool> SendCommandAsync(string deviceName, DeviceCommands command, string? commandValue = null)
+    {
+        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        string entityName = $"urn:ngsi-ld:{deviceName}";
+
+        string bodyContent =
+        $"{{\"{command.GetCommandName()}\": {{\"value\": \"{commandValue ?? string.Empty}\",\"type\": \"command\"}}}}";
+
+        using StringContent content = new(bodyContent, Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await _httpClient.PatchAsync(
+            $"{_orionPath}/v2/entities/{entityName}/attrs?type={entityType}",
+            content);
+
+        return response.IsSuccessStatusCode;
     }
 }

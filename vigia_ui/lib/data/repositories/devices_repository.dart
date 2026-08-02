@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
 import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
 import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/DTOs/user.dart';
@@ -88,6 +89,32 @@ class DevicesRepository {
           ? (e.response?.data['errorMessage'] as String?)
           : null;
       throw Exception(message ?? 'Failed to register device');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<DeviceProvisionConfig> getProvisionConfig() async {
+    try {
+      final response = await dio.get("$_devicesEndpoint/provision-config");
+      final data = response.data;
+      if (data is! Map<String, dynamic>) {
+        throw Exception('Invalid provision config response');
+      }
+      final config = DeviceProvisionConfig.fromJson(data);
+      if (config.fiwareApiKey.isEmpty) {
+        throw Exception('Fiware API key missing from provision config');
+      }
+      return config;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para obter a configuração de provisionamento.",
+        );
+      }
+      throw Exception(
+        _apiErrorMessage(e) ?? 'Failed to get provision config',
+      );
     } catch (e) {
       rethrow;
     }
@@ -220,6 +247,31 @@ class DevicesRepository {
       throw Exception('Failed to update device');
     } catch (e) {
       throw Exception('Failed to update device');
+    }
+  }
+
+  Future<void> sendCommand(
+    String deviceId,
+    String command, {
+    String? commandValue,
+  }) async {
+    try {
+      await dio.patch(
+        '$_devicesEndpoint/$deviceId/command',
+        data: {
+          'command': command,
+          'commandValue': commandValue ?? '',
+        },
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para enviar o comando.",
+        );
+      }
+      throw Exception(_apiErrorMessage(e) ?? 'Failed to send device command');
+    } catch (e) {
+      rethrow;
     }
   }
 }

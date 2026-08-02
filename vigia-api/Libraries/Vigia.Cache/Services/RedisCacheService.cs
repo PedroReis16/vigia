@@ -32,6 +32,9 @@ public class RedisCacheService(RedisCacheConfig config, IConnectionMultiplexer c
         return JsonSerializer.Deserialize<T>(value.ToString(), SerializerOptions);
     }
 
+    public virtual bool Exists(string key) =>
+        Database.KeyExists(NormalizeKey(key));
+
     public virtual void Add<T>(string key, T value)
     {
         Add(key, value, TimeSpan.FromSeconds(Config.ExpirationInSeconds));

@@ -26,6 +26,15 @@ public class DevicesController(IDevicesService service) : ControllerBase
         return Created();
     }
 
+    /// <summary>
+    /// Configuração necessária para provisionar o dispositivo (ex.: API key do FIWARE).
+    /// </summary>
+    [HttpGet("provision-config")]
+    public IActionResult GetProvisionConfig()
+    {
+        return Ok(_service.GetProvisionConfig());
+    }
+
     ///<summary>
     /// Detalhes de um dispositivo
     /// </summary>

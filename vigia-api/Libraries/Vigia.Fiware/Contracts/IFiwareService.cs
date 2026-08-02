@@ -1,3 +1,5 @@
+using Vigia.Models.Enums;
+
 namespace Vigia.Fiware.Contracts;
 
 public interface IFiwareService
@@ -30,4 +32,5 @@ public interface IFiwareService
 #endif
 
     Task DeleteSensorAsync(Guid id, string name);
+    Task<bool> SendCommandAsync(string deviceName, DeviceCommands command, string? commandValue = null);
 }

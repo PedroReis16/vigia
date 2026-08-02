@@ -59,7 +59,7 @@ final class StartDeviceStreamingProvider
 }
 
 String _$startDeviceStreamingHash() =>
-    r'e545d6f2bf9d9860aa724441fa3f03197f4c4627';
+    r'd8eedab0ad702e87c08df18920f31791849d1ea9';
 
 final class StartDeviceStreamingFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<void>, String> {

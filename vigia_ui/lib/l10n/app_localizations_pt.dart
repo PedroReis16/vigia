@@ -113,6 +113,13 @@ class AppLocalizationsPt extends AppLocalizations {
       'Criando o registro do dispositivo nos servidores Vigia…';
 
   @override
+  String get fetchingConfigTitle => 'Preparando configuração';
+
+  @override
+  String get fetchingConfigDescription =>
+      'Obtendo as informações necessárias para conectar o Vigia…';
+
+  @override
   String get testingNetworkTitle => 'Testando a rede';
 
   @override

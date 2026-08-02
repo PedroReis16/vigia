@@ -4,10 +4,9 @@ Módulo de runner para a integração do dispositivo com o serviço externo
 
 import asyncio
 import json
-from pathlib import Path
 from uuid import UUID
 
-from shared import get_settings, helpers_create_device_name, helpers_get_mac_address
+from shared import get_network_path, helpers_create_device_name, helpers_get_mac_address, get_identity_path
 from database import create_database, get_device, create_device
 from .device_ble import init_register_beacon
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
@@ -41,8 +40,7 @@ def __load_or_create_device_identity(
     Carrega ou cria as informações de identificação do dispositivo utilizado para a autenticação do dispositivo com o servidor
     """
 
-    settings = get_settings()
-    identity_path = Path(settings.data_dir) / "identity.json"
+    identity_path = get_identity_path()
 
     def __raw(k) -> str:
         return k.private_bytes(
@@ -95,8 +93,11 @@ async def initialize_device() -> None:
     global is_connected  # pyright: ignore[reportGlobalVariable]
     is_connected = False
 
-    create_database()
+    create_database() # Cria o arquivo de banco de dados e atualiza as migrations do banco de dados
 
+    if get_identity_path().exists() and get_network_path().exists():
+        return
+        
     device_id, device_name, mac_address = __register_device()
     sign_priv, ecdh_priv = __load_or_create_device_identity(device_id, device_name)
 

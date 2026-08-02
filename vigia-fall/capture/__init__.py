@@ -2,7 +2,7 @@
 Módulo de captura de vídeo
 """
 
-from .runner import run_capture
+from .capture_runner import run_capture
 from .frame_processor import process_frame
 from .frame_worker import get_worker
 from .models import get_yolo_model

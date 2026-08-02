@@ -6,7 +6,7 @@ namespace Vigia.API.Services.CacheServices;
 
 /// <summary>
 /// Tokens de thumb reutilizáveis dentro do TTL (adequado a &lt;img&gt;).
-/// Novas listagens reaproveitam o token vigente em vez de invalidá-lo.
+/// Listagens reaproveitam e renovam o token vigente — nunca o invalidam/consomem.
 /// </summary>
 internal class FrameAccessCacheService(IRedisCacheService cacheService) : IFrameAccessCacheService
 {
@@ -25,13 +25,16 @@ internal class FrameAccessCacheService(IRedisCacheService cacheService) : IFrame
         string? existingToken = cacheService.Get<string>(ownerKey);
         if (!string.IsNullOrEmpty(existingToken))
         {
-            FrameAccessTokenEntry? existing = cacheService.Get<FrameAccessTokenEntry>(
-                GetTokenCacheKey(existingToken));
+            string tokenKey = GetTokenCacheKey(existingToken);
+            FrameAccessTokenEntry? existing = cacheService.Get<FrameAccessTokenEntry>(tokenKey);
 
             if (existing is not null
                 && existing.UserId == userId
                 && existing.DeviceId == deviceId)
             {
+                // Sliding TTL: listing must not let the token die while the frame is still cached.
+                cacheService.Add(tokenKey, existing, CacheTtl);
+                cacheService.Add(ownerKey, existingToken, CacheTtl);
                 return existingToken;
             }
         }
@@ -50,6 +53,7 @@ internal class FrameAccessCacheService(IRedisCacheService cacheService) : IFrame
         if (string.IsNullOrWhiteSpace(token))
             return null;
 
+        // Read-only validation — never delete/consume the token on image fetch.
         return cacheService.Get<FrameAccessTokenEntry>(GetTokenCacheKey(token));
     }
 }

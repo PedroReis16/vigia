@@ -21,11 +21,11 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
                 throw new EntityValidationException(nameof(device.Name), "O nome do dispositivo é obrigatório", ErrorCodes.DEVICE_NAME_REQUIRED);
             if (string.IsNullOrWhiteSpace(device.MacAddress))
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo é obrigatório", ErrorCodes.MAC_ADDRESS_REQUIRED);
-            if (!Vigia.Models.Helpers.Validators.IsValidMacAddress(device.MacAddress))
+            if (!Models.Helpers.Validators.IsValidMacAddress(device.MacAddress))
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo não é válido", ErrorCodes.INVALID_MAC_ADDRESS);
             if (string.IsNullOrWhiteSpace(device.SignPublicKey))
                 throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
-            if (!Vigia.Models.Helpers.Validators.IsValidEd25519PublicKeyHex(device.SignPublicKey))
+            if (!Models.Helpers.Validators.IsValidEd25519PublicKeyHex(device.SignPublicKey))
                 throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
         }
         return Task.CompletedTask;

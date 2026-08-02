@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:vigia_ui/data/services/whep_live_session.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class DeviceVideoPlayer extends StatefulWidget {
   const DeviceVideoPlayer({
     super.key,
-    required this.controller,
+    required this.session,
     this.fullscreen = false,
     this.onToggleFullscreen,
+    this.onRetry,
     this.heroTag,
   });
 
-  final VideoPlayerController controller;
+  final WhepLiveSession session;
   final bool fullscreen;
   final VoidCallback? onToggleFullscreen;
+  final VoidCallback? onRetry;
   final Object? heroTag;
 
   @override
@@ -25,36 +29,31 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onControllerUpdate);
+    widget.session.addListener(_onSessionUpdate);
   }
 
   @override
   void didUpdateWidget(covariant DeviceVideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_onControllerUpdate);
-      widget.controller.addListener(_onControllerUpdate);
+    if (oldWidget.session != widget.session) {
+      oldWidget.session.removeListener(_onSessionUpdate);
+      widget.session.addListener(_onSessionUpdate);
     }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onControllerUpdate);
+    widget.session.removeListener(_onSessionUpdate);
     super.dispose();
   }
 
-  void _onControllerUpdate() {
+  void _onSessionUpdate() {
     if (mounted) setState(() {});
   }
 
   void _togglePlayPause() {
-    final controller = widget.controller;
-    if (!controller.value.isInitialized) return;
-    if (controller.value.isPlaying) {
-      controller.pause();
-    } else {
-      controller.play();
-    }
+    if (widget.session.status != WhepLiveStatus.playing) return;
+    widget.session.togglePause();
   }
 
   void _toggleControls() {
@@ -63,7 +62,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final video = _buildVideo();
+    final video = _buildVideo(context);
     final content = GestureDetector(
       onTap: _toggleControls,
       behavior: HitTestBehavior.opaque,
@@ -71,7 +70,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
         fit: StackFit.expand,
         children: [
           video,
-          if (_showControls) _buildControlsOverlay(),
+          if (_showControls) _buildControlsOverlay(context),
         ],
       ),
     );
@@ -103,47 +102,90 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
     );
   }
 
-  Widget _buildVideo() {
-    final controller = widget.controller;
-    if (!controller.value.isInitialized) {
-      return const ColoredBox(
+  Widget _buildVideo(BuildContext context) {
+    final session = widget.session;
+
+    if (session.status == WhepLiveStatus.connecting) {
+      return ColoredBox(
         color: Colors.black,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(
+                context.translations.connectingTitle,
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (session.status == WhepLiveStatus.error) {
+      final message = session.errorMessage;
+      return ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  message == null
+                      ? context.translations.connectionErrorFallback
+                      : context.translations.errorWithMessage(message),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                if (widget.onRetry != null) ...[
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: widget.onRetry,
+                    child: Text(context.translations.tryAgain),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       );
     }
 
     return ColoredBox(
       color: Colors.black,
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: controller.value.size.width,
-          height: controller.value.size.height,
-          child: VideoPlayer(controller),
-        ),
+      child: RTCVideoView(
+        session.renderer,
+        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
       ),
     );
   }
 
-  Widget _buildControlsOverlay() {
-    final isPlaying = widget.controller.value.isPlaying;
+  Widget _buildControlsOverlay(BuildContext context) {
+    final session = widget.session;
+    final canPlayPause = session.status == WhepLiveStatus.playing;
+    final isPlaying = canPlayPause && !session.isPaused;
 
     return ColoredBox(
       color: Colors.black38,
       child: Stack(
         children: [
-          Center(
-            child: IconButton(
-              onPressed: _togglePlayPause,
-              iconSize: 56,
-              color: Colors.white,
-              icon: Icon(
-                isPlaying
-                    ? Icons.pause_circle_filled
-                    : Icons.play_circle_filled,
+          if (canPlayPause)
+            Center(
+              child: IconButton(
+                onPressed: _togglePlayPause,
+                iconSize: 56,
+                color: Colors.white,
+                icon: Icon(
+                  isPlaying
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_filled,
+                ),
               ),
             ),
-          ),
           if (widget.onToggleFullscreen != null)
             Positioned(
               right: 8,

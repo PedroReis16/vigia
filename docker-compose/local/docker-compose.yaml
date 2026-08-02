@@ -65,7 +65,6 @@ services:
       - vigia-network
 
   # ─── VIGIA ────────────────────────────────────────────────────────────────
-  
 
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
@@ -74,9 +73,11 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "81:80"   # ApiUrls.Fiware → http://localhost:81/fiware
+      - "81:80" # ApiUrls.Fiware → http://localhost:81/fiware
       - "443:443"
       - "1883:1883"
+      # RTMP ingest fica no MediaMTX (porta 1935), não no Traefik
+      - "8080:8080"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
@@ -92,7 +93,6 @@ services:
     container_name: fiware-mongo-historical
     restart: always
     hostname: mongo-db-historical
-    profiles: ["fiware"]
     ports:
       - "27077:27017"
     environment:
@@ -112,7 +112,6 @@ services:
     hostname: mongo-db-internal
     ports:
       - "27067:27017"
-    profiles: ["fiware"]
     command: ["mongod", "--nojournal"]
     volumes:
       - mongo-internal-data:/data/db
@@ -122,11 +121,10 @@ services:
   # ─── ORION ────────────────────────────────────────────────────────────────
   orion:
     image: fiware/orion:3.11.0
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-orion
     hostname: orion
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
       - traefik
@@ -141,22 +139,21 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/orion`)"
+      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/orion`)"
       - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
-      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/fiware/orion"
+      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/vigia/fiware/orion"
     networks:
       - vigia-network
 
   # ─── STH-COMET ────────────────────────────────────────────────────────────
   sth-comet:
     image: telefonicaiot/fiware-sth-comet
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-sth-comet
     hostname: sth-comet
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
       - traefik
@@ -173,22 +170,21 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/sth-comet`)"
+      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/sth-comet`)"
       - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
-      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/fiware/sth-comet"
+      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/vigia/fiware/sth-comet"
     networks:
       - vigia-network
 
   # ─── IOT AGENT ────────────────────────────────────────────────────────────
   iot-agent:
     image: fiware/iotagent-ul:latest
-    platform: linux/amd64  # imagem oficial só amd64; no Mac ARM roda via emulação
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-iot-agent
     hostname: iot-agent
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-internal
       - mosquitto
@@ -210,12 +206,12 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/iot`)"
+      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/iot`)"
       - "traefik.http.routers.iot.entrypoints=web"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
       # Strip só /fiware para preservar /iot/... esperado pelo IoT Agent (ex: /iot/about)
-      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware"
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/vigia/fiware"
     networks:
       - vigia-network
 
@@ -225,7 +221,6 @@ services:
     restart: always
     container_name: fiware-mosquitto
     hostname: mosquitto
-    profiles: ["fiware"]
     expose:
       - "1883"
       - "9001"
@@ -235,38 +230,49 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
+      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/vigia/fiware/mosquitto"
       - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
     networks:
       - vigia-network
 
-#  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
+  #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
-    container_name: vigia-mediamtx
+    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    build:
+      context: ..
+      dockerfile: dockerfiles/mediamtx.dockerfile
+    image: vigia-mediamtx:local
+    container_name: mediamtx
     restart: unless-stopped
+    environment:
+      # API on host (launchSettings :8090). Token = MediaMTX:WebhookToken (appsettings.Development).
+      VIGIA_API_BASE: http://host.docker.internal:8090
+      VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
+      UNDEMAND_GRACE_SECONDS: "3"
+    ports:
+      # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
+      - "1935:1935"
+      # WebRTC ICE/RTP — obrigatório para o vídeo não ficar preto no browser
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+      # HLS (alternativa HTTP)
+      - "8888:8888"
     labels:
       - "traefik.enable=true"
-      # Playback via HTTPS
-      - "traefik.http.routers.mediamtx-play.rule=(Host(`www.vigia-deteccoes.duckdns.org`) || Host(`vigia-deteccoes.duckdns.org`)) && PathPrefix(`/live`)"
-      - "traefik.http.routers.mediamtx-play.entrypoints=websecure"
-      - "traefik.http.routers.mediamtx-play.tls=true"
-      - "traefik.http.routers.mediamtx-play.tls.certresolver=letsencrypt"
+      # Playback WebRTC (signaling HTTP). Mídia usa :8189 no host.
+      - "traefik.http.routers.mediamtx-play.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/live`)"
+      - "traefik.http.routers.mediamtx-play.entrypoints=web"
       - "traefik.http.routers.mediamtx-play.priority=100"
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
-
-      # Ingest RTMPS em 443 (host separado recomendado)
-      - "traefik.tcp.routers.mediamtx-ingest.rule=HostSNI(`ingest-vigia-deteccoes.duckdns.org`)"
-      - "traefik.tcp.routers.mediamtx-ingest.entrypoints=websecure"
-      - "traefik.tcp.routers.mediamtx-ingest.tls=true"
-      - "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt"
-      - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - vigia-network
 
@@ -278,4 +284,3 @@ networks:
   vigia-network:
     name: vigia-network
     driver: bridge
-

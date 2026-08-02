@@ -9,11 +9,9 @@ internal class DeviceFrameCacheService(IRedisCacheService cacheService) : IDevic
 
     private static string GetCacheKey(Guid deviceId) => $"device-frame-{deviceId}";
 
-    public bool HasFrame(Guid deviceId)
-    {
-        byte[]? frame = cacheService.Get<byte[]>(GetCacheKey(deviceId));
-        return frame is { Length: > 0 };
-    }
+    public bool HasFrame(Guid deviceId) =>
+        // Existence-only check: never load/deserialize the JPEG on list paths.
+        cacheService.Exists(GetCacheKey(deviceId));
 
     public byte[]? GetFrame(Guid deviceId)
     {

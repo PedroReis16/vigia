@@ -6,12 +6,12 @@ import numpy as np
 
 from capture.models.capture_constants import (
     TRACKED_KPTS,
-    MAX_MISSED_FRAMES,
     MIN_KPT_CONF,
     SCALE_EMA_ALPHA,
     MIN_TORSO_SCALE,
 )
 from capture.models.feature_helpers import align_pca_angle
+from capture.models.person_runtime import get_person_runtime_store
 
 
 class KalmanPointTracker:
@@ -73,32 +73,32 @@ class KalmanPointTracker:
         return self.x
 
 
-_kalman_trackers: dict[tuple[int, int], KalmanPointTracker] = {}
-_scale_ema: dict[int, float] = {}
-_pca_angles: dict[int, float] = {}
-
 def apply_kalman(
-    person_id: int, capture_date: float, points: dict[int, list]
+    person_id: int,
+    capture_date: float,
+    points: dict[int, list],
 ) -> dict[int, dict]:
     """
     Recebe os keypoints brutos de uma pessoa nesse frame e retorna
     posição suavizada + velocidade para os pontos rastreados.
     """
+    state = get_person_runtime_store().get_or_create(person_id)
     smoothed = {}
 
     for kpt_idx in TRACKED_KPTS:
-        key = (person_id, kpt_idx)
         raw = points.get(kpt_idx)
         valid = raw is not None and raw[2] >= MIN_KPT_CONF
 
-        if key not in _kalman_trackers:
+        if kpt_idx not in state.kalman_trackers:
             if not valid:
                 continue
-            _kalman_trackers[key] = KalmanPointTracker(raw[0], raw[1], capture_date)
+            state.kalman_trackers[kpt_idx] = KalmanPointTracker(
+                raw[0], raw[1], capture_date
+            )
 
         z = np.array([raw[0], raw[1]]) if valid else None
         conf = raw[2] if valid else 0.0
-        x, y, vx, vy = _kalman_trackers[key].step(z, capture_date, conf)
+        x, y, vx, vy = state.kalman_trackers[kpt_idx].step(z, capture_date, conf)
         smoothed[kpt_idx] = {
             "x": float(x),
             "y": float(y),
@@ -114,37 +114,20 @@ def get_smoothed_scale(person_id: int, raw_scale: float) -> float | None:
     EMA do comprimento do torso por pessoa rastreada.
     Retorna None se o scale bruto for inválido e ainda não houver histórico.
     """
+    state = get_person_runtime_store().get_or_create(person_id)
     if raw_scale < MIN_TORSO_SCALE:
-        return _scale_ema.get(person_id)
-    if person_id not in _scale_ema:
-        _scale_ema[person_id] = raw_scale
+        return state.scale_ema
+    if state.scale_ema is None:
+        state.scale_ema = raw_scale
     else:
-        prev = _scale_ema[person_id]
-        _scale_ema[person_id] = (
-            SCALE_EMA_ALPHA * raw_scale + (1.0 - SCALE_EMA_ALPHA) * prev
+        state.scale_ema = (
+            SCALE_EMA_ALPHA * raw_scale + (1.0 - SCALE_EMA_ALPHA) * state.scale_ema
         )
-    return _scale_ema[person_id]
-
-
-def cleanup_stale_trackers(active_person_ids: set[int]) -> None:
-    """Remove trackers de pessoas que saíram de cena ou sumiram por muito tempo."""
-    stale = [
-        key
-        for key, tracker in _kalman_trackers.items()
-        if key[0] not in active_person_ids or tracker.missed_frames > MAX_MISSED_FRAMES
-    ]
-    for key in stale:
-        del _kalman_trackers[key]
-    stale_scales = [pid for pid in _scale_ema if pid not in active_person_ids]
-    for pid in stale_scales:
-        del _scale_ema[pid]
-    stale_pca_angles = [pid for pid in _pca_angles if pid not in active_person_ids]
-    for pid in stale_pca_angles:
-        del _pca_angles[pid]
+    return state.scale_ema
 
 
 def align_and_store_pca_angle(person_id: int, raw_angle: float) -> float:
-    previous = _pca_angles.get(person_id)
-    aligned = align_pca_angle(raw_angle, previous)  # import do helper
-    _pca_angles[person_id] = aligned
+    state = get_person_runtime_store().get_or_create(person_id)
+    aligned = align_pca_angle(raw_angle, state.pca_angle)
+    state.pca_angle = aligned
     return aligned

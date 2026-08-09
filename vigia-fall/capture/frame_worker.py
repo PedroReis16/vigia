@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
 from capture.frame_processor import process_frame
-from capture.models import SlidingWindowManager
+from capture.models import SlidingWindowManager, get_person_runtime_store
 from capture.features_processor import extract_features, normalize_features
 
 
@@ -52,10 +52,10 @@ class FrameWorker:
 
             try:
                 features = extract_features(list(window))
-
                 normalized_features = normalize_features(features)
 
-                
+                # Estado por ID (FallDetector etc.) — score a partir de normalized_features
+                person_state = get_person_runtime_store().get_or_create(person_id)
             except Exception as error:
                 print(
                     f"Erro ao extrair features person_id={person_id}: {error}",

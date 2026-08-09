@@ -11,10 +11,10 @@ from capture.models import (
     get_smoothed_scale,
     get_yolo_model,
     apply_kalman,
-    cleanup_stale_trackers,
     get_trunk_angle,
     get_center_of_mass,
     get_pca_features,
+    get_person_runtime_store,
 )
 
 
@@ -169,8 +169,8 @@ def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str,
                 active_ids.append(person_id)
                 frame_results[person_id] = (points, smoothed_points)
 
-        # Remoção de trackers inativos
-        cleanup_stale_trackers(set(active_ids))
+        # Remoção de estado de pessoas inativas / trackers ociosos
+        get_person_runtime_store().cleanup(set(active_ids))
 
         result = {}
 

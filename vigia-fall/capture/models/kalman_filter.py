@@ -4,7 +4,13 @@ Implementação do filtro de Kalman para suavização dos keypoints
 
 import numpy as np
 
-from capture.models.capture_constants import TRACKED_KPTS, MAX_MISSED_FRAMES, MIN_KPT_CONF
+from capture.models.capture_constants import (
+    TRACKED_KPTS,
+    MAX_MISSED_FRAMES,
+    MIN_KPT_CONF,
+    SCALE_EMA_ALPHA,
+    MIN_TORSO_SCALE,
+)
 
 
 class KalmanPointTracker:
@@ -67,6 +73,7 @@ class KalmanPointTracker:
 
 
 _kalman_trackers: dict[tuple[int, int], KalmanPointTracker] = {}
+_scale_ema: dict[int, float] = {}
 
 
 def apply_kalman(
@@ -100,6 +107,21 @@ def apply_kalman(
 
     return smoothed
 
+def get_smoothed_scale(person_id: int, raw_scale: float) -> float | None:
+    """
+    EMA do comprimento do torso por pessoa rastreada.
+    Retorna None se o scale bruto for inválido e ainda não houver histórico.
+    """
+    if raw_scale < MIN_TORSO_SCALE:
+        return _scale_ema.get(person_id)
+    if person_id not in _scale_ema:
+        _scale_ema[person_id] = raw_scale
+    else:
+        prev = _scale_ema[person_id]
+        _scale_ema[person_id] = (
+            SCALE_EMA_ALPHA * raw_scale + (1.0 - SCALE_EMA_ALPHA) * prev
+        )
+    return _scale_ema[person_id]
 
 def cleanup_stale_trackers(active_person_ids: set[int]) -> None:
     """Remove trackers de pessoas que saíram de cena ou sumiram por muito tempo."""
@@ -110,3 +132,8 @@ def cleanup_stale_trackers(active_person_ids: set[int]) -> None:
     ]
     for key in stale:
         del _kalman_trackers[key]
+    stale_scales = [
+        pid for pid in _scale_ema if pid not in active_person_ids
+    ]
+    for pid in stale_scales:
+        del _scale_ema[pid]

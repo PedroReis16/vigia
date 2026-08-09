@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from capture.models import (
+    get_smoothed_scale,
     get_yolo_model,
     apply_kalman,
     cleanup_stale_trackers,
@@ -70,7 +71,11 @@ def __normalize_data(
         )
 
         #   Cálculo do tamanho do torso
-        scale = dist(shoulder_center, hip_center)
+        raw_scale = dist(shoulder_center, hip_center)
+        scale = get_smoothed_scale(person_id, raw_scale)
+
+        if scale is None:
+            continue
 
         # Normalização do corpo por partes em relação ao torso centralizado
 

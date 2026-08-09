@@ -131,3 +131,31 @@ def get_pca_features(
     principal_angle = math.atan2(float(principal_axis[1]), float(principal_axis[0]))
 
     return aspect_ratio, principal_angle
+
+
+def align_pca_angle(current_angle: float, previous_angle: float | None) -> float:
+    """
+    Remove o flip de sinal do eixo PCA (período π) e mantém o ângulo
+    contínuo em relação ao frame anterior, no intervalo [-π, π].
+    """
+    if previous_angle is None:
+        return current_angle
+    # escolhe current ou current+π — o mais próximo do ângulo anterior
+    candidates = (current_angle, current_angle + math.pi)
+    best = min(
+        candidates,
+        key=lambda a: abs((a - previous_angle + math.pi) % (2 * math.pi) - math.pi),
+    )
+    # re-wrap em [-π, π]
+    return (best + math.pi) % (2 * math.pi) - math.pi
+
+
+def get_angle_speed(
+    current_angle: float,
+    current_timestamp: float,
+    previous_angle: float,
+    previous_timestamp: float,
+) -> float:
+    """Velocidade angular a partir de ângulos já alinhados (wrap 2π no delta)."""
+    delta = (current_angle - previous_angle + math.pi) % (2 * math.pi) - math.pi
+    return delta / (current_timestamp - previous_timestamp)

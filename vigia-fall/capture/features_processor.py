@@ -5,6 +5,7 @@ Processamento das features de uma janela deslizante
 from typing import Any
 
 from capture.models.feature_helpers import (
+    get_angle_speed,
     get_linear_speed,
     get_angular_speed,
     get_linear_acceleration,
@@ -31,15 +32,45 @@ def extract_features(person_id: int, window_coordinates: list) -> list[dict[str,
     previous_angular_speeds: dict[int, float] = {}
     previous_speed_timestamps: dict[int, float] = {}
 
+    # estado temporal do pca_angle
+    previous_pca_angle: float | None = None
+    previous_pca_ts: float | None = None
+    previous_pca_speed: float | None = None
+
     for frame in window_coordinates:
         current_ts = frame["timestamp"]
         body_parts = frame["coordinates"]
+        pca_angle = frame.get("pca_angle")
+
+        pca_angular_speed = 0.0
+        pca_angular_acceleration = 0.0
+
+        if (
+            pca_angle is not None
+            and previous_pca_angle is not None
+            and previous_pca_ts is not None
+        ):
+            pca_angular_speed = get_angle_speed(
+                pca_angle, current_ts, previous_pca_angle, previous_pca_ts
+            )
+
+            if previous_pca_speed is not None:
+                pca_angular_acceleration = get_angular_acceleration(
+                    pca_angular_speed, current_ts, previous_pca_speed, previous_pca_ts
+                )
+            previous_pca_angle = pca_angular_speed
+
+        if pca_angle is not None:
+            previous_pca_angle = pca_angle
+            previous_pca_ts = current_ts
 
         frame_features: dict[str, Any] = {
             "timestamp": current_ts,
             "trunk_angle": frame.get("trunk_angle"),
             "pca_ratio": frame.get("pca_ratio"),
-            "pca_angle": frame.get("pca_angle"),
+            "pca_angle": pca_angle,
+            "pca_angular_speed": pca_angular_speed,
+            "pca_angular_acceleration": pca_angular_acceleration,
             "parts": {},
         }
 
@@ -103,7 +134,6 @@ def extract_features(person_id: int, window_coordinates: list) -> list[dict[str,
             frame_features["parts"][part] = part_features
 
         features.append(frame_features)
-
 
     print(f"Features extraídas para person_id={person_id}:")
     print("--------------------------------")

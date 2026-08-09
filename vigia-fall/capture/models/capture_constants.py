@@ -10,3 +10,8 @@ MIN_KPT_CONF = 0.3  # abaixo disso o keypoint é tratado como ausente (só predi
 # Suavização do scale de normalização (torso)
 SCALE_EMA_ALPHA = 0.1    #peso do frame atual; menor = mais suave; EMA = Media Movel Exponencial
 MIN_TORSO_SCALE = 1e-3   #evita divisão por scale ~0
+
+
+# trunk_angle = inclinação do tronco
+# pca_ratio = alongmaneto da silhueta
+# pca_angle = orientação do eixo principal (rad)

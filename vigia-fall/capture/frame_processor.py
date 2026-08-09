@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from capture.models import (
+    align_and_store_pca_angle,
     get_smoothed_scale,
     get_yolo_model,
     apply_kalman,
@@ -90,7 +91,8 @@ def __normalize_data(
 
         # Análise PCA da nuvem de keypoints normalizados do frame:
         # descreve o alongamento (aspect ratio) e a orientação da silhueta
-        pca_ratio, pca_angle = get_pca_features(normalized_parts)
+        pca_ratio, raw_pca_angle = get_pca_features(normalized_parts)
+        pca_angle = align_and_store_pca_angle(person_id, raw_pca_angle)
 
         normalized_data[person_id] = {
             "coordinates": normalized_parts,

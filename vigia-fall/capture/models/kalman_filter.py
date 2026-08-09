@@ -11,6 +11,7 @@ from capture.models.capture_constants import (
     SCALE_EMA_ALPHA,
     MIN_TORSO_SCALE,
 )
+from capture.models.feature_helpers import align_pca_angle
 
 
 class KalmanPointTracker:
@@ -74,7 +75,7 @@ class KalmanPointTracker:
 
 _kalman_trackers: dict[tuple[int, int], KalmanPointTracker] = {}
 _scale_ema: dict[int, float] = {}
-
+_pca_angles: dict[int, float] = {}
 
 def apply_kalman(
     person_id: int, capture_date: float, points: dict[int, list]
@@ -107,6 +108,7 @@ def apply_kalman(
 
     return smoothed
 
+
 def get_smoothed_scale(person_id: int, raw_scale: float) -> float | None:
     """
     EMA do comprimento do torso por pessoa rastreada.
@@ -123,6 +125,7 @@ def get_smoothed_scale(person_id: int, raw_scale: float) -> float | None:
         )
     return _scale_ema[person_id]
 
+
 def cleanup_stale_trackers(active_person_ids: set[int]) -> None:
     """Remove trackers de pessoas que saíram de cena ou sumiram por muito tempo."""
     stale = [
@@ -132,8 +135,16 @@ def cleanup_stale_trackers(active_person_ids: set[int]) -> None:
     ]
     for key in stale:
         del _kalman_trackers[key]
-    stale_scales = [
-        pid for pid in _scale_ema if pid not in active_person_ids
-    ]
+    stale_scales = [pid for pid in _scale_ema if pid not in active_person_ids]
     for pid in stale_scales:
         del _scale_ema[pid]
+    stale_pca_angles = [pid for pid in _pca_angles if pid not in active_person_ids]
+    for pid in stale_pca_angles:
+        del _pca_angles[pid]
+
+
+def align_and_store_pca_angle(person_id: int, raw_angle: float) -> float:
+    previous = _pca_angles.get(person_id)
+    aligned = align_pca_angle(raw_angle, previous)  # import do helper
+    _pca_angles[person_id] = aligned
+    return aligned

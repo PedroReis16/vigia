@@ -4,15 +4,12 @@ Worker para processamento assíncrono dos frames capturados
 
 from functools import lru_cache
 import queue
-import time
 from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
 from capture.frame_processor import process_frame
 from capture.models import SlidingWindowManager
 from capture.features_processor import extract_features
-
-from shared.models import COORDINATES_CONSTANTS
 
 
 class FrameWorker:
@@ -34,7 +31,6 @@ class FrameWorker:
         Consome um frame da fila de frames brutos
         """
 
-        # TODO: Reabilitar o consumo real de frames para testes reais
         frame, capture_date = self.raw_frame_queue.get()
 
         if frame is None:
@@ -49,16 +45,18 @@ class FrameWorker:
 
         ready_ids = self._slider_window_manager.update(frame_result)
 
-        ready_ids = [1]
-
         for person_id in ready_ids:
-            # TODO: Reabilitar o consumo real de frames para testes reais
             window = self._slider_window_manager.get_window(person_id)
-            extract_features(person_id, list(window))
+            if not window:
+                continue
 
-            # extract_features(person_id, COORDINATES_CONSTANTS)
-
-        # time.sleep(1)
+            try:
+                extract_features(person_id, list(window))
+            except Exception as error:
+                print(
+                    f"Erro ao extrair features person_id={person_id}: {error}",
+                    flush=True,
+                )
 
         return True
 
@@ -75,7 +73,18 @@ class FrameWorker:
         """
         Para o worker
         """
-        self.raw_frame_queue.put_nowait(None)  # put a sentinel value to stop the worker
+        try:
+            self.raw_frame_queue.put_nowait(None)
+        except queue.Full:
+            # fila cheia: descarta um item e reinsere o sentinel
+            try:
+                self.raw_frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.raw_frame_queue.put_nowait(None)
+            except queue.Full:
+                pass
 
     def insert_raw_frame(self, frame: np.ndarray, capture_date: float) -> None:
         """

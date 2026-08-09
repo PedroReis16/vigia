@@ -13,6 +13,7 @@ from capture.models import (
     apply_kalman,
     cleanup_stale_trackers,
     get_trunk_angle,
+    get_center_of_mass,
     get_pca_features,
 )
 
@@ -82,6 +83,13 @@ def __normalize_data(
 
         trunk_angle = get_trunk_angle(shoulder_center, hip_center)
 
+        # CoM biomecânico do tronco (pixels) → normalizado em relação ao hip_center
+        raw_com = get_center_of_mass(shoulder_center, hip_center)
+        center_of_mass = (
+            (raw_com[0] - hip_center[0]) / scale,
+            (raw_com[1] - hip_center[1]) / scale,
+        )
+
         normalized_parts = {}
 
         for body_part_id, body_part in smoothed_points.items():
@@ -97,6 +105,7 @@ def __normalize_data(
         normalized_data[person_id] = {
             "coordinates": normalized_parts,
             "trunk_angle": trunk_angle,
+            "center_of_mass": center_of_mass,
             "pca_ratio": pca_ratio,
             "pca_angle": pca_angle,
         }
@@ -171,6 +180,7 @@ def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str,
             result[person_id] = {
                 "coordinates": body_parts["coordinates"],
                 "trunk_angle": body_parts["trunk_angle"],
+                "center_of_mass": body_parts["center_of_mass"],
                 "pca_ratio": body_parts["pca_ratio"],
                 "pca_angle": body_parts["pca_angle"],
                 "timestamp": capture_date,

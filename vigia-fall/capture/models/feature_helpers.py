@@ -6,6 +6,8 @@ import math
 
 import numpy as np
 
+from .capture_constants import COM_SHOULDER_WEIGHT
+
 
 def get_linear_speed(
     current_position: float,
@@ -90,6 +92,26 @@ def get_trunk_angle(
     trunk_angle = math.atan2((hip_x - shoulder_x), (hip_y - shoulder_y))
 
     return trunk_angle
+
+
+def get_center_of_mass(
+    shoulder_center: tuple[float, float],
+    hip_center: tuple[float, float],
+    shoulder_weight: float = COM_SHOULDER_WEIGHT,
+) -> tuple[float, float]:
+    """
+    Aproxima o centro de massa do tronco como média ponderada entre
+    o centro dos ombros e o centro do quadril.
+
+    Pesos biomecânicos típicos: ~0.6 no ombro (tronco superior + cabeça)
+    e o restante no quadril. Retorna a posição no mesmo espaço dos centros
+    de entrada (pixels da imagem, antes da normalização).
+    """
+    hip_weight = 1.0 - shoulder_weight
+    return (
+        shoulder_weight * shoulder_center[0] + hip_weight * hip_center[0],
+        shoulder_weight * shoulder_center[1] + hip_weight * hip_center[1],
+    )
 
 
 def get_pca_features(

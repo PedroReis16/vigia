@@ -3,6 +3,9 @@ Processamento das features de uma janela deslizante
 """
 
 from typing import Any
+import math
+
+import numpy as np
 
 from capture.models.feature_helpers import (
     get_angle_speed,
@@ -13,7 +16,9 @@ from capture.models.feature_helpers import (
 )
 
 
-def extract_features(person_id: int, window_coordinates: list) -> list[dict[str, Any]]:
+def __get_raw_features(
+    person_id: int, window_coordinates: list
+) -> list[dict[str, Any]]:
     """
     Extrai as features (velocidade e aceleração linear/angular) de cada parte do
     corpo ao longo de uma janela deslizante, mantendo o alinhamento com os
@@ -58,7 +63,8 @@ def extract_features(person_id: int, window_coordinates: list) -> list[dict[str,
                 pca_angular_acceleration = get_angular_acceleration(
                     pca_angular_speed, current_ts, previous_pca_speed, previous_pca_ts
                 )
-            previous_pca_angle = pca_angular_speed
+
+            previous_pca_speed = pca_angular_speed
 
         if pca_angle is not None:
             previous_pca_angle = pca_angle
@@ -67,6 +73,7 @@ def extract_features(person_id: int, window_coordinates: list) -> list[dict[str,
         frame_features: dict[str, Any] = {
             "timestamp": current_ts,
             "trunk_angle": frame.get("trunk_angle"),
+            "center_of_mass": frame.get("center_of_mass"),
             "pca_ratio": frame.get("pca_ratio"),
             "pca_angle": pca_angle,
             "pca_angular_speed": pca_angular_speed,
@@ -135,9 +142,122 @@ def extract_features(person_id: int, window_coordinates: list) -> list[dict[str,
 
         features.append(frame_features)
 
-    print(f"Features extraídas para person_id={person_id}:")
-    print("--------------------------------")
-    print("features: ", features)
-    print("--------------------------------")
-
     return features
+
+
+def __linear_r2(timestamps: np.ndarray, values: np.ndarray) -> float:
+    """R² da regressão linear values ~ timestamps (tendência 'limpa')."""
+    if values.size < 2:
+        return 0.0
+
+    slope, intercept = np.polyfit(timestamps, values, 1)
+    predicted = slope * timestamps + intercept
+    residuals = values - predicted
+    ss_res = float(np.sum(residuals**2))
+    ss_tot = float(np.sum((values - values.mean()) ** 2))
+
+    if ss_tot <= 1e-12:
+        return 1.0 if ss_res <= 1e-12 else 0.0
+
+    return 1.0 - ss_res / ss_tot
+
+
+def __aggregate_window_features(raw_features: list[dict[str, Any]]) -> dict[str, float]:
+    """
+    Agrega a série bruta da janela em um único vetor de features de classificação.
+    """
+    timestamps: list[float] = []
+    trunk_angles: list[float] = []
+    pca_ratios: list[float] = []
+    com_ys: list[float] = []
+
+    for frame in raw_features:
+        trunk_angle = frame.get("trunk_angle")
+        pca_ratio = frame.get("pca_ratio")
+        center_of_mass = frame.get("center_of_mass")
+
+        if trunk_angle is None or pca_ratio is None or center_of_mass is None:
+            continue
+
+        timestamps.append(frame["timestamp"])
+        trunk_angles.append(float(trunk_angle))
+        pca_ratios.append(float(pca_ratio))
+        com_ys.append(float(center_of_mass[1]))
+
+    if len(timestamps) < 2:
+        return {
+            "trunk_angle_delta": 0.0,
+            "trunk_angle_max_rate": 0.0,
+            "pca_ratio_delta": 0.0,
+            "center_mass_max_accel_y": 0.0,
+            "center_mass_accel_poly": 0.0,
+            "trunk_angle_trend_r2": 0.0,
+        }
+
+    t = np.asarray(timestamps, dtype=float)
+    trunk = np.asarray(trunk_angles, dtype=float)
+    pca_ratio = np.asarray(pca_ratios, dtype=float)
+    com_y = np.asarray(com_ys, dtype=float)
+    t_rel = t - t[0]
+
+    # Postura — mudança estrutural (wrap em [-π, π] no delta do ângulo)
+    trunk_angle_delta = (
+        float(trunk[-1] - trunk[0] + math.pi) % (2 * math.pi) - math.pi
+    )
+    trunk_rates = [
+        abs(get_angle_speed(trunk[i], t[i], trunk[i - 1], t[i - 1]))
+        for i in range(1, len(trunk))
+    ]
+    trunk_angle_max_rate = max(trunk_rates) if trunk_rates else 0.0
+    pca_ratio_delta = float(pca_ratio[-1] - pca_ratio[0])
+
+    # Movimento — intensidade do evento (derivadas do CoM em y)
+    com_speeds_y: list[float] = []
+    for i in range(1, len(com_y)):
+        com_speeds_y.append(get_linear_speed(com_y[i], t[i], com_y[i - 1], t[i - 1]))
+
+    com_accels_y: list[float] = []
+    for i in range(1, len(com_speeds_y)):
+        # timestamps das velocidades correspondem a t[1], t[2], ...
+        com_accels_y.append(
+            get_linear_acceleration(
+                com_speeds_y[i],
+                t[i + 1],
+                com_speeds_y[i - 1],
+                t[i],
+            )
+        )
+
+    center_mass_max_accel_y = (
+        max(abs(a) for a in com_accels_y) if com_accels_y else 0.0
+    )
+
+    # y(t) ≈ a·t² + b·t + c  → 'a' captura aceleração média da trajetória
+    if com_y.size >= 3:
+        poly_a, _, _ = np.polyfit(t_rel, com_y, 2)
+        center_mass_accel_poly = float(poly_a)
+    else:
+        center_mass_accel_poly = 0.0
+
+    # Consistência — R² da tendência linear do trunk_angle
+    trunk_angle_trend_r2 = __linear_r2(t_rel, trunk)
+
+    return {
+        "trunk_angle_delta": float(trunk_angle_delta),
+        "trunk_angle_max_rate": float(trunk_angle_max_rate),
+        "pca_ratio_delta": pca_ratio_delta,
+        "center_mass_max_accel_y": float(center_mass_max_accel_y),
+        "center_mass_accel_poly": center_mass_accel_poly,
+        "trunk_angle_trend_r2": float(trunk_angle_trend_r2),
+    }
+
+
+def extract_features(person_id: int, window_coordinates: list) -> dict[str, float]:
+    """
+    A partir das features brutas, aplica as regras de seleção e agregação das
+    propriedades para a geração das features de classificação dos movimentos.
+    """
+    raw_features = __get_raw_features(person_id, window_coordinates)
+    window_features = __aggregate_window_features(raw_features)
+
+    return window_features

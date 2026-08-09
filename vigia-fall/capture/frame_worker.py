@@ -9,7 +9,7 @@ import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
 from capture.frame_processor import process_frame
 from capture.models import SlidingWindowManager
-from capture.features_processor import extract_features
+from capture.features_processor import extract_features, normalize_features
 
 
 class FrameWorker:
@@ -51,7 +51,11 @@ class FrameWorker:
                 continue
 
             try:
-                extract_features(person_id, list(window))
+                features = extract_features(list(window))
+
+                normalized_features = normalize_features(features)
+
+                
             except Exception as error:
                 print(
                     f"Erro ao extrair features person_id={person_id}: {error}",

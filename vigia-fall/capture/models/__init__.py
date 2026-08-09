@@ -17,6 +17,7 @@ from .feature_helpers import (
     get_pca_features,
     align_pca_angle,
     get_angle_speed,
+    sigmoid_normalize,
 )
 from .slider_window import SlidingWindowManager
 from .capture_constants import (
@@ -48,4 +49,5 @@ __all__ = [
     "align_pca_angle",
     "get_angle_speed",
     "align_and_store_pca_angle",
+    "sigmoid_normalize",
 ]

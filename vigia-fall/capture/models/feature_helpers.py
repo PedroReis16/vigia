@@ -181,3 +181,12 @@ def get_angle_speed(
     """Velocidade angular a partir de ângulos já alinhados (wrap 2π no delta)."""
     delta = (current_angle - previous_angle + math.pi) % (2 * math.pi) - math.pi
     return delta / (current_timestamp - previous_timestamp)
+
+
+def sigmoid_normalize(x: float, midpoint: float, steepness: float) -> float:
+    """
+    Mapeia x para [0,1]
+    midpoint: valor de x onde f(x) = 0.5 (o "limiar de ambiguidade")
+    steepness: controla quão abrupta é a transição
+    """
+    return 1 / (1 + math.exp(-steepness * (x - midpoint)))

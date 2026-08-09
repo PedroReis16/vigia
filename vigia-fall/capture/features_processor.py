@@ -13,12 +13,11 @@ from capture.models.feature_helpers import (
     get_angular_speed,
     get_linear_acceleration,
     get_angular_acceleration,
+    sigmoid_normalize,
 )
 
 
-def __get_raw_features(
-    person_id: int, window_coordinates: list
-) -> list[dict[str, Any]]:
+def __get_raw_features(window_coordinates: list) -> list[dict[str, Any]]:
     """
     Extrai as features (velocidade e aceleração linear/angular) de cada parte do
     corpo ao longo de uma janela deslizante, mantendo o alinhamento com os
@@ -201,9 +200,7 @@ def __aggregate_window_features(raw_features: list[dict[str, Any]]) -> dict[str,
     t_rel = t - t[0]
 
     # Postura — mudança estrutural (wrap em [-π, π] no delta do ângulo)
-    trunk_angle_delta = (
-        float(trunk[-1] - trunk[0] + math.pi) % (2 * math.pi) - math.pi
-    )
+    trunk_angle_delta = float(trunk[-1] - trunk[0] + math.pi) % (2 * math.pi) - math.pi
     trunk_rates = [
         abs(get_angle_speed(trunk[i], t[i], trunk[i - 1], t[i - 1]))
         for i in range(1, len(trunk))
@@ -228,9 +225,7 @@ def __aggregate_window_features(raw_features: list[dict[str, Any]]) -> dict[str,
             )
         )
 
-    center_mass_max_accel_y = (
-        max(abs(a) for a in com_accels_y) if com_accels_y else 0.0
-    )
+    center_mass_max_accel_y = max(abs(a) for a in com_accels_y) if com_accels_y else 0.0
 
     # y(t) ≈ a·t² + b·t + c  → 'a' captura aceleração média da trajetória
     if com_y.size >= 3:
@@ -252,12 +247,36 @@ def __aggregate_window_features(raw_features: list[dict[str, Any]]) -> dict[str,
     }
 
 
-def extract_features(person_id: int, window_coordinates: list) -> dict[str, float]:
+def extract_features(window_coordinates: list) -> dict[str, float]:
     """
     A partir das features brutas, aplica as regras de seleção e agregação das
     propriedades para a geração das features de classificação dos movimentos.
     """
-    raw_features = __get_raw_features(person_id, window_coordinates)
+    raw_features = __get_raw_features(window_coordinates)
     window_features = __aggregate_window_features(raw_features)
 
     return window_features
+
+
+def normalize_features(features: dict[str, float]) -> dict[str, float]:
+    """
+    Normaliza as features para o intervalo [0, 1]
+    """
+
+    # TODO: Calibrar os valores de midpoint e steepness a partir de dados reais e rotulados
+
+    f_trunk_delta = sigmoid_normalize(abs(features["trunk_angle_delta"]),midpoint= 0.6, steepness= 8)
+    f_r2 = sigmoid_normalize(features["trunk_angle_trend_r2"], midpoint= 0.7, steepness= 6)
+    f_pca_delta = sigmoid_normalize(-features["pca_ratio_delta"], midpoint= 0.5, steepness= 4)
+    f_accel_max = sigmoid_normalize(features["center_mass_max_accel_y"], midpoint= 2.0, steepness= 1.5)
+    f_accel_poly = sigmoid_normalize(features["center_mass_accel_poly"], midpoint= 1.0, steepness= 2)
+    f_max_rate = sigmoid_normalize(features["trunk_angle_max_rate"], midpoint= 0.8, steepness= 3)
+
+    return {
+        'trunk_angle_delta': f_trunk_delta,
+        'trunk_angle_trend_r2': f_r2,
+        'pca_ratio_delta': f_pca_delta,
+        'center_mass_max_accel_y': f_accel_max,
+        'center_mass_accel_poly': f_accel_poly,
+        'trunk_angle_max_rate': f_max_rate,
+    }

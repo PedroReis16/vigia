@@ -8,6 +8,8 @@ from functools import lru_cache
 from ultralytics import YOLO  # pyright: ignore[reportMissingImports]
 
 from shared import get_settings
+from shared.bundle_paths import resolve_yolo_pose_weights
+
 
 @dataclass(frozen=True)
 class YoloModel:
@@ -19,9 +21,10 @@ class YoloModel:
     @classmethod
     def load(cls) -> "YoloModel":
         """
-        Carrega o modelo YOLO
+        Carrega o modelo YOLO (preferindo .pt local/bundled quando aplicável)
         """
-        return cls(model=YOLO(get_settings().yolo_pose_model))
+        weights = resolve_yolo_pose_weights(get_settings().yolo_pose_model)
+        return cls(model=YOLO(weights))
 
     
 

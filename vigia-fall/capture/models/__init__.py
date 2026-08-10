@@ -17,6 +17,7 @@ from .feature_helpers import (
     align_pca_angle,
     get_angle_speed,
     sigmoid_normalize,
+    compute_fall_score,
 )
 from .slider_window import SlidingWindowManager
 from .person_runtime import (
@@ -59,4 +60,5 @@ __all__ = [
     "get_angle_speed",
     "align_and_store_pca_angle",
     "sigmoid_normalize",
+    "compute_fall_score",
 ]

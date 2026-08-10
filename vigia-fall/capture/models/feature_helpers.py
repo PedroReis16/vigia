@@ -190,3 +190,10 @@ def sigmoid_normalize(x: float, midpoint: float, steepness: float) -> float:
     steepness: controla quão abrupta é a transição
     """
     return 1 / (1 + math.exp(-steepness * (x - midpoint)))
+
+
+def compute_fall_score(features: dict[str, float], weights: dict[str, float]) -> float:
+    """
+    Calcula o score de queda a partir das features e dos pesos
+    """
+    return sum(weights[k] * features[k] for k in features)

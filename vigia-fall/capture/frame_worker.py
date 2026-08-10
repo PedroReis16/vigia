@@ -4,41 +4,84 @@ Worker para processamento assíncrono dos frames capturados
 
 from functools import lru_cache
 import queue
+from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
+from capture.frame_processor import process_frame
+from capture.models import FallState, SlidingWindowManager, compute_fall_score, get_person_runtime_store
+from capture.features_processor import extract_features, normalize_features
 
 
-class FrameWorker: 
+class FrameWorker:
     """
     Worker para processamento assíncrono dos frames capturados
     """
+
     def __init__(self, frame_rate: int, slider_window_size: int) -> None:
         """
         Inicializa o worker
         """
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
-        self.slider_window_queue = queue.Queue(maxsize=slider_window_size)
+        self._slider_window_manager = SlidingWindowManager(
+            window_size=slider_window_size
+        )
 
     def __consume_raw_frame(self) -> bool:
         """
         Consome um frame da fila de frames brutos
         """
-        from capture.frame_processor import process_frame
-        
-        frame = self.raw_frame_queue.get()
+
+        frame, capture_date = self.raw_frame_queue.get()
 
         if frame is None:
             return False
 
-        process_frame(frame)
+        # Processa o frame e obtém os resultados
+        frame_result: dict[int, dict[str, Any]] = process_frame(frame, capture_date)
         self.raw_frame_queue.task_done()
-        return True
 
-    def __consume_slider_window(self) -> bool:
-        """
-        Inicializa o processamento da janela deslizante
-        """
-        pass
+        if not frame_result:
+            return True
+
+        ready_ids = self._slider_window_manager.update(frame_result)
+
+        # Pesos da features para o score de queda
+        # TODO: Calibrar os valores de weights a partir de dados reais e rotulados
+        weights = {
+            "trunk_angle_delta": 0.25,        # sinal primário - inclinação sustentada
+            "trunk_angle_trend_r2": 0.20,     # filtro de consistência - separa ruído de tendência real
+            "pca_ratio_delta": 0.15,          # secundário - ambíguo sozinho (vimos no caso negativo)
+            "center_mass_max_accel_y": 0.20,  # intensidade do evento
+            "center_mass_accel_poly": 0.10,   # aceleração suavizada, redundante parcial com o anterior
+            "trunk_angle_max_rate": 0.10,     # velocidade de rotação
+        }
+
+        for person_id in ready_ids:
+            window = self._slider_window_manager.get_window(person_id)
+            if not window:
+                continue
+
+            try:
+                features = extract_features(list(window))
+                normalized_features = normalize_features(features)
+                score = compute_fall_score(normalized_features, weights)
+                # Estado por ID (FallDetector etc.) — score a partir de normalized_features
+                person_state = get_person_runtime_store().get_or_create(person_id)
+
+                state= person_state.fall_detector.update(score, capture_date)
+
+                if state == FallState.SUSPECT:
+                    # Dispara verificação de imobilidade
+                    pass
+
+
+            except Exception as error:
+                print(
+                    f"Erro ao extrair features person_id={person_id}: {error}",
+                    flush=True,
+                )
+
+        return True
 
     def run(self) -> None:
         """
@@ -47,49 +90,38 @@ class FrameWorker:
 
         while True:
             if not self.__consume_raw_frame():
-                break # sai do loop se a fila de frames brutos estiver vazia
-
-            if not self.slider_window_queue.full():
-                continue # continua o loop se a fila de janelas deslizantes não estiver cheia para iniciar o processamento
-
-            self.__consume_slider_window()
-
+                break  # sai do loop se a fila de frames brutos estiver vazia
 
     def stop(self) -> None:
         """
         Para o worker
         """
-        self.raw_frame_queue.put_nowait(None) # put a sentinel value to stop the worker
-        self.slider_window_queue.put_nowait(None) # put a sentinel value to stop the worker
+        try:
+            self.raw_frame_queue.put_nowait(None)
+        except queue.Full:
+            # fila cheia: descarta um item e reinsere o sentinel
+            try:
+                self.raw_frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.raw_frame_queue.put_nowait(None)
+            except queue.Full:
+                pass
 
-
-    def insert_raw_frame(self, frame: np.ndarray) -> None:
+    def insert_raw_frame(self, frame: np.ndarray, capture_date: float) -> None:
         """
         Insere um frame na fila de processamento
         """
 
         try:
-            self.raw_frame_queue.put_nowait(frame)
+            self.raw_frame_queue.put_nowait((frame, capture_date))
         except queue.Full:
             try:
-                self.raw_frame_queue.get_nowait() # descarta o mais antigo
+                self.raw_frame_queue.get_nowait()  # descarta o mais antigo
             except queue.Empty:
                 pass
-            self.raw_frame_queue.put_nowait(frame)
-
-
-    def insert_slider_window(self, window: np.ndarray) -> None:
-        """
-        Insere uma janela na fila de processamento
-        """
-        try:
-            self.slider_window_queue.put_nowait(window)
-        except queue.Full:
-            try:
-                self.slider_window_queue.get_nowait() # descarta o mais antigo
-            except queue.Empty:
-                pass
-            self.slider_window_queue.put_nowait(window)
+            self.raw_frame_queue.put_nowait((frame, capture_date))
 
 
 @lru_cache

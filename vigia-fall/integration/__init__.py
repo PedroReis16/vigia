@@ -2,6 +2,7 @@
 Módulo de integração do dispositivo
 """
 
-from .runner import initialize_device_async, run_device_integration_async
+from .integration_runner import initialize_device
+from .fiware_runner import run_fiware
 
-__all__ = ["initialize_device_async", "run_device_integration_async"]
+__all__ = ["initialize_device", "run_fiware"]

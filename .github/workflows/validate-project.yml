@@ -1,0 +1,270 @@
+name: Vigia - Validate Project
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: "Project to validate (ex.: onboard)"
+        required: true
+        type: string
+      version:
+        description: "Semantic version to release (ex.: 1.0.0)"
+        required: true
+        type: string
+    outputs:
+      tag_name:
+        description: "Resolved release tag for this project/version/branch"
+        value: ${{ jobs.validate-project.outputs.tag_name }}
+      tag_prefix:
+        description: "Resolved tag prefix (without version)"
+        value: ${{ jobs.validate-project.outputs.tag_prefix }}
+      is_homolog:
+        description: "Whether the resolved tag is a homologation tag"
+        value: ${{ jobs.validate-project.outputs.is_homolog }}
+
+permissions:
+  contents: read
+
+jobs:
+  #------------------------------------------
+  # 1. Validate project tag
+  #------------------------------------------
+  validate-project:
+    name: Validate project & tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.resolve_tag.outputs.tag_name }}
+      tag_prefix: ${{ steps.resolve_tag.outputs.tag_prefix }}
+      is_homolog: ${{ steps.resolve_tag.outputs.is_homolog }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate semantic version format
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Versão '$VERSION' não segue SemVer (ex.: 1.2.3 ou 1.2.3-rc.1)."
+            exit 1
+          fi
+          echo "✓ Formato semântico válido: $VERSION"
+
+      - name: Resolve expected tag
+        id: resolve_tag
+        shell: bash
+        env:
+          PROJECT: ${{ inputs.project }}
+          VERSION: ${{ inputs.version }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          case "$PROJECT" in
+            onboard)
+              TAG_PREFIX="board"
+              ;;
+            *)
+              echo "::error::Projeto '$PROJECT' não possui prefixo de tag configurado."
+              echo "Projetos suportados: onboard → board@<version>"
+              exit 1
+              ;;
+          esac
+
+          if [[ "$BRANCH" == "master" ]]; then
+            TAG_NAME="${TAG_PREFIX}@${VERSION}"
+            IS_HOMOLOG="false"
+          else
+            TAG_NAME="hom-${TAG_PREFIX}@${VERSION}"
+            IS_HOMOLOG="true"
+          fi
+
+          {
+            echo "tag_prefix=${TAG_PREFIX}"
+            echo "tag_name=${TAG_NAME}"
+            echo "is_homolog=${IS_HOMOLOG}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Projeto:     $PROJECT"
+          echo "Branch:      $BRANCH"
+          echo "Versão:      $VERSION"
+          echo "Tag prefix:  $TAG_PREFIX"
+          echo "Tag esperada: $TAG_NAME"
+          echo "Homologação: $IS_HOMOLOG"
+
+      - name: Validate tag availability
+        shell: bash
+        env:
+          TAG_NAME: ${{ steps.resolve_tag.outputs.tag_name }}
+          TAG_PREFIX: ${{ steps.resolve_tag.outputs.tag_prefix }}
+          IS_HOMOLOG: ${{ steps.resolve_tag.outputs.is_homolog }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          tag_exists() {
+            local tag="$1"
+            git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1
+          }
+
+          PROD_TAG="${TAG_PREFIX}@${VERSION}"
+
+          # Tag de homologação não pode ser criada se a tag de produção já existe.
+          if [[ "$IS_HOMOLOG" == "true" ]] && tag_exists "$PROD_TAG"; then
+            echo "::error::A tag de produção '$PROD_TAG' já existe."
+            echo "A tag de homologação '$TAG_NAME' não pode ser criada para uma versão já publicada."
+            echo "Use uma versão diferente ou remova a tag de produção manualmente, se apropriado."
+            exit 1
+          fi
+
+          if tag_exists "$TAG_NAME"; then
+            echo "::error::A tag '$TAG_NAME' já existe no repositório."
+            echo "Use uma versão diferente ou remova a tag existente manualmente."
+            exit 1
+          fi
+
+          echo "✓ Tag '$TAG_NAME' disponível."
+          if [[ "$IS_HOMOLOG" == "true" ]]; then
+            echo "✓ Tag de produção '$PROD_TAG' ainda não existe — homologação permitida."
+          fi
+
+  #------------------------------------------
+  # 2. Validate commits (no AI attribution)
+  #------------------------------------------
+  commit_authors_check:
+    name: Commit authors validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Validate commits for AI agent attribution
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+
+          resolve_commit_range() {
+            if [[ -n "${BASE_SHA:-}" && -n "${HEAD_SHA:-}" ]]; then
+              # Garante que a base da PR está disponível localmente para o range.
+              git fetch --no-tags --prune --depth=0 origin \
+                "+${BASE_SHA}:refs/remotes/origin/_pr_base" 2>/dev/null \
+                || git fetch --no-tags origin "$BASE_SHA" 2>/dev/null \
+                || true
+              echo "${BASE_SHA}..${HEAD_SHA}"
+              return
+            fi
+
+            # workflow_dispatch / outros: valida commits exclusivos da branch
+            # em relação a master; se já estiver em master, valida desde a
+            # tag de produção anterior do mesmo projeto (quando existir).
+            git fetch --no-tags --prune origin master 2>/dev/null || true
+
+            BRANCH_NAME="${GITHUB_REF_NAME:-}"
+            if [[ "$BRANCH_NAME" != "master" ]] && git rev-parse --verify origin/master >/dev/null 2>&1; then
+              echo "origin/master..${HEAD_SHA}"
+              return
+            fi
+
+            case "$PROJECT" in
+              onboard) TAG_PREFIX="board" ;;
+              *) TAG_PREFIX="$PROJECT" ;;
+            esac
+
+            PREV_TAG=$(git tag -l "${TAG_PREFIX}@*" --sort=-v:refname | head -n1 || true)
+            if [[ -n "$PREV_TAG" ]]; then
+              echo "${PREV_TAG}..${HEAD_SHA}"
+              return
+            fi
+
+            echo ""
+          }
+
+          RANGE=$(resolve_commit_range)
+          if [[ -z "$RANGE" ]]; then
+            echo "Nenhum range de commits determinado — nada para validar."
+            exit 0
+          fi
+
+          echo "Validando commits no range: $RANGE"
+          COMMITS=$(git log --format='%H' "$RANGE" || true)
+          if [[ -z "$COMMITS" ]]; then
+            echo "Nenhum commit encontrado entre base e head — nada para validar."
+            exit 0
+          fi
+
+          # Trailers/frases que atribuem a autoria (parcial ou total) a um agente.
+          # Casados de forma case-insensitive contra a mensagem completa do commit.
+          TRAILER_PATTERN='(co[- ]?author(ed)?[- ]?by|made[- ]?with|generated[- ]?(with|by)|assisted[- ]?by|thrilled[- ]?by|crafted[- ]?with|written[- ]?with|powered[- ]?by|authored[- ]?by|created[- ]?by|built[- ]?with).{0,80}(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|google[- ]?bard|\bbard\b|devin|aider|continue\.dev|sweep[- ]?ai|tabnine|amazon[- ]?q|codewhisperer|llm|\bai\b|agent)'
+
+          # Identidades de bots/agentes em nome ou e-mail do author/committer.
+          IDENTITY_PATTERN='(claude|cursor|copilot|chatgpt|openai|anthropic|codex|gemini|devin|aider|sweep[- ]?ai|tabnine|codewhisperer|\[bot\]|noreply@anthropic|@cursor\.(com|sh|so|ai)|@openai\.com|@anthropic\.com)'
+
+          ROBOT_EMOJI=$'\xF0\x9F\xA4\x96'  # 🤖
+
+          FAIL=0
+          OFFENDING=""
+
+          while IFS= read -r SHA; do
+            [[ -z "$SHA" ]] && continue
+
+            MSG=$(git log -1 --format='%B' "$SHA")
+            AUTHOR=$(git log -1 --format='%an <%ae>' "$SHA")
+            COMMITTER=$(git log -1 --format='%cn <%ce>' "$SHA")
+            IDENTITY="${AUTHOR}"$'\n'"${COMMITTER}"
+
+            REASONS=""
+
+            if grep -qiE "$TRAILER_PATTERN" <<< "$MSG"; then
+              REASONS+=$'    • Trailer/atribuição a agente de IA na mensagem.\n'
+            fi
+
+            if grep -qiE "$IDENTITY_PATTERN" <<< "$IDENTITY"; then
+              REASONS+=$'    • Author/committer com identidade de agente/bot de IA.\n'
+            fi
+
+            if grep -qF "$ROBOT_EMOJI" <<< "$MSG"; then
+              REASONS+=$'    • Emoji 🤖 (assinatura típica de commits gerados por IA).\n'
+            fi
+
+            if [[ -n "$REASONS" ]]; then
+              FAIL=1
+              OFFENDING+=$'\n  ✖ Commit '"$SHA"$'\n'
+              OFFENDING+=$'      Author:    '"$AUTHOR"$'\n'
+              OFFENDING+=$'      Committer: '"$COMMITTER"$'\n'
+              OFFENDING+="$REASONS"
+            fi
+          done <<< "$COMMITS"
+
+          if [[ "$FAIL" -eq 1 ]]; then
+            {
+              echo "::error::Commits com referência a agentes de IA detectados nesta validação."
+              echo
+              echo "Os commits devem ter apenas autores humanos."
+              echo "Não são permitidas referências a Cursor, Claude, Copilot, Codex,"
+              echo "ChatGPT, Gemini ou qualquer outro agente — seja como co-autor,"
+              echo "trailer (Co-authored-by, Made-with, Generated-with, Assisted-by,"
+              echo "Thrilled-by, ...), identidade de author/committer ou emoji 🤖."
+              echo
+              echo "Commits inválidos:"
+              printf '%s' "$OFFENDING"
+              echo
+              echo "Como corrigir:"
+              echo "  1. Reescreva os commits afetados (git rebase -i / git commit --amend)."
+              echo "  2. Remova trailers de co-autoria e qualquer linha que mencione o agente."
+              echo "  3. Faça force-push da branch (em PRs) ou recrie a branch de release."
+            } >&2
+            exit 1
+          fi
+
+          echo "Nenhum commit com referência a agente de IA encontrado."

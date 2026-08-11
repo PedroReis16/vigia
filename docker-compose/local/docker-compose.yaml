@@ -51,7 +51,7 @@ services:
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password123
+      MINIO_ROOT_PASSWORD: admin123
     volumes:
       - ./minio_data:/data
     command: server --console-address ":9001" /data
@@ -64,7 +64,50 @@ services:
     networks:
       - vigia-network
 
-  # ─── VIGIA ────────────────────────────────────────────────────────────────
+  # ─── VIGIA API (.NET) ─────────────────────────────────────────────────────
+  vigia-api:
+    build:
+      context: ../..
+      dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+    image: vigia-api:local
+    container_name: vigia-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__VigiaDb: Host=postgres;Port=5432;Database=vigia;Username=vigia;Password=vigia123
+      ConnectionStrings__Redis: redis:6379
+      ApiUrls__Fiware: http://host.docker.internal:81/vigia/fiware/
+      MediaMTX__WebhookToken: dev-mediamtx-webhook-token
+      OAuth__ServiceToken: "1234567890"
+      versionPath: /versions/
+      Cloud__Endpoint: http://minio:9000
+      Cloud__Region: us-east-1
+      Cloud__AccessKey: admin
+      Cloud__SecretKey: admin123
+      Cloud__VersionsBucketName: vigia-versions
+      Cloud__PicturesBucketName: vigia-pictures
+      Cloud__UsePathStyle: "true"
+    ports:
+      - "8090:8080"
+    volumes:
+      - vigia-api-versions:/versions
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`)) && PathPrefix(`/vigia`)"
+      - "traefik.http.routers.vigia-api.entrypoints=web"
+      - "traefik.http.routers.vigia-api.priority=50"
+      - "traefik.http.services.vigia-api.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
 
   # ─── TRAEFIK ──────────────────────────────────────────────────────────────
   traefik:
@@ -248,9 +291,11 @@ services:
     image: vigia-mediamtx:local
     container_name: mediamtx
     restart: unless-stopped
+    depends_on:
+      - vigia-api
     environment:
-      # API on host (launchSettings :8090). Token = MediaMTX:WebhookToken (appsettings.Development).
-      VIGIA_API_BASE: http://host.docker.internal:8090
+      # API in compose (vigia-api). Token = MediaMTX:WebhookToken.
+      VIGIA_API_BASE: http://vigia-api:8080
       VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
       UNDEMAND_GRACE_SECONDS: "3"
     ports:
@@ -279,6 +324,7 @@ services:
 volumes:
   mongo-historical-data:
   mongo-internal-data:
+  vigia-api-versions:
 
 networks:
   vigia-network:

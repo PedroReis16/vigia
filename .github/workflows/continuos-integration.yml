@@ -52,7 +52,7 @@ jobs:
               - 'vigia-services/apps/vigia-api/**'
               - '!vigia-services/apps/vigia-api/**/*.md'
             vigia_api_docker:
-              - 'docker-compose/dockerfiles/vigia-api.dockerfile'
+              - 'docker-compose/dockerfiles/vigia-api-go.dockerfile'
             vigia_bootstrap_non_md:
               - 'vigia-services/apps/vigia-bootstrap/**'
               - '!vigia-services/apps/vigia-bootstrap/**/*.md'
@@ -113,7 +113,7 @@ jobs:
               "path":       "vigia-services/apps/vigia-api",
               "go_mod":     "vigia-services/apps/vigia-api/go.mod",
               "go_sum":     "vigia-services/apps/vigia-api/go.sum",
-              "dockerfile": "docker-compose/dockerfiles/vigia-api.dockerfile",
+              "dockerfile": "docker-compose/dockerfiles/vigia-api-go.dockerfile",
               "has_docker": "true"
             }]' <<< "$PROJECTS")
           fi

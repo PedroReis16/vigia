@@ -8,6 +8,19 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Onboard Release - ${{ inputs.version }}"
+
+permissions:
+  contents: write
+
+env:
+  SERVICE_PATH: vigia-fall
+  APP_NAME: vigia-fall-detection
+
 jobs:
   #------------------------------------------
   # 1. Validate project
@@ -17,3 +30,118 @@ jobs:
     with:
       project: onboard
       version: ${{ inputs.version }}
+
+  #------------------------------------------
+  # 2. Build release (Linux ARM64 nativo)
+  #------------------------------------------
+  build-release:
+    name: Build - Linux ARM64
+    needs: validate-project
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ffmpeg \
+            libglib2.0-0 \
+            libgomp1 \
+            libgl1 \
+            libsm6 \
+            libxext6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip + YOLO model
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ env.SERVICE_PATH }}/yolo26s-pose.pt
+          key: fall-arm64-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
+          restore-keys: |
+            fall-arm64-
+
+      - name: Install Python build dependencies
+        run: make install-build-deps
+
+      - name: Build Linux ARM64 bundle (native)
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Host: $(uname -s)/$(uname -m)"
+          make build-linux-arm64
+
+      - name: Stage flat artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/release-assets"
+          cp "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
+             deploy/install.sh \
+             deploy/fall-detection.service \
+             "${{ github.workspace }}/release-assets/"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux-arm64-${{ inputs.version }}
+          path: ${{ github.workspace }}/release-assets/*
+          retention-days: 30
+
+  #------------------------------------------
+  # 3. Release
+  #------------------------------------------
+  release:
+    name: Release — tag & GitHub Release
+    needs: [validate-project, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux-arm64-${{ inputs.version }}
+          path: ./artifacts
+
+      - name: Create and push git tag
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.validate-project.outputs.tag_name }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" \
+            -m "Release Vigia Onboard (fall-detection) v${{ inputs.version }}"
+          git push origin "$TAG"
+          echo "✓ Tag '$TAG' criada e publicada."
+
+      # - name: Create GitHub Release
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ needs.validate-project.outputs.tag_name }}
+      #     name: "Vigia Onboard v${{ inputs.version }}"
+      #     files: |
+      #       ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
+      #       ./artifacts/install.sh
+      #       ./artifacts/fall-detection.service
+      #     draft: false
+      #     generate_release_notes: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

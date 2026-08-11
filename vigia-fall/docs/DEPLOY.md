@@ -4,15 +4,23 @@ Guia curto para gerar o pacote PyInstaller onedir e instalar na placa.
 
 ## Pré-requisitos (máquina de build)
 
-- **Docker** com suporte a `linux/arm64` (ex.: Mac Apple Silicon ou buildx).
-- **`make`** e **Python 3** com dependências do projeto (para `ensure-model`).
+- **`make`** e **Python 3.12** com dependências do projeto.
 - O ficheiro `yolo26s-pose.pt` é gitignored: o Makefile baixa-o automaticamente se faltar.
+- **Caminho do build** (escolhido automaticamente por `make build-linux-arm64`):
+  - **Linux aarch64/arm64** — compilação nativa (CI com `ubuntu-24.04-arm`, VM ARM, placa).
+  - **Outros hosts** (macOS, Linux amd64, etc.) — Docker + buildx (`deploy/Dockerfile.linux-arm64-binary`).
+- Em hosts não-ARM Linux, é preciso **Docker** com suporte a `linux/arm64`.
+
+> Mac Apple Silicon é `arm64`, mas o SO é Darwin: o Makefile **não** trata como nativo (o binário teria de ser Linux). Nesse caso usa Docker.
 
 ## Gerar o artefato
 
 Na raiz de `vigia-fall/`:
 
 ```bash
+# Em linux/arm64 (opcional, se ainda não tiver deps):
+make install-build-deps
+
 make build-linux-arm64
 ```
 
@@ -21,7 +29,7 @@ make build-linux-arm64
 - `dist/vigia-fall-detection-linux-arm64/` — onedir (executável + `_internal/`).
 - `dist/vigia-fall-detection-linux-arm64.tar.gz` — ficheiro para copiar para a placa.
 
-O build corre em Docker (`deploy/Dockerfile.linux-arm64-binary`, Python 3.12), com OpenCV headless.
+No caminho Docker, o build usa Python 3.12 e OpenCV headless dentro da imagem.
 
 ## Instalação na placa
 

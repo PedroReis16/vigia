@@ -17,6 +17,7 @@ using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
 using Vigia.Fiware.Extensions;
 using Microsoft.AspNetCore.SignalR;
+using Vigia.Cloud.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,9 @@ builder.Services.AddScoped<HttpResponseCacheHandler>();
 builder.Services.AddTransient<ForwardingHandler>();
 builder.Services.AddHttpContextAccessor();
 
+// Cloud
+builder.Services.AddCloudServices(builder.Configuration);
+
 // Services
 builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
@@ -57,6 +61,7 @@ builder.Services.AddTransient<IAuthService, AuthService>();
 builder.Services.AddTransient<IDeviceCommandsService, DeviceCommandsService>();
 builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
+builder.Services.AddTransient<IVersionService, VersionService>();
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT

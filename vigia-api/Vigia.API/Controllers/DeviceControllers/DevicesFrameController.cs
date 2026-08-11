@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Vigia.API.Contracts;
+using Vigia.API.Contracts.Devices;
 using Vigia.Models.Middlewares;
 
 namespace Vigia.API.Controllers.DeviceControllers;

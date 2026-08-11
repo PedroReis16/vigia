@@ -2,7 +2,7 @@ using Vigia.API.Controllers;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Models.Enums;
 
-namespace Vigia.API.Contracts;
+namespace Vigia.API.Contracts.Devices;
 
 public interface IDevicesService
 {

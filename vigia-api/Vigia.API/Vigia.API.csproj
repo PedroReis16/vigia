@@ -25,6 +25,7 @@
     <ProjectReference Include="..\Libraries\Vigia.Database\Vigia.Database.csproj" />
     <ProjectReference Include="..\Libraries\Vigia.Cache\Vigia.Cache.csproj" />
     <ProjectReference Include="..\Libraries\Vigia.Fiware\Vigia.Fiware.csproj" />
+    <ProjectReference Include="..\Libraries\Vigia.Cloud\Vigia.Cloud.csproj" />
   </ItemGroup>
 
 </Project>

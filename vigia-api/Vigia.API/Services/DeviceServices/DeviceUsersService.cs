@@ -1,3 +1,4 @@
+using Vigia.API.Contracts.Devices;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.API.Models.DTOs.Users;
@@ -6,7 +7,7 @@ using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
-namespace Vigia.API.Services;
+namespace Vigia.API.Services.Devices;
 
 public class DeviceUsersService(ILogger<DeviceUsersService> logger, IServiceScopeFactory scopeFactory) : IDeviceUsersService
 {

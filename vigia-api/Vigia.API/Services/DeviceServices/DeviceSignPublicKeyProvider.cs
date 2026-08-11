@@ -3,7 +3,7 @@ using Vigia.Database.Contracts;
 using Vigia.Models.Contracts;
 using Vigia.Models.Entities;
 
-namespace Vigia.API.Services;
+namespace Vigia.API.Services.Devices;
 
 internal class DeviceSignPublicKeyProvider(
     IDeviceIdentityCacheService identityCache,

@@ -1,4 +1,4 @@
-using Vigia.API.Contracts;
+using Vigia.API.Contracts.Devices;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Database.Contracts;
 using Vigia.Fiware.Contracts;
@@ -6,7 +6,7 @@ using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
-namespace Vigia.API.Services;
+namespace Vigia.API.Services.Devices;
 
 internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, IServiceScopeFactory scopeFactory) : IDeviceCommandsService
 {

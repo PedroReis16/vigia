@@ -1,6 +1,6 @@
 using Vigia.API.Models.DTOs.Devices;
 
-namespace Vigia.API.Contracts;
+namespace Vigia.API.Contracts.Devices;
 
 public interface IDeviceUsersService
 {

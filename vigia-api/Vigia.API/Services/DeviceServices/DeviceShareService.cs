@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
+using Vigia.API.Contracts.Devices;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Database.Contracts;
@@ -7,7 +8,7 @@ using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
-namespace Vigia.API.Services;
+namespace Vigia.API.Services.Devices;
 
 public class DeviceShareService(
     ILogger<DeviceShareService> logger,

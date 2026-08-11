@@ -1,4 +1,4 @@
-using Vigia.API.Contracts;
+using Vigia.API.Contracts.Devices;
 using Vigia.Database.Contracts;
 using Vigia.API.Models.DTOs.Devices;
 using Vigia.Models.Entities;
@@ -12,7 +12,7 @@ using Vigia.API.Contracts.CacheServices;
 using Vigia.Models.Contracts;
 using Vigia.Models.Helpers;
 
-namespace Vigia.API.Services;
+namespace Vigia.API.Services.Devices;
 
 internal class DevicesService(
     ILogger<DevicesService> logger,

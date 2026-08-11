@@ -11,6 +11,8 @@ using Vigia.Cache.Extensions;
 using Vigia.API.Contracts.CacheServices;
 using Vigia.API.Services.CacheServices;
 using Vigia.Models.Contracts;
+using Vigia.API.Contracts.Devices;
+using Vigia.API.Services.Devices;
 using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
 using Vigia.Fiware.Extensions;

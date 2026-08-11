@@ -106,7 +106,7 @@ jobs:
   # 3. Release
   #------------------------------------------
   release:
-    name: Release — tag & GitHub Release
+    name: Release — tag & upload version
     needs: [validate-project, build-release]
     runs-on: ubuntu-latest
     steps:
@@ -131,6 +131,58 @@ jobs:
             -m "Release Vigia Onboard (fall-detection) v${{ inputs.version }}"
           git push origin "$TAG"
           echo "✓ Tag '$TAG' criada e publicada."
+
+      - name: Upload device version to Vigia API
+        env:
+          VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
+          VERSION: ${{ inputs.version }}
+          APP_NAME: ${{ env.APP_NAME }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VIGIA_API_BASE_URL:-}" ]; then
+            echo "::error::Secret VIGIA_API_BASE_URL não configurado."
+            exit 1
+          fi
+
+          BASE_URL="${VIGIA_API_BASE_URL%/}"
+          ARTIFACT="./artifacts/${APP_NAME}-linux-arm64.tar.gz"
+          if [ ! -f "$ARTIFACT" ]; then
+            echo "::error::Artefato não encontrado: $ARTIFACT"
+            ls -la ./artifacts || true
+            exit 1
+          fi
+
+          FILE_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+          CHUNK_SIZE=5242880
+          CHUNK_DIR="$(mktemp -d)"
+          trap 'rm -rf "$CHUNK_DIR"' EXIT
+
+          split -b "$CHUNK_SIZE" -d -a 5 "$ARTIFACT" "$CHUNK_DIR/chunk_"
+          mapfile -t CHUNKS < <(ls -1 "$CHUNK_DIR"/chunk_* | sort)
+          TOTAL_CHUNKS="${#CHUNKS[@]}"
+
+          if [ "$TOTAL_CHUNKS" -eq 0 ]; then
+            echo "::error::Nenhum chunk gerado a partir de $ARTIFACT"
+            exit 1
+          fi
+
+          echo "Enviando $ARTIFACT ($TOTAL_CHUNKS chunks de até 5 MiB) para ${BASE_URL}/devices/versions"
+          echo "fileId=$FILE_ID version=$VERSION"
+
+          for i in "${!CHUNKS[@]}"; do
+            CHUNK_PATH="${CHUNKS[$i]}"
+            echo "→ Chunk $((i + 1))/$TOTAL_CHUNKS"
+            curl -fsS -X POST "${BASE_URL}/devices/versions" \
+              -F "fileChunk=@${CHUNK_PATH};type=application/octet-stream" \
+              -F "version=${VERSION}" \
+              -F "fileId=${FILE_ID}" \
+              -F "chunkIndex=${i}" \
+              -F "totalChunks=${TOTAL_CHUNKS}"
+            echo
+          done
+
+          echo "✓ Versão $VERSION enviada com sucesso."
 
       # - name: Create GitHub Release
       #   uses: softprops/action-gh-release@v2

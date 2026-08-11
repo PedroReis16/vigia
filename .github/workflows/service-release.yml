@@ -22,7 +22,7 @@ permissions:
 
 env:
   SERVICE_PATH: vigia-services/apps/vigia-api
-  DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
+  DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api-go.dockerfile
   IMAGE_NAME: vigia-api
   TAG_PREFIX: vigia-api
   GOSEC_VERSION: v2.22.0

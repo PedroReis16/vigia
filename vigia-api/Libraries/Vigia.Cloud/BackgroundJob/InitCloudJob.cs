@@ -18,28 +18,31 @@ internal class InitCloudJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using IServiceScope scope = _scopeFactory.CreateScope();
-        ICloudService cloudService = scope.ServiceProvider.GetRequiredService<ICloudService>();
-
-        var tasks = new List<Task>();
-
-        if (!string.IsNullOrWhiteSpace(_options.VersionsBucketName))
+        try
         {
-            tasks.Add(cloudService.EnsureBucketAsync(_options.VersionsBucketName, stoppingToken));
-        }
+            using IServiceScope scope = _scopeFactory.CreateScope();
+            ICloudService cloudService = scope.ServiceProvider.GetRequiredService<ICloudService>();
 
-        if (!string.IsNullOrWhiteSpace(_options.PicturesBucketName))
+            var tasks = new List<Task>();
+
+            if (!string.IsNullOrWhiteSpace(_options.VersionsBucketName))
+                tasks.Add(cloudService.EnsureBucketAsync(_options.VersionsBucketName, stoppingToken));
+
+            if (!string.IsNullOrWhiteSpace(_options.PicturesBucketName))
+                tasks.Add(cloudService.EnsureBucketAsync(_options.PicturesBucketName, stoppingToken));
+
+            if (tasks.Count == 0)
+            {
+                _logger.LogWarning("Nenhum bucket configurado em Cloud; inicialização ignorada");
+                return;
+            }
+
+            await Task.WhenAll(tasks);
+            _logger.LogInformation("Buckets inicializados com sucesso");
+        }
+        catch (Exception ex)
         {
-            tasks.Add(cloudService.EnsureBucketAsync(_options.PicturesBucketName, stoppingToken));
+            _logger.LogError(ex, "Buckets não inicializados");
         }
-
-        if (tasks.Count == 0)
-        {
-            _logger.LogWarning("Nenhum bucket configurado em Cloud; inicialização ignorada");
-            return;
-        }
-
-        await Task.WhenAll(tasks);
-        _logger.LogInformation("Buckets inicializados com sucesso");
     }
 }

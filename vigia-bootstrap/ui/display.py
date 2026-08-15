@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Protocol
+from typing import Protocol
 
 from .pins import get_pin_config
 
@@ -40,13 +40,22 @@ def fit(text: str, width: int = LCD_COLS) -> str:
 class Display(Protocol):
     def write(self, line1: str, line2: str) -> None: ...
 
+    def close(self) -> None: ...
+
 
 class NullDisplay:
-    last: tuple[str, str] = ("", "")
+    def __init__(self) -> None:
+        self.last: tuple[str, str] = ("", "")
+        self.write_count = 0
 
     def write(self, line1: str, line2: str) -> None:
         self.last = (fit(line1), fit(line2))
+        self.write_count += 1
         log.info("LCD: [%s][%s]", self.last[0].rstrip(), self.last[1].rstrip())
+
+    def close(self) -> None:
+        self.last = ("", "")
+        log.info("LCD: desligado")
 
 
 class I2cDisplay:
@@ -62,12 +71,29 @@ class I2cDisplay:
             rows=LCD_ROWS,
             auto_linebreaks=False,
         )
+        self._last: tuple[str, str] | None = None
 
     def write(self, line1: str, line2: str) -> None:
+        fitted = (fit(line1), fit(line2))
+        if fitted == self._last:
+            return
+        self._last = fitted
         self._lcd.clear()
-        self._lcd.write_string(fit(line1))
+        self._lcd.write_string(fitted[0])
         self._lcd.cursor_pos = (1, 0)
-        self._lcd.write_string(fit(line2))
+        self._lcd.write_string(fitted[1])
+
+    def close(self) -> None:
+        self._last = None
+        try:
+            self._lcd.clear()
+            self._lcd.backlight_enabled = False
+        except Exception as exc:
+            log.warning("LCD: falha a apagar/backlight: %s", exc)
+        try:
+            self._lcd.close(clear=False)
+        except Exception as exc:
+            log.warning("LCD: falha a fechar I2C: %s", exc)
 
 
 def create_display() -> Display:

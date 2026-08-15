@@ -75,3 +75,63 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
 
     asyncio.run(run())
     assert called["start"] >= 1
+
+
+def test_get_wifi_service_nmcli_por_omissao(monkeypatch) -> None:
+    monkeypatch.delenv("WIFI_MOCK", raising=False)
+    settings.get_settings.cache_clear()
+    from provision.wifi import NmcliWifiService, get_wifi_service
+
+    assert isinstance(get_wifi_service(), NmcliWifiService)
+    settings.get_settings.cache_clear()
+
+
+def test_get_wifi_service_mock_quando_wifi_mock(monkeypatch) -> None:
+    monkeypatch.setenv("WIFI_MOCK", "true")
+    settings.get_settings.cache_clear()
+    from provision.wifi import MockWifiService, get_wifi_service
+
+    assert isinstance(get_wifi_service(), MockWifiService)
+    settings.get_settings.cache_clear()
+
+
+def test_wifi_fail_nao_persiste_network(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+
+    class FailWifi:
+        async def connect(self, ssid, password):
+            raise RuntimeError("ssid invalido")
+
+    async def run() -> None:
+        from provision.wifi import connect_and_persist
+
+        await connect_and_persist("bad", "x", "http://api", "k", service=FailWifi())
+
+    try:
+        asyncio.run(run())
+        raise AssertionError("esperava RuntimeError")
+    except RuntimeError:
+        pass
+    assert not (tmp_path / "network.json").exists()
+    settings.get_settings.cache_clear()
+
+
+def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+
+    class OkWifi:
+        async def connect(self, ssid, password):
+            return None
+
+    from provision.wifi import connect_and_persist
+
+    async def run() -> None:
+        await connect_and_persist("casa", "segredo", "http://api", "k", service=OkWifi())
+
+    asyncio.run(run())
+    data = json.loads((tmp_path / "network.json").read_text())
+    assert data["ssid"] == "casa"
+    assert data["password"] == "segredo"
+    settings.get_settings.cache_clear()

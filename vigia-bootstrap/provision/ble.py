@@ -20,8 +20,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
-from .settings import get_network_path
-from .wifi import get_wifi_service
+from . import state
+from .wifi import connect_and_persist
 
 log = logging.getLogger(__name__)
 
@@ -62,38 +62,23 @@ def __set_provision_status(
         target.value = bytearray(status)
 
 
-def __persist_network_credentials(
-    ssid: str, password: str, api_base_url: str, fiware_api_key: str
-) -> None:
-    network_path = get_network_path()
-    network_path.parent.mkdir(parents=True, exist_ok=True)
-    network_path.write_text(
-        json.dumps(
-            {
-                "ssid": ssid,
-                "password": password,
-                "api_base_url": api_base_url,
-                "fiware_api_key": fiware_api_key,
-            }
-        )
-    )
-    network_path.chmod(0o600)
-
-
 async def __provision_wifi_async(
     ssid: str,
     password: str,
+    api_base_url: str,
+    fiware_api_key: str,
     characteristic: Optional[BlessGATTCharacteristic],
 ) -> None:
     try:
-        wifi = get_wifi_service()
-        await wifi.connect(ssid, password)
+        await connect_and_persist(ssid, password, api_base_url, fiware_api_key)
         __set_provision_status(b"SUCCESS", characteristic)
+        state.set_pairing_stage(state.WIFI_OK)
         device_context["stop_beacon"] = True
         log.info("Provision SUCCESS: Wi‑Fi conectado")
     except Exception as exc:
         log.warning("Provision WIFI_FAIL: %s", exc)
         __set_provision_status(b"WIFI_FAIL", characteristic)
+        state.set_pairing_stage(state.WIFI_FAIL)
 
 
 def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
@@ -130,23 +115,27 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             device_context["authenticated_session"] = True
             device_context["last_challenge_status"] = _STATUS_VALIDATED
             characteristic.value = bytearray(_STATUS_VALIDATED)
+            state.set_pairing_stage(state.USER_FOUND)
             log.info("Desafio VALIDATED")
         except (InvalidSignature, ValueError, KeyError, json.JSONDecodeError) as exc:
             log.warning("Desafio INVALID: %s", exc)
             device_context["authenticated_session"] = False
             device_context["last_challenge_status"] = _STATUS_INVALID
             characteristic.value = bytearray(_STATUS_INVALID)
+            state.set_pairing_stage(state.PAIRING_ERROR)
         except Exception as exc:
             log.warning("Desafio INVALID (erro inesperado): %s", exc)
             device_context["authenticated_session"] = False
             device_context["last_challenge_status"] = _STATUS_INVALID
             characteristic.value = bytearray(_STATUS_INVALID)
+            state.set_pairing_stage(state.PAIRING_ERROR)
 
     elif __uuid_eq(characteristic.uuid, CHAR_PROVISION_UUID):
         log.info("Escrevendo resposta do provisionamento de rede...")
 
         if not device_context.get("authenticated_session"):
             __set_provision_status(b"UNAUTHORIZED", characteristic)
+            state.set_pairing_stage(state.PAIRING_ERROR)
             return
 
         try:
@@ -161,11 +150,8 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
                 raise ValueError("payload incompleto")
 
             device_context["provision_characteristic"] = characteristic
-
-            __persist_network_credentials(
-                wifi_ssid, wifi_password, api_base_url, fiware_api_key
-            )
             __set_provision_status(b"CONNECTING", characteristic)
+            state.set_pairing_stage(state.WIFI_CONNECTING)
 
             log.info(
                 "Provision recebido: ssid=%r, api_base_url=%r",
@@ -175,11 +161,18 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
 
             active_loop = loop or asyncio.get_event_loop()
             active_loop.create_task(
-                __provision_wifi_async(wifi_ssid, wifi_password, characteristic)
+                __provision_wifi_async(
+                    wifi_ssid,
+                    wifi_password,
+                    api_base_url,
+                    fiware_api_key,
+                    characteristic,
+                )
             )
         except Exception as exc:
             log.warning("Provision ERROR_PAYLOAD: %s", exc)
             __set_provision_status(b"ERROR_PAYLOAD", characteristic)
+            state.set_pairing_stage(state.PAIRING_ERROR)
 
 
 def __read_identity() -> bytearray:
@@ -222,11 +215,14 @@ def __read_request(characteristic: BlessGATTCharacteristic) -> bytearray:
     if __uuid_eq(characteristic.uuid, CHAR_IDENTITY_UUID):
         data = __read_identity()
         characteristic.value = data
+        state.set_pairing_stage(state.APP_CONNECTED)
         return data
 
     if __uuid_eq(characteristic.uuid, CHAR_CHALLENGE_UUID):
         status = device_context.pop("last_challenge_status", None)
         if status is not None:
+            if status == _STATUS_VALIDATED:
+                state.set_pairing_stage(state.WAITING_WIFI)
             characteristic.value = bytearray(status)
             return bytearray(status)
 

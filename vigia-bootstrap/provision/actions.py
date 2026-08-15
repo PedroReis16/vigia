@@ -8,6 +8,7 @@ import subprocess
 
 from .identity import is_provisioned
 from .settings import get_network_path
+from .state import request_pairing_restart
 
 log = logging.getLogger(__name__)
 
@@ -39,12 +40,16 @@ def restart_fall_detection() -> None:
 
 
 def fall_is_active() -> bool:
-    result = subprocess.run(
-        ["systemctl", "is-active", FALL_SERVICE],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", FALL_SERVICE],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=1,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
     return result.stdout.strip() == "active"
 
 
@@ -53,15 +58,17 @@ def clear_wifi() -> None:
     script = WIFI_RESET_SCRIPT
     if os.path.isfile(script) and os.access(script, os.X_OK):
         subprocess.run([script], check=False)
-        return
-    stop_fall_detection()
-    path = get_network_path()
-    if path.exists():
-        path.unlink()
-        log.info("network.json removido")
-    if is_provisioned():
-        log.warning("clear_wifi: identity+network ainda presentes")
+    else:
+        stop_fall_detection()
+        path = get_network_path()
+        if path.exists():
+            path.unlink()
+            log.info("network.json removido")
+        if is_provisioned():
+            log.warning("clear_wifi: identity+network ainda presentes")
+    request_pairing_restart()
 
 
 def unlink_user() -> None:
     subprocess.run([RESET_SCRIPT], check=False)
+    request_pairing_restart()

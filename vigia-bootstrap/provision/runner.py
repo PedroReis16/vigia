@@ -39,6 +39,8 @@ async def provision_supervisor(cancel: threading.Event) -> None:
     """
     while True:
         if cancel.is_set():
+            cancel.clear()
+            set_phase("idle")
             await asyncio.sleep(0.2)
             continue
 

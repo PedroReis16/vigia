@@ -16,6 +16,7 @@ def _as_bool(value: str) -> bool:
 class Settings:
     data_dir: str = "/opt/vigia"
     debug: bool = True
+    wifi_mock: bool = False
     wifi_mock_result: str = "success"
 
 
@@ -24,6 +25,7 @@ def get_settings() -> Settings:
     return Settings(
         data_dir=os.getenv("DATA_DIR", "/opt/vigia") or "/opt/vigia",
         debug=_as_bool(os.getenv("DEBUG", "true")),
+        wifi_mock=_as_bool(os.getenv("WIFI_MOCK", "false")),
         wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
     )
 

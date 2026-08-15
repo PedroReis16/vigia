@@ -19,4 +19,13 @@ rm -f /opt/vigia/fall-detection/data/identity.json
 rm -rf /opt/vigia/fall-detection/data
 rm -rf /opt/vigia/data
 
+if command -v nmcli >/dev/null 2>&1; then
+  echo "→ A remover perfis Wi‑Fi do NetworkManager..."
+  while IFS=: read -r uuid kind; do
+    if [[ "${kind}" == "802-11-wireless" ]]; then
+      nmcli connection delete uuid "${uuid}" >/dev/null 2>&1 || true
+    fi
+  done < <(nmcli -t -f UUID,TYPE connection show 2>/dev/null || true)
+fi
+
 echo "✅ Configuração de utilizador redefinida. O bootstrap deve reabrir o pareamento BLE."

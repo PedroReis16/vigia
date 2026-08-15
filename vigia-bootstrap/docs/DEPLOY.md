@@ -15,12 +15,14 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 | Baixo | 23 | ecrã seguinte |
 | LCD 16x2 I2C | SDA 2 / SCL 3 | backpack PCF8574, endereço `0x27`, bus 1 |
 
-O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD.
+O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo a linha 2 muda com o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs: **VIGIA** (Pareando user / Fall ativo / …) → **WiFi** (SSID) → **Nova rede?** → **Servico** (OK = restart) → **Desvincular?**.
+Ecrãs: **VIGIA** (estágio de vínculo / Fall ativo / …) → **WiFi** (SSID) → **Nova rede?** → **Servico** (OK = restart) → **Desvincular?**.
 
-- **Nova rede** apaga só `network.json` (`vigia_reset_wifi.sh`) e reabre o BLE.
-- **Desvincular** corre `vigia_reset_config.sh` (identidade + rede).
+Cima/baixo mudam de ecrã em qualquer fase (já não voltam sozinhos ao STATUS ao fim de 2 s).
+
+- **Nova rede** apaga `network.json` e os perfis Wi‑Fi do NetworkManager (`vigia_reset_wifi.sh`) e reabre o BLE.
+- **Desvincular** corre `vigia_reset_config.sh` (identidade + rede + perfis NM).
 
 Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime. O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
 
@@ -89,11 +91,13 @@ Só remove os pacotes apt que **este** `install.sh` tiver adicionado (não desin
 O unit usa `EnvironmentFile=-/opt/vigia/.env` (opcional, partilhado com o fall-detection):
 
 - `DATA_DIR=/opt/vigia`
-- `DEBUG=false` na placa (`true` = Wi‑Fi mock)
-- `WIFI_MOCK_RESULT=success`
+- `WIFI_MOCK=false` na placa (`true` só em testes: aceita qualquer SSID)
+- `WIFI_MOCK_RESULT=success` (quando `WIFI_MOCK=true`)
 - `LCD_ENABLED=true`
 - `LCD_I2C_ADDR=0x27`
 - `BUTTON_OK=17` `BUTTON_UP=22` `BUTTON_DOWN=23`
+
+O LCD mostra o estágio de vínculo (`Aguardando app`, `Usuario encontrado`, `Esperando internet`, `A conectar...`, `Rede invalida`, …). Credenciais Wi‑Fi só são gravadas em `network.json` depois do `nmcli` ligar com sucesso.
 
 ## Verificar
 

@@ -1,0 +1,27 @@
+# =============================================================================
+# Dockerfile.linux-arm64-binary
+# Gera dist/vigia-bootstrap (onedir) para Linux ARM64.
+# Uso: a partir da raiz de vigia-bootstrap — ver `make build-linux-arm64`.
+# =============================================================================
+
+FROM --platform=linux/arm64 python:3.12-bookworm AS builder
+
+WORKDIR /build
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt requirements-build.txt ./
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir -r requirements-build.txt
+
+COPY main.py vigia-bootstrap.spec ./
+
+RUN pyinstaller --clean --noconfirm vigia-bootstrap.spec
+
+FROM alpine:3.19 AS artifact
+COPY --from=builder /build/dist/vigia-bootstrap /vigia-bootstrap
+CMD ["/bin/true"]

@@ -1,10 +1,12 @@
-"""
-Implementação do BLE para o dispositivo
-"""
+"""Beacon BLE de provisionamento (mesmo protocolo GATT do fall)."""
+
+from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
+import threading
 from typing import Any, Optional
 from uuid import UUID
 
@@ -18,21 +20,22 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
-from shared import get_network_path
-from .wifi_service import get_wifi_service
+from .settings import get_network_path
+from .wifi import get_wifi_service
 
-server: BlessServer = None
+log = logging.getLogger(__name__)
+
+server: Optional[BlessServer] = None
 loop: Optional[asyncio.AbstractEventLoop] = None
 
 SERVICE_UUID = "adbb2064-403f-490f-8e0b-d2df7a3e8976"
-CHAR_IDENTITY_UUID = "776ee4be-ecd4-4331-9f0e-7a53f1d9a4ba"  # Read
-CHAR_CHALLENGE_UUID = "2984802e-d12e-4e6c-870f-3b37f1845961"  # Read | Write
-CHAR_PROVISION_UUID = "2562213c-2180-4320-a70f-247a6125b47a"  # Write
+CHAR_IDENTITY_UUID = "776ee4be-ecd4-4331-9f0e-7a53f1d9a4ba"
+CHAR_CHALLENGE_UUID = "2984802e-d12e-4e6c-870f-3b37f1845961"
+CHAR_PROVISION_UUID = "2562213c-2180-4320-a70f-247a6125b47a"
 
 _STATUS_VALIDATED = b"VALIDATED"
 _STATUS_INVALID = b"INVALID"
 
-session_key: Optional[bytes] = None
 device_context: dict = {}
 
 
@@ -77,13 +80,6 @@ def __persist_network_credentials(
     network_path.chmod(0o600)
 
 
-def __mark_device_connected() -> None:
-    # Import tardio para evitar ciclo com integration_runner.
-    from . import integration_runner  # pylint: disable=import-outside-toplevel
-
-    integration_runner.is_connected = True
-
-
 async def __provision_wifi_async(
     ssid: str,
     password: str,
@@ -94,10 +90,9 @@ async def __provision_wifi_async(
         await wifi.connect(ssid, password)
         __set_provision_status(b"SUCCESS", characteristic)
         device_context["stop_beacon"] = True
-        __mark_device_connected()
-        print("Provision SUCCESS: Wi‑Fi conectado")
+        log.info("Provision SUCCESS: Wi‑Fi conectado")
     except Exception as exc:
-        print(f"Provision WIFI_FAIL: {exc}")
+        log.warning("Provision WIFI_FAIL: %s", exc)
         __set_provision_status(b"WIFI_FAIL", characteristic)
 
 
@@ -105,7 +100,7 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
     global device_context
 
     if __uuid_eq(characteristic.uuid, CHAR_CHALLENGE_UUID):
-        print("Escrevendo resposta do desafio de sincronia...")
+        log.info("Escrevendo resposta do desafio de sincronia...")
         try:
             payload = json.loads(__as_bytes(value).decode("utf-8"))
             signature_hex = payload.get("signature")
@@ -135,20 +130,20 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             device_context["authenticated_session"] = True
             device_context["last_challenge_status"] = _STATUS_VALIDATED
             characteristic.value = bytearray(_STATUS_VALIDATED)
-            print("Desafio VALIDATED")
+            log.info("Desafio VALIDATED")
         except (InvalidSignature, ValueError, KeyError, json.JSONDecodeError) as exc:
-            print(f"Desafio INVALID: {exc}")
+            log.warning("Desafio INVALID: %s", exc)
             device_context["authenticated_session"] = False
             device_context["last_challenge_status"] = _STATUS_INVALID
             characteristic.value = bytearray(_STATUS_INVALID)
         except Exception as exc:
-            print(f"Desafio INVALID (erro inesperado): {exc}")
+            log.warning("Desafio INVALID (erro inesperado): %s", exc)
             device_context["authenticated_session"] = False
             device_context["last_challenge_status"] = _STATUS_INVALID
             characteristic.value = bytearray(_STATUS_INVALID)
 
     elif __uuid_eq(characteristic.uuid, CHAR_PROVISION_UUID):
-        print("Escrevendo resposta do provisionamento de rede...")
+        log.info("Escrevendo resposta do provisionamento de rede...")
 
         if not device_context.get("authenticated_session"):
             __set_provision_status(b"UNAUTHORIZED", characteristic)
@@ -159,25 +154,23 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
 
             wifi_ssid = payload.get("ssid")
             wifi_password = payload.get("password")
-            # api_base_url preferencial; api_token aceito como alias legado da URL
             api_base_url = payload.get("api_base_url") or payload.get("api_token")
             fiware_api_key = payload.get("fiware_api_key")
 
             if not wifi_ssid or wifi_password is None or not api_base_url:
                 raise ValueError("payload incompleto")
 
-            device_context["wifi_ssid"] = wifi_ssid
-            device_context["wifi_password"] = wifi_password
-            device_context["api_base_url"] = api_base_url
-            device_context["fiware_api_key"] = fiware_api_key
             device_context["provision_characteristic"] = characteristic
 
-            __persist_network_credentials(wifi_ssid, wifi_password, api_base_url, fiware_api_key)
+            __persist_network_credentials(
+                wifi_ssid, wifi_password, api_base_url, fiware_api_key
+            )
             __set_provision_status(b"CONNECTING", characteristic)
 
-            print(
-                f"Provision recebido: ssid={wifi_ssid!r}, "
-                f"api_base_url={api_base_url!r}"
+            log.info(
+                "Provision recebido: ssid=%r, api_base_url=%r",
+                wifi_ssid,
+                api_base_url,
             )
 
             active_loop = loop or asyncio.get_event_loop()
@@ -185,16 +178,11 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
                 __provision_wifi_async(wifi_ssid, wifi_password, characteristic)
             )
         except Exception as exc:
-            print(f"Provision ERROR_PAYLOAD: {exc}")
+            log.warning("Provision ERROR_PAYLOAD: %s", exc)
             __set_provision_status(b"ERROR_PAYLOAD", characteristic)
 
 
 def __read_identity() -> bytearray:
-    """
-    Tratamento da requisição de captura dos dados de identificação para sincronia entre dispositivo e usuário
-    """
-    global device_context  # pylint: disable=global-statement
-
     pub_sign = (
         device_context["sign_priv"]
         .public_key()
@@ -225,20 +213,12 @@ def __read_identity() -> bytearray:
 
 
 def __read_challenge() -> bytearray:
-    """
-    Gera um nonce único para o app assinar (confirmação de identidade).
-    """
-    global device_context
-
     device_context["current_nonce"] = os.urandom(16)
     device_context["authenticated_session"] = False
     return bytearray(device_context["current_nonce"].hex().encode("utf-8"))
 
 
 def __read_request(characteristic: BlessGATTCharacteristic) -> bytearray:
-    """
-    Lê o valor da characteristic.
-    """
     if __uuid_eq(characteristic.uuid, CHAR_IDENTITY_UUID):
         data = __read_identity()
         characteristic.value = data
@@ -270,11 +250,9 @@ async def init_register_beacon(
     mac_address: str,
     sign_priv: ed25519.Ed25519PrivateKey,
     ecdh_priv: x25519.X25519PrivateKey,
+    cancel: Optional[threading.Event] = None,
 ) -> None:
-    """
-    Inicialização do beacon do dispositivo para conexão via Bluetooth
-    """
-    global server, loop, device_context  # pylint: disable=global-statement
+    global server, loop, device_context
     loop = asyncio.get_event_loop()
     server = BlessServer(device_name, loop=loop)
 
@@ -319,19 +297,27 @@ async def init_register_beacon(
     )
 
     await server.start()
+    log.info("Beacon BLE iniciado (%s)", device_name)
 
     seconds = 0
-
+    cancelled = False
     while not device_context.get("stop_beacon"):
+        if cancel is not None and cancel.is_set():
+            cancelled = True
+            break
         await asyncio.sleep(1)
         seconds += 1
-        print(f"Tempo de espera: {seconds} segundos")
+        log.info("Tempo de espera: %s segundos", seconds)
 
-    # Keep GATT readable briefly so the app can poll SUCCESS before disconnect.
-    await asyncio.sleep(15)
+    if not cancelled:
+        await asyncio.sleep(15)
 
     try:
         await server.stop()
     except Exception as exc:
-        print(f"Falha ao encerrar beacon BLE: {exc}")
-    print("Beacon BLE encerrado após provisionamento")
+        log.warning("Falha ao encerrar beacon BLE: %s", exc)
+
+    if cancelled:
+        log.info("Beacon BLE encerrado (reset / cancelamento)")
+    else:
+        log.info("Beacon BLE encerrado após provisionamento")

@@ -9,9 +9,9 @@
 #   sudo systemctl enable --now vigia-bootstrap.service
 
 [Unit]
-Description=Vigia Bootstrap (botão físico)
-After=local-fs.target
-Wants=fall-detection.service
+Description=Vigia Bootstrap (provisionamento e botão físico)
+After=local-fs.target bluetooth.target
+Wants=NetworkManager.service bluetooth.service
 
 [Service]
 Type=simple

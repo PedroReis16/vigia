@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements-build.txt
 
 COPY main.py vigia-bootstrap.spec ./
+COPY provision ./provision
 
 RUN pyinstaller --clean --noconfirm vigia-bootstrap.spec
 

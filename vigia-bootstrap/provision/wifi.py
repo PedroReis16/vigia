@@ -1,6 +1,4 @@
-"""
-Serviço de conexão Wi‑Fi (NetworkManager em release, mock em debug).
-"""
+"""Serviço de conexão Wi‑Fi (NetworkManager em release, mock em debug)."""
 
 from __future__ import annotations
 
@@ -9,25 +7,18 @@ import asyncio
 import logging
 from typing import Optional
 
-from shared import get_settings
+from .settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 class WifiService(abc.ABC):
-    """Interface de conexão Wi‑Fi."""
-
     @abc.abstractmethod
     async def connect(self, ssid: str, password: str) -> None:
-        """
-        Conecta à rede Wi‑Fi.
-        Levanta exceção em caso de falha.
-        """
+        """Conecta à rede Wi‑Fi. Levanta exceção em caso de falha."""
 
 
 class NmcliWifiService(WifiService):
-    """Conexão via NetworkManager (`nmcli`)."""
-
     async def connect(self, ssid: str, password: str) -> None:
         cmd = [
             "nmcli",
@@ -74,8 +65,6 @@ class NmcliWifiService(WifiService):
 
 
 class MockWifiService(WifiService):
-    """Simula conexão Wi‑Fi conforme `WIFI_MOCK_RESULT`."""
-
     def __init__(
         self, result: Optional[str] = None, delay_seconds: float = 0.5
     ) -> None:
@@ -94,7 +83,6 @@ class MockWifiService(WifiService):
 
 
 def get_wifi_service() -> WifiService:
-    """Factory: DEBUG=true → mock; DEBUG=false → nmcli."""
     settings = get_settings()
     if settings.debug:
         return MockWifiService(result=settings.wifi_mock_result)

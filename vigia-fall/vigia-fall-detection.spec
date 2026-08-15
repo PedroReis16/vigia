@@ -34,8 +34,6 @@ hiddenimports += [
     "yaml",
     "dotenv",
     "loguru",
-    "peewee",
-    "bless",
     "getmac",
     "cryptography",
     "paho.mqtt.client",

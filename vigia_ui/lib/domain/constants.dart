@@ -1,7 +1,7 @@
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class Constants {
-  /// Matches [SERVICE_UUID] in vigia-fall/integration/device_ble.py
+  /// Matches [SERVICE_UUID] in vigia-bootstrap/provision/ble.py
   static final Guid serviceConnectionUuid = Guid(
     'adbb2064-403f-490f-8e0b-d2df7a3e8976',
   );
@@ -15,7 +15,7 @@ class Constants {
     '2562213c-2180-4320-a70f-247a6125b47a',
   );
 
-  /// Matches [helpers_create_device_name] in vigia-fall/shared/helpers.py
+  /// Matches device name prefix in vigia-bootstrap/provision/identity.py
   static const String deviceNamePrefix = 'Vigia-';
 
   /// Max members per device group (including owner).

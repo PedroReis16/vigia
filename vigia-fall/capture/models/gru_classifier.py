@@ -40,7 +40,7 @@ class GRUFallClassifier:
             return None
 
         x = normalized.reshape(1, *normalized.shape).astype(np.float32)
-        probs = self._session.run(None, {self._input_name: x})[1][0]
+        probs = self._session.run(None, {self._input_name: x})[0][0]
         label_idx = int(np.argmax(probs))
         label = _LABELS[label_idx]
 

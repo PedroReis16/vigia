@@ -32,7 +32,7 @@ def classifier():
 
 def test_GRUFallClassifier_predict_ComJanelaValida_RetornaDicionario(classifier):
     clf, session = classifier
-    session.run.return_value = [None, np.array([[0.8, 0.2]])]
+    session.run.return_value = [np.array([[0.8, 0.2]])]
 
     result = clf.predict(_fake_window(), person_id=1)
 
@@ -54,7 +54,7 @@ def test_GRUFallClassifier_predict_ComJanelaInvalida_RetornaNone(classifier):
 
 def test_GRUFallClassifier_predict_ComDuasQuedasConsecutivas_DisparaAlerta(classifier):
     clf, session = classifier
-    session.run.return_value = [None, np.array([[0.1, 0.9]])]  # FALL
+    session.run.return_value = [np.array([[0.1, 0.9]])]  # FALL
 
     clf.predict(_fake_window(), person_id=1)
     result = clf.predict(_fake_window(), person_id=1)
@@ -66,8 +66,8 @@ def test_GRUFallClassifier_predict_ComDuasQuedasConsecutivas_DisparaAlerta(class
 def test_GRUFallClassifier_predict_ComUmaQuedaIsolada_NaoDisparaAlerta(classifier):
     clf, session = classifier
     session.run.side_effect = [
-        [None, np.array([[0.8, 0.2]])],  # ADL
-        [None, np.array([[0.1, 0.9]])],  # FALL
+        [np.array([[0.8, 0.2]])],  # ADL
+        [np.array([[0.1, 0.9]])],  # FALL
     ]
 
     clf.predict(_fake_window(), person_id=1)
@@ -78,7 +78,7 @@ def test_GRUFallClassifier_predict_ComUmaQuedaIsolada_NaoDisparaAlerta(classifie
 
 def test_GRUFallClassifier_predict_PessoasDiferentes_HistoricoIsolado(classifier):
     clf, session = classifier
-    session.run.return_value = [None, np.array([[0.1, 0.9]])]  # FALL
+    session.run.return_value = [np.array([[0.1, 0.9]])]  # FALL
 
     # pessoa 1: uma queda
     clf.predict(_fake_window(), person_id=1)

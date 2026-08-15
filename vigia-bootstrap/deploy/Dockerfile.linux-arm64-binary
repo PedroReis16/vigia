@@ -8,9 +8,23 @@ FROM --platform=linux/arm64 python:3.12-bookworm AS builder
 
 WORKDIR /build
 
+# liblgpio não está no Debian Bookworm (só Raspberry Pi OS / Debian Trixie).
+# Compila-se a partir do upstream joan2937/lg para o pip `lgpio` e o PyInstaller.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      swig \
+      wget \
  && rm -rf /var/lib/apt/lists/*
+
+ARG LG_VERSION=0.2.2
+RUN wget -q "https://github.com/joan2937/lg/archive/refs/tags/v${LG_VERSION}.tar.gz" \
+ && tar -xzf "v${LG_VERSION}.tar.gz" \
+ && make -C "lg-${LG_VERSION}" \
+ && make -C "lg-${LG_VERSION}" install \
+ && ldconfig \
+ && rm -rf "v${LG_VERSION}.tar.gz" "lg-${LG_VERSION}"
 
 COPY requirements.txt requirements-build.txt ./
 
@@ -20,6 +34,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY main.py vigia-bootstrap.spec ./
 COPY provision ./provision
+COPY ui ./ui
 
 RUN pyinstaller --clean --noconfirm vigia-bootstrap.spec
 

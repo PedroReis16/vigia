@@ -1,8 +1,8 @@
 # =============================================================================
 # Makefile — vigia-bootstrap
 # Targets:
-#   make build-linux-arm64  ARM: PyInstaller nativo (sem Docker).
-#                           Hosts não-ARM: Docker (buildx / emulação)
+#   make build-linux-arm64  Linux ARM64: nativo só em linux/arm64;
+#                           Mac e amd64 usam Docker (buildx).
 #   make clean              Remove artefatos gerados
 # =============================================================================
 
@@ -22,12 +22,10 @@ PIP         ?= $(PYTHON) -m pip
 HOST_OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 HOST_ARCH := $(shell uname -m)
 
-# Docker só entra em arquiteturas que não são ARM (ex.: amd64/x86_64).
-# Em ARM (aarch64/arm64) o PyInstaller corre nativo — na placa (Linux) gera
-# o bundle da instalação; em macOS ARM gera um binário Darwin (útil para
-# testar o empacotamento, não para copiar para a Raspberry Pi).
-HOST_IS_ARM := $(shell \
-	if [ "$(HOST_ARCH)" = "aarch64" ] || [ "$(HOST_ARCH)" = "arm64" ]; then \
+# Binário de deploy é Linux aarch64. Mac ARM (Darwin) NÃO conta como nativo —
+# PyInstaller aí gera macOS (Exec format error na placa).
+NATIVE_LINUX_ARM64 := $(shell \
+	if [ "$(HOST_OS)" = "linux" ] && { [ "$(HOST_ARCH)" = "aarch64" ] || [ "$(HOST_ARCH)" = "arm64" ]; }; then \
 		echo 1; \
 	else \
 		echo 0; \
@@ -38,13 +36,13 @@ HOST_IS_ARM := $(shell \
 
 help:
 	@echo "Targets:"
-	@echo "  install-build-deps Instala deps de runtime + PyInstaller (build nativo)"
+	@echo "  install-build-deps Instala deps de runtime + PyInstaller (build nativo Linux)"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
-	@echo "  build-linux-arm64  ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
-	@echo "                     (nativo em ARM; Docker só em hosts não-ARM)"
+	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
+	@echo "                     (nativo só em linux/arm64; Docker no Mac e amd64)"
 	@echo "  clean              Remove artefatos gerados"
 	@echo ""
-	@echo "Host: $(HOST_OS)/$(HOST_ARCH) — ARM nativo: $(HOST_IS_ARM)"
+	@echo "Host: $(HOST_OS)/$(HOST_ARCH) — native linux/arm64: $(NATIVE_LINUX_ARM64)"
 
 install-build-deps:
 	$(PIP) install --upgrade pip
@@ -55,10 +53,10 @@ build:
 	$(PYTHON) -m PyInstaller --clean --noconfirm vigia-bootstrap.spec
 
 build-linux-arm64:
-ifeq ($(HOST_IS_ARM),1)
+ifeq ($(NATIVE_LINUX_ARM64),1)
 	@$(MAKE) build-linux-arm64-native
 else
-	@echo "Host $(HOST_OS)/$(HOST_ARCH) não é ARM — usando Docker."
+	@echo "Host $(HOST_OS)/$(HOST_ARCH) não é linux/arm64 — usando Docker."
 	@$(MAKE) build-linux-arm64-docker
 endif
 
@@ -117,6 +115,18 @@ package-linux-arm64:
 		mv $(DIST_BUNDLE) $(OUT_DIR); \
 	fi
 	@test -x $(OUT_DIR)/$(APP_NAME) || chmod +x $(OUT_DIR)/$(APP_NAME)
+	@if command -v file >/dev/null 2>&1; then \
+		info=$$(file "$(OUT_DIR)/$(APP_NAME)"); \
+		echo "$$info"; \
+		echo "$$info" | grep -q 'ELF' || { \
+			echo "ERRO: o executável não é ELF Linux. No Mac use Docker (make build-linux-arm64)."; \
+			exit 1; \
+		}; \
+		echo "$$info" | grep -Eqi 'aarch64|ARM aarch64' || { \
+			echo "ERRO: o executável não é ARM64. Não instale este tarball na Raspberry Pi."; \
+			exit 1; \
+		}; \
+	fi
 	@tar -czf $(OUT_TAR) -C dist $(APP_NAME)-linux-arm64
 	@echo ""
 	@echo "✅ Build concluído!"
@@ -124,7 +134,7 @@ package-linux-arm64:
 	@echo "   SCP   : $(OUT_TAR)"
 	@echo ""
 	@echo "   Para enviar à placa:"
-	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/vigia-bootstrap.service deploy/vigia_reset_config.sh usuario@<ip-da-placa>:/tmp/"
+	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/uninstall.sh deploy/vigia-bootstrap.service deploy/vigia_reset_config.sh deploy/vigia_reset_wifi.sh usuario@<ip-da-placa>:/tmp/"
 
 clean:
 	@rm -rf build dist/

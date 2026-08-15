@@ -8,6 +8,7 @@ import subprocess
 import threading
 
 from .identity import is_provisioned, load_or_create_identity
+from .state import set_phase
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ async def provision_supervisor(cancel: threading.Event) -> None:
             continue
 
         if is_provisioned():
+            set_phase("ready")
             start_fall_detection()
             log.info("Dispositivo já provisionado — a aguardar reset")
             while is_provisioned() and not cancel.is_set():
@@ -49,6 +51,7 @@ async def provision_supervisor(cancel: threading.Event) -> None:
             continue
 
         identity = load_or_create_identity()
+        set_phase("pairing")
         log.info("A iniciar pareamento BLE para %s", identity.device_name)
         from .ble import init_register_beacon
 
@@ -62,4 +65,7 @@ async def provision_supervisor(cancel: threading.Event) -> None:
         )
 
         if is_provisioned() and not cancel.is_set():
+            set_phase("ready")
             start_fall_detection()
+        else:
+            set_phase("idle")

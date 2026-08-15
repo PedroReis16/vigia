@@ -6,3 +6,4 @@ peewee==4.2.6
 getmac==0.8.2
 cryptography==46.0.2
 paho-mqtt==2.1.0
+onnxruntime>=1.16.0

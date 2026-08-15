@@ -103,3 +103,25 @@ def run_fiware(stream_event: EventType | None = None):
     fiware_client.connect(host=broker_host, port=broker_port, keepalive=60)
 
     fiware_client.loop_forever()
+
+
+def notify_fall(label: str) -> None:
+    """
+    Publica alerta de queda como atributo UltraLight no FIWARE via MQTT.
+    Cria uma conexão de curta duração — independente do subscriber run_fiware().
+    """
+    identity = get_device_identity()
+    network = get_network_settings()
+    host, port = _mqtt_endpoint(network.api_base_url)
+    topic = f"/{network.fiware_api_key}/{identity.device_id}/attrs"
+    payload = f"fall|{label}"
+
+    client = mqtt.Client(
+        callback_api_version=CallbackAPIVersion.VERSION2,
+        client_id="vigia-fall-notifier",
+        transport="websockets",
+    )
+    client.ws_set_options(path="/vigia/fiware/mosquitto")
+    client.connect(host=host, port=port, keepalive=60)
+    client.publish(topic, payload)
+    client.disconnect()

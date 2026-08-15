@@ -2,14 +2,24 @@
 Worker para processamento assíncrono dos frames capturados
 """
 
+from collections import defaultdict, deque
 from functools import lru_cache
 import queue
 from typing import Any
 import numpy as np  # pyright: ignore[reportMissingImports]
 from shared import get_settings
 from capture.frame_processor import process_frame
-from capture.models import FallState, SlidingWindowManager, compute_fall_score, get_person_runtime_store
-from capture.features_processor import extract_features, normalize_features
+
+# --- PIPELINE PEDRO (comentado para integração GRU) ---
+# from capture.models import FallState, SlidingWindowManager, compute_fall_score, get_person_runtime_store
+# from capture.features_processor import extract_features, normalize_features
+# -------------------------------------------------------
+
+from capture.models.gru_classifier import GRUFallClassifier
+from integration.fiware_runner import notify_fall
+
+GRU_WINDOW_SIZE = 20
+GRU_INTERVAL = 0.5  # segundos entre inferências por pessoa
 
 
 class FrameWorker:
@@ -22,9 +32,12 @@ class FrameWorker:
         Inicializa o worker
         """
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
-        self._slider_window_manager = SlidingWindowManager(
-            window_size=slider_window_size
-        )
+        # --- PIPELINE PEDRO (comentado para integração GRU) ---
+        # self._slider_window_manager = SlidingWindowManager(window_size=slider_window_size)
+        # -------------------------------------------------------
+        self._gru_classifier = GRUFallClassifier()
+        self._gru_buffers: dict = defaultdict(lambda: deque(maxlen=GRU_WINDOW_SIZE))
+        self._gru_last_inference: dict[int, float] = {}
 
     def __consume_raw_frame(self) -> bool:
         """
@@ -43,43 +56,52 @@ class FrameWorker:
         if not frame_result:
             return True
 
-        ready_ids = self._slider_window_manager.update(frame_result)
+        # --- PIPELINE PEDRO (comentado para integração GRU) ---
+        # ready_ids = self._slider_window_manager.update(frame_result)
+        # weights = {
+        #     "trunk_angle_delta": 0.25,
+        #     "trunk_angle_trend_r2": 0.20,
+        #     "pca_ratio_delta": 0.15,
+        #     "center_mass_max_accel_y": 0.20,
+        #     "center_mass_accel_poly": 0.10,
+        #     "trunk_angle_max_rate": 0.10,
+        # }
+        # for person_id in ready_ids:
+        #     window = self._slider_window_manager.get_window(person_id)
+        #     if not window:
+        #         continue
+        #     try:
+        #         features = extract_features(list(window))
+        #         normalized_features = normalize_features(features)
+        #         score = compute_fall_score(normalized_features, weights)
+        #         person_state = get_person_runtime_store().get_or_create(person_id)
+        #         state = person_state.fall_detector.update(score, capture_date)
+        #         if state == FallState.SUSPECT:
+        #             pass
+        #     except Exception as error:
+        #         print(f"Erro ao extrair features person_id={person_id}: {error}", flush=True)
+        # -------------------------------------------------------
 
-        # Pesos da features para o score de queda
-        # TODO: Calibrar os valores de weights a partir de dados reais e rotulados
-        weights = {
-            "trunk_angle_delta": 0.25,        # sinal primário - inclinação sustentada
-            "trunk_angle_trend_r2": 0.20,     # filtro de consistência - separa ruído de tendência real
-            "pca_ratio_delta": 0.15,          # secundário - ambíguo sozinho (vimos no caso negativo)
-            "center_mass_max_accel_y": 0.20,  # intensidade do evento
-            "center_mass_accel_poly": 0.10,   # aceleração suavizada, redundante parcial com o anterior
-            "trunk_angle_max_rate": 0.10,     # velocidade de rotação
-        }
-
-        for person_id in ready_ids:
-            window = self._slider_window_manager.get_window(person_id)
-            if not window:
-                continue
-
-            try:
-                features = extract_features(list(window))
-                normalized_features = normalize_features(features)
-                score = compute_fall_score(normalized_features, weights)
-                # Estado por ID (FallDetector etc.) — score a partir de normalized_features
-                person_state = get_person_runtime_store().get_or_create(person_id)
-
-                state= person_state.fall_detector.update(score, capture_date)
-
-                if state == FallState.SUSPECT:
-                    # Dispara verificação de imobilidade
-                    pass
-
-
-            except Exception as error:
-                print(
-                    f"Erro ao extrair features person_id={person_id}: {error}",
-                    flush=True,
-                )
+        for person_id, data in frame_result.items():
+            self._gru_buffers[person_id].append(data["raw_kpts"])
+            elapsed = capture_date - self._gru_last_inference.get(person_id, 0)
+            if (
+                len(self._gru_buffers[person_id]) == GRU_WINDOW_SIZE
+                and elapsed >= GRU_INTERVAL
+            ):
+                window = np.array(list(self._gru_buffers[person_id]))  # (20, 51)
+                pred = self._gru_classifier.predict(window, person_id)
+                self._gru_last_inference[person_id] = capture_date
+                if pred is not None:
+                    print(
+                        f"[GRU] Pessoa {person_id}: {pred['label']}  FALL={pred['probs'][1]:.2f}",
+                        flush=True,
+                    )
+                    if pred["alert"]:
+                        try:
+                            notify_fall(pred["label"])
+                        except Exception as e:
+                            print(f"[GRU] Falha FIWARE: {e}", flush=True)
 
         return True
 

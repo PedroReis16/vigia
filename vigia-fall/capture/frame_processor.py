@@ -2,18 +2,18 @@
 Processa os frames capturados para inclusão na fila de processamento
 """
 
-from math import dist
+# from math import dist
 from typing import Any
 import numpy as np
 
 from capture.models import (
-    align_and_store_pca_angle,
-    get_smoothed_scale,
+    # align_and_store_pca_angle,  # normalização Pedro — comentada para integração GRU
+    # get_smoothed_scale,
     get_yolo_model,
-    apply_kalman,
-    get_trunk_angle,
-    get_center_of_mass,
-    get_pca_features,
+    # apply_kalman,
+    # get_trunk_angle,
+    # get_center_of_mass,
+    # get_pca_features,
     get_person_runtime_store,
 )
 
@@ -153,40 +153,46 @@ def process_frame(frame: np.ndarray, capture_date: float) -> dict[int, dict[str,
                 else list(range(len(kpts.data)))
             )
 
-            points = {}
-
             for person_id, person_kpts in zip(person_ids, kpts.data):
                 kpts_np = person_kpts.numpy()
 
-                points = {
-                    idx: valor.tolist()
-                    for idx, valor in enumerate(kpts_np)
-                    if valor[2] != 0.0
-                }
+                # --- NORMALIZAÇÃO PEDRO (comentada para integração GRU) ---
+                # points = {
+                #     idx: valor.tolist()
+                #     for idx, valor in enumerate(kpts_np)
+                #     if valor[2] != 0.0
+                # }
+                # smoothed_points = apply_kalman(person_id, capture_date, points)
+                # frame_results[person_id] = (points, smoothed_points)
+                # -----------------------------------------------------------
 
-                # Aplicação do filtro de Kalman para suavização das posições
-                smoothed_points = apply_kalman(person_id, capture_date, points)
+                # GRU: keypoints brutos — conf < 0.25 zerados, shape (51,)
+                kpts_masked = kpts_np.copy()
+                kpts_masked[kpts_masked[:, 2] < 0.25] = 0.0
+                frame_results[person_id] = kpts_masked.flatten()
                 active_ids.append(person_id)
-                frame_results[person_id] = (points, smoothed_points)
 
         # Remoção de estado de pessoas inativas / trackers ociosos
         get_person_runtime_store().cleanup(set(active_ids))
 
-        result = {}
+        # --- NORMALIZAÇÃO PEDRO (comentada para integração GRU) ---
+        # result = {}
+        # for person_id, body_parts in __normalize_data(frame_results).items():
+        #     result[person_id] = {
+        #         "coordinates": body_parts["coordinates"],
+        #         "trunk_angle": body_parts["trunk_angle"],
+        #         "center_of_mass": body_parts["center_of_mass"],
+        #         "pca_ratio": body_parts["pca_ratio"],
+        #         "pca_angle": body_parts["pca_angle"],
+        #         "timestamp": capture_date,
+        #     }
+        # return result
+        # -----------------------------------------------------------
 
-        # Dados normalizados = Dados adimensionais
-
-        for person_id, body_parts in __normalize_data(frame_results).items():
-            result[person_id] = {
-                "coordinates": body_parts["coordinates"],
-                "trunk_angle": body_parts["trunk_angle"],
-                "center_of_mass": body_parts["center_of_mass"],
-                "pca_ratio": body_parts["pca_ratio"],
-                "pca_angle": body_parts["pca_angle"],
-                "timestamp": capture_date,
-            }
-
-        return result
+        return {
+            pid: {"raw_kpts": kpts, "timestamp": capture_date}
+            for pid, kpts in frame_results.items()
+        }
 
     except Exception as error:
         raise RuntimeError(f"Erro ao processar o frame: {error}") from error

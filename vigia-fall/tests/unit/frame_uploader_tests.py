@@ -20,18 +20,18 @@ def test_build_multipart_ContemJpegEBoundary() -> None:
     body, content_type = frame_uploader._build_multipart(jpeg)
 
     assert "multipart/form-data; boundary=" in content_type
-    assert b"Content-Disposition: form-data; name=\"frameFile\"" in body
+    assert b'Content-Disposition: form-data; name="frameFile"' in body
     assert b"Content-Type: image/jpeg" in body
     assert jpeg in body
     assert body.endswith(b"--\r\n")
 
 
 def test_normalize_api_base_GaranteBarraFinal() -> None:
-    assert frame_uploader._normalize_api_base("http://localhost:8090/vigia") == (
-        "http://localhost:8090/vigia/"
+    assert frame_uploader._normalize_api_base("http://10.0.0.51:8090/vigia") == (
+        "http://10.0.0.51:8090/vigia/"
     )
-    assert frame_uploader._normalize_api_base("http://localhost:8090/vigia/") == (
-        "http://localhost:8090/vigia/"
+    assert frame_uploader._normalize_api_base("http://10.0.0.51:8090/vigia/") == (
+        "http://10.0.0.51:8090/vigia/"
     )
 
 

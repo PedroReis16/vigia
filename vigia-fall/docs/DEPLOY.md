@@ -49,7 +49,9 @@ sudo chmod +x /tmp/install.sh
 sudo /tmp/install.sh /tmp/vigia-fall-detection-linux-arm64.tar.gz
 ```
 
-Isto extrai para `/opt/vigia/fall-detection/`, instala `fall-detection.service`, faz `daemon-reload` e `enable --now`.
+Isto extrai para `/opt/vigia/fall-detection/`, instala `fall-detection.service` e faz `enable`. O **start** só sucede se existirem `/opt/vigia/identity.json` e `/opt/vigia/network.json` (escritos pelo **vigia-bootstrap** após o pareamento BLE). Instale o bootstrap antes; na primeira utilização o fall fica inactivo até o app provisionar a rede.
+
+Ordem na placa: bootstrap → pareamento (app) → `systemctl start fall-detection` (o bootstrap dispara o start).
 
 ### `.env` (opcional)
 
@@ -57,6 +59,7 @@ Copie um `.env` para `/opt/vigia/.env` (o unit usa `EnvironmentFile=-/opt/vigia/
 
 - `SHOW_VIDEO=false`
 - `DEBUG=false`
+- `DATA_DIR=/opt/vigia` (mesmo valor que o bootstrap)
 
 `YOLO_POSE_MODEL` pode continuar `yolo26s-pose` (resolve para o `.pt` empacotado) ou um caminho absoluto.
 

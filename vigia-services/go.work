@@ -1,9 +1,0 @@
-go 1.26.3
-
-toolchain go1.26.3
-
-use (
-	./apps/vigia-api
-	./apps/vigia-bootstrap
-	./pkg/shared
-)

@@ -73,7 +73,9 @@ fi
 echo "→ Instalando unit systemd..."
 install -m 644 "${UNIT_SRC}" /etc/systemd/system/fall-detection.service
 systemctl daemon-reload
-systemctl enable --now fall-detection.service
+# enable: o start só sucede depois do bootstrap gravar identity.json e network.json
+systemctl enable fall-detection.service
+systemctl start fall-detection.service 2>/dev/null || true
 
 echo ""
 echo "✅ Instalado em ${BUNDLE_DIR}"

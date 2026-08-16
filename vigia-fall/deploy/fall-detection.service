@@ -1,18 +1,15 @@
 # Unit systemd para o bundle PyInstaller (onedir) em /opt/vigia/fall-detection/.
-# Alinhada com vigia-services/apps/vigia-bootstrap/cmd/deploy/fall-detection.service.
 #
 #   sudo ./install.sh /path/to/vigia-fall-detection-linux-arm64.tar.gz
 #
-# Ou instalação manual:
-#   sudo install -d -m 755 /opt/vigia
-#   sudo install -m 644 deploy/fall-detection.service /etc/systemd/system/fall-detection.service
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now fall-detection.service
+# O arranque exige identity.json e network.json (escritos pelo vigia-bootstrap).
 
 [Unit]
 Description=Vigia Fall Detection
-After=network-online.target
+After=network-online.target vigia-bootstrap.service
 Wants=network-online.target
+ConditionPathExists=/opt/vigia/identity.json
+ConditionPathExists=/opt/vigia/network.json
 
 [Service]
 Type=simple

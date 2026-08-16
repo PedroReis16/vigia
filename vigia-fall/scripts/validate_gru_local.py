@@ -14,6 +14,8 @@ O que valida:
 import sys
 import time
 import argparse
+import threading
+import queue as _queue_mod
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -308,6 +310,147 @@ def run_camera():
     print(f"\nAlertas disparados: {_notificacoes}")
 
 
+# ── Modo câmera multithread (simula capture_runner + FrameWorker) ─────────────
+
+def run_camera_threaded():
+    """
+    Simula o caminho padrão: thread de captura separada da thread de processamento.
+    Mostra queue_drops quando o YOLO não acompanha a câmera (como ocorre na Raspi).
+    """
+    try:
+        import cv2
+        from capture.frame_processor import process_frame
+        from collections import deque
+        from capture.frame_worker import GRU_WINDOW_SIZE, GRU_INTERVAL
+        import capture.frame_worker as fw
+        fw.notify_fall = _notify_fall_mock
+    except ImportError as e:
+        print(f"\n❌  Dependência faltando: {e}")
+        print("    Instale ultralytics antes de usar --camera:")
+        print(f"    .venv\\Scripts\\pip install ultralytics==8.4.33\n")
+        sys.exit(1)
+
+    clf = GRUFallClassifier()
+    buffers: dict = {}
+    last_inf: dict = {}
+
+    # Fila limitada — igual ao caminho real (frames descartados se worker estiver atrasado)
+    frame_queue: _queue_mod.Queue = _queue_mod.Queue(maxsize=5)
+    stop_event = threading.Event()
+    metrics_lock = threading.Lock()
+    shared = {"cap_fps": 0.0, "yolo_fps": 0.0}
+
+    def _worker():
+        yolo_times: list[float] = []
+        t_sec = time.monotonic()
+
+        while not stop_event.is_set():
+            try:
+                frame, now = frame_queue.get(timeout=0.1)
+            except _queue_mod.Empty:
+                continue
+
+            t0 = time.monotonic()
+            result = process_frame(frame, now)
+            yolo_times.append(time.monotonic() - t0)
+
+            if result:
+                for pid, data in result.items():
+                    buf = buffers.setdefault(pid, deque(maxlen=GRU_WINDOW_SIZE))
+                    buf.append(data["raw_kpts"])
+                    elapsed = now - last_inf.get(pid, 0)
+                    if len(buf) == GRU_WINDOW_SIZE and elapsed >= GRU_INTERVAL:
+                        window = np.array(list(buf))
+                        pred = clf.predict(window, pid)
+                        last_inf[pid] = now
+                        if pred:
+                            with metrics_lock:
+                                cf = shared["cap_fps"]
+                                yf = shared["yolo_fps"]
+                            label = pred["label"]
+                            pfall = pred["probs"][1]
+                            alerta = "⚡" if pred["alert"] else "  "
+                            print(
+                                f"[GRU] Pessoa {pid}: {label} P(FALL)={pfall:.2f} {alerta}"
+                                f"  |  FPS captura={cf:.1f}  YOLO={yf:.1f}",
+                                flush=True,
+                            )
+                            if pred["alert"]:
+                                _notify_fall_mock(label)
+
+            # Atualiza FPS YOLO a cada segundo
+            if time.monotonic() - t_sec >= 1.0 and yolo_times:
+                with metrics_lock:
+                    shared["yolo_fps"] = 1.0 / (sum(yolo_times) / len(yolo_times))
+                yolo_times.clear()
+                t_sec = time.monotonic()
+
+    worker = threading.Thread(target=_worker, daemon=True)
+    worker.start()
+
+    print("\n" + "="*60)
+    print(" MODO CÂMERA MULTITHREAD — pressione Q para sair")
+    print(" (simula capture_runner.py + FrameWorker)")
+    print("="*60 + "\n")
+
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        stop_event.set()
+        print("❌  Câmera não encontrada.")
+        sys.exit(1)
+
+    fps_frames = 0
+    fps_start = time.monotonic()
+    drops = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        now = time.monotonic()
+        fps_frames += 1
+
+        # Tenta inserir sem bloquear — frames descartados se fila cheia (igual ao real)
+        try:
+            frame_queue.put_nowait((frame.copy(), now))
+        except _queue_mod.Full:
+            drops += 1
+
+        elapsed = time.monotonic() - fps_start
+        if elapsed >= 1.0:
+            cap_fps = fps_frames / elapsed
+            with metrics_lock:
+                shared["cap_fps"] = cap_fps
+                yolo_fps = shared["yolo_fps"]
+            print(
+                f"[FPS] captura={cap_fps:.1f}  YOLO={yolo_fps:.1f}"
+                f"  queue_drops={drops}",
+                flush=True,
+            )
+            fps_frames = 0
+            fps_start = time.monotonic()
+            drops = 0
+
+        with metrics_lock:
+            cf = shared["cap_fps"]
+            yf = shared["yolo_fps"]
+        cv2.putText(
+            frame,
+            f"FPS: {cf:.1f}  YOLO: {yf:.1f} [THREAD]",
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2,
+        )
+        cv2.imshow("Validacao GRU Multithread — Q para sair", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    stop_event.set()
+    worker.join(timeout=2.0)
+    cap.release()
+    cv2.destroyAllWindows()
+    print(f"\nAlertas disparados: {_notificacoes}")
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -316,9 +459,15 @@ if __name__ == "__main__":
         "--camera", action="store_true",
         help="Usa câmera real (precisa de ultralytics instalado)"
     )
+    parser.add_argument(
+        "--threaded", action="store_true",
+        help="Simula caminho padrão com threads separadas (capture + worker)"
+    )
     args = parser.parse_args()
 
-    if args.camera:
+    if args.camera and args.threaded:
+        run_camera_threaded()
+    elif args.camera:
         run_camera()
     else:
         run_synthetic()

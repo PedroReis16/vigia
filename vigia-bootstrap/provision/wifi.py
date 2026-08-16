@@ -141,6 +141,52 @@ class MockWifiService(WifiService):
             raise RuntimeError(f"Mock Wi‑Fi falhou para ssid={ssid!r}")
 
 
+def load_network_credentials() -> dict | None:
+    path = get_network_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    ssid = data.get("ssid")
+    password = data.get("password")
+    if not ssid or password is None:
+        return None
+    return data
+
+
+async def switch_network(
+    ssid: str,
+    password: str,
+    service: WifiService | None = None,
+) -> bool:
+    """Tenta a rede nova; só persiste se ligar. Em falha reconecta à atual."""
+    current = load_network_credentials()
+    if current is None:
+        logger.warning("switch_network: sem network.json")
+        return False
+    wifi = service or get_wifi_service()
+    try:
+        await wifi.connect(ssid, password)
+    except Exception as exc:
+        logger.warning("switch_network: nova rede falhou: %s", exc)
+        try:
+            await wifi.connect(str(current["ssid"]), str(current["password"]))
+        except Exception as restore_exc:
+            logger.warning("switch_network: falha a restaurar: %s", restore_exc)
+        return False
+    persist_network_credentials(
+        ssid,
+        password,
+        str(current.get("api_base_url") or ""),
+        str(current.get("fiware_api_key") or ""),
+    )
+    return True
+
+
 def persist_network_credentials(
     ssid: str, password: str, api_base_url: str, fiware_api_key: str
 ) -> None:

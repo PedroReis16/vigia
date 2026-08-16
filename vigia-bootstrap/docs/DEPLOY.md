@@ -10,18 +10,18 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 
 | Função | GPIO | Notas |
 | --- | --- | --- |
-| OK | 17 | curto = confirmar; longo (≥3 s) = ecrã Desvincular |
-| Cima | 22 | ecrã anterior |
-| Baixo | 23 | ecrã seguinte |
+| OK | 17 | curto = confirmar no overlay/editor; hold 2 s no WiFi = alterar rede; hold 5 s no Serviço = desvincular |
+| Cima | 22 | ecrã anterior (no editor: carácter anterior) |
+| Baixo | 23 | ecrã seguinte (no editor: carácter seguinte) |
 | LCD 16x2 I2C | SDA 2 / SCL 3 | backpack PCF8574, endereço `0x27`, bus 1 |
 
-O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã CPU mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
+O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã de eficiência mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs (cima/baixo em ciclo): **CPU** (`Fall  12%` / `CPU   34%`) → **WiFi** (SSID; OK = Nova rede?) → **Servico** (ativo/parado; OK = restart). Hold no OK abre **Desvincular?** (fora do ciclo).
+Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
 
-No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms além dos callbacks do gpiozero.
+No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms.
 
-- **Nova rede** apaga `network.json` e os perfis Wi‑Fi do NetworkManager (`vigia_reset_wifi.sh`) e reabre o BLE.
+- **Alterar rede** tenta `nmcli` com o SSID/senha digitados. Só grava `network.json` se a ligação for válida; se falhar, mantém a rede atual.
 - **Desvincular** corre `vigia_reset_config.sh` (identidade + rede + perfis NM).
 
 Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime (chip 0 nos kernels recentes, chip 4 nos mais antigos). O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
@@ -96,6 +96,7 @@ O unit usa `EnvironmentFile=-/opt/vigia/.env` (opcional, partilhado com o fall-d
 - `LCD_ENABLED=true`
 - `LCD_I2C_ADDR=0x27`
 - `BUTTON_OK=17` `BUTTON_UP=22` `BUTTON_DOWN=23`
+- `LCD_STANDBY_SECONDS=20`
 
 O LCD mostra o estágio de vínculo (`Aguardando app`, `Usuario encontrado`, `Esperando internet`, `A conectar...`, `Rede invalida`, …). Credenciais Wi‑Fi só são gravadas em `network.json` depois do `nmcli` ligar com sucesso.
 

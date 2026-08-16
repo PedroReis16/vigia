@@ -137,6 +137,72 @@ def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
     settings.get_settings.cache_clear()
 
 
+def test_switch_network_falha_nao_persiste(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+    (tmp_path / "network.json").write_text(
+        json.dumps(
+            {
+                "ssid": "casa",
+                "password": "old",
+                "api_base_url": "http://api",
+                "fiware_api_key": "k",
+            }
+        )
+    )
+    restored = {"n": 0}
+
+    class FailThenRestore:
+        async def connect(self, ssid, password):
+            if ssid == "nova":
+                raise RuntimeError("invalida")
+            restored["n"] += 1
+
+    async def run() -> None:
+        from provision.wifi import switch_network
+
+        ok = await switch_network("nova", "x", service=FailThenRestore())
+        assert ok is False
+
+    asyncio.run(run())
+    data = json.loads((tmp_path / "network.json").read_text())
+    assert data["ssid"] == "casa"
+    assert restored["n"] == 1
+    settings.get_settings.cache_clear()
+
+
+def test_switch_network_ok_persiste(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+    (tmp_path / "network.json").write_text(
+        json.dumps(
+            {
+                "ssid": "casa",
+                "password": "old",
+                "api_base_url": "http://api",
+                "fiware_api_key": "k",
+            }
+        )
+    )
+
+    class OkWifi:
+        async def connect(self, ssid, password):
+            return None
+
+    async def run() -> None:
+        from provision.wifi import switch_network
+
+        ok = await switch_network("nova", "segredo", service=OkWifi())
+        assert ok is True
+
+    asyncio.run(run())
+    data = json.loads((tmp_path / "network.json").read_text())
+    assert data["ssid"] == "nova"
+    assert data["password"] == "segredo"
+    assert data["api_base_url"] == "http://api"
+    settings.get_settings.cache_clear()
+
+
 def test_parse_active_ssid() -> None:
     from provision.wifi import _parse_active_ssid
 

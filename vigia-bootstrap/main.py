@@ -25,6 +25,7 @@ async def ui_loop(menu: Menu) -> None:
     tick = 0
     while True:
         poll_buttons(menu)
+        menu.tick_standby()
         if tick % LCD_EVERY == 0:
             menu.refresh(read_snapshot())
         tick += 1

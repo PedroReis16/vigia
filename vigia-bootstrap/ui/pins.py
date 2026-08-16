@@ -27,6 +27,7 @@ class PinConfig:
     lcd_i2c_port: int = 1
     lcd_enabled: bool = True
     hold_seconds: float = 3.0
+    lcd_standby_seconds: float = 20.0
 
 
 @lru_cache(maxsize=1)
@@ -39,4 +40,5 @@ def get_pin_config() -> PinConfig:
         lcd_i2c_port=_int_env("LCD_I2C_PORT", 1),
         lcd_enabled=_as_bool(os.getenv("LCD_ENABLED", "true")),
         hold_seconds=float(os.getenv("BUTTON_HOLD_SECONDS", "3.0")),
+        lcd_standby_seconds=float(os.getenv("LCD_STANDBY_SECONDS", "20")),
     )

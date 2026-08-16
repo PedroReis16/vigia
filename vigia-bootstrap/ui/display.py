@@ -40,6 +40,8 @@ def fit(text: str, width: int = LCD_COLS) -> str:
 class Display(Protocol):
     def write(self, line1: str, line2: str) -> None: ...
 
+    def set_backlight(self, on: bool) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -47,14 +49,21 @@ class NullDisplay:
     def __init__(self) -> None:
         self.last: tuple[str, str] = ("", "")
         self.write_count = 0
+        self.backlight = True
 
     def write(self, line1: str, line2: str) -> None:
         self.last = (fit(line1), fit(line2))
         self.write_count += 1
         log.info("LCD: [%s][%s]", self.last[0].rstrip(), self.last[1].rstrip())
 
+    def set_backlight(self, on: bool) -> None:
+        self.backlight = on
+        if not on:
+            self.last = ("", "")
+
     def close(self) -> None:
         self.last = ("", "")
+        self.backlight = False
         log.info("LCD: desligado")
 
 
@@ -72,6 +81,21 @@ class I2cDisplay:
             auto_linebreaks=False,
         )
         self._last: tuple[str, str] | None = None
+        self._backlight = True
+
+    def set_backlight(self, on: bool) -> None:
+        try:
+            self._lcd.backlight_enabled = on
+        except Exception as exc:
+            log.warning("LCD: falha backlight: %s", exc)
+            return
+        self._backlight = on
+        if not on:
+            try:
+                self._lcd.clear()
+            except Exception as exc:
+                log.warning("LCD: falha a limpar no standby: %s", exc)
+            self._last = None
 
     def write(self, line1: str, line2: str) -> None:
         fitted = (fit(line1), fit(line2))

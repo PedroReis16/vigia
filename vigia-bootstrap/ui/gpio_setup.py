@@ -74,55 +74,89 @@ class _EventGate:
     def __init__(self, lockout: float = 0.2) -> None:
         self._lockout = lockout
         self._until: dict[str, float] = {}
-        self._skip_ok = False
 
     def fire(self, name: str, fn) -> bool:
         now = time.monotonic()
-        if name == "ok" and self._skip_ok:
-            self._skip_ok = False
-            return False
         if now < self._until.get(name, 0.0):
             return False
         self._until[name] = now + self._lockout
-        if name == "hold":
-            self._skip_ok = True
-            self._until["ok"] = now + 2.0
         fn()
         return True
 
 
 class ButtonPoller:
-    def __init__(self, btn_ok, btn_up, btn_down, hold_seconds: float, gate: _EventGate) -> None:
+    REPEAT_DELAY = 0.35
+    REPEAT_INTERVAL = 0.07
+
+    def __init__(self, btn_ok, btn_up, btn_down, gate: _EventGate) -> None:
         self.btn_ok = btn_ok
         self.btn_up = btn_up
         self.btn_down = btn_down
-        self.hold_seconds = hold_seconds
         self.gate = gate
         self._ok_since: float | None = None
         self._ok_held = False
         self._up = False
         self._down = False
+        self._up_repeat_at = 0.0
+        self._down_repeat_at = 0.0
+
+    def _nav_edge_or_repeat(
+        self,
+        pressed: bool,
+        was: bool,
+        next_at: float,
+        name: str,
+        handler,
+        menu,
+        now: float,
+    ) -> tuple[bool, float]:
+        if pressed and not was:
+            if self.gate.fire(name, handler):
+                log.info("GPIO: %s", name)
+            return True, now + self.REPEAT_DELAY
+        if pressed and was and menu.char_repeat_enabled() and now >= next_at:
+            handler()
+            return True, now + self.REPEAT_INTERVAL
+        if not pressed:
+            return False, 0.0
+        return True, next_at
 
     def poll(self, menu) -> None:
         up = bool(self.btn_up.is_pressed)
-        if up and not self._up:
-            if self.gate.fire("up", menu.on_up):
-                log.info("GPIO: up")
-        self._up = up
-
         down = bool(self.btn_down.is_pressed)
-        if down and not self._down:
-            if self.gate.fire("down", menu.on_down):
-                log.info("GPIO: down")
-        self._down = down
-
         pressed = bool(self.btn_ok.is_pressed)
         now = time.monotonic()
+
+        if menu.consume_wake():
+            self._up = up
+            self._down = down
+            self._up_repeat_at = 0.0
+            self._down_repeat_at = 0.0
+            if pressed:
+                self._ok_since = now
+                self._ok_held = True
+            else:
+                self._ok_since = None
+                self._ok_held = False
+            return
+
+        self._up, self._up_repeat_at = self._nav_edge_or_repeat(
+            up, self._up, self._up_repeat_at, "up", menu.on_up, menu, now
+        )
+        self._down, self._down_repeat_at = self._nav_edge_or_repeat(
+            down, self._down, self._down_repeat_at, "down", menu.on_down, menu, now
+        )
+
+        hold = menu.ok_hold_seconds()
         if pressed:
             if self._ok_since is None:
                 self._ok_since = now
                 self._ok_held = False
-            elif not self._ok_held and now - self._ok_since >= self.hold_seconds:
+            elif (
+                hold is not None
+                and not self._ok_held
+                and now - self._ok_since >= hold
+            ):
                 self._ok_held = True
                 if self.gate.fire("hold", menu.on_hold):
                     log.info("GPIO: hold")
@@ -154,35 +188,13 @@ def setup_buttons(menu, cfg: PinConfig) -> bool:
             cfg.button_ok,
             pull_up=True,
             bounce_time=bounce,
-            hold_time=cfg.hold_seconds,
         )
         btn_up = Button(cfg.button_up, pull_up=True, bounce_time=bounce)
         btn_down = Button(cfg.button_down, pull_up=True, bounce_time=bounce)
 
         gate = _EventGate()
-
-        def on_ok_held() -> None:
-            if gate.fire("hold", menu.on_hold):
-                log.info("GPIO: hold")
-
-        def on_ok_released() -> None:
-            if gate.fire("ok", menu.on_ok):
-                log.info("GPIO: ok")
-
-        def on_up() -> None:
-            if gate.fire("up", menu.on_up):
-                log.info("GPIO: up")
-
-        def on_down() -> None:
-            if gate.fire("down", menu.on_down):
-                log.info("GPIO: down")
-
-        btn_ok.when_held = on_ok_held
-        btn_ok.when_released = on_ok_released
-        btn_up.when_pressed = on_up
-        btn_down.when_pressed = on_down
         _buttons = [btn_ok, btn_up, btn_down]
-        _poller = ButtonPoller(btn_ok, btn_up, btn_down, cfg.hold_seconds, gate)
+        _poller = ButtonPoller(btn_ok, btn_up, btn_down, gate)
     except Exception as exc:
         log.warning("GPIO indisponivel (%s) — a continuar sem botoes", exc)
         return False

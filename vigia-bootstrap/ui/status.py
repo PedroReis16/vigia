@@ -27,6 +27,8 @@ class DeviceSnapshot:
     ssid: str | None
     fall_cpu_pct: int = 0
     sys_cpu_pct: int = 0
+    fall_rss_mib: int = 0
+    sys_used_mib: int = 0
 
 
 def percents_from_delta(
@@ -118,6 +120,50 @@ def reset_cpu_samples() -> None:
     _cpu_pct = (0, 0)
 
 
+def used_mib_from_meminfo(text: str) -> int:
+    total_kb = 0
+    avail_kb = 0
+    for line in text.splitlines():
+        if line.startswith("MemTotal:"):
+            total_kb = int(line.split()[1])
+        elif line.startswith("MemAvailable:"):
+            avail_kb = int(line.split()[1])
+    used = max(0, total_kb - avail_kb)
+    return max(0, min(999, int(round(used / 1024.0))))
+
+
+def rss_mib_from_status(text: str) -> int:
+    for line in text.splitlines():
+        if line.startswith("VmRSS:"):
+            kb = int(line.split()[1])
+            return max(0, min(999, int(round(kb / 1024.0))))
+    return 0
+
+
+def _read_sys_used_mib() -> int:
+    try:
+        text = open("/proc/meminfo", encoding="utf-8").read()
+    except OSError:
+        return 0
+    try:
+        return used_mib_from_meminfo(text)
+    except (IndexError, ValueError):
+        return 0
+
+
+def _read_fall_rss_mib(pid: int | None) -> int:
+    if pid is None:
+        return 0
+    try:
+        text = open(f"/proc/{pid}/status", encoding="utf-8").read()
+    except OSError:
+        return 0
+    try:
+        return rss_mib_from_status(text)
+    except (IndexError, ValueError):
+        return 0
+
+
 def _ssid_from_file() -> str | None:
     path = get_network_path()
     if not path.exists():
@@ -135,6 +181,7 @@ def read_snapshot() -> DeviceSnapshot:
     # SSID só do ficheiro no ciclo do LCD — nmcli no loop bloqueava o I2C.
     ssid = _ssid_from_file()
     fall_cpu, sys_cpu = sample_cpu()
+    pid = _fall_main_pid()
     return DeviceSnapshot(
         phase=get_phase(),
         pairing_stage=get_pairing_stage(),
@@ -143,4 +190,6 @@ def read_snapshot() -> DeviceSnapshot:
         ssid=ssid,
         fall_cpu_pct=fall_cpu,
         sys_cpu_pct=sys_cpu,
+        fall_rss_mib=_read_fall_rss_mib(pid),
+        sys_used_mib=_read_sys_used_mib(),
     )

@@ -11,11 +11,17 @@ from ui.menu import BACKSPACE, CHARSET, CYCLE, HOLD_UNLINK, HOLD_WIFI, Menu, Scr
 from ui.pins import get_pin_config
 from ui.status import (
     DeviceSnapshot,
+    cpu_ticks_from_stat,
+    fall_pids,
+    mib_from_bytes,
     percents_from_delta,
+    pids_from_cgroup_procs,
     reset_cpu_samples,
+    rss_kb_from_status,
     rss_mib_from_status,
     used_mib_from_meminfo,
 )
+from ui import status as ui_status
 from provision import state as pairing_state
 
 
@@ -341,6 +347,38 @@ def test_meminfo_e_rss() -> None:
     mem = used_mib_from_meminfo("MemTotal: 1024000 kB\nMemAvailable: 512000 kB\n")
     assert mem == 500
     assert rss_mib_from_status("VmRSS:\t49152 kB\n") == 48
+    assert rss_kb_from_status("VmRSS:\t49152 kB\n") == 49152
+    assert mib_from_bytes(48 * 1024 * 1024) == 48
+
+
+def test_cgroup_procs_e_stat_do_fall() -> None:
+    assert pids_from_cgroup_procs("100\n101\n102\n") == [100, 101, 102]
+    assert pids_from_cgroup_procs("") == []
+    rest = "S 1 1 1 0 -1 0 0 0 0 0 40 10 0 0"
+    assert cpu_ticks_from_stat(f"123 (python) {rest}") == 50
+    pid, cgroup = ui_status._parse_systemctl_show(
+        "MainPID=4321\nControlGroup=/system.slice/fall-detection.service\n"
+    )
+    assert pid == 4321
+    assert cgroup == "/system.slice/fall-detection.service"
+    pid, cgroup = ui_status._parse_systemctl_show("MainPID=0\nControlGroup=\n")
+    assert pid is None
+    assert cgroup == ""
+
+
+def test_fall_pids_agrega_cgroup_nao_so_mainpid(monkeypatch) -> None:
+    monkeypatch.setattr(ui_status, "_cgroup_pids", lambda cg: [10, 11, 12] if cg else [])
+    monkeypatch.setattr(ui_status, "descendants_from_root", lambda pid: [pid, 99])
+    assert fall_pids(10, "/system.slice/fall-detection.service") == [10, 11, 12]
+    assert fall_pids(10, "") == [10, 99]
+    assert fall_pids(None, "") == []
+
+
+def test_tree_cpu_ticks_soma_filhos(monkeypatch) -> None:
+    ticks = {10: 10, 11: 80, 12: 10}
+    monkeypatch.setattr(ui_status, "_read_proc_cpu_ticks", lambda pid: ticks.get(pid))
+    assert ui_status.tree_cpu_ticks([10, 11, 12]) == 100
+    assert ui_status.tree_cpu_ticks([]) is None
 
 
 def test_reset_cpu_samples() -> None:

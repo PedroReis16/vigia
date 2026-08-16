@@ -22,7 +22,10 @@ from unittest.mock import MagicMock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-# ── Stubs de módulos pesados (sem instalar torch/ultralytics/bless) ──────────
+# ── Modo câmera é detectado antes dos stubs ──────────────────────────────────
+_camera_mode = "--camera" in sys.argv
+
+# ── Stubs de módulos pesados — apenas no modo sintético ─────────────────────
 def _stub_tree(*names: str) -> None:
     """Registra cada nome e seus prefixos como MagicMock package."""
     for name in names:
@@ -36,20 +39,28 @@ def _stub_tree(*names: str) -> None:
                 m.__path__ = []
                 sys.modules[key] = m
 
-_stub_tree(
-    "ultralytics", "ultralytics.models", "ultralytics.utils",
-    "bless", "bless.backends", "bless.backends.attribute",
-    "bless.backends.characteristic",
-    "loguru",
-)
-# cv2 precisa de um stub mínimo funcional
-if "cv2" not in sys.modules:
-    _cv2 = ModuleType("cv2")
-    _cv2.VideoCapture = MagicMock  # type: ignore
-    _cv2.imshow = MagicMock()      # type: ignore
-    _cv2.waitKey = lambda _: 0xff  # type: ignore
-    _cv2.destroyAllWindows = lambda: None  # type: ignore
-    sys.modules["cv2"] = _cv2
+if not _camera_mode:
+    _stub_tree(
+        "ultralytics", "ultralytics.models", "ultralytics.utils",
+        "bless", "bless.backends", "bless.backends.attribute",
+        "bless.backends.characteristic",
+        "loguru",
+    )
+    # cv2 stub mínimo para modo sintético
+    if "cv2" not in sys.modules:
+        _cv2 = ModuleType("cv2")
+        _cv2.VideoCapture = MagicMock  # type: ignore
+        _cv2.imshow = MagicMock()      # type: ignore
+        _cv2.waitKey = lambda _: 0xff  # type: ignore
+        _cv2.destroyAllWindows = lambda: None  # type: ignore
+        sys.modules["cv2"] = _cv2
+else:
+    # Modo câmera: stub apenas módulos não relacionados à captura
+    _stub_tree(
+        "bless", "bless.backends", "bless.backends.attribute",
+        "bless.backends.characteristic",
+        "loguru",
+    )
 
 # ── Mock de notify_fall (intercepta o MQTT sem broker) ──────────────────────
 _notificacoes: list[str] = []

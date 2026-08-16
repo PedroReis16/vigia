@@ -133,6 +133,18 @@ package-linux-arm64:
 		mv $(DIST_BUNDLE) $(OUT_DIR); \
 	fi
 	@test -x $(OUT_DIR)/$(APP_NAME) || chmod +x $(OUT_DIR)/$(APP_NAME)
+	@if command -v file >/dev/null 2>&1; then \
+		info=$$(file "$(OUT_DIR)/$(APP_NAME)"); \
+		echo "$$info"; \
+		echo "$$info" | grep -q 'ELF' || { \
+			echo "ERRO: o executável não é ELF Linux. No Mac use Docker (make build-linux-arm64)."; \
+			exit 1; \
+		}; \
+		echo "$$info" | grep -Eqi 'aarch64|ARM aarch64' || { \
+			echo "ERRO: o executável não é ARM64. Não instale este tarball na Raspberry Pi."; \
+			exit 1; \
+		}; \
+	fi
 	@tar -czf $(OUT_TAR) -C dist $(APP_NAME)-linux-arm64
 	@echo ""
 	@echo "✅ Build concluído!"
@@ -140,7 +152,7 @@ package-linux-arm64:
 	@echo "   SCP   : $(OUT_TAR)"
 	@echo ""
 	@echo "   Para enviar à placa:"
-	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/fall-detection.service usuario@<ip-da-placa>:/tmp/"
+	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/uninstall.sh deploy/fall-detection.service usuario@<ip-da-placa>:/tmp/"
 
 # ── Limpeza ───────────────────────────────────────────────────────────────────
 clean:

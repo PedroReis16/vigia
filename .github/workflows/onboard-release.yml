@@ -92,6 +92,7 @@ jobs:
           mkdir -p "${{ github.workspace }}/release-assets"
           cp "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
              deploy/install.sh \
+             deploy/uninstall.sh \
              deploy/fall-detection.service \
              "${{ github.workspace }}/release-assets/"
 
@@ -192,6 +193,7 @@ jobs:
       #     files: |
       #       ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
       #       ./artifacts/install.sh
+      #       ./artifacts/uninstall.sh
       #       ./artifacts/fall-detection.service
       #     draft: false
       #     generate_release_notes: true

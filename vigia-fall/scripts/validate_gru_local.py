@@ -228,6 +228,13 @@ def run_camera():
     buffers: dict = {}
     last_inf: dict = {}
 
+    # contadores de FPS
+    fps_frames = 0
+    fps_start = time.monotonic()
+    fps_capture = 0.0
+    fps_yolo = 0.0
+    yolo_times: list[float] = []
+
     print("\n" + "="*60)
     print(" MODO CÂMERA — pressione Q para sair")
     print("="*60 + "\n")
@@ -238,12 +245,18 @@ def run_camera():
         sys.exit(1)
 
     while True:
+        t0 = time.monotonic()
         ret, frame = cap.read()
         if not ret:
             break
 
         now = time.monotonic()
+
+        t_yolo_start = time.monotonic()
         result = process_frame(frame, now)
+        t_yolo_end = time.monotonic()
+        yolo_times.append(t_yolo_end - t_yolo_start)
+
         if result:
             for pid, data in result.items():
                 buf = buffers.setdefault(pid, deque(maxlen=GRU_WINDOW_SIZE))
@@ -257,11 +270,35 @@ def run_camera():
                         label = pred["label"]
                         pfall = pred["probs"][1]
                         alerta = "⚡" if pred["alert"] else "  "
-                        print(f"[GRU] Pessoa {pid}: {label} P(FALL)={pfall:.2f} {alerta}",
-                              flush=True)
+                        print(
+                            f"[GRU] Pessoa {pid}: {label} P(FALL)={pfall:.2f} {alerta}"
+                            f"  |  FPS captura={fps_capture:.1f}  YOLO={fps_yolo:.1f}",
+                            flush=True,
+                        )
                         if pred["alert"]:
                             _notify_fall_mock(label)
 
+        # Atualiza FPS a cada segundo
+        fps_frames += 1
+        elapsed_total = time.monotonic() - fps_start
+        if elapsed_total >= 1.0:
+            fps_capture = fps_frames / elapsed_total
+            fps_yolo = 1.0 / (sum(yolo_times) / len(yolo_times)) if yolo_times else 0.0
+            print(
+                f"[FPS] captura={fps_capture:.1f}  YOLO={fps_yolo:.1f}"
+                f"  t_yolo={sum(yolo_times)/len(yolo_times)*1000:.0f}ms/frame",
+                flush=True,
+            )
+            fps_frames = 0
+            fps_start = time.monotonic()
+            yolo_times.clear()
+
+        # Overlay FPS no frame de preview
+        cv2.putText(
+            frame,
+            f"FPS: {fps_capture:.1f}  YOLO: {fps_yolo:.1f}",
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2,
+        )
         cv2.imshow("Validacao GRU — Q para sair", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

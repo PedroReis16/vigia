@@ -29,26 +29,21 @@ _STAGE_STATUS: dict[str, tuple[str, str]] = {
 
 
 class Screen(enum.Enum):
-    STATUS = 0
+    CPU = 0
     WIFI = 1
-    NOVA_REDE = 2
-    SERVICO = 3
+    SERVICO = 2
+    NOVA_REDE = 3
     UNLINK = 4
 
 
-SCREENS = (
-    Screen.STATUS,
-    Screen.WIFI,
-    Screen.NOVA_REDE,
-    Screen.SERVICO,
-    Screen.UNLINK,
-)
+CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO)
 
 
 class Menu:
     def __init__(self, display: Display) -> None:
         self.display = display
         self.index = 0
+        self._overlay: Screen | None = None
         self.last_lines: tuple[str, str] = ("", "")
         self._flash: tuple[str, str] | None = None
         self._flash_until = 0.0
@@ -66,33 +61,39 @@ class Menu:
 
     @property
     def screen(self) -> Screen:
-        return SCREENS[self.index]
+        if self._overlay is not None:
+            return self._overlay
+        return CYCLE[self.index]
 
     def mark_dirty(self) -> None:
         self._dirty = True
 
     def on_up(self) -> None:
-        self.index = (self.index - 1) % len(SCREENS)
+        self._overlay = None
+        self.index = (self.index - 1) % len(CYCLE)
         self._request_redraw()
 
     def on_down(self) -> None:
-        self.index = (self.index + 1) % len(SCREENS)
+        self._overlay = None
+        self.index = (self.index + 1) % len(CYCLE)
         self._request_redraw()
 
     def on_ok(self) -> None:
         screen = self.screen
         if screen is Screen.WIFI:
-            self.index = SCREENS.index(Screen.NOVA_REDE)
+            self._overlay = Screen.NOVA_REDE
         elif screen is Screen.NOVA_REDE:
             log.info("LCD: nova rede (apagar network.json)")
             actions.clear_wifi()
             self._set_flash("WiFi", "Rede apagada")
-            self.index = SCREENS.index(Screen.STATUS)
+            self._overlay = None
+            self.index = CYCLE.index(Screen.CPU)
         elif screen is Screen.UNLINK:
             log.info("LCD: desvincular utilizador")
             actions.unlink_user()
             self._set_flash("VIGIA", "Desvinculado")
-            self.index = SCREENS.index(Screen.STATUS)
+            self._overlay = None
+            self.index = CYCLE.index(Screen.CPU)
         elif screen is Screen.SERVICO:
             log.info("LCD: restart fall-detection")
             actions.restart_fall_detection()
@@ -100,7 +101,7 @@ class Menu:
         self._request_redraw()
 
     def on_hold(self) -> None:
-        self.index = SCREENS.index(Screen.UNLINK)
+        self._overlay = Screen.UNLINK
         self._request_redraw()
 
     def _set_flash(self, line1: str, line2: str) -> None:
@@ -113,7 +114,7 @@ class Menu:
         self._flash = None
 
         screen = self.screen
-        if screen is Screen.STATUS:
+        if screen is Screen.CPU:
             pairing = snap.phase == "pairing" or (
                 not snap.provisioned and snap.phase != "ready"
             )
@@ -121,11 +122,7 @@ class Menu:
                 return _STAGE_STATUS.get(
                     snap.pairing_stage, ("VIGIA", "Aguardando app")
                 )
-            if snap.fall_active:
-                return "VIGIA", "Fall ativo"
-            if snap.provisioned:
-                return "VIGIA", "Fall parado"
-            return "VIGIA", "Sem rede"
+            return f"Fall {snap.fall_cpu_pct:3d}%", f"CPU  {snap.sys_cpu_pct:3d}%"
         if screen is Screen.WIFI:
             return "WiFi", snap.ssid or "nao ligada"
         if screen is Screen.NOVA_REDE:

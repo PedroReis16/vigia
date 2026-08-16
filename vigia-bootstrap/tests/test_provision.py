@@ -135,3 +135,24 @@ def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
     assert data["ssid"] == "casa"
     assert data["password"] == "segredo"
     settings.get_settings.cache_clear()
+
+
+def test_parse_active_ssid() -> None:
+    from provision.wifi import _parse_active_ssid
+
+    listing = "no:Outra\nyes:Casa\nno:Vizinho\n"
+    assert _parse_active_ssid(listing) == "Casa"
+    assert _parse_active_ssid("no:Casa\n") is None
+
+
+def test_wireless_names_for_ssid() -> None:
+    from provision.wifi import _wireless_names_for_ssid
+
+    listing = (
+        "Casa:802-11-wireless\n"
+        "Casa 1:802-11-wireless\n"
+        "Wired connection 1:802-3-ethernet\n"
+        "Outra:802-11-wireless\n"
+    )
+    names = _wireless_names_for_ssid(listing, "Casa")
+    assert names == ["Casa", "Casa 1"]

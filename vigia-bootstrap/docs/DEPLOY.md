@@ -15,16 +15,16 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 | Baixo | 23 | ecrã seguinte |
 | LCD 16x2 I2C | SDA 2 / SCL 3 | backpack PCF8574, endereço `0x27`, bus 1 |
 
-O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo a linha 2 muda com o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
+O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã CPU mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs: **VIGIA** (estágio de vínculo / Fall ativo / …) → **WiFi** (SSID) → **Nova rede?** → **Servico** (OK = restart) → **Desvincular?**.
+Ecrãs (cima/baixo em ciclo): **CPU** (`Fall  12%` / `CPU   34%`) → **WiFi** (SSID; OK = Nova rede?) → **Servico** (ativo/parado; OK = restart). Hold no OK abre **Desvincular?** (fora do ciclo).
 
-Cima/baixo mudam de ecrã em qualquer fase (já não voltam sozinhos ao STATUS ao fim de 2 s).
+No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms além dos callbacks do gpiozero.
 
 - **Nova rede** apaga `network.json` e os perfis Wi‑Fi do NetworkManager (`vigia_reset_wifi.sh`) e reabre o BLE.
 - **Desvincular** corre `vigia_reset_config.sh` (identidade + rede + perfis NM).
 
-Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime. O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
+Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime (chip 0 nos kernels recentes, chip 4 nos mais antigos). O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
 
 Se o I2C acabou de ser ligado pela primeira vez, pode faltar `/dev/i2c-1` até um reboot.
 

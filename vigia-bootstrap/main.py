@@ -6,7 +6,7 @@ import threading
 from provision.runner import provision_supervisor
 from provision.state import bind_cancel
 from ui.display import create_display
-from ui.gpio_setup import setup_buttons
+from ui.gpio_setup import poll_buttons, setup_buttons
 from ui.menu import Menu
 from ui.pins import get_pin_config
 from ui.status import read_snapshot
@@ -17,10 +17,18 @@ log = logging.getLogger(__name__)
 pairing_cancel = threading.Event()
 
 
+POLL_SECONDS = 0.05
+LCD_EVERY = 10  # 0.5 s entre writes de conteúdo lento
+
+
 async def ui_loop(menu: Menu) -> None:
+    tick = 0
     while True:
-        menu.refresh(read_snapshot())
-        await asyncio.sleep(0.5)
+        poll_buttons(menu)
+        if tick % LCD_EVERY == 0:
+            menu.refresh(read_snapshot())
+        tick += 1
+        await asyncio.sleep(POLL_SECONDS)
 
 
 async def run() -> None:

@@ -274,4 +274,5 @@ vigia-services/apps/vigia-api/cmd/__debug_bin*
 docker-compose/**/certificates
 docker-compose/**/minio_data
 
+vigia-bootstrap/data/
 vigia-fall/data/

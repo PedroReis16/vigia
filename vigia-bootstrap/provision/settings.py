@@ -7,6 +7,16 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover — opcional no bundle da placa
+
+    def load_dotenv(*_args, **_kwargs) -> bool:
+        return False
+
+
+load_dotenv()
+
 
 def _as_bool(value: str) -> bool:
     return value.strip().lower() in ("1", "true", "t", "yes", "y")

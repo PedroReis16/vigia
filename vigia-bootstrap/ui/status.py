@@ -6,6 +6,7 @@ import json
 import logging
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 from provision.actions import FALL_SERVICE, fall_is_active
 from provision.identity import is_provisioned
@@ -16,6 +17,8 @@ log = logging.getLogger(__name__)
 
 _cpu_prev: tuple[int, int, int | None] | None = None
 _cpu_pct: tuple[int, int] = (0, 0)
+_CGROUP_ROOT = Path("/sys/fs/cgroup")
+_PROC_ROOT = Path("/proc")
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,43 @@ def percents_from_delta(
     return max(0, min(999, fall_pct)), max(0, min(999, sys_pct))
 
 
+def pids_from_cgroup_procs(text: str) -> list[int]:
+    pids: list[int] = []
+    for line in text.splitlines():
+        raw = line.strip()
+        if raw.isdigit():
+            pids.append(int(raw))
+    return pids
+
+
+def cpu_ticks_from_stat(text: str) -> int | None:
+    rparen = text.rfind(")")
+    if rparen < 0:
+        return None
+    fields = text[rparen + 2 :].split()
+    if len(fields) < 13:
+        return None
+    try:
+        return int(fields[11]) + int(fields[12])
+    except ValueError:
+        return None
+
+
+def rss_kb_from_status(text: str) -> int:
+    for line in text.splitlines():
+        if line.startswith("VmRSS:"):
+            return int(line.split()[1])
+    return 0
+
+
+def mib_from_bytes(nbytes: int) -> int:
+    return max(0, min(999, int(round(nbytes / (1024.0 * 1024.0)))))
+
+
+def mib_from_kb(kb: int) -> int:
+    return max(0, min(999, int(round(kb / 1024.0))))
+
+
 def _read_proc_stat() -> tuple[int, int] | None:
     try:
         with open("/proc/stat", encoding="utf-8") as fh:
@@ -62,50 +102,127 @@ def _read_proc_stat() -> tuple[int, int] | None:
     return sum(values), idle
 
 
-def _fall_main_pid() -> int | None:
+def _parse_systemctl_show(text: str) -> tuple[int | None, str]:
+    main_pid: int | None = None
+    cgroup = ""
+    for line in text.splitlines():
+        if line.startswith("MainPID="):
+            raw = line.split("=", 1)[1].strip()
+            if raw.isdigit():
+                pid = int(raw)
+                main_pid = pid if pid > 0 else None
+        elif line.startswith("ControlGroup="):
+            cgroup = line.split("=", 1)[1].strip()
+    return main_pid, cgroup
+
+
+def _fall_service_ids() -> tuple[int | None, str]:
     try:
         result = subprocess.run(
-            ["systemctl", "show", "-p", "MainPID", "--value", FALL_SERVICE],
+            ["systemctl", "show", "-p", "MainPID", "-p", "ControlGroup", FALL_SERVICE],
             capture_output=True,
             text=True,
             check=False,
             timeout=1,
         )
     except (OSError, subprocess.TimeoutExpired):
+        return None, ""
+    return _parse_systemctl_show(result.stdout)
+
+
+def _cgroup_path(control_group: str, name: str) -> Path | None:
+    if not control_group or control_group == "/":
         return None
-    raw = result.stdout.strip()
-    if not raw.isdigit():
-        return None
-    pid = int(raw)
-    return pid if pid > 0 else None
+    return _CGROUP_ROOT / control_group.lstrip("/") / name
+
+
+def _cgroup_pids(control_group: str) -> list[int]:
+    path = _cgroup_path(control_group, "cgroup.procs")
+    if path is None:
+        return []
+    try:
+        return pids_from_cgroup_procs(path.read_text(encoding="utf-8"))
+    except OSError:
+        return []
+
+
+def _child_pids(pid: int) -> list[int]:
+    task_dir = _PROC_ROOT / str(pid) / "task"
+    children: list[int] = []
+    try:
+        tid_dirs = list(task_dir.iterdir())
+    except OSError:
+        return children
+    for tid_dir in tid_dirs:
+        try:
+            text = (tid_dir / "children").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for part in text.split():
+            if part.isdigit():
+                children.append(int(part))
+    return children
+
+
+def descendants_from_root(root: int) -> list[int]:
+    seen: set[int] = set()
+    stack = [root]
+    while stack:
+        pid = stack.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        for child in _child_pids(pid):
+            if child not in seen:
+                stack.append(child)
+    return list(seen)
+
+
+def fall_pids(main_pid: int | None, control_group: str) -> list[int]:
+    """PIDs do fall-detection: cgroup completo, senão árvore do MainPID.
+
+    O unit é um supervisor (`multiprocessing.Process` para captura e FIWARE);
+    o MainPID sozinho quase não usa CPU/RAM.
+    """
+    pids = _cgroup_pids(control_group)
+    if pids:
+        return pids
+    if main_pid is None:
+        return []
+    return descendants_from_root(main_pid)
 
 
 def _read_proc_cpu_ticks(pid: int) -> int | None:
     try:
-        text = open(f"/proc/{pid}/stat", encoding="utf-8").read()
+        text = (_PROC_ROOT / str(pid) / "stat").read_text(encoding="utf-8")
     except OSError:
         return None
-    rparen = text.rfind(")")
-    if rparen < 0:
-        return None
-    fields = text[rparen + 2 :].split()
-    if len(fields) < 13:
-        return None
-    try:
-        return int(fields[11]) + int(fields[12])
-    except ValueError:
-        return None
+    return cpu_ticks_from_stat(text)
 
 
-def sample_cpu() -> tuple[int, int]:
+def tree_cpu_ticks(pids: list[int]) -> int | None:
+    total = 0
+    found = False
+    for pid in pids:
+        ticks = _read_proc_cpu_ticks(pid)
+        if ticks is None:
+            continue
+        total += ticks
+        found = True
+    return total if found else None
+
+
+def sample_cpu(pids: list[int] | None = None) -> tuple[int, int]:
     """Atualiza deltas de CPU; devolve (fall_pct, sys_pct)."""
     global _cpu_prev, _cpu_pct
     sys_sample = _read_proc_stat()
     if sys_sample is None:
         return _cpu_pct
     total, idle = sys_sample
-    pid = _fall_main_pid()
-    fall = _read_proc_cpu_ticks(pid) if pid is not None else None
+    if pids is None:
+        main_pid, cgroup = _fall_service_ids()
+        pids = fall_pids(main_pid, cgroup)
+    fall = tree_cpu_ticks(pids)
     prev = _cpu_prev
     _cpu_prev = (total, idle, fall)
     if prev is None:
@@ -129,15 +246,14 @@ def used_mib_from_meminfo(text: str) -> int:
         elif line.startswith("MemAvailable:"):
             avail_kb = int(line.split()[1])
     used = max(0, total_kb - avail_kb)
-    return max(0, min(999, int(round(used / 1024.0))))
+    return mib_from_kb(used)
 
 
 def rss_mib_from_status(text: str) -> int:
-    for line in text.splitlines():
-        if line.startswith("VmRSS:"):
-            kb = int(line.split()[1])
-            return max(0, min(999, int(round(kb / 1024.0))))
-    return 0
+    try:
+        return mib_from_kb(rss_kb_from_status(text))
+    except (IndexError, ValueError):
+        return 0
 
 
 def _read_sys_used_mib() -> int:
@@ -151,17 +267,36 @@ def _read_sys_used_mib() -> int:
         return 0
 
 
-def _read_fall_rss_mib(pid: int | None) -> int:
-    if pid is None:
-        return 0
+def _read_cgroup_memory_mib(control_group: str) -> int | None:
+    path = _cgroup_path(control_group, "memory.current")
+    if path is None:
+        return None
     try:
-        text = open(f"/proc/{pid}/status", encoding="utf-8").read()
-    except OSError:
-        return 0
-    try:
-        return rss_mib_from_status(text)
-    except (IndexError, ValueError):
-        return 0
+        nbytes = int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return mib_from_bytes(nbytes)
+
+
+def _sum_rss_kb(pids: list[int]) -> int:
+    total = 0
+    for pid in pids:
+        try:
+            text = (_PROC_ROOT / str(pid) / "status").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        try:
+            total += rss_kb_from_status(text)
+        except (IndexError, ValueError):
+            continue
+    return total
+
+
+def fall_rss_mib(control_group: str, pids: list[int]) -> int:
+    cgroup_mib = _read_cgroup_memory_mib(control_group)
+    if cgroup_mib is not None:
+        return cgroup_mib
+    return mib_from_kb(_sum_rss_kb(pids))
 
 
 def _ssid_from_file() -> str | None:
@@ -180,8 +315,9 @@ def _ssid_from_file() -> str | None:
 def read_snapshot() -> DeviceSnapshot:
     # SSID só do ficheiro no ciclo do LCD — nmcli no loop bloqueava o I2C.
     ssid = _ssid_from_file()
-    fall_cpu, sys_cpu = sample_cpu()
-    pid = _fall_main_pid()
+    main_pid, cgroup = _fall_service_ids()
+    pids = fall_pids(main_pid, cgroup)
+    fall_cpu, sys_cpu = sample_cpu(pids)
     return DeviceSnapshot(
         phase=get_phase(),
         pairing_stage=get_pairing_stage(),
@@ -190,6 +326,6 @@ def read_snapshot() -> DeviceSnapshot:
         ssid=ssid,
         fall_cpu_pct=fall_cpu,
         sys_cpu_pct=sys_cpu,
-        fall_rss_mib=_read_fall_rss_mib(pid),
+        fall_rss_mib=fall_rss_mib(cgroup, pids),
         sys_used_mib=_read_sys_used_mib(),
     )

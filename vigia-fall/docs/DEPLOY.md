@@ -33,11 +33,14 @@ No caminho Docker, o build usa Python 3.12 e OpenCV headless dentro da imagem.
 
 ## Instalação na placa
 
-Copie o tarball, o instalador e a unit:
+Instale **primeiro** o bootstrap, depois o fall-detection.
+
+Copie o tarball, o instalador, o desinstalador e a unit:
 
 ```bash
 scp dist/vigia-fall-detection-linux-arm64.tar.gz \
     deploy/install.sh \
+    deploy/uninstall.sh \
     deploy/fall-detection.service \
     usuario@placa:/tmp/
 ```
@@ -49,9 +52,19 @@ sudo chmod +x /tmp/install.sh
 sudo /tmp/install.sh /tmp/vigia-fall-detection-linux-arm64.tar.gz
 ```
 
-Isto extrai para `/opt/vigia/fall-detection/`, instala `fall-detection.service` e faz `enable`. O **start** só sucede se existirem `/opt/vigia/identity.json` e `/opt/vigia/network.json` (escritos pelo **vigia-bootstrap** após o pareamento BLE). Instale o bootstrap antes; na primeira utilização o fall fica inactivo até o app provisionar a rede.
+Isto instala `ffmpeg` e libs de runtime (`libgomp1`, `libglib2.0-0`, `libgl1`, `libsm6`, `libxext6`) se faltarem, extrai para `/opt/vigia/fall-detection/`, instala o unit e o script `vigia-fall-detection-uninstall`. O **start** só sucede se existirem `/opt/vigia/identity.json` e `/opt/vigia/network.json` (escritos pelo **vigia-bootstrap** após o pareamento BLE). Instale o bootstrap antes; na primeira utilização o fall fica inactivo até o app provisionar a rede.
 
 Ordem na placa: bootstrap → pareamento (app) → `systemctl start fall-detection` (o bootstrap dispara o start).
+
+Desinstalar:
+
+```bash
+sudo vigia-fall-detection-uninstall
+# ou, apagando também o SQLite em /opt/vigia/DB:
+sudo vigia-fall-detection-uninstall --purge-data
+```
+
+Só remove os pacotes apt que **este** `install.sh` tiver adicionado. `identity.json`, `network.json` e `.env` ficam (são do bootstrap).
 
 ### `.env` (opcional)
 

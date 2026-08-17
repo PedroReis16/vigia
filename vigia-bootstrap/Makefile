@@ -31,11 +31,12 @@ NATIVE_LINUX_ARM64 := $(shell \
 		echo 0; \
 	fi)
 
-.PHONY: help install-build-deps build build-linux-arm64 \
+.PHONY: help install-local-deps install-build-deps build build-linux-arm64 \
 	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 clean
 
 help:
 	@echo "Targets:"
+	@echo "  install-local-deps Venv local (macOS/desktop): sem lgpio"
 	@echo "  install-build-deps Instala deps de runtime + PyInstaller (build nativo Linux)"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
 	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
@@ -43,6 +44,10 @@ help:
 	@echo "  clean              Remove artefatos gerados"
 	@echo ""
 	@echo "Host: $(HOST_OS)/$(HOST_ARCH) — native linux/arm64: $(NATIVE_LINUX_ARM64)"
+
+install-local-deps:
+	$(PIP) install --upgrade pip
+	$(PIP) install -r requirements.txt
 
 install-build-deps:
 	$(PIP) install --upgrade pip

@@ -28,10 +28,15 @@ def _lgpio_chip_candidates() -> list[int]:
 
 def _try_lgpio_factory() -> bool:
     """gpiozero 2.0.1 ignora o chip e força 4 no Pi 5; kernels novos usam 0."""
-    from gpiozero import Device
-    from gpiozero.pins.lgpio import LGPIOFactory, LGPIOPin
-    from gpiozero.pins.local import LocalPiFactory
-    import lgpio
+    try:
+        from gpiozero import Device
+        from gpiozero.pins.lgpio import LGPIOFactory, LGPIOPin
+        from gpiozero.pins.local import LocalPiFactory
+        import lgpio
+    except ImportError as exc:
+        # macOS / sem liblgpio: lgpio não está no requirements (marker linux).
+        log.info("lgpio indisponivel (%s) — a tentar outro pin factory", exc)
+        return False
 
     last_exc: Exception | None = None
     for chip in _lgpio_chip_candidates():

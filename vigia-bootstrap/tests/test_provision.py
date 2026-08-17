@@ -78,7 +78,8 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
 
 
 def test_get_wifi_service_nmcli_por_omissao(monkeypatch) -> None:
-    monkeypatch.delenv("WIFI_MOCK", raising=False)
+    # Força false: .env local de dev pode ter WIFI_MOCK=true.
+    monkeypatch.setenv("WIFI_MOCK", "false")
     settings.get_settings.cache_clear()
     from provision.wifi import NmcliWifiService, get_wifi_service
 

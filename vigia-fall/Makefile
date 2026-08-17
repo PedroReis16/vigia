@@ -32,13 +32,14 @@ NATIVE_LINUX_ARM64 := $(shell \
 		echo 0; \
 	fi)
 
-.PHONY: help ensure-model install-build-deps build build-linux-arm64 \
+.PHONY: help ensure-model install-local-deps install-build-deps build build-linux-arm64 \
 	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 clean
 
 help:
 	@echo "Targets:"
 	@echo "  ensure-model       Garante yolo26s-pose.pt na raiz do projeto"
-	@echo "  install-build-deps Instala deps de runtime + PyInstaller (build nativo)"
+	@echo "  install-local-deps Venv local: runtime + OpenCV GUI (SHOW_VIDEO)"
+	@echo "  install-build-deps Build nativo Linux: torch CPU + OpenCV headless"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
 	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
 	@echo "                     (nativo em linux/arm64; Docker nos demais hosts)"
@@ -49,7 +50,15 @@ help:
 ensure-model:
 	@$(PYTHON) scripts/ensure_yolo_model.py
 
+# Dev local: OpenCV com HighGUI. Remove headless se ficou de um build anterior.
+install-local-deps:
+	$(PIP) install --upgrade pip
+	-$(PIP) uninstall -y opencv-python-headless
+	$(PIP) install -r requirements-debug.txt
+	$(PIP) install --force-reinstall "opencv-python>=4.6.0,<5"
+
 # Espelha a sequência do Dockerfile.linux-arm64-binary (torch CPU + headless OpenCV).
+# Só para build nativo na placa/CI — não usar no Mac para correr main.py.
 install-build-deps:
 	$(PIP) install --upgrade pip
 	$(PIP) install --index-url https://download.pytorch.org/whl/cpu \

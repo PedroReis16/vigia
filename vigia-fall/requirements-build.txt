@@ -1,4 +1,5 @@
 # Dependências só para gerar o executável (make build / Docker).
-# opencv-python-headless reforça o build headless (ultralytics puxa opencv-python GUI).
+# opencv-python-headless substitui o opencv-python GUI que o ultralytics puxa.
+# NÃO usar este ficheiro no venv de desenvolvimento local (SHOW_VIDEO) — conflito cv2.
 pyinstaller>=6.0
 opencv-python-headless==4.12.0.88

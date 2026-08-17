@@ -1,3 +1,7 @@
+# Desenvolvimento / testes locais (macOS ou desktop).
+# Garante OpenCV com HighGUI para SHOW_VIDEO=true.
+# Não misturar com `requirements-build.txt` (opencv-python-headless) no mesmo venv.
 -r requirements.txt
 pytest==8.4.1
 numpy==2.2.6
+opencv-python>=4.6.0,<5

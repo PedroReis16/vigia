@@ -2,6 +2,8 @@
 Executa a captura de vídeo
 """
 
+from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.synchronize import Event as EventType
 import time
@@ -27,6 +29,16 @@ def _opencv_has_gui() -> bool:
     return any(marker in info for marker in markers)
 
 
+def _is_file_source(source: int | str) -> bool:
+    return isinstance(source, str)
+
+
+def _source_label(source: int | str) -> str:
+    if _is_file_source(source):
+        return f"vídeo {source}"
+    return f"câmera {source}"
+
+
 def run_capture(stream_event: EventType | None = None):
     """
     Executa a captura de vídeo
@@ -38,9 +50,11 @@ def run_capture(stream_event: EventType | None = None):
     frame_worker = None
     executor = None
     show_video = False
+    cap = None
 
     try:
         settings = get_settings()
+        source = settings.capture_source
         show_video = settings.show_video
         if show_video and not _opencv_has_gui():
             print(
@@ -50,15 +64,14 @@ def run_capture(stream_event: EventType | None = None):
             )
             show_video = False
 
-        cap = cv2.VideoCapture(settings.capture_source)
+        cap = cv2.VideoCapture(source)
 
         if not cap.isOpened():
             raise ValueError(
-                f"Não foi possível abrir a câmera {settings.capture_source}"
+                f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
             )
 
-        last_capture = time.monotonic()
-
+        last_capture = 0.0
         capture_interval = 1.0 / settings.frame_rate
 
         frame_worker = get_worker()
@@ -67,16 +80,22 @@ def run_capture(stream_event: EventType | None = None):
         executor.submit(frame_worker.run)
 
         while True:
+            now = time.monotonic()
+            if now - last_capture < capture_interval:
+                if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+                continue
+
             ret, frame = cap.read()
 
             if not ret:
+                if _is_file_source(source) and settings.capture_loop:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    continue
                 break
 
-            now = time.monotonic()
-
-            if now - last_capture > capture_interval:
-                frame_worker.insert_raw_frame(frame.copy(), now)
-                last_capture = now
+            last_capture = now
+            frame_worker.insert_raw_frame(frame.copy(), now)
 
             flipped_frame = cv2.flip(frame, 1)
             if show_video:
@@ -93,7 +112,8 @@ def run_capture(stream_event: EventType | None = None):
             elif is_streaming():
                 stop_stream()
 
-        cap.release()
+        if cap is not None:
+            cap.release()
     except Exception as e:
         print(f"Erro ao executar a captura: {e}")
         raise e
@@ -106,3 +126,15 @@ def run_capture(stream_event: EventType | None = None):
             frame_worker.stop()
         if executor is not None:
             executor.shutdown(wait=True, cancel_futures=True)
+
+
+def main() -> None:
+    """
+    Ponto de entrada standalone do módulo de captura (sem Fiware/API).
+
+    Uso: python -m capture  (a partir de vigia-fall/)
+    """
+    try:
+        run_capture()
+    except KeyboardInterrupt:
+        print("Interrompido pelo usuário")

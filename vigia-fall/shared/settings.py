@@ -2,6 +2,8 @@
 Variáveis de ambiente do projeto
 """
 
+from __future__ import annotations
+
 import json
 import os
 from dataclasses import dataclass
@@ -12,13 +14,24 @@ from .helpers import helpers_convert_to_bool
 from . import test_device_seed
 
 
+def _parse_capture_source(raw: str) -> int | str:
+    """
+    Índice de câmera (ex.: "0") ou caminho/URL de vídeo (ex.: "~/Downloads/queda.mp4").
+    """
+    value = raw.strip()
+    if value.lstrip("-").isdigit():
+        return int(value)
+    return str(Path(value).expanduser().resolve())
+
+
 @dataclass(frozen=True)
 class Settings:  # pylint: disable=too-many-instance-attributes
     """
     Configurações do programa
     """
 
-    capture_source: int = 0
+    capture_source: int | str = 0
+    capture_loop: bool = False
     show_video: bool = False
     yolo_pose_model: str = "yolo26s-pose"
     frame_rate: int = 12
@@ -35,7 +48,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
         load_dotenv()
 
         return cls(
-            capture_source=int(os.getenv("CAPTURE_SOURCE", "0")),
+            capture_source=_parse_capture_source(os.getenv("CAPTURE_SOURCE", "0")),
+            capture_loop=helpers_convert_to_bool(os.getenv("CAPTURE_LOOP", "false")),
             show_video=helpers_convert_to_bool(os.getenv("SHOW_VIDEO", "false")),
             yolo_pose_model=os.getenv("YOLO_POSE_MODEL", "yolo26s-pose"),
             frame_rate=int(os.getenv("FRAME_RATE", "12")),

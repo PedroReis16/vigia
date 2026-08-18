@@ -25,7 +25,12 @@ import cv2  # pyright: ignore[reportMissingImports]
 import numpy as np
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from shared import get_device_identity, get_network_settings
+from shared import (
+    get_device_identity,
+    get_identity_path,
+    get_network_path,
+    get_network_settings,
+)
 
 # Frame cache TTL na API é 120s — renovar antes de expirar.
 _UPLOAD_INTERVAL_S = 60.0
@@ -140,6 +145,9 @@ def maybe_upload_thumbnail(frame: np.ndarray) -> None:
     global _upload_in_flight
 
     if frame is None or frame.size == 0:
+        return
+
+    if not get_identity_path().exists() or not get_network_path().exists():
         return
 
     now = time.monotonic()

@@ -1,15 +1,17 @@
-"""Testes unitários para shared.models.settings."""
+"""Testes unitários para shared.settings."""
+
+from pathlib import Path
 
 import pytest
 
-from models import Settings, get_settings
+from shared.settings import Settings, get_settings
 
 
 def test_Settings_from_env_ComVariaveisDefinidas_RetornaConfiguracaoCorreta(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Arrange
-    monkeypatch.setattr("shared.models.settings.load_dotenv", lambda: None)
+    monkeypatch.setattr("shared.settings.load_dotenv", lambda: None)
     monkeypatch.setenv("CAPTURE_SOURCE", "2")
     monkeypatch.setenv("SHOW_VIDEO", "true")
     monkeypatch.setenv("YOLO_POSE_MODEL", "modelo-teste")
@@ -27,12 +29,29 @@ def test_Settings_from_env_ComVariaveisDefinidas_RetornaConfiguracaoCorreta(
     assert settings.slider_window_size == 15
 
 
+def test_Settings_from_env_ComCaminhoDeVideo_RetornaString(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setattr("shared.settings.load_dotenv", lambda: None)
+    monkeypatch.setenv("CAPTURE_SOURCE", "~/tmp/queda-teste.mp4")
+    monkeypatch.setenv("CAPTURE_LOOP", "true")
+
+    # Act
+    settings = Settings.from_env()
+
+    # Assert
+    assert settings.capture_source == str(Path("~/tmp/queda-teste.mp4").expanduser().resolve())
+    assert settings.capture_loop is True
+
+
 def test_Settings_from_env_SemVariaveisDefinidas_RetornaValoresPadrao(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Arrange
-    monkeypatch.setattr("shared.models.settings.load_dotenv", lambda: None)
+    monkeypatch.setattr("shared.settings.load_dotenv", lambda: None)
     monkeypatch.delenv("CAPTURE_SOURCE", raising=False)
+    monkeypatch.delenv("CAPTURE_LOOP", raising=False)
     monkeypatch.delenv("SHOW_VIDEO", raising=False)
     monkeypatch.delenv("YOLO_POSE_MODEL", raising=False)
     monkeypatch.delenv("FRAME_RATE", raising=False)

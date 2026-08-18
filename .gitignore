@@ -276,3 +276,4 @@ docker-compose/**/minio_data
 
 vigia-bootstrap/data/
 vigia-fall/data/
+vigia-fall/test-videos/

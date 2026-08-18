@@ -2,6 +2,7 @@
 Worker para processamento assíncrono dos frames capturados
 """
 
+import datetime
 from functools import lru_cache
 import queue
 from typing import Any
@@ -70,10 +71,19 @@ class FrameWorker:
 
                 state= person_state.fall_detector.update(score, capture_date)
 
-                if state == FallState.SUSPECT:
-                    # Dispara verificação de imobilidade
-                    pass
+                now = (datetime.datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
 
+                match state:
+                    case FallState.SUSPECT:
+                        print(f"Person {person_id} is suspected to fall - {now}")
+                    case FallState.FALL:
+                        print(f"Person {person_id} is falling - {now}")
+                    case FallState.NORMAL:
+                        print(f"Person {person_id} is normal - {now}")
+                    case FallState.FALSE_POSITIVE:
+                        print(f"Person {person_id} is a false positive - {now}")
+                    case _:
+                        print(f"Person {person_id} has an unknown state: {state}")
 
             except Exception as error:
                 print(

@@ -62,6 +62,7 @@ builder.Services.AddTransient<IDeviceCommandsService, DeviceCommandsService>();
 builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
 builder.Services.AddTransient<IVersionService, VersionService>();
+builder.Services.AddTransient<IAlertService, AlertService>();
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT

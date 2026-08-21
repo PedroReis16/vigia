@@ -17,6 +17,7 @@ using Vigia.Models.Extensions;
 using Vigia.Models.Middlewares;
 using Vigia.Fiware.Extensions;
 using Microsoft.AspNetCore.SignalR;
+using Vigia.API.Extensions;
 using Vigia.Cloud.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -51,6 +52,9 @@ builder.Services.AddHttpContextAccessor();
 
 // Cloud
 builder.Services.AddCloudServices(builder.Configuration);
+
+// Firebase push notifications
+builder.Services.AddFirebasePushNotifications(builder.Configuration);
 
 // Services
 builder.Services.AddTransient<IUserService, UserService>();

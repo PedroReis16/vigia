@@ -6,9 +6,10 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30"/>
+    <!-- Wi‑Fi scan (API 31–32) and BLE scan (API ≤ 30) still need location. -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30"/>
+        android:maxSdkVersion="32"/>
 
     <!-- Wi‑Fi scan -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
@@ -16,11 +17,6 @@
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation"/>
-    <!-- Android 12 (API 31–32): Wi‑Fi scan still requires location -->
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:minSdkVersion="31"
-        android:maxSdkVersion="32"/>
 
     <!-- Android 12+ (API 31+) -->
     <uses-permission
@@ -33,6 +29,7 @@
         android:required="true"/>
 
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="vigia_ui"
@@ -72,6 +69,9 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="vigia_fall_alerts" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

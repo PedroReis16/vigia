@@ -49,24 +49,39 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
                     _logger.LogInformation(
                         "Sincronização do schema (attributes/commands) dos devices realizada com sucesso");
 
-#if DEBUG
-                    //3. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
-                    bool seedDeviceReady = await fiwareService.EnsureSeedDeviceAsync();
-                    if (!seedDeviceReady)
+                    //3. Garante as subscrições Orion definidas em Fiware:Subscriptions
+                    bool subscriptionsSynced = await fiwareService.SyncSubscriptionsAsync();
+                    if (!subscriptionsSynced)
                     {
                         _logger.LogWarning(
-                            "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o device seed no FIWARE",
+                            "Tentativa {Attempt}/{MaxAttempts}: sincronização das subscrições Orion finalizou com falhas",
                             attempt,
                             maxAttempts);
                     }
                     else
                     {
-                        _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
-                        return;
-                    }
+                        _logger.LogInformation(
+                            "Sincronização das subscrições Orion realizada com sucesso");
+
+#if DEBUG
+                        //4. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
+                        bool seedDeviceReady = await fiwareService.EnsureSeedDeviceAsync();
+                        if (!seedDeviceReady)
+                        {
+                            _logger.LogWarning(
+                                "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o device seed no FIWARE",
+                                attempt,
+                                maxAttempts);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
+                            return;
+                        }
 #else
-                    return;
+                        return;
 #endif
+                    }
                 }
             }
             catch (Exception ex)

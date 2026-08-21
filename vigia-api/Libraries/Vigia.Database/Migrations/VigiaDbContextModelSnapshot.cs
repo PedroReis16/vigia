@@ -187,7 +187,7 @@ namespace Vigia.Database.Migrations
                         new
                         {
                             Id = new Guid("61675835-4749-4001-8236-013206775835"),
-                            Attributes = "[{\"ObjectId\":\"s\",\"Name\":\"system_status\",\"Type\":\"Text\"},{\"ObjectId\":\"ss\",\"Name\":\"stream_status\",\"Type\":\"Text\"},{\"ObjectId\":\"dp\",\"Name\":\"detected_person\",\"Type\":\"Boolean\"},{\"ObjectId\":\"df\",\"Name\":\"detected_fall\",\"Type\":\"Boolean\"}]",
+                            Attributes = "[{\"ObjectId\":\"s\",\"Name\":\"system_status\",\"Type\":\"Text\"},{\"ObjectId\":\"ns\",\"Name\":\"network_status\",\"Type\":\"Text\"},{\"ObjectId\":\"ss\",\"Name\":\"stream_status\",\"Type\":\"Text\"},{\"ObjectId\":\"dp\",\"Name\":\"detected_person\",\"Type\":\"Boolean\"},{\"ObjectId\":\"fall\",\"Name\":\"fall_state\",\"Type\":\"Text\"}]",
                             Commands = "[{\"Name\":\"stream_on\",\"Type\":\"command\"},{\"Name\":\"stream_off\",\"Type\":\"command\"},{\"Name\":\"device_on\",\"Type\":\"command\"},{\"Name\":\"device_off\",\"Type\":\"command\"}]",
                             CreatedAt = new DateTime(2026, 7, 30, 10, 0, 0, 0, DateTimeKind.Unspecified),
                             Protocol = "PDI-IoTA-UltraLight",
@@ -439,6 +439,59 @@ namespace Vigia.Database.Migrations
                             Password = new byte[] { 81, 63, 165, 86, 58, 124, 112, 36, 10, 178, 217, 152, 172, 164, 210, 132, 253, 161, 96, 153, 164, 26, 37, 230, 224, 66, 50, 93, 84, 223, 94, 216 },
                             Salt = new byte[] { 2, 20, 73, 2, 70, 73, 43, 120, 27, 233, 195, 53, 98, 210, 219, 129 }
                         });
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.UserPushToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("token");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("user_push_tokens", (string)null);
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.UserRole", b =>

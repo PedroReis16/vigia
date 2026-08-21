@@ -77,6 +77,11 @@ internal class FiwarePropertiesConfiguration : BaseConfiguration<FiwarePropertie
                         Type = "Text"
                     },
                     new (){
+                        ObjectId = "ns",
+                        Name = "network_status",
+                        Type = "Text"
+                    },
+                    new (){
                         ObjectId = "ss",
                         Name = "stream_status",
                         Type = "Text"
@@ -87,9 +92,9 @@ internal class FiwarePropertiesConfiguration : BaseConfiguration<FiwarePropertie
                         Type = "Boolean"
                     },
                     new (){
-                        ObjectId = "df",
-                        Name = "detected_fall",
-                        Type = "Boolean"
+                        ObjectId = "fall",
+                        Name = "fall_state",
+                        Type = "Text"
                     }
                 ],
                 CreatedAt = new DateTime(2026, 7, 30, 10, 0, 0),

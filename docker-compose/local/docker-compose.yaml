@@ -72,21 +72,8 @@ services:
     image: vigia-api:local
     container_name: vigia-api
     restart: unless-stopped
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__VigiaDb: Host=postgres;Port=5432;Database=vigia;Username=vigia;Password=vigia123
-      ConnectionStrings__Redis: redis:6379
-      ApiUrls__Fiware: http://host.docker.internal:81/vigia/fiware/
-      MediaMTX__WebhookToken: dev-mediamtx-webhook-token
-      OAuth__ServiceToken: "1234567890"
-      versionPath: /versions/
-      Cloud__Endpoint: http://minio:9000
-      Cloud__Region: us-east-1
-      Cloud__AccessKey: admin
-      Cloud__SecretKey: admin123
-      Cloud__VersionsBucketName: vigia-versions
-      Cloud__PicturesBucketName: vigia-pictures
-      Cloud__UsePathStyle: "true"
+    env_file:
+      - default.env
     ports:
       - "8090:8080"
     volumes:

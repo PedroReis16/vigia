@@ -18,15 +18,23 @@ public interface IFiwareService
     Task<bool> SyncDevicesSchemaAsync();
 
     /// <summary>
+    /// Garante as subscrições Orion definidas em <c>Fiware:Subscriptions</c>
+    /// para todos os devices do IoT Agent. Idempotente: reaproveita a subscrição
+    /// correta e remove duplicatas da mesma URL.
+    /// </summary>
+    Task<bool> SyncSubscriptionsAsync();
+
+    /// <summary>
     /// Provisiona um novo device no IoT Agent já com o schema canônico de
-    /// <c>Fiware:Devices</c> e sincroniza a registration de comandos no Orion.
+    /// <c>Fiware:Devices</c>, sincroniza a registration de comandos no Orion
+    /// e as subscrições de <c>Fiware:Subscriptions</c>.
     /// </summary>
     Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName);
 
 #if DEBUG
     /// <summary>
     /// Garante que o dispositivo de teste (<c>TestDeviceSeed</c>) esteja provisionado
-    /// no IoT Agent e com registration de comandos no Orion. Idempotente.
+    /// no IoT Agent, com registration de comandos e subscrições do Orion. Idempotente.
     /// </summary>
     Task<bool> EnsureSeedDeviceAsync();
 #endif

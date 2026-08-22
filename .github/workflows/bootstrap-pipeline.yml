@@ -95,7 +95,8 @@ jobs:
             build-essential \
             ca-certificates \
             swig \
-            wget
+            wget \
+            zip
           bash "${{ github.workspace }}/.github/scripts/install-liblgpio.sh"
 
       - name: Set up Python
@@ -122,12 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/release-assets"
-          cp "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
-             deploy/install.sh \
-             deploy/uninstall.sh \
-             deploy/vigia-bootstrap.service \
-             deploy/vigia_reset_config.sh \
-             deploy/vigia_reset_wifi.sh \
+          cp "dist/${{ env.APP_NAME }}-deploy.zip" \
              "${{ github.workspace }}/release-assets/"
 
       - name: Upload build artifacts
@@ -167,6 +163,19 @@ jobs:
           git push origin "refs/tags/${TAG}" --force
           echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
+      - name: Reset GitHub Release (remove assets antigos)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+            echo "✓ Release anterior '$TAG' removida (tag mantida)."
+          else
+            echo "Nenhuma release '$TAG' anterior."
+          fi
+
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -176,22 +185,20 @@ jobs:
             Pacote rolling do **vigia-bootstrap** (Linux ARM64).
 
             Cada execução desta pipeline sobrescreve esta release e a tag `bootstrap`.
-            Não há versionamento SemVer — baixe sempre os artefatos desta release.
+            Baixe **apenas** `vigia-bootstrap-deploy.zip`.
 
             ### Instalação na placa
             ```bash
-            scp vigia-bootstrap-linux-arm64.tar.gz install.sh uninstall.sh \
-                vigia-bootstrap.service vigia_reset_config.sh vigia_reset_wifi.sh \
-                user@placa:/tmp/
-            sudo /tmp/install.sh /tmp/vigia-bootstrap-linux-arm64.tar.gz
+            scp vigia-bootstrap-deploy.zip usuario@placa:/tmp/
+            ssh usuario@placa
+            cd /tmp
+            unzip -o vigia-bootstrap-deploy.zip -d vigia-bootstrap-deploy
+            sudo ./vigia-bootstrap-deploy/install-on-board.sh
             ```
+
+            O `install-on-board.sh` instala o serviço e apaga o zip + pasta temporária.
           files: |
-            ./artifacts/vigia-bootstrap-linux-arm64.tar.gz
-            ./artifacts/install.sh
-            ./artifacts/uninstall.sh
-            ./artifacts/vigia-bootstrap.service
-            ./artifacts/vigia_reset_config.sh
-            ./artifacts/vigia_reset_wifi.sh
+            ./artifacts/vigia-bootstrap-deploy.zip
           draft: false
           prerelease: false
           make_latest: false

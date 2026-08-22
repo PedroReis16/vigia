@@ -53,30 +53,28 @@ make build-linux-arm64
 **Saída:**
 
 - `dist/vigia-bootstrap-linux-arm64/` — onedir (executável + `_internal/`).
-- `dist/vigia-bootstrap-linux-arm64.tar.gz` — ficheiro para copiar para a placa.
+- `dist/vigia-bootstrap-linux-arm64.tar.gz` — bundle interno.
+- `dist/vigia-bootstrap-deploy.zip` — **pacote único** para enviar à placa.
 
 ## Instalação na placa
 
 Instale **primeiro** o bootstrap, depois o fall-detection.
 
+Baixe `vigia-bootstrap-deploy.zip` (release `bootstrap` ou `dist/` após o build) e envie um único ficheiro:
+
 ```bash
-scp dist/vigia-bootstrap-linux-arm64.tar.gz \
-    deploy/install.sh \
-    deploy/uninstall.sh \
-    deploy/vigia-bootstrap.service \
-    deploy/vigia_reset_config.sh \
-    deploy/vigia_reset_wifi.sh \
-    usuario@placa:/tmp/
+scp vigia-bootstrap-deploy.zip usuario@placa:/tmp/
 ```
 
 Na placa:
 
 ```bash
-sudo chmod +x /tmp/install.sh
-sudo /tmp/install.sh /tmp/vigia-bootstrap-linux-arm64.tar.gz
+cd /tmp
+unzip -o vigia-bootstrap-deploy.zip -d vigia-bootstrap-deploy
+sudo ./vigia-bootstrap-deploy/install-on-board.sh
 ```
 
-Isto instala `liblgpio1` e `i2c-tools` se faltarem, activa I2C, extrai para `/opt/vigia/bootstrap/`, instala o unit e os scripts (incluindo `vigia-bootstrap-uninstall`).
+Isto corre `install.sh`, instala `liblgpio1` e `i2c-tools` se faltarem, activa I2C, extrai para `/opt/vigia/bootstrap/`, instala o unit e os scripts (incluindo `vigia-bootstrap-uninstall`), e no fim remove o zip e a pasta temporária.
 
 Desinstalar:
 

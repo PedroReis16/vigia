@@ -19,6 +19,10 @@ _cpu_prev: tuple[int, int, int | None] | None = None
 _cpu_pct: tuple[int, int] = (0, 0)
 _CGROUP_ROOT = Path("/sys/fs/cgroup")
 _PROC_ROOT = Path("/proc")
+_THERMAL_CANDIDATES = (
+    Path("/sys/class/thermal/thermal_zone0/temp"),
+    Path("/sys/class/hwmon/hwmon0/temp1_input"),
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,7 @@ class DeviceSnapshot:
     sys_cpu_pct: int = 0
     fall_rss_mib: int = 0
     sys_used_mib: int = 0
+    board_temp_c: int | None = None
 
 
 def percents_from_delta(
@@ -89,6 +94,10 @@ def mib_from_kb(kb: int) -> int:
     return max(0, min(999, int(round(kb / 1024.0))))
 
 
+def temp_c_from_millidegrees(raw: int) -> int:
+    return max(0, min(999, raw // 1000))
+
+
 def _read_proc_stat() -> tuple[int, int] | None:
     try:
         with open("/proc/stat", encoding="utf-8") as fh:
@@ -130,20 +139,42 @@ def _fall_service_ids() -> tuple[int | None, str]:
     return _parse_systemctl_show(result.stdout)
 
 
-def _cgroup_path(control_group: str, name: str) -> Path | None:
+def _cgroup_candidate_dirs(control_group: str) -> list[Path]:
+    """Caminhos possíveis do unit em cgroup v2 (unified) e v1 (systemd)."""
     if not control_group or control_group == "/":
-        return None
-    return _CGROUP_ROOT / control_group.lstrip("/") / name
+        return []
+    rel = control_group.lstrip("/")
+    return [
+        _CGROUP_ROOT / rel,
+        _CGROUP_ROOT / "systemd" / rel,
+        _CGROUP_ROOT / "unified" / rel,
+    ]
 
 
 def _cgroup_pids(control_group: str) -> list[int]:
-    path = _cgroup_path(control_group, "cgroup.procs")
-    if path is None:
-        return []
-    try:
-        return pids_from_cgroup_procs(path.read_text(encoding="utf-8"))
-    except OSError:
-        return []
+    """PIDs do unit, incluindo sub-cgroups (scopes aninhados)."""
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for root in _cgroup_candidate_dirs(control_group):
+        if not root.is_dir():
+            continue
+        try:
+            procs_files = [root / "cgroup.procs"]
+            procs_files.extend(root.rglob("cgroup.procs"))
+        except OSError:
+            continue
+        for procs in procs_files:
+            try:
+                text = procs.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for pid in pids_from_cgroup_procs(text):
+                if pid not in seen:
+                    seen.add(pid)
+                    ordered.append(pid)
+        if ordered:
+            return ordered
+    return ordered
 
 
 def _child_pids(pid: int) -> list[int]:
@@ -164,7 +195,44 @@ def _child_pids(pid: int) -> list[int]:
     return children
 
 
+def _ppid_from_stat(text: str) -> int | None:
+    rparen = text.rfind(")")
+    if rparen < 0:
+        return None
+    fields = text[rparen + 2 :].split()
+    if len(fields) < 2:
+        return None
+    try:
+        return int(fields[1])
+    except ValueError:
+        return None
+
+
+def _children_map_from_proc() -> dict[int, list[int]]:
+    """Mapa ppid → filhos via /proc/*/stat (fallback quando task/children falha)."""
+    mapping: dict[int, list[int]] = {}
+    try:
+        entries = list(_PROC_ROOT.iterdir())
+    except OSError:
+        return mapping
+    for entry in entries:
+        name = entry.name
+        if not name.isdigit():
+            continue
+        pid = int(name)
+        try:
+            text = (entry / "stat").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        ppid = _ppid_from_stat(text)
+        if ppid is None:
+            continue
+        mapping.setdefault(ppid, []).append(pid)
+    return mapping
+
+
 def descendants_from_root(root: int) -> list[int]:
+    """Árvore de processos a partir do MainPID (task/children, senão /proc scan)."""
     seen: set[int] = set()
     stack = [root]
     while stack:
@@ -175,21 +243,44 @@ def descendants_from_root(root: int) -> list[int]:
         for child in _child_pids(pid):
             if child not in seen:
                 stack.append(child)
+    if len(seen) > 1:
+        return list(seen)
+
+    # Fallback: PyInstaller/multiprocessing por vezes não expõe task/*/children.
+    mapping = _children_map_from_proc()
+    seen = set()
+    stack = [root]
+    while stack:
+        pid = stack.pop()
+        if pid in seen:
+            continue
+        seen.add(pid)
+        for child in mapping.get(pid, ()):
+            if child not in seen:
+                stack.append(child)
     return list(seen)
 
 
 def fall_pids(main_pid: int | None, control_group: str) -> list[int]:
-    """PIDs do fall-detection: cgroup completo, senão árvore do MainPID.
+    """PIDs do fall-detection: união cgroup + árvore do MainPID.
 
     O unit é um supervisor (`multiprocessing.Process` para captura e FIWARE);
-    o MainPID sozinho quase não usa CPU/RAM.
+    o MainPID sozinho quase não usa CPU/RAM. Em cgroup v1 o caminho systemd
+    difere do unified; em alguns hosts os filhos não aparecem em cgroup.procs
+    do unit — daí a união com a árvore de processos.
     """
-    pids = _cgroup_pids(control_group)
-    if pids:
-        return pids
-    if main_pid is None:
-        return []
-    return descendants_from_root(main_pid)
+    seen: set[int] = set()
+    ordered: list[int] = []
+    for pid in _cgroup_pids(control_group):
+        if pid not in seen:
+            seen.add(pid)
+            ordered.append(pid)
+    if main_pid is not None:
+        for pid in descendants_from_root(main_pid):
+            if pid not in seen:
+                seen.add(pid)
+                ordered.append(pid)
+    return ordered
 
 
 def _read_proc_cpu_ticks(pid: int) -> int | None:
@@ -268,14 +359,22 @@ def _read_sys_used_mib() -> int:
 
 
 def _read_cgroup_memory_mib(control_group: str) -> int | None:
-    path = _cgroup_path(control_group, "memory.current")
-    if path is None:
+    """RAM do unit: memory.current (v2) ou memory.usage_in_bytes (v1)."""
+    if not control_group or control_group == "/":
         return None
-    try:
-        nbytes = int(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return None
-    return mib_from_bytes(nbytes)
+    rel = control_group.lstrip("/")
+    candidates = [
+        _CGROUP_ROOT / rel / "memory.current",
+        _CGROUP_ROOT / "memory" / rel / "memory.usage_in_bytes",
+        _CGROUP_ROOT / "unified" / rel / "memory.current",
+    ]
+    for path in candidates:
+        try:
+            nbytes = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        return mib_from_bytes(nbytes)
+    return None
 
 
 def _sum_rss_kb(pids: list[int]) -> int:
@@ -312,6 +411,16 @@ def _ssid_from_file() -> str | None:
         return None
 
 
+def _read_board_temp_c() -> int | None:
+    for path in _THERMAL_CANDIDATES:
+        try:
+            raw = int(path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            continue
+        return temp_c_from_millidegrees(raw)
+    return None
+
+
 def read_snapshot() -> DeviceSnapshot:
     # SSID só do ficheiro no ciclo do LCD — nmcli no loop bloqueava o I2C.
     ssid = _ssid_from_file()
@@ -328,4 +437,5 @@ def read_snapshot() -> DeviceSnapshot:
         sys_cpu_pct=sys_cpu,
         fall_rss_mib=fall_rss_mib(cgroup, pids),
         sys_used_mib=_read_sys_used_mib(),
+        board_temp_c=_read_board_temp_c(),
     )

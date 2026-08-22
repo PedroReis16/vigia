@@ -3,6 +3,7 @@
 # Targets:
 #   make build-linux-arm64  Linux ARM64: nativo só em linux/arm64;
 #                           Mac e amd64 usam Docker (buildx).
+#   make test               Executa pytest
 #   make clean              Remove artefatos gerados
 # =============================================================================
 
@@ -32,7 +33,7 @@ NATIVE_LINUX_ARM64 := $(shell \
 	fi)
 
 .PHONY: help install-local-deps install-build-deps build build-linux-arm64 \
-	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 clean
+	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 test clean
 
 help:
 	@echo "Targets:"
@@ -41,6 +42,7 @@ help:
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
 	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
 	@echo "                     (nativo só em linux/arm64; Docker no Mac e amd64)"
+	@echo "  test               Executa pytest"
 	@echo "  clean              Remove artefatos gerados"
 	@echo ""
 	@echo "Host: $(HOST_OS)/$(HOST_ARCH) — native linux/arm64: $(NATIVE_LINUX_ARM64)"
@@ -53,6 +55,9 @@ install-build-deps:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
 	$(PIP) install -r requirements-build.txt
+
+test:
+	$(PYTHON) -m pytest
 
 build:
 	$(PYTHON) -m PyInstaller --clean --noconfirm vigia-bootstrap.spec

@@ -8,11 +8,141 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Bootstrap Build - ${{ inputs.version }}"
+
+permissions:
+  contents: read
+
+env:
+  SERVICE_PATH: vigia-bootstrap
+  APP_NAME: vigia-bootstrap
+
 jobs:
-  build:
+  #------------------------------------------
+  # 1. Validate SemVer + run tests (amd64)
+  #------------------------------------------
+  test:
+    name: Test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate semantic version format
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          echo "Hello, world!"
+          set -euo pipefail
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Versão '$VERSION' não segue SemVer (ex.: 1.2.3 ou 1.2.3-rc.1)."
+            exit 1
+          fi
+          echo "✓ Formato semântico válido: $VERSION"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: bootstrap-test-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH)) }}
+          restore-keys: |
+            bootstrap-test-
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest
+
+      - name: Run tests
+        run: python -m pytest
+
+  #------------------------------------------
+  # 2. Build release (Linux ARM64 nativo)
+  #------------------------------------------
+  build-release:
+    name: Build - Linux ARM64
+    needs: test
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies + liblgpio
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            swig \
+            wget
+
+          # liblgpio não está no Ubuntu genérico (só Raspberry Pi OS / Debian Trixie).
+          # Compila a partir do upstream joan2937/lg — mesmo bloco do Dockerfile.
+          LG_VERSION=0.2.2
+          wget -q "https://github.com/joan2937/lg/archive/refs/tags/v${LG_VERSION}.tar.gz"
+          tar -xzf "v${LG_VERSION}.tar.gz"
+          sudo make -C "lg-${LG_VERSION}"
+          sudo make -C "lg-${LG_VERSION}" install
+          sudo ldconfig
+          rm -rf "v${LG_VERSION}.tar.gz" "lg-${LG_VERSION}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: bootstrap-arm64-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
+          restore-keys: |
+            bootstrap-arm64-
+
+      - name: Install Python build dependencies
+        run: make install-build-deps
+
+      - name: Build Linux ARM64 bundle (native)
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Host: $(uname -s)/$(uname -m)"
+          make build-linux-arm64
+
+      - name: Stage release artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/release-assets"
+          cp "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
+             deploy/install.sh \
+             deploy/uninstall.sh \
+             deploy/vigia-bootstrap.service \
+             deploy/vigia_reset_config.sh \
+             deploy/vigia_reset_wifi.sh \
+             "${{ github.workspace }}/release-assets/"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-linux-arm64-${{ inputs.version }}
+          path: ${{ github.workspace }}/release-assets/*
+          retention-days: 30

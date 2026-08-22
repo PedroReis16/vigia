@@ -117,7 +117,9 @@ def test_cpu_mostra_fall_e_sistema() -> None:
         )
     )
     assert l1 == "F  12%  48M"
-    assert l2 == "S 34%412M 55C"
+    assert l2 == "S  34% 412M  55C"
+    assert l1[5] == l2[5] == "%"
+    assert l1[10] == l2[10] == "M"
 
 
 def test_cpu_sem_temperatura_mantem_formato() -> None:
@@ -129,7 +131,7 @@ def test_cpu_sem_temperatura_mantem_formato() -> None:
 def test_cpu_fall_parado() -> None:
     menu = Menu(NullDisplay())
     l1, _ = menu.lines_for(_snap(fall_active=False, fall_rss_mib=0))
-    assert l1 == "F --%   0M"
+    assert l1 == "F  --%   0M"
 
 
 def test_servico_mostra_consumo_quando_ativo() -> None:

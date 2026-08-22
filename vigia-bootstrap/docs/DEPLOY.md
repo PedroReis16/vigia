@@ -17,7 +17,7 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 
 O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã de eficiência mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
+Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M  55C`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
 
 No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms.
 

@@ -1,4 +1,4 @@
-"""Menu de ecrÃ£s no LCD 16x2."""
+"""Menu de ecrÃÂ£s no LCD 16x2."""
 
 from __future__ import annotations
 
@@ -61,10 +61,26 @@ class Screen(enum.Enum):
 CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.ATUALIZ)
 
 
+def _clamp3(value: int) -> int:
+    return max(0, min(999, int(value)))
+
+
+def _metric_line(
+    prefix: str,
+    cpu: int | None,
+    mem: int,
+    temp_c: int | None = None,
+) -> str:
+    """CPU / RAM / temp em colunas fixas (16 cols): `F  12%  48M` / `S  34% 412M  55C`."""
+    cpu_s = f"{_clamp3(cpu):3d}" if cpu is not None else " --"
+    line = f"{prefix} {cpu_s}% {_clamp3(mem):3d}M"
+    if temp_c is None:
+        return line
+    return f"{line} {_clamp3(temp_c):3d}C"
+
+
 def _eff_line(prefix: str, cpu: int, mem: int, missing: bool = False) -> str:
-    if missing:
-        return f"{prefix} --% {mem:3d}M"
-    return f"{prefix} {cpu:3d}% {mem:3d}M"
+    return _metric_line(prefix, None if missing else cpu, mem)
 
 
 def _progress_bar(pct: int) -> str:
@@ -74,11 +90,7 @@ def _progress_bar(pct: int) -> str:
 
 
 def _sys_line(cpu: int, mem: int, temp_c: int | None) -> str:
-    """Linha do sistema: CPU + RAM; temperatura da placa quando disponÃ­vel (16 cols)."""
-    if temp_c is None:
-        return _eff_line("S", cpu, mem)
-    # "S 34%412M 55C" = 13 chars â cabe no LCD 16x2
-    return f"S{cpu:3d}%{mem:3d}M{temp_c:3d}C"
+    return _metric_line("S", cpu, mem, temp_c)
 
 
 class Menu:
@@ -195,7 +207,7 @@ class Menu:
             task.cancel()
 
     def offer_ota_update(self, revision: str) -> bool:
-        """Mostra overlay de confirmação OTA (60s). Ignora se já ocupado."""
+        """Mostra overlay de confirmaÃ§Ã£o OTA (60s). Ignora se jÃ¡ ocupado."""
         if self._ota_busy or self._busy():
             return False
         revision = (revision or "").strip()
@@ -219,7 +231,7 @@ class Menu:
             return
         if self._overlay is not Screen.OTA_CONFIRM:
             return
-        log.info("OTA: timeout 60s â a ignorar pending")
+        log.info("OTA: timeout 60s Ã¢ÂÂ a ignorar pending")
         ota_svc.clear_pending()
         self._ota_revision = None
         self._cancel_overlay()

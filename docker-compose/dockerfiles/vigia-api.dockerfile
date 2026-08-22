@@ -8,6 +8,7 @@ COPY vigia-api/Libraries/Vigia.Models/Vigia.Models.csproj Libraries/Vigia.Models
 COPY vigia-api/Libraries/Vigia.Database/Vigia.Database.csproj Libraries/Vigia.Database/
 COPY vigia-api/Libraries/Vigia.Cache/Vigia.Cache.csproj Libraries/Vigia.Cache/
 COPY vigia-api/Libraries/Vigia.Fiware/Vigia.Fiware.csproj Libraries/Vigia.Fiware/
+COPY vigia-api/Libraries/Vigia.Cloud/Vigia.Cloud.csproj Libraries/Vigia.Cloud/
 
 RUN dotnet restore Vigia.API/Vigia.API.csproj
 

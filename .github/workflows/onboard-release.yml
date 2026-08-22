@@ -86,11 +86,19 @@ jobs:
           echo "Host: $(uname -s)/$(uname -m)"
           make build-linux-arm64
 
-      - name: Stage flat artifacts
+      - name: Package OTA bundle
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          make package-ota
+
+      - name: Stage release artifacts
         run: |
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/release-assets"
-          cp "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
+          cp "dist/vigia-fall-ota-${{ inputs.version }}.tar.gz" \
+             "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
              deploy/install.sh \
              deploy/uninstall.sh \
              deploy/fall-detection.service \
@@ -137,7 +145,6 @@ jobs:
         env:
           VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
           VERSION: ${{ inputs.version }}
-          APP_NAME: ${{ env.APP_NAME }}
         run: |
           set -euo pipefail
 
@@ -147,9 +154,9 @@ jobs:
           fi
 
           BASE_URL="${VIGIA_API_BASE_URL%/}"
-          ARTIFACT="./artifacts/${APP_NAME}-linux-arm64.tar.gz"
+          ARTIFACT="./artifacts/vigia-fall-ota-${VERSION}.tar.gz"
           if [ ! -f "$ARTIFACT" ]; then
-            echo "::error::Artefato não encontrado: $ARTIFACT"
+            echo "::error::Artefato OTA não encontrado: $ARTIFACT"
             ls -la ./artifacts || true
             exit 1
           fi
@@ -183,19 +190,20 @@ jobs:
             echo
           done
 
-          echo "✓ Versão $VERSION enviada com sucesso."
+          echo "✓ Versão OTA $VERSION enviada com sucesso."
 
-      # - name: Create GitHub Release
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: ${{ needs.validate-project.outputs.tag_name }}
-      #     name: "Vigia Onboard v${{ inputs.version }}"
-      #     files: |
-      #       ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
-      #       ./artifacts/install.sh
-      #       ./artifacts/uninstall.sh
-      #       ./artifacts/fall-detection.service
-      #     draft: false
-      #     generate_release_notes: true
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate-project.outputs.tag_name }}
+          name: "Vigia Onboard v${{ inputs.version }}"
+          files: |
+            ./artifacts/vigia-fall-ota-${{ inputs.version }}.tar.gz
+            ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
+            ./artifacts/install.sh
+            ./artifacts/uninstall.sh
+            ./artifacts/fall-detection.service
+          draft: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

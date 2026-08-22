@@ -12,6 +12,7 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
 {
     private const string OrionEntityPrefix = "urn:ngsi-ld:";
     private const int DevicesPageSize = 100;
+    private const int MaxRetainedVersions = 5;
 
     private readonly ILogger<VersionService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
@@ -38,6 +39,7 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
             using FileStream fileStream = File.OpenRead(filePath);
             await cloudService.UploadFileAsync(versionBucket, version, fileStream, "application/gzip");
 
+            await EnforceVersionRetentionAsync(cloudService, versionBucket);
             await BroadcastDeviceUpdateAsync(fiwareService, version);
         }
         catch (HttpResponseException)
@@ -104,6 +106,63 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
                 StatusCodes.Status404NotFound,
                 $"Versão '{version}' não encontrada.");
         }
+    }
+
+    private async Task EnforceVersionRetentionAsync(ICloudService cloudService, string versionBucket)
+    {
+        IReadOnlyList<string> keys = await cloudService.ListKeysAsync(versionBucket);
+        IReadOnlyList<string> keysToDelete = SelectKeysToDelete(keys, MaxRetainedVersions);
+
+        foreach (string key in keysToDelete)
+        {
+            try
+            {
+                await cloudService.DeleteFileAsync(versionBucket, key);
+                _logger.LogInformation(
+                    "Versão antiga removida por retenção (máx. {MaxRetained}): {Version}",
+                    MaxRetainedVersions,
+                    key);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Falha ao remover versão antiga por retenção: {Version}",
+                    key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Seleciona as chaves mais antigas a remover para manter no máximo <paramref name="retainCount"/> objetos.
+    /// Ordem (mais antiga primeiro): chaves não-SemVer; depois SemVer crescente; pré-releases antes de estáveis
+    /// na mesma versão (alinhado a <see cref="SelectLatestSemVer"/>); desempate ordinal.
+    /// </summary>
+    internal static IReadOnlyList<string> SelectKeysToDelete(IEnumerable<string> keys, int retainCount)
+    {
+        List<string> keyList = keys.ToList();
+        if (keyList.Count <= retainCount)
+            return [];
+
+        List<(string Key, Version? Version, bool IsPrerelease, bool Parsed)> items = [];
+        foreach (string key in keyList)
+        {
+            if (TryParseSemVer(key, out Version version, out bool isPrerelease))
+                items.Add((key, version, isPrerelease, true));
+            else
+                items.Add((key, null, false, false));
+        }
+
+        List<string> oldestFirst = items
+            .OrderBy(i => i.Parsed)
+            .ThenBy(i => i.Version ?? new Version(0, 0))
+            .ThenByDescending(i => i.IsPrerelease)
+            .ThenBy(i => i.Key, StringComparer.Ordinal)
+            .Select(i => i.Key)
+            .ToList();
+
+        int deleteCount = keyList.Count - retainCount;
+        return oldestFirst.Take(deleteCount).ToList();
     }
 
     private async Task BroadcastDeviceUpdateAsync(IFiwareService fiwareService, string version)

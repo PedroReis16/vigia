@@ -10,4 +10,13 @@ public interface ICloudService
         Stream content,
         string? contentType = null,
         CancellationToken cancellationToken = default);
+
+    Task<Stream> DownloadFileAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> ListKeysAsync(
+        string bucketName,
+        CancellationToken cancellationToken = default);
 }

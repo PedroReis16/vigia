@@ -24,6 +24,19 @@ LCD_EVERY = 10  # 0.5 s entre writes de conteúdo lento
 OTA_WATCH_EVERY = 40  # ~2 s
 
 
+def _poll_ota_pending(menu: Menu) -> None:
+    if not is_provisioned():
+        return
+    pending = ota_svc.read_pending()
+    if pending is None:
+        return
+    installed = ota_svc.read_installed_revision()
+    if not ota_svc.needs_update(pending.revision, installed):
+        ota_svc.clear_pending()
+        return
+    menu.offer_ota_update(pending.revision)
+
+
 async def ui_loop(menu: Menu) -> None:
     tick = 0
     while True:

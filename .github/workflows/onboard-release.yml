@@ -1,18 +1,13 @@
-name: Vigia - Onboard Release
+name: Vigia - Onboard Pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Versão"
-        required: true
-        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-run-name: "Onboard Release - ${{ inputs.version }}"
+run-name: "Onboard Build"
 
 permissions:
   contents: write
@@ -20,23 +15,18 @@ permissions:
 env:
   SERVICE_PATH: vigia-fall
   APP_NAME: vigia-fall-detection
+  # Tag/release mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: onboard
+  ARTIFACT_NAME: vigia-fall-detection-linux-arm64
+  # Nome do pacote OTA / chave rolling na API (alinhado à tag GitHub).
+  OTA_PACKAGE: onboard
 
 jobs:
   #------------------------------------------
-  # 1. Validate project
-  #------------------------------------------
-  validate-project:
-    uses: ./.github/workflows/validate-project.yml
-    with:
-      project: onboard
-      version: ${{ inputs.version }}
-
-  #------------------------------------------
-  # 2. Build release (Linux ARM64 nativo)
+  # 1. Build (Linux ARM64 nativo)
   #------------------------------------------
   build-release:
     name: Build - Linux ARM64
-    needs: validate-project
     runs-on: ubuntu-24.04-arm
     defaults:
       run:
@@ -80,7 +70,7 @@ jobs:
 
       - name: Build Linux ARM64 bundle (native)
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ env.OTA_PACKAGE }}
         run: |
           set -euo pipefail
           echo "Host: $(uname -s)/$(uname -m)"
@@ -88,35 +78,37 @@ jobs:
 
       - name: Package OTA bundle
         env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ env.OTA_PACKAGE }}
         run: |
           set -euo pipefail
           make package-ota
 
       - name: Stage release artifacts
+        env:
+          OTA_PACKAGE: ${{ env.OTA_PACKAGE }}
         run: |
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/release-assets"
-          cp "dist/vigia-fall-ota-${{ inputs.version }}.tar.gz" \
+          cp "dist/vigia-fall-ota-${OTA_PACKAGE}.tar.gz" \
              "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
              deploy/install.sh \
              deploy/uninstall.sh \
              deploy/fall-detection.service \
              "${{ github.workspace }}/release-assets/"
 
-      - name: Upload release artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-linux-arm64-${{ inputs.version }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: ${{ github.workspace }}/release-assets/*
           retention-days: 30
 
   #------------------------------------------
-  # 3. Release
+  # 2. Publish — mesma tag/release (rolling) + OTA API
   #------------------------------------------
-  release:
-    name: Release — tag & upload version
-    needs: [validate-project, build-release]
+  publish:
+    name: Publish — tag onboard
+    needs: [build-release]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -127,24 +119,25 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-linux-arm64-${{ inputs.version }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: ./artifacts
 
-      - name: Create and push git tag
+      - name: Move mutable tag to HEAD
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
-          TAG="${{ needs.validate-project.outputs.tag_name }}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" \
-            -m "Release Vigia Onboard (fall-detection) v${{ inputs.version }}"
-          git push origin "$TAG"
-          echo "✓ Tag '$TAG' criada e publicada."
+          git tag -f "$TAG" -m "Vigia Onboard (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
-      - name: Upload device version to Vigia API
+      - name: Upload device package to Vigia API
         env:
           VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
-          VERSION: ${{ inputs.version }}
+          OTA_PACKAGE: ${{ env.OTA_PACKAGE }}
+          REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -154,7 +147,7 @@ jobs:
           fi
 
           BASE_URL="${VIGIA_API_BASE_URL%/}"
-          ARTIFACT="./artifacts/vigia-fall-ota-${VERSION}.tar.gz"
+          ARTIFACT="./artifacts/vigia-fall-ota-${OTA_PACKAGE}.tar.gz"
           if [ ! -f "$ARTIFACT" ]; then
             echo "::error::Artefato OTA não encontrado: $ARTIFACT"
             ls -la ./artifacts || true
@@ -175,35 +168,49 @@ jobs:
             exit 1
           fi
 
-          echo "Enviando $ARTIFACT ($TOTAL_CHUNKS chunks de até 5 MiB) para ${BASE_URL}/devices/versions"
-          echo "fileId=$FILE_ID version=$VERSION"
+          echo "Enviando $ARTIFACT ($TOTAL_CHUNKS chunks) para ${BASE_URL}/devices/updates"
+          echo "fileId=$FILE_ID revision=$REVISION"
 
           for i in "${!CHUNKS[@]}"; do
             CHUNK_PATH="${CHUNKS[$i]}"
             echo "→ Chunk $((i + 1))/$TOTAL_CHUNKS"
-            curl -fsS -X POST "${BASE_URL}/devices/versions" \
+            curl -fsS -X POST "${BASE_URL}/devices/updates" \
               -F "fileChunk=@${CHUNK_PATH};type=application/octet-stream" \
-              -F "version=${VERSION}" \
+              -F "revision=${REVISION}" \
               -F "fileId=${FILE_ID}" \
               -F "chunkIndex=${i}" \
               -F "totalChunks=${TOTAL_CHUNKS}"
             echo
           done
 
-          echo "✓ Versão OTA $VERSION enviada com sucesso."
+          echo "✓ Pacote OTA rolling enviado (revision=$REVISION)."
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.validate-project.outputs.tag_name }}
-          name: "Vigia Onboard v${{ inputs.version }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Onboard
+          body: |
+            Pacote rolling do **vigia-fall** / onboard (Linux ARM64).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `onboard`.
+            Na API o artefato OTA também é rolling (chave `onboard`); a `revision` é o SHA do commit.
+
+            ### Instalação manual na placa
+            ```bash
+            scp vigia-fall-detection-linux-arm64.tar.gz install.sh uninstall.sh \
+                fall-detection.service user@placa:/tmp/
+            sudo /tmp/install.sh /tmp/vigia-fall-detection-linux-arm64.tar.gz
+            ```
           files: |
-            ./artifacts/vigia-fall-ota-${{ inputs.version }}.tar.gz
+            ./artifacts/vigia-fall-ota-${{ env.OTA_PACKAGE }}.tar.gz
             ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
             ./artifacts/install.sh
             ./artifacts/uninstall.sh
             ./artifacts/fall-detection.service
           draft: false
-          generate_release_notes: true
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

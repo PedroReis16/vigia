@@ -1,10 +1,9 @@
 """OTA do fall-detection: check, download, install com rollback.
 
-API paths (relativos a ``api_base_url`` em network.json, tipicamente já com
-BasePath ``/vigia``):
+Modelo rolling (sem SemVer na API):
 
-- ``GET {api_base_url}/devices/versions/latest``
-- ``GET {api_base_url}/devices/versions/{version}/download``
+- ``GET {api_base_url}/devices/updates/current`` → ``{ revision, available }``
+- ``GET {api_base_url}/devices/updates/download`` → pacote único sobrescrito
 """
 
 from __future__ import annotations
@@ -13,7 +12,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import shutil
 import subprocess
 import tarfile
@@ -31,7 +29,9 @@ log = logging.getLogger(__name__)
 
 OTA_DIR = Path(os.getenv("VIGIA_OTA_DIR", "/var/lib/vigia/ota"))
 PENDING_PATH = OTA_DIR / "pending.json"
-INSTALLED_VERSION_PATH = OTA_DIR / "installed_version"
+INSTALLED_REVISION_PATH = OTA_DIR / "installed_revision"
+# Compat: builds antigas gravavam installed_version
+_LEGACY_INSTALLED_VERSION_PATH = OTA_DIR / "installed_version"
 
 INSTALL_ROOT = Path(os.getenv("VIGIA_INSTALL_ROOT", "/opt/vigia"))
 BUNDLE_DIR = INSTALL_ROOT / "fall-detection"
@@ -47,7 +47,7 @@ ProgressCb = Callable[[int], None]
 
 @dataclass(frozen=True)
 class PendingUpdate:
-    version: str
+    revision: str
     received_at: str = ""
 
 
@@ -56,16 +56,27 @@ def ensure_ota_dir() -> Path:
     return OTA_DIR
 
 
-def read_installed_version() -> str | None:
-    if not INSTALLED_VERSION_PATH.is_file():
-        return None
-    text = INSTALLED_VERSION_PATH.read_text(encoding="utf-8").strip()
-    return text or None
+def read_installed_revision() -> str | None:
+    for path in (INSTALLED_REVISION_PATH, _LEGACY_INSTALLED_VERSION_PATH):
+        if path.is_file():
+            text = path.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    return None
 
 
-def write_installed_version(version: str) -> None:
+def write_installed_revision(revision: str) -> None:
     ensure_ota_dir()
-    INSTALLED_VERSION_PATH.write_text(version.strip() + "\n", encoding="utf-8")
+    INSTALLED_REVISION_PATH.write_text(revision.strip() + "\n", encoding="utf-8")
+    try:
+        _LEGACY_INSTALLED_VERSION_PATH.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+# Aliases usados por testes / UI antiga
+read_installed_version = read_installed_revision
+write_installed_version = write_installed_revision
 
 
 def read_pending() -> PendingUpdate | None:
@@ -76,11 +87,11 @@ def read_pending() -> PendingUpdate | None:
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("pending.json inválido: %s", exc)
         return None
-    version = str(data.get("version") or "").strip()
-    if not version:
+    revision = str(data.get("revision") or data.get("version") or "").strip()
+    if not revision:
         return None
     return PendingUpdate(
-        version=version,
+        revision=revision,
         received_at=str(data.get("received_at") or ""),
     )
 
@@ -92,10 +103,10 @@ def clear_pending() -> None:
         log.warning("falha a apagar pending.json: %s", exc)
 
 
-def write_pending(version: str) -> None:
+def write_pending(revision: str) -> None:
     ensure_ota_dir()
     payload = {
-        "version": version.strip(),
+        "revision": revision.strip(),
         "received_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     PENDING_PATH.write_text(json.dumps(payload), encoding="utf-8")
@@ -116,94 +127,60 @@ def load_api_base_url() -> str:
     return _normalize_api_base(base)
 
 
-_SEMVER_RE = re.compile(
-    r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)"
-    r"(?:-(?P<pre>[0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"
-)
-
-
-def parse_semver(version: str) -> tuple[int, int, int, tuple[str, ...]] | None:
-    m = _SEMVER_RE.match((version or "").strip())
-    if not m:
-        return None
-    pre = m.group("pre")
-    pre_parts: tuple[str, ...] = tuple(pre.split(".")) if pre else ()
-    return (
-        int(m.group("major")),
-        int(m.group("minor")),
-        int(m.group("patch")),
-        pre_parts,
-    )
-
-
-def is_newer(candidate: str, installed: str | None) -> bool:
-    """True se candidate é SemVer estritamente maior que installed (ou installed None)."""
-    cand = parse_semver(candidate)
-    if cand is None:
-        return False
-    if not installed:
-        return True
-    cur = parse_semver(installed)
-    if cur is None:
-        return True
-    c_core, i_core = cand[:3], cur[:3]
-    if c_core != i_core:
-        return c_core > i_core
-    c_pre, i_pre = cand[3], cur[3]
-    if not c_pre and not i_pre:
-        return False
-    if not c_pre:
-        return True
-    if not i_pre:
-        return False
-    return c_pre > i_pre
-
-
-def _parse_latest_body(body: bytes, content_type: str | None) -> str:
+def _parse_current_body(body: bytes, content_type: str | None) -> str:
     text = body.decode("utf-8", errors="replace").strip()
     if not text:
-        raise ValueError("latest vazio")
+        raise ValueError("current vazio")
     ct = (content_type or "").lower()
     if "json" in ct or text.startswith("{") or text.startswith("["):
         data = json.loads(text)
         if isinstance(data, str):
             return data.strip()
         if isinstance(data, dict):
-            for key in ("version", "latest", "Version", "Latest"):
+            for key in ("revision", "version", "Revision", "Version"):
                 if data.get(key):
                     return str(data[key]).strip()
-        raise ValueError(f"latest JSON sem versão: {text[:120]}")
+        raise ValueError(f"current JSON sem revision: {text[:120]}")
     return text.splitlines()[0].strip()
 
 
-def fetch_latest_version(api_base_url: str | None = None) -> str:
+def fetch_current_revision(api_base_url: str | None = None) -> str:
     base = _normalize_api_base(api_base_url or load_api_base_url())
-    url = f"{base}devices/versions/latest"
+    url = f"{base}devices/updates/current"
     req = Request(url, method="GET", headers={"Accept": "application/json"})
     with urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
         body = resp.read()
         ctype = resp.headers.get("Content-Type")
-    return _parse_latest_body(body, ctype)
+    return _parse_current_body(body, ctype)
+
+
+def needs_update(remote_revision: str, installed: str | None) -> bool:
+    """True se a revision remota difere da instalada (ou ainda não há instalada)."""
+    remote = (remote_revision or "").strip()
+    if not remote:
+        return False
+    if not installed:
+        return True
+    return remote != installed.strip()
 
 
 def check_update(api_base_url: str | None = None) -> str | None:
-    """Devolve a versão remota se for mais nova que a instalada; senão None."""
-    latest = fetch_latest_version(api_base_url)
-    installed = read_installed_version()
-    if is_newer(latest, installed):
-        return latest
+    """Devolve a revision remota se for diferente da instalada; senão None."""
+    remote = fetch_current_revision(api_base_url)
+    installed = read_installed_revision()
+    if needs_update(remote, installed):
+        return remote
     return None
 
 
-def download_version(
-    version: str,
+def download_update(
     dest: Path,
     *,
     api_base_url: str | None = None,
     on_progress: ProgressCb | None = None,
 ) -> Path:
     base = _normalize_api_base(api_base_url or load_api_base_url())
-    url = f"{base}devices/versions/{version}/download"
+    url = f"{base}devices/updates/download"
     req = Request(url, method="GET")
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(dest.suffix + ".part")
@@ -254,17 +231,13 @@ def _load_manifest(extract_dir: Path) -> dict:
     return data
 
 
-def validate_ota_package(extract_dir: Path, expected_version: str | None = None) -> Path:
+def validate_ota_package(extract_dir: Path) -> Path:
     """Valida manifest + sha256; devolve caminho do tarball interno."""
     manifest = _load_manifest(extract_dir)
     version = str(manifest.get("version") or "").strip()
     sha_expected = str(manifest.get("sha256") or "").strip().lower()
     if not version or not sha_expected:
         raise ValueError("manifest.json sem version/sha256")
-    if expected_version and version != expected_version.strip():
-        raise ValueError(
-            f"versão do manifest ({version}) != esperada ({expected_version})"
-        )
 
     inner = extract_dir / INNER_TAR_NAME
     if not inner.is_file():
@@ -318,13 +291,13 @@ def _remove_backup() -> None:
 def apply_update(
     package_path: Path,
     *,
-    expected_version: str | None = None,
+    revision: str,
     on_progress: ProgressCb | None = None,
 ) -> str:
     """
     Extrai pacote OTA, valida, faz backup, corre install.sh, health-check.
-    Em sucesso grava installed_version e remove .prev; em falha restaura.
-    Devolve a versão instalada.
+    Em sucesso grava installed_revision e remove .prev; em falha restaura.
+    Devolve a revision instalada.
     """
     if on_progress:
         on_progress(0)
@@ -346,10 +319,7 @@ def apply_update(
         if on_progress:
             on_progress(10)
 
-        inner_tar = validate_ota_package(root, expected_version)
-        manifest = _load_manifest(root)
-        version = str(manifest["version"]).strip()
-
+        inner_tar = validate_ota_package(root)
         install_sh = root / "install.sh"
         if not install_sh.is_file():
             raise FileNotFoundError("install.sh em falta no pacote OTA")
@@ -383,14 +353,14 @@ def apply_update(
             if not _wait_fall_active():
                 raise RuntimeError("health-check: fall-detection não ficou active")
 
-            write_installed_version(version)
+            write_installed_revision(revision)
             _remove_backup()
             clear_pending()
 
             if on_progress:
                 on_progress(100)
-            log.info("OTA %s aplicado com sucesso", version)
-            return version
+            log.info("OTA revision %s aplicado com sucesso", revision)
+            return revision
         except Exception:
             log.exception("OTA falhou — a restaurar backup")
             _restore_bundle()
@@ -400,7 +370,7 @@ def apply_update(
 
 
 async def run_ota_pipeline(
-    version: str,
+    revision: str,
     *,
     on_progress: ProgressCb | None = None,
     api_base_url: str | None = None,
@@ -410,14 +380,13 @@ async def run_ota_pipeline(
 
     def _work() -> str:
         ensure_ota_dir()
-        dest = OTA_DIR / f"vigia-fall-ota-{version}.tar.gz"
+        dest = OTA_DIR / "vigia-fall-ota-onboard.tar.gz"
 
         def dl_progress(pct: int) -> None:
             if on_progress:
                 on_progress(min(70, int(pct * 0.7)))
 
-        download_version(
-            version,
+        download_update(
             dest,
             api_base_url=api_base_url,
             on_progress=dl_progress,
@@ -430,7 +399,7 @@ async def run_ota_pipeline(
         try:
             return apply_update(
                 dest,
-                expected_version=version,
+                revision=revision,
                 on_progress=inst_progress,
             )
         finally:

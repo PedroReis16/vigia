@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Vigia.API.Contracts.Devices;
 using Vigia.Cloud.Config;
 using Vigia.Cloud.Contracts;
@@ -10,15 +12,28 @@ namespace Vigia.API.Services.Devices;
 
 internal class VersionService(ILogger<VersionService> logger, IServiceScopeFactory scopeFactory) : IVersionService
 {
+    /// <summary>Chave fixa do pacote OTA rolling (mesmo nome da tag GitHub).</summary>
+    internal const string PackageObjectKey = "onboard";
+
+    internal const string MetaObjectKey = "onboard.meta.json";
+
     private const string OrionEntityPrefix = "urn:ngsi-ld:";
     private const int DevicesPageSize = 100;
-    private const int MaxRetainedVersions = 5;
+
+    private static readonly JsonSerializerOptions MetaJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false,
+    };
 
     private readonly ILogger<VersionService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
 
-    public async Task UploadDeviceVersionAsync(string version, string filePath)
+    public async Task UploadDeviceUpdateAsync(string revision, string filePath)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(revision);
+
         try
         {
             using IServiceScope scope = _scopeFactory.CreateScope();
@@ -28,19 +43,19 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
 
             string versionBucket = configuration.GetSection(CloudOptions.SectionName).Get<CloudOptions>()!.VersionsBucketName!;
 
-            IReadOnlyList<string> existingKeys = await cloudService.ListKeysAsync(versionBucket);
-            if (existingKeys.Contains(version, StringComparer.Ordinal))
+            using (FileStream fileStream = File.OpenRead(filePath))
             {
-                throw new HttpResponseException(
-                    StatusCodes.Status409Conflict,
-                    $"A versão '{version}' já existe no repositório de versões.");
+                await cloudService.UploadFileAsync(
+                    versionBucket,
+                    PackageObjectKey,
+                    fileStream,
+                    "application/gzip");
             }
 
-            using FileStream fileStream = File.OpenRead(filePath);
-            await cloudService.UploadFileAsync(versionBucket, version, fileStream, "application/gzip");
-
-            await EnforceVersionRetentionAsync(cloudService, versionBucket);
-            await BroadcastDeviceUpdateAsync(fiwareService, version);
+            DeviceUpdateMeta meta = new(revision.Trim(), DateTimeOffset.UtcNow);
+            await UploadMetaAsync(cloudService, versionBucket, meta);
+            await RemoveLegacyObjectsAsync(cloudService, versionBucket);
+            await BroadcastDeviceUpdateAsync(fiwareService, meta.Revision);
         }
         catch (HttpResponseException)
         {
@@ -48,7 +63,7 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
         }
         catch (Exception ex)
         {
-            string errorMessage = $"Error uploading device version: {ex.Message}";
+            string errorMessage = $"Error uploading device update: {ex.Message}";
             _logger.LogError(errorMessage);
             throw new Exception(errorMessage, ex);
         }
@@ -60,13 +75,12 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
             }
             catch (Exception ex)
             {
-                string errorMessage = $"Error deleting file: {ex.Message}";
-                _logger.LogError(errorMessage);
+                _logger.LogError("Error deleting staging file: {Message}", ex.Message);
             }
         }
     }
 
-    public async Task<IReadOnlyList<string>> ListVersionsAsync()
+    public async Task<DeviceUpdateInfo?> GetCurrentUpdateAsync()
     {
         using IServiceScope scope = _scopeFactory.CreateScope();
         ICloudService cloudService = scope.ServiceProvider.GetRequiredService<ICloudService>();
@@ -75,21 +89,19 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
         string versionBucket = configuration.GetSection(CloudOptions.SectionName).Get<CloudOptions>()!.VersionsBucketName!;
         IReadOnlyList<string> keys = await cloudService.ListKeysAsync(versionBucket);
 
-        return keys
-            .OrderByDescending(k => k, StringComparer.Ordinal)
-            .ToList();
+        if (!keys.Contains(PackageObjectKey, StringComparer.Ordinal))
+            return null;
+
+        DeviceUpdateMeta? meta = await TryReadMetaAsync(cloudService, versionBucket);
+        string revision = meta?.Revision?.Trim() ?? PackageObjectKey;
+        if (string.IsNullOrWhiteSpace(revision))
+            revision = PackageObjectKey;
+
+        return new DeviceUpdateInfo(revision, Available: true);
     }
 
-    public async Task<string?> GetLatestVersionAsync()
+    public async Task<Stream> DownloadCurrentUpdateAsync()
     {
-        IReadOnlyList<string> versions = await ListVersionsAsync();
-        return SelectLatestSemVer(versions);
-    }
-
-    public async Task<Stream> DownloadVersionAsync(string version)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(version);
-
         using IServiceScope scope = _scopeFactory.CreateScope();
         ICloudService cloudService = scope.ServiceProvider.GetRequiredService<ICloudService>();
         IConfiguration configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
@@ -98,74 +110,70 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
 
         try
         {
-            return await cloudService.DownloadFileAsync(versionBucket, version);
+            return await cloudService.DownloadFileAsync(versionBucket, PackageObjectKey);
         }
         catch (FileNotFoundException)
         {
             throw new HttpResponseException(
                 StatusCodes.Status404NotFound,
-                $"Versão '{version}' não encontrada.");
+                "Nenhum pacote OTA disponível.");
         }
     }
 
-    private async Task EnforceVersionRetentionAsync(ICloudService cloudService, string versionBucket)
+    private async Task UploadMetaAsync(ICloudService cloudService, string bucket, DeviceUpdateMeta meta)
     {
-        IReadOnlyList<string> keys = await cloudService.ListKeysAsync(versionBucket);
-        IReadOnlyList<string> keysToDelete = SelectKeysToDelete(keys, MaxRetainedVersions);
+        byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(meta, MetaJsonOptions));
+        using MemoryStream stream = new(bytes);
+        await cloudService.UploadFileAsync(bucket, MetaObjectKey, stream, "application/json");
+    }
 
-        foreach (string key in keysToDelete)
+    private async Task<DeviceUpdateMeta?> TryReadMetaAsync(ICloudService cloudService, string bucket)
+    {
+        try
         {
-            try
-            {
-                await cloudService.DeleteFileAsync(versionBucket, key);
-                _logger.LogInformation(
-                    "Versão antiga removida por retenção (máx. {MaxRetained}): {Version}",
-                    MaxRetainedVersions,
-                    key);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Falha ao remover versão antiga por retenção: {Version}",
-                    key);
-            }
+            await using Stream stream = await cloudService.DownloadFileAsync(bucket, MetaObjectKey);
+            using MemoryStream buffer = new();
+            await stream.CopyToAsync(buffer);
+            return JsonSerializer.Deserialize<DeviceUpdateMeta>(buffer.ToArray(), MetaJsonOptions);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao ler metadados OTA ({MetaKey})", MetaObjectKey);
+            return null;
         }
     }
 
     /// <summary>
-    /// Seleciona as chaves mais antigas a remover para manter no máximo <paramref name="retainCount"/> objetos.
-    /// Ordem (mais antiga primeiro): chaves não-SemVer; depois SemVer crescente; pré-releases antes de estáveis
-    /// na mesma versão (alinhado a <see cref="SelectLatestSemVer"/>); desempate ordinal.
+    /// Remove chaves antigas do modelo multi-versão, mantendo só o pacote rolling + meta.
     /// </summary>
-    internal static IReadOnlyList<string> SelectKeysToDelete(IEnumerable<string> keys, int retainCount)
+    private async Task RemoveLegacyObjectsAsync(ICloudService cloudService, string bucket)
     {
-        List<string> keyList = keys.ToList();
-        if (keyList.Count <= retainCount)
-            return [];
-
-        List<(string Key, Version? Version, bool IsPrerelease, bool Parsed)> items = [];
-        foreach (string key in keyList)
+        IReadOnlyList<string> keys = await cloudService.ListKeysAsync(bucket);
+        foreach (string key in keys)
         {
-            if (TryParseSemVer(key, out Version version, out bool isPrerelease))
-                items.Add((key, version, isPrerelease, true));
-            else
-                items.Add((key, null, false, false));
+            if (string.Equals(key, PackageObjectKey, StringComparison.Ordinal) ||
+                string.Equals(key, MetaObjectKey, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            try
+            {
+                await cloudService.DeleteFileAsync(bucket, key);
+                _logger.LogInformation("Objeto OTA legado removido: {Key}", key);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao remover objeto OTA legado: {Key}", key);
+            }
         }
-
-        List<string> oldestFirst = items
-            .OrderBy(i => i.Parsed)
-            .ThenBy(i => i.Version ?? new Version(0, 0))
-            .ThenByDescending(i => i.IsPrerelease)
-            .ThenBy(i => i.Key, StringComparer.Ordinal)
-            .Select(i => i.Key)
-            .ToList();
-
-        int deleteCount = keyList.Count - retainCount;
-        return oldestFirst.Take(deleteCount).ToList();
     }
 
-    private async Task BroadcastDeviceUpdateAsync(IFiwareService fiwareService, string version)
+    private async Task BroadcastDeviceUpdateAsync(IFiwareService fiwareService, string revision)
     {
         int offset = 0;
         int notified = 0;
@@ -195,7 +203,7 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
                     bool sent = await fiwareService.SendCommandAsync(
                         deviceName,
                         DeviceCommands.DEVICE_UPDATE,
-                        version);
+                        revision);
 
                     if (sent)
                         notified++;
@@ -203,9 +211,9 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
                     {
                         failed++;
                         _logger.LogWarning(
-                            "Falha ao enviar device_update para {DeviceName} (versão {Version})",
+                            "Falha ao enviar device_update para {DeviceName} (revision {Revision})",
                             deviceName,
-                            version);
+                            revision);
                     }
                 }
                 catch (Exception ex)
@@ -213,9 +221,9 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
                     failed++;
                     _logger.LogWarning(
                         ex,
-                        "Erro ao enviar device_update para {DeviceName} (versão {Version})",
+                        "Erro ao enviar device_update para {DeviceName} (revision {Revision})",
                         deviceName,
-                        version);
+                        revision);
                 }
             }
 
@@ -226,8 +234,8 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
         }
 
         _logger.LogInformation(
-            "Broadcast device_update concluído para versão {Version}. Notificados={Notified} Falhas={Failed}",
-            version,
+            "Broadcast device_update concluído para revision {Revision}. Notificados={Notified} Falhas={Failed}",
+            revision,
             notified,
             failed);
     }
@@ -243,52 +251,5 @@ internal class VersionService(ILogger<VersionService> logger, IServiceScopeFacto
         return entityName;
     }
 
-    internal static string? SelectLatestSemVer(IEnumerable<string> versions)
-    {
-        List<(string Original, Version Version, bool IsPrerelease)> parsed = [];
-
-        foreach (string key in versions)
-        {
-            if (!TryParseSemVer(key, out Version version, out bool isPrerelease))
-                continue;
-
-            parsed.Add((key, version, isPrerelease));
-        }
-
-        if (parsed.Count == 0)
-            return null;
-
-        IEnumerable<(string Original, Version Version, bool IsPrerelease)> candidates =
-            parsed.Exists(p => !p.IsPrerelease)
-                ? parsed.Where(p => !p.IsPrerelease)
-                : parsed;
-
-        return candidates
-            .OrderByDescending(p => p.Version)
-            .ThenByDescending(p => p.Original, StringComparer.Ordinal)
-            .First()
-            .Original;
-    }
-
-    private static bool TryParseSemVer(string value, out Version version, out bool isPrerelease)
-    {
-        version = null!;
-        isPrerelease = false;
-
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-
-        string core = value;
-        int dashIndex = value.IndexOf('-');
-        if (dashIndex >= 0)
-        {
-            isPrerelease = true;
-            core = value[..dashIndex];
-        }
-
-        if (!core.Contains('.'))
-            core = $"{core}.0";
-
-        return Version.TryParse(core, out version!);
-    }
+    private sealed record DeviceUpdateMeta(string Revision, DateTimeOffset UploadedAt);
 }

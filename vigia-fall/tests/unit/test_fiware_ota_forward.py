@@ -30,10 +30,10 @@ def test_on_message_device_update_escreve_pending(
         lambda: SimpleNamespace(device_id="dev1"),
     )
     msg = MagicMock()
-    msg.payload = b"dev1@device_update|4.5.6"
+    msg.payload = b"dev1@device_update|deadbeef"
     fiware_runner._on_message(None, None, msg)
     data = json.loads((tmp_path / "pending.json").read_text(encoding="utf-8"))
-    assert data["version"] == "4.5.6"
+    assert data["revision"] == "deadbeef"
     assert "received_at" in data
 
 

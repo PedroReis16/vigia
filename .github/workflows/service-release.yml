@@ -1,18 +1,13 @@
-name: Vigia API — Service Release
+name: Vigia API — Service Pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Versão a ser publicada (ex.: 1.0.0)"
-        required: true
-        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-run-name: "Vigia API — release v${{ inputs.version }}"
+run-name: "Service Build"
 
 permissions:
   contents: write
@@ -24,23 +19,40 @@ env:
   DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
   DOTNET_VERSION: "10.0.x"
+  # Tag mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: service
 
 jobs:
   #------------------------------------------
-  # 1. Validate project
+  # 1. Resolve branch (prod vs homolog)
   #------------------------------------------
-  validate-project:
-    uses: ./.github/workflows/validate-project.yml
-    with:
-      project: api
-      version: ${{ inputs.version }}
+  resolve:
+    name: Resolve environment
+    runs-on: ubuntu-latest
+    outputs:
+      is_homolog: ${{ steps.meta.outputs.is_homolog }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Resolve Docker rolling tag
+        id: meta
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" == "master" ]]; then
+            echo "is_homolog=false" >> "$GITHUB_OUTPUT"
+            echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_homolog=true" >> "$GITHUB_OUTPUT"
+            echo "image_tag=homolog" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Branch: $BRANCH → image_tag=$([[ "$BRANCH" == "master" ]] && echo latest || echo homolog)"
 
   #------------------------------------------
   # 2. Test (.NET)
   #------------------------------------------
   test:
     name: Tests — unit & integration
-    needs: validate-project
+    needs: resolve
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -74,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-vigia-api-${{ inputs.version }}
+          name: coverage-vigia-api
           path: ${{ env.SERVICE_PATH }}/TestResults
           retention-days: 7
           if-no-files-found: ignore
@@ -84,7 +96,7 @@ jobs:
   #------------------------------------------
   security:
     name: Security — secrets & Dockerfile
-    needs: validate-project
+    needs: resolve
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,32 +116,15 @@ jobs:
           failure-threshold: error
 
   #------------------------------------------
-  # 4. Publish — Docker image
+  # 4. Publish — Docker image (rolling tags)
   #------------------------------------------
   publish:
     name: Publish — Docker Hub
-    needs: [validate-project, test, security]
+    needs: [resolve, test, security]
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Resolve image tags
-        id: meta
-        env:
-          IS_HOMOLOG: ${{ needs.validate-project.outputs.is_homolog }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          if [[ "$IS_HOMOLOG" == "true" ]]; then
-            IMAGE_TAG="hom-${VERSION}"
-          else
-            IMAGE_TAG="${VERSION}"
-          fi
-          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Tag da imagem: ${IMAGE_TAG}"
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -149,15 +144,15 @@ jobs:
           load: true
           push: false
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           build-args: |
-            VERSION=${{ inputs.version }}
+            VERSION=${{ needs.resolve.outputs.image_tag }}
 
       - name: Trivy — generate SARIF report
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
           format: sarif
@@ -172,7 +167,7 @@ jobs:
       - name: Trivy — block on unfixed CRITICAL/HIGH CVEs
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: table
@@ -180,8 +175,7 @@ jobs:
 
       - name: Push Docker image
         env:
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
-          IS_HOMOLOG: ${{ needs.validate-project.outputs.is_homolog }}
+          IMAGE_TAG: ${{ needs.resolve.outputs.image_tag }}
         run: |
           set -euo pipefail
           USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
@@ -189,23 +183,15 @@ jobs:
 
           docker push "${IMAGE}:${IMAGE_TAG}"
           docker push "${IMAGE}:${{ github.sha }}"
-
-          # `latest` só em release de produção (branch master).
-          if [[ "$IS_HOMOLOG" != "true" ]]; then
-            docker tag "${IMAGE}:${IMAGE_TAG}" "${IMAGE}:latest"
-            docker push "${IMAGE}:latest"
-            echo "✓ Imagens publicadas: ${IMAGE_TAG}, ${{ github.sha }}, latest"
-          else
-            echo "✓ Imagens publicadas (homolog): ${IMAGE_TAG}, ${{ github.sha }}"
-          fi
+          echo "✓ Imagens publicadas: ${IMAGE_TAG}, ${{ github.sha }}"
 
   #------------------------------------------
   # 5. Portainer deploy — production only
   #------------------------------------------
   portainer_deploy:
     name: Deploy — Portainer webhook
-    needs: [validate-project, publish]
-    if: needs.validate-project.outputs.is_homolog != 'true'
+    needs: [resolve, publish]
+    if: needs.resolve.outputs.is_homolog != 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -224,18 +210,17 @@ jobs:
             echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
             exit 1
           fi
-          echo "✓ Portainer redeploy acionado — vigia-api v${{ inputs.version }} (HTTP ${HTTP_STATUS})."
+          echo "✓ Portainer redeploy acionado — vigia-api:${{ needs.resolve.outputs.image_tag }} (HTTP ${HTTP_STATUS})."
 
   #------------------------------------------
-  # 6. Release — git tag
+  # 6. Publish — mesma tag git (rolling)
   #------------------------------------------
   release:
-    name: Release — tag
-    needs: [validate-project, publish, portainer_deploy]
-    # Homolog: portainer é skipped; produção: exige deploy ok.
+    name: Publish — tag service
+    needs: [resolve, publish, portainer_deploy]
     if: |
       always() &&
-      needs.validate-project.result == 'success' &&
+      needs.resolve.result == 'success' &&
       needs.publish.result == 'success' &&
       (needs.portainer_deploy.result == 'success' || needs.portainer_deploy.result == 'skipped')
     runs-on: ubuntu-latest
@@ -245,34 +230,47 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create and push git tag
+      - name: Move mutable tag to HEAD
         env:
-          TAG: ${{ needs.validate-project.outputs.tag_name }}
-          IS_HOMOLOG: ${{ needs.validate-project.outputs.is_homolog }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" -m "Vigia API / Service (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
-          if [[ "$IS_HOMOLOG" == "true" ]]; then
-            MSG="Homolog Vigia API v${{ inputs.version }}"
-          else
-            MSG="Release Vigia API v${{ inputs.version }}"
-          fi
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia API / Service
+          body: |
+            Release rolling da **vigia-api**.
 
-          git tag -a "$TAG" -m "$MSG"
-          git push origin "$TAG"
-          echo "✓ Tag '$TAG' criada e publicada."
+            Cada execução desta pipeline sobrescreve esta release e a tag `service`.
+            Não há versionamento SemVer no GitHub.
+
+            ### Docker Hub
+            - Produção (`master`): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:latest`
+            - Homologação (outras branches): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:homolog`
+            - Commit: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:${{ github.sha }}`
+          draft: false
+          prerelease: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   #------------------------------------------
   # 7. Deployment audit (produção)
   #------------------------------------------
   deployment_audit:
     name: Deployment audit — GitHub Deployment
-    needs: [validate-project, portainer_deploy, release]
+    needs: [resolve, portainer_deploy, release]
     if: |
       always() &&
-      needs.validate-project.outputs.is_homolog != 'true' &&
+      needs.resolve.outputs.is_homolog != 'true' &&
       needs.portainer_deploy.result == 'success' &&
       needs.release.result == 'success'
     runs-on: ubuntu-latest
@@ -288,7 +286,7 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg ref "${{ github.ref }}" \
             --arg environment "production" \
-            --arg description "Deploy vigia-api v${{ inputs.version }}" \
+            --arg description "Deploy vigia-api:latest" \
             '{
               ref: $ref,
               environment: $environment,
@@ -314,4 +312,4 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-api v${{ inputs.version }} em produção"
+            -f description="vigia-api:latest em produção"

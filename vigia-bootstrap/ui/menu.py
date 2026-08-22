@@ -1,4 +1,4 @@
-"""Menu de ecrãs no LCD 16x2."""
+"""Menu de ecrÃ£s no LCD 16x2."""
 
 from __future__ import annotations
 
@@ -74,10 +74,10 @@ def _progress_bar(pct: int) -> str:
 
 
 def _sys_line(cpu: int, mem: int, temp_c: int | None) -> str:
-    """Linha do sistema: CPU + RAM; temperatura da placa quando disponível (16 cols)."""
+    """Linha do sistema: CPU + RAM; temperatura da placa quando disponÃ­vel (16 cols)."""
     if temp_c is None:
         return _eff_line("S", cpu, mem)
-    # "S 34%412M 55C" = 13 chars — cabe no LCD 16x2
+    # "S 34%412M 55C" = 13 chars â cabe no LCD 16x2
     return f"S{cpu:3d}%{mem:3d}M{temp_c:3d}C"
 
 
@@ -99,7 +99,7 @@ class Menu:
         self._last_input = time.monotonic()
         self._standby_seconds = get_pin_config().lcd_standby_seconds
         self._choice_confirm = False
-        self._ota_version: str | None = None
+        self._ota_revision: str | None = None
         self._ota_progress = 0
         self._ota_timeout_task: asyncio.Task | None = None
         self._ota_busy = False
@@ -194,15 +194,15 @@ class Menu:
         if task is not None and not task.done():
             task.cancel()
 
-    def offer_ota_update(self, version: str) -> bool:
+    def offer_ota_update(self, revision: str) -> bool:
         """Mostra overlay de confirmação OTA (60s). Ignora se já ocupado."""
         if self._ota_busy or self._busy():
             return False
-        version = (version or "").strip()
-        if not version:
+        revision = (revision or "").strip()
+        if not revision:
             return False
         self.wake()
-        self._ota_version = version
+        self._ota_revision = revision
         self._choice_confirm = False
         self._overlay = Screen.OTA_CONFIRM
         self._cancel_ota_timeout()
@@ -219,9 +219,9 @@ class Menu:
             return
         if self._overlay is not Screen.OTA_CONFIRM:
             return
-        log.info("OTA: timeout 60s — a ignorar pending")
+        log.info("OTA: timeout 60s â a ignorar pending")
         ota_svc.clear_pending()
-        self._ota_version = None
+        self._ota_revision = None
         self._cancel_overlay()
 
     def set_ota_progress(self, pct: int) -> None:
@@ -292,7 +292,7 @@ class Menu:
             else:
                 self._cancel_ota_timeout()
                 ota_svc.clear_pending()
-                self._ota_version = None
+                self._ota_revision = None
                 self._cancel_overlay()
                 return
         elif screen is Screen.ATUALIZ:
@@ -402,8 +402,8 @@ class Menu:
         self.offer_ota_update(newer)
 
     def _begin_ota_apply(self) -> None:
-        version = self._ota_version
-        if not version or self._ota_busy:
+        revision = self._ota_revision
+        if not revision or self._ota_busy:
             return
         self._cancel_ota_timeout()
         loop = self._loop
@@ -414,23 +414,23 @@ class Menu:
         self._ota_progress = 0
         self._overlay = Screen.OTA_PROGRESS
         self._request_redraw()
-        loop.create_task(self._run_ota_apply(version))
+        loop.create_task(self._run_ota_apply(revision))
 
-    async def _run_ota_apply(self, version: str) -> None:
+    async def _run_ota_apply(self, revision: str) -> None:
         loop = asyncio.get_running_loop()
 
         def on_progress(pct: int) -> None:
             loop.call_soon_threadsafe(self.set_ota_progress, pct)
 
         try:
-            await ota_svc.run_ota_pipeline(version, on_progress=on_progress)
+            await ota_svc.run_ota_pipeline(revision, on_progress=on_progress)
             self._set_flash("Atualizacao", "OK")
         except Exception as exc:
             log.exception("OTA apply falhou: %s", exc)
             self._set_flash("Falha update", fit(str(exc))[:16].strip() or "erro")
         finally:
             self._ota_busy = False
-            self._ota_version = None
+            self._ota_revision = None
             self._overlay = None
             self.index = CYCLE.index(Screen.ATUALIZ)
             self.note_input()

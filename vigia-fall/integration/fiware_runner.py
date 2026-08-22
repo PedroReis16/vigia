@@ -27,18 +27,18 @@ OTA_DIR = _Path(os.getenv("VIGIA_OTA_DIR", "/var/lib/vigia/ota"))
 PENDING_PATH = OTA_DIR / "pending.json"
 
 
-def _write_ota_pending(version: str) -> None:
-    version = (version or "").strip()
-    if not version:
-        print("device_update sem versao — ignorado")
+def _write_ota_pending(revision: str) -> None:
+    revision = (revision or "").strip()
+    if not revision:
+        print("device_update sem revision — ignorado")
         return
     OTA_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
-        "version": version,
+        "revision": revision,
         "received_at": datetime.now(timezone.utc).isoformat(),
     }
     PENDING_PATH.write_text(json.dumps(payload), encoding="utf-8")
-    print(f"OTA pending escrito: {version}")
+    print(f"OTA pending escrito: {revision}")
 
 
 def _parse_ultralight_command(payload: str) -> tuple[str, str, str] | None:

@@ -19,4 +19,9 @@ public interface ICloudService
     Task<IReadOnlyList<string>> ListKeysAsync(
         string bucketName,
         CancellationToken cancellationToken = default);
+
+    Task DeleteFileAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken = default);
 }

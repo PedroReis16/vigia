@@ -111,6 +111,21 @@ internal class CloudService(IAmazonS3 s3Client) : ICloudService
         return keys;
     }
 
+    public async Task DeleteFileAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        await _s3Client.DeleteObjectAsync(new DeleteObjectRequest
+        {
+            BucketName = bucketName,
+            Key = key,
+        }, cancellationToken);
+    }
+
     /// <summary>
     /// Owns the <see cref="GetObjectResponse"/> so the response stream stays valid until disposed.
     /// </summary>

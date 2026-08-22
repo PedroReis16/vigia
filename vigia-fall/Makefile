@@ -4,6 +4,7 @@
 #   make ensure-model       Baixa yolo26s-pose.pt se ausente
 #   make build-linux-arm64  Linux ARM64: nativo se host for linux/arm64,
 #                           senão Docker (buildx / emulação)
+#   make package-ota        Empacota OTA (manifest + scripts + tarball)
 #   make clean              Remove artefatos gerados
 # =============================================================================
 
@@ -15,6 +16,8 @@ IMAGE_ARM64 := $(APP_NAME):linux-arm64-$(VERSION_TAG)
 OUT_DIR     := dist/$(APP_NAME)-linux-arm64
 OUT_TAR     := dist/$(APP_NAME)-linux-arm64.tar.gz
 DIST_BUNDLE := dist/$(APP_NAME)
+OTA_STAGING := dist/ota-staging
+OTA_TAR     := dist/vigia-fall-ota-$(VERSION).tar.gz
 
 DOCKERFILE  := deploy/Dockerfile.linux-arm64-binary
 PYTHON      ?= python3
@@ -33,7 +36,7 @@ NATIVE_LINUX_ARM64 := $(shell \
 	fi)
 
 .PHONY: help ensure-model install-local-deps install-build-deps build build-linux-arm64 \
-	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 clean
+	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 package-ota clean
 
 help:
 	@echo "Targets:"
@@ -43,6 +46,7 @@ help:
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
 	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
 	@echo "                     (nativo em linux/arm64; Docker nos demais hosts)"
+	@echo "  package-ota        Pacote OTA -> $(OTA_TAR) (requer $(OUT_TAR))"
 	@echo "  clean              Remove artefatos gerados"
 	@echo ""
 	@echo "Host: $(HOST_OS)/$(HOST_ARCH) — native linux/arm64: $(NATIVE_LINUX_ARM64)"
@@ -162,6 +166,39 @@ package-linux-arm64:
 	@echo ""
 	@echo "   Para enviar à placa:"
 	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/uninstall.sh deploy/fall-detection.service usuario@<ip-da-placa>:/tmp/"
+
+# Empacota OTA: manifest + scripts + unit + tarball interno.
+# Requer $(OUT_TAR) (rode make build-linux-arm64 antes).
+package-ota:
+	@if [ ! -f "$(OUT_TAR)" ]; then \
+		echo "ERRO: $(OUT_TAR) não encontrado. Rode make build-linux-arm64 primeiro."; \
+		exit 1; \
+	fi
+	@echo "──────────────────────────────────────────────"
+	@echo " Pacote OTA: vigia-fall-ota-$(VERSION)"
+	@echo "──────────────────────────────────────────────"
+	@rm -rf $(OTA_STAGING)
+	@mkdir -p $(OTA_STAGING)
+	@cp "$(OUT_TAR)" "$(OTA_STAGING)/$(APP_NAME)-linux-arm64.tar.gz"
+	@cp deploy/install.sh deploy/uninstall.sh deploy/fall-detection.service "$(OTA_STAGING)/"
+	@chmod +x "$(OTA_STAGING)/install.sh" "$(OTA_STAGING)/uninstall.sh"
+	@VERSION='$(VERSION)' APP_NAME='$(APP_NAME)' STAGING='$(OTA_STAGING)' \
+		$(PYTHON) -c 'import hashlib, json, os, pathlib; \
+inner = pathlib.Path(os.environ["STAGING"]) / (os.environ["APP_NAME"] + "-linux-arm64.tar.gz"); \
+data = inner.read_bytes(); \
+manifest = {"version": os.environ["VERSION"], "sha256": hashlib.sha256(data).hexdigest(), \
+"size": len(data), "app": os.environ["APP_NAME"]}; \
+pathlib.Path(os.environ["STAGING"], "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8"); \
+print("manifest:", json.dumps(manifest))'
+	@tar -czf "$(OTA_TAR)" -C "$(OTA_STAGING)" \
+		manifest.json \
+		install.sh \
+		uninstall.sh \
+		fall-detection.service \
+		$(APP_NAME)-linux-arm64.tar.gz
+	@rm -rf $(OTA_STAGING)
+	@echo ""
+	@echo "✅ Pacote OTA: $(OTA_TAR)"
 
 # ── Limpeza ───────────────────────────────────────────────────────────────────
 clean:

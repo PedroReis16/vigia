@@ -234,7 +234,7 @@ internal class FiwareService : IFiwareService
         return true;
     }
 
-    private async Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit)
+    public async Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit)
     {
         string url =
             $"{_iotAgentPath}/devices" +

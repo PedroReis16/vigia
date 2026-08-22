@@ -1,3 +1,4 @@
+using Vigia.Fiware.Models.DeviceDTOs;
 using Vigia.Models.Enums;
 
 namespace Vigia.Fiware.Contracts;
@@ -41,4 +42,9 @@ public interface IFiwareService
 
     Task DeleteSensorAsync(Guid id, string name);
     Task<bool> SendCommandAsync(string deviceName, DeviceCommands command, string? commandValue = null);
+
+    /// <summary>
+    /// Lista uma página de devices provisionados no IoT Agent.
+    /// </summary>
+    Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit);
 }

@@ -12,6 +12,7 @@ from provision.actions import FALL_SERVICE, fall_is_active
 from provision.identity import is_provisioned
 from provision.settings import get_network_path
 from provision.state import get_pairing_stage, get_phase
+from provision.sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
 
@@ -133,6 +134,7 @@ def _fall_service_ids() -> tuple[int | None, str]:
             text=True,
             check=False,
             timeout=1,
+            env=system_subprocess_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return None, ""

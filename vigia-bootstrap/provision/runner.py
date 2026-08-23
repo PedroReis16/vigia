@@ -9,6 +9,7 @@ import threading
 
 from .identity import is_provisioned, load_or_create_identity
 from .state import set_phase
+from .sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def start_fall_detection() -> None:
         capture_output=True,
         text=True,
         check=False,
+        env=system_subprocess_env(),
     )
     if result.returncode != 0:
         log.warning(

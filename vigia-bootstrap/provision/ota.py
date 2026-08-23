@@ -24,6 +24,7 @@ from urllib.request import Request, urlopen
 
 from .actions import fall_is_active, restart_fall_detection, stop_fall_detection
 from .settings import get_network_path
+from .sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
 
@@ -340,6 +341,7 @@ def apply_update(
                 capture_output=True,
                 text=True,
                 check=False,
+                env=system_subprocess_env(),
             )
             if result.returncode != 0:
                 detail = (result.stderr or result.stdout or "").strip()

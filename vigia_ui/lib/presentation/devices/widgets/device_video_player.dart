@@ -100,6 +100,12 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
   Widget _buildVideo(BuildContext context) {
     final session = widget.session;
 
+    // Prefer this over [playing] after teardown starts — avoids mounting
+    // RTCVideoView against a disposing native renderer (app-wide freeze).
+    if (session.isClosed) {
+      return const ColoredBox(color: Colors.black);
+    }
+
     if (session.status == WhepLiveStatus.connecting) {
       return ColoredBox(
         color: Colors.black,

@@ -67,7 +67,7 @@ export class LoginComponent {
 
     try {
       await this.login.execute(this.form.getRawValue());
-      await this.router.navigate(['/home']);
+      await this.router.navigate(['/devices']);
     } catch (error: unknown) {
       const key =
         error instanceof AuthUseCaseError ? error.message : 'AUTH.ERRORS.LOGIN';

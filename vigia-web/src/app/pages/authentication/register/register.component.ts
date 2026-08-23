@@ -97,7 +97,7 @@ export class RegisterComponent {
         email,
         password,
       });
-      await this.router.navigate(['/home']);
+      await this.router.navigate(['/devices']);
     } catch (error: unknown) {
       const key =
         error instanceof AuthUseCaseError ? error.message : 'AUTH.ERRORS.REGISTER';

@@ -10,8 +10,13 @@ export const mainRoutes: Routes = [
     children: [
       {
         path: '',
-        redirectTo: 'home',
+        redirectTo: 'devices',
         pathMatch: 'full',
+      },
+      {
+        path: 'devices',
+        loadComponent: () =>
+          import('@pages/devices/devices.component').then((m) => m.DevicesComponent),
       },
       {
         path: 'home',

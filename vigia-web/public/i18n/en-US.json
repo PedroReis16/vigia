@@ -38,5 +38,26 @@
       "EMAIL_IN_USE": "This email is already in use.",
       "PASSWORD_MISMATCH": "Passwords do not match."
     }
+  },
+  "DEVICES": {
+    "TITLE": "Devices",
+    "EMPTY": "No devices found",
+    "RETRY": "Try again",
+    "ONLINE": "Online",
+    "OFFLINE": "Offline",
+    "ERRORS": {
+      "LIST": "Could not load devices. Please try again."
+    },
+    "ROOMS": {
+      "Bedroom": "Bedroom",
+      "LivingRoom": "Living room",
+      "Kitchen": "Kitchen",
+      "Bathroom": "Bathroom",
+      "Office": "Office",
+      "Garage": "Garage",
+      "Backyard": "Backyard",
+      "Frontyard": "Front yard",
+      "NotDefined": "Room not defined"
+    }
   }
 }

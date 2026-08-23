@@ -24,7 +24,7 @@ describe('LoginComponent', () => {
       providers: [
         { provide: LoginService, useValue: login },
         MessageService,
-        provideRouter([{ path: 'home', children: [] }]),
+        provideRouter([{ path: 'devices', children: [] }]),
         provideAnimationsAsync(),
         provideOptimus({
           theme: {

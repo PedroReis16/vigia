@@ -28,9 +28,9 @@ describe('guestGuard', () => {
     expect(result).toBe(true);
   });
 
-  it('redirects authenticated users to home', () => {
+  it('redirects authenticated users to devices', () => {
     session.isAuthenticated.mockReturnValue(true);
     TestBed.runInInjectionContext(() => guestGuard({} as never, {} as never));
-    expect(router.createUrlTree).toHaveBeenCalledWith(['/home']);
+    expect(router.createUrlTree).toHaveBeenCalledWith(['/devices']);
   });
 });

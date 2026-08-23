@@ -38,5 +38,26 @@
       "EMAIL_IN_USE": "Este e-mail já está em uso.",
       "PASSWORD_MISMATCH": "As senhas não coincidem."
     }
+  },
+  "DEVICES": {
+    "TITLE": "Dispositivos",
+    "EMPTY": "Nenhum dispositivo encontrado",
+    "RETRY": "Tentar novamente",
+    "ONLINE": "Ativo",
+    "OFFLINE": "Desabilitado",
+    "ERRORS": {
+      "LIST": "Não foi possível carregar os dispositivos. Tente novamente."
+    },
+    "ROOMS": {
+      "Bedroom": "Quarto",
+      "LivingRoom": "Sala",
+      "Kitchen": "Cozinha",
+      "Bathroom": "Banheiro",
+      "Office": "Escritório",
+      "Garage": "Garagem",
+      "Backyard": "Quintal",
+      "Frontyard": "Frente",
+      "NotDefined": "Ambiente indefinido"
+    }
   }
 }

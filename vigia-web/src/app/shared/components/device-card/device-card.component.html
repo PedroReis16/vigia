@@ -1,0 +1,50 @@
+<p-card styleClass="device-card overflow-hidden !p-0 h-full">
+  <ng-template #content>
+    @if (skeleton()) {
+      <div class="device-card__frame flex flex-col" aria-hidden="true">
+        <div class="device-card__thumb grow basis-0 bg-surface-200 dark:bg-surface-700 animate-pulse"></div>
+        <div class="device-card__meta shrink-0 flex flex-col gap-2 p-2">
+          <div class="h-5 w-3/4 rounded bg-surface-200 dark:bg-surface-700 animate-pulse"></div>
+          <div class="flex justify-between gap-2">
+            <div class="h-4 w-1/3 rounded bg-surface-200 dark:bg-surface-700 animate-pulse"></div>
+            <div class="h-4 w-1/4 rounded bg-surface-200 dark:bg-surface-700 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    } @else if (device(); as device) {
+      <div class="device-card__frame flex flex-col">
+        <div class="device-card__thumb relative grow basis-0 overflow-hidden bg-surface-200 dark:bg-surface-700">
+          @if (device.thumbnailUrl && !imageFailed()) {
+            <img
+              class="absolute inset-0 h-full w-full object-cover"
+              [src]="device.thumbnailUrl"
+              [alt]="device.displayName"
+              (error)="onImageError()"
+            />
+          } @else {
+            <div class="absolute inset-0 flex items-center justify-center text-surface-500">
+              <i class="pi pi-video text-3xl" aria-hidden="true"></i>
+            </div>
+          }
+        </div>
+        <div class="device-card__meta shrink-0 flex flex-col gap-1 p-2">
+          <h3 class="device-card__title m-0 text-base font-semibold leading-snug">
+            {{ device.displayName }}
+          </h3>
+          <div class="flex items-center justify-between gap-2 text-sm text-surface-600 dark:text-surface-400">
+            <span class="truncate">{{ roomKey(device) | translate }}</span>
+            <span class="inline-flex shrink-0 items-center gap-1">
+              {{ (device.isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
+              <span
+                class="inline-block h-2 w-2 rounded-full"
+                [class.bg-green-500]="device.isRunning"
+                [class.bg-red-500]="!device.isRunning"
+                aria-hidden="true"
+              ></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    }
+  </ng-template>
+</p-card>

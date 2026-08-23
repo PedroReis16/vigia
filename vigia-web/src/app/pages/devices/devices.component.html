@@ -1,0 +1,44 @@
+<section class="flex h-full w-full flex-col gap-4" data-testid="devices-page">
+  <h1 class="m-0 text-2xl font-semibold">{{ 'DEVICES.TITLE' | translate }}</h1>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="devices-grid" data-testid="devices-loading">
+        @for (slot of skeletonSlots; track slot) {
+          <app-device-card [skeleton]="true" />
+        }
+      </div>
+    }
+    @case ('empty') {
+      <div
+        class="flex min-h-60 flex-1 items-center justify-center text-center text-surface-600 dark:text-surface-400"
+        data-testid="devices-empty"
+      >
+        <p class="m-0 text-lg">{{ 'DEVICES.EMPTY' | translate }}</p>
+      </div>
+    }
+    @case ('error') {
+      <div
+        class="flex min-h-60 flex-1 flex-col items-center justify-center gap-4 text-center"
+        data-testid="devices-error"
+      >
+        <p class="m-0 text-lg text-surface-600 dark:text-surface-400">
+          {{ 'DEVICES.ERRORS.LIST' | translate }}
+        </p>
+        <p-button
+          data-testid="devices-retry"
+          [label]="'DEVICES.RETRY' | translate"
+          icon="pi pi-refresh"
+          (onClick)="loadDevices()"
+        />
+      </div>
+    }
+    @case ('ready') {
+      <div class="devices-grid" data-testid="devices-list">
+        @for (device of devices(); track device.id) {
+          <app-device-card [device]="device" />
+        }
+      </div>
+    }
+  }
+</section>

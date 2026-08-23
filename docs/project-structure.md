@@ -61,7 +61,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **i18n:** ngx-translate (pt-BR, en-US, es-ES)
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
-- **Status:** shell autenticado com login/cadastro JWT, layout e home
+- **Status:** shell autenticado com login/cadastro JWT, listagem read-only de devices, layout e home
 
 ### CI/CD
 
@@ -214,7 +214,7 @@ vigia/
 
 ### vigia-web
 
-**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout) e página home. Camadas `core` / `pages` / `shared` com path aliases.
+**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout), listagem read-only de devices e página home. Camadas `core` / `pages` / `shared` com path aliases.
 
 **Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, Vitest, pnpm.
 
@@ -227,14 +227,14 @@ vigia/
 | Pasta | Responsabilidade |
 |-------|------------------|
 | `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
-| `src/app/pages/` | Rotas/features: auth (login, register), layout, home, `main.routes.ts` |
-| `src/app/shared/` | Componentes reutilizáveis (input, message, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
+| `src/app/pages/` | Rotas/features: auth (login, register), layout, devices, home, `main.routes.ts` |
+| `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
 | `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl` absoluto + idiomas) |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 
-**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/home`.
+**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/home` (tema/idioma/logout). Sem cadastro de devices na web.
 
-**Status:** login/cadastro JWT e sessão local; UI de sidebar/toolbar ainda em stubs; features de domínio (devices) só esboçadas.
+**Status:** login/cadastro JWT e sessão local; listagem read-only de devices (`GET /devices/list`, cards); sidebar com nav mínima; detalhes/stream ainda não.
 
 ---
 
@@ -393,7 +393,7 @@ vigia/
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
-| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + layout/home |
+| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/home |
 
 ---
 
@@ -485,6 +485,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] vigia-web: listagem read-only de devices (`/devices`, cards, `GetDevicesService` → `GET /devices/list`); default pós-login `/devices`
 - [2026-08-23] vigia-web: `apiUrl` absoluto nos environments (sem `proxy.conf.json`); services usam paths relativos + `ApiBaseUrlInterceptor`
 - [2026-08-23] vigia-web: auth JWT (login/cadastro) no lugar de OAuth2; use cases, sessão, interceptors, `/login` `/register`
 - [2026-08-23] Regras Cursor: `project-documentation.mdc` no formato conciso (mapa + testes); restaurar `vigia-web-usecases.mdc` e `vigia-web-api-urls.mdc`

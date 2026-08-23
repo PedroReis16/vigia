@@ -1,0 +1,21 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.device-card__frame {
+  aspect-ratio: 16 / 10;
+}
+
+.device-card__title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+:host ::ng-deep .device-card .p-card-body,
+:host ::ng-deep .device-card .p-card-content {
+  padding: 0;
+  height: 100%;
+}

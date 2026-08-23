@@ -6,5 +6,5 @@ export const environment = {
     { value: 'en-US', label: 'English' },
     { value: 'es-ES', label: 'Español' },
   ],
-  apiUrl: 'https://services.vigiadeteccoes.com.br/vigia',
+  apiUrl: 'http://localhost:81/vigia',
 };

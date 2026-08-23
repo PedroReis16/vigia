@@ -1,0 +1,20 @@
+<aside class="w-48 shrink-0" data-testid="app-sidebar">
+  <nav class="flex flex-col gap-1" aria-label="Main">
+    <a
+      routerLink="/devices"
+      routerLinkActive="sidebar-link--active"
+      class="sidebar-link"
+      data-testid="nav-devices"
+    >
+      {{ 'DEVICES.TITLE' | translate }}
+    </a>
+    <a
+      routerLink="/home"
+      routerLinkActive="sidebar-link--active"
+      class="sidebar-link"
+      data-testid="nav-home"
+    >
+      {{ 'WELCOME' | translate }}
+    </a>
+  </nav>
+</aside>

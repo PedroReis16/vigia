@@ -26,6 +26,7 @@ PORTAINER_DOMAIN="portainer.vigiadeteccoes.com.br"
 #   (aliases aceitos: CF_DNS_API_TOKEN ou DNS_API_TOKEN)
 #   MOSQUITTO_IOTAGENT_PASSWORD=...
 #   MOSQUITTO_DEVICE_PASSWORD=...
+#   PORTAINER_ADMIN_PASSWORD=...  (mín. 12 caracteres; cria o admin sem Setup Token)
 if [ ! -f "$BASE_DIR/.env" ]; then
   err "Arquivo .env não encontrado em $BASE_DIR. Crie com: CLOUDFLARE_DNS_API_TOKEN=<seu_token>"
 fi
@@ -38,6 +39,8 @@ CLOUDFLARE_DNS_API_TOKEN="${CLOUDFLARE_DNS_API_TOKEN:-${CF_DNS_API_TOKEN:-${DNS_
 [ -z "$CLOUDFLARE_DNS_API_TOKEN" ] && err "CLOUDFLARE_DNS_API_TOKEN não definido no .env"
 [ -z "$MOSQUITTO_IOTAGENT_PASSWORD" ] && err "MOSQUITTO_IOTAGENT_PASSWORD não definido no .env"
 [ -z "$MOSQUITTO_DEVICE_PASSWORD" ] && err "MOSQUITTO_DEVICE_PASSWORD não definido no .env"
+[ -z "$PORTAINER_ADMIN_PASSWORD" ] && err "PORTAINER_ADMIN_PASSWORD não definido no .env"
+[ "${#PORTAINER_ADMIN_PASSWORD}" -lt 12 ] && err "PORTAINER_ADMIN_PASSWORD deve ter no mínimo 12 caracteres"
 
 # ─── REDE ─────────────────────────────────────────────────────────────────────
 log "Criando rede vigia-network..."
@@ -180,6 +183,13 @@ docker run -d \
 log "Traefik OK."
 
 # ─── PORTAINER ────────────────────────────────────────────────────────────────
+# --admin-password-file cria o admin no primeiro start (sem Setup Token).
+# Só vale se o volume portainer_data ainda não tiver admin.
+log "Preparando senha do Portainer..."
+PORTAINER_PW_FILE="$BASE_DIR/.portainer_admin_password"
+printf '%s' "$PORTAINER_ADMIN_PASSWORD" > "$PORTAINER_PW_FILE"
+chmod 600 "$PORTAINER_PW_FILE"
+
 log "Subindo Portainer..."
 docker run -d \
   --name portainer \
@@ -190,13 +200,15 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v portainer_data:/data \
   -v /home/ubuntu:/home/ubuntu:ro \
+  -v "$PORTAINER_PW_FILE":/run/secrets/portainer_admin_password:ro \
   --label "traefik.enable=true" \
   --label "traefik.http.routers.portainer.rule=Host(\`${PORTAINER_DOMAIN}\`)" \
   --label "traefik.http.routers.portainer.entrypoints=websecure" \
   --label "traefik.http.routers.portainer.tls=true" \
   --label "traefik.http.routers.portainer.tls.certresolver=letsencrypt" \
   --label "traefik.http.services.portainer.loadbalancer.server.port=9000" \
-  portainer/portainer-ce:latest
+  portainer/portainer-ce:latest \
+  --admin-password-file=/run/secrets/portainer_admin_password
 log "Portainer OK."
 
 # ─── FIWARE: MONGO HISTÓRICO ──────────────────────────────────────────────────

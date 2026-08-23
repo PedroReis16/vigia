@@ -193,7 +193,6 @@ jobs:
   portainer_deploy:
     name: Deploy — Portainer webhook
     needs: [resolve, publish]
-    if: needs.resolve.outputs.is_homolog != 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:

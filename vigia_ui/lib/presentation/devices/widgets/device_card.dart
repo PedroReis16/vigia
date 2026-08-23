@@ -50,7 +50,9 @@ class DeviceCard extends StatelessWidget {
                               device.room ?? DeviceRooms.notDefined,
                             ),
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                           _buildRunningStatus(context, device.isRunning),

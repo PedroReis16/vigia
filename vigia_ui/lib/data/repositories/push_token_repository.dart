@@ -13,9 +13,6 @@ class PushTokenRepository {
   }
 
   Future<void> deleteToken(String token) async {
-    await _dio.delete(
-      '/users/push-token',
-      data: {'token': token},
-    );
+    await _dio.delete('/users/push-token', data: {'token': token});
   }
 }

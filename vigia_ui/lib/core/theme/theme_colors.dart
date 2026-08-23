@@ -148,7 +148,11 @@ final class AppColors extends ThemeExtension<AppColors> {
     if (other is! AppColors) return this;
     return AppColors(
       primary: Color.lerp(primary, other.primary, t)!,
-      primaryContainer: Color.lerp(primaryContainer, other.primaryContainer, t)!,
+      primaryContainer: Color.lerp(
+        primaryContainer,
+        other.primaryContainer,
+        t,
+      )!,
       secondary: Color.lerp(secondary, other.secondary, t)!,
       secondaryContainer: Color.lerp(
         secondaryContainer,

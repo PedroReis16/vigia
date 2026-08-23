@@ -27,10 +27,7 @@ class AppIdentityService {
 
     final keyPair = await _algorithm.newKeyPair();
     final seed = await keyPair.extractPrivateKeyBytes();
-    await _storage.write(
-      key: _privateKeyStorageKey,
-      value: base64Encode(seed),
-    );
+    await _storage.write(key: _privateKeyStorageKey, value: base64Encode(seed));
     _cachedKeyPair = keyPair;
     return keyPair;
   }

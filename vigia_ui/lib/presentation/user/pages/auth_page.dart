@@ -243,15 +243,15 @@ class _AuthBootBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final logoHeight = VigiaLogoHero.authHeight;
-        final centeredGap =
-            ((constraints.maxHeight - logoHeight) / 2).clamp(0.0, double.infinity);
+        final centeredGap = ((constraints.maxHeight - logoHeight) / 2).clamp(
+          0.0,
+          double.infinity,
+        );
         final topGap = lerpDouble(centeredGap, 0.0, t)!;
 
         return SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          physics: t < 0.99
-              ? const NeverScrollableScrollPhysics()
-              : null,
+          physics: t < 0.99 ? const NeverScrollableScrollPhysics() : null,
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
@@ -339,10 +339,7 @@ class _AuthBootBody extends StatelessWidget {
 }
 
 class _AuthModeToggle extends StatelessWidget {
-  const _AuthModeToggle({
-    required this.currentPage,
-    required this.onToggle,
-  });
+  const _AuthModeToggle({required this.currentPage, required this.onToggle});
 
   final int currentPage;
   final VoidCallback onToggle;

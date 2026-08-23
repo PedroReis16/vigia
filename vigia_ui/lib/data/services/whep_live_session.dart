@@ -12,8 +12,7 @@ enum WhepLiveStatus { connecting, playing, error }
 /// Dispose closes the peer connection only — callers must not send
 /// STOP_STREAMING here (MediaMTX runOnUnDemand owns that).
 class WhepLiveSession extends ChangeNotifier {
-  WhepLiveSession({required this.whepUrl, Dio? dio})
-    : _dio = dio ?? Dio();
+  WhepLiveSession({required this.whepUrl, Dio? dio}) : _dio = dio ?? Dio();
 
   final String whepUrl;
   final Dio _dio;
@@ -165,9 +164,7 @@ class WhepLiveSession extends ChangeNotifier {
       throw Exception('Empty WHEP SDP answer');
     }
 
-    await pc.setRemoteDescription(
-      RTCSessionDescription(answerSdp, 'answer'),
-    );
+    await pc.setRemoteDescription(RTCSessionDescription(answerSdp, 'answer'));
   }
 
   Future<void> _waitForIceGathering(RTCPeerConnection pc) async {

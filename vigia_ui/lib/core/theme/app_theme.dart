@@ -37,9 +37,7 @@ abstract final class AppTheme {
         }
         return colorScheme.onPrimary;
       }),
-      padding: const WidgetStatePropertyAll(
-        EdgeInsets.symmetric(vertical: 14),
-      ),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 14)),
       shape: const WidgetStatePropertyAll(
         RoundedRectangleBorder(borderRadius: _buttonBorderRadius),
       ),

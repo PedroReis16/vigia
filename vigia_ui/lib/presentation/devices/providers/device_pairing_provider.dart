@@ -221,7 +221,9 @@ class DevicePairing extends _$DevicePairing {
       await _registerDevice(_deviceIdentity!);
       _registered = true;
 
-      state = const DevicePairingState(stage: DevicePairingStage.fetchingConfig);
+      state = const DevicePairingState(
+        stage: DevicePairingStage.fetchingConfig,
+      );
 
       final config = await ref
           .read(devicesRepositoryProvider)

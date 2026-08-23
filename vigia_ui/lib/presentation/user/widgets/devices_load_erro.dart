@@ -27,9 +27,7 @@ class DevicesLoadError extends StatelessWidget {
         ),
         TextButton(
           onPressed: onTryAgain,
-          style: const ButtonStyle(
-            splashFactory: NoSplash.splashFactory,
-          ),
+          style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
           child: Text(context.translations.tryAgain),
         ),
       ],

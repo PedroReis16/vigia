@@ -58,8 +58,7 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
         });
   }
 
-  void _routeToEditDeviceProperties() =>
-      _openPane(_DeviceDetailsPane.edit);
+  void _routeToEditDeviceProperties() => _openPane(_DeviceDetailsPane.edit);
 
   void _routeToDeviceUsers() => _openPane(_DeviceDetailsPane.users);
 
@@ -168,8 +167,11 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: DeviceUserItem(
                             user: user,
-                            showActionIcon: hasManyUsers && user == previewUsers.last,
-                            actionIcon: hasManyUsers ? Icons.arrow_forward_ios : null,
+                            showActionIcon:
+                                hasManyUsers && user == previewUsers.last,
+                            actionIcon: hasManyUsers
+                                ? Icons.arrow_forward_ios
+                                : null,
                           ),
                         ),
                       ),

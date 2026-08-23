@@ -105,9 +105,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
   Future<File?> _prepareShareIcon() async {
     try {
       final bytes = await rootBundle.load(AppAssets.icon);
-      final file = File(
-        '${Directory.systemTemp.path}/vigia_share_icon.png',
-      );
+      final file = File('${Directory.systemTemp.path}/vigia_share_icon.png');
       await file.writeAsBytes(bytes.buffer.asUint8List());
       return file;
     } catch (_) {

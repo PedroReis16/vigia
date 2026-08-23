@@ -334,6 +334,7 @@ vigia/
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
 | Códigos de erro espelhados entre API e Flutter | `ErrorCodes.cs` ↔ `error_codes.dart` |
+| Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
 
 **Referência detalhada FIWARE:** tutorial operacional de schema (adicionar comandos/atributos, env vars, verificação MongoDB) permanece em [`README.md`](../README.md) seção FIWARE.
 
@@ -392,7 +393,7 @@ vigia/
 | vigia-fall | pytest com testes unitários reais (frame processor, uploader, identity, FIWARE OTA) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
-| vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
+| vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
@@ -485,6 +486,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fix upsert de push token: reativar soft-delete no re-login (`UserPushTokenDao.UpsertAsync`); testes unitários em `Vigia.Database.UnitTests`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)
 - [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)
 - [2026-08-23] vigia-web: trocar Euclid Circular A (paga/CDNFonts) por Plus Jakarta Sans via Google Fonts; remover `public/fonts/` e scripts de download/conversão

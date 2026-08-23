@@ -28,8 +28,9 @@ internal class UserPushTokenDao(VigiaDbContext context) : BaseDao<UserPushToken>
         string normalizedToken = token.Trim();
         string normalizedPlatform = platform.Trim().ToLowerInvariant();
 
+        // Soft-delete (logout) + índice único em Token: reativar em vez de reinserir.
         UserPushToken? existing = await dbSet
-            .Where(t => t.Token == normalizedToken && t.DeletedAt == null)
+            .Where(t => t.Token == normalizedToken)
             .FirstOrDefaultAsync();
 
         if (existing is null)
@@ -46,6 +47,7 @@ internal class UserPushTokenDao(VigiaDbContext context) : BaseDao<UserPushToken>
             existing.UserId = userId;
             existing.Platform = normalizedPlatform;
             existing.UpdatedAt = DateTime.UtcNow;
+            existing.DeletedAt = null;
             dbSet.Update(existing);
         }
 

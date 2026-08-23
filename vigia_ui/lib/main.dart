@@ -28,14 +28,16 @@ Future<void> main() async {
 
   await dotenv.load(fileName: envFile);
 
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await initializeLocalNotifications();
-  } catch (error, stackTrace) {
-    debugPrint('Firebase initialization skipped: $error\n$stackTrace');
+  if (arePushNotificationsEnabled) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await initializeLocalNotifications();
+    } catch (error, stackTrace) {
+      debugPrint('Firebase initialization skipped: $error\n$stackTrace');
+    }
   }
 
   await SystemChrome.setPreferredOrientations([

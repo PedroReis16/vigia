@@ -12,6 +12,9 @@ import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/core/providers/repository_providers/push_token_repository_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
 
+/// Push is Android-only: iPhone (simulator or device) must not init FCM/APNs.
+bool get arePushNotificationsEnabled => Platform.isAndroid;
+
 const androidFallAlertChannelId = 'vigia_fall_alerts';
 
 const _androidFallAlertChannel = AndroidNotificationChannel(
@@ -34,17 +37,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> initializeLocalNotifications() async {
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const darwinSettings = DarwinInitializationSettings(
-    requestAlertPermission: false,
-    requestBadgePermission: false,
-    requestSoundPermission: false,
-  );
 
   await _localNotifications.initialize(
-    settings: const InitializationSettings(
-      android: androidSettings,
-      iOS: darwinSettings,
-    ),
+    settings: const InitializationSettings(android: androidSettings),
     onDidReceiveNotificationResponse: (response) {
       final payload = response.payload;
       if (payload == null || payload.isEmpty) return;
@@ -88,17 +83,15 @@ class PushNotificationCoordinator {
     _initialized = true;
     _notificationRouter = router;
 
+    if (!arePushNotificationsEnabled) {
+      debugPrint('Push notifications skipped: Android only.');
+      return;
+    }
+
     if (Firebase.apps.isEmpty) {
       debugPrint('Push notifications skipped: Firebase is not initialized.');
       return;
     }
-
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
 
     await _requestPermission();
     await _syncTokenIfAuthenticated();
@@ -138,6 +131,8 @@ class PushNotificationCoordinator {
   Future<void> syncAfterLogin() => _syncTokenIfAuthenticated();
 
   Future<void> unregisterCurrentToken() async {
+    if (!arePushNotificationsEnabled) return;
+
     final token = _currentToken;
     if (token == null || token.isEmpty) return;
 
@@ -166,23 +161,12 @@ class PushNotificationCoordinator {
   }
 
   Future<void> _syncTokenIfAuthenticated() async {
+    if (!arePushNotificationsEnabled) return;
+
     final authenticated = _ref.read(authSessionProvider).asData?.value ?? false;
     if (!authenticated) return;
 
     try {
-      if (Platform.isIOS) {
-        final apnsToken = await _waitForApnsToken();
-        if (apnsToken == null) {
-          debugPrint(
-            'Push token skipped: APNs token is not available. '
-            'On iOS this usually means the Push Notifications capability is '
-            'missing, APNs is not configured in Firebase, or the app is '
-            'running on the Simulator.',
-          );
-          return;
-        }
-      }
-
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.isEmpty) {
         debugPrint('Push token skipped: FCM token is empty.');
@@ -196,24 +180,13 @@ class PushNotificationCoordinator {
     }
   }
 
-  Future<String?> _waitForApnsToken() async {
-    for (var attempt = 0; attempt < 10; attempt++) {
-      final token = await FirebaseMessaging.instance.getAPNSToken();
-      if (token != null && token.isNotEmpty) return token;
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-    }
-    return FirebaseMessaging.instance.getAPNSToken();
-  }
-
   Future<void> _registerToken(String token) async {
     final authenticated = _ref.read(authSessionProvider).asData?.value ?? false;
     if (!authenticated) return;
 
-    final platform = Platform.isIOS ? 'ios' : 'android';
-
     try {
-      await _ref.read(pushTokenRepositoryProvider).upsertToken(token, platform);
-      debugPrint('FCM token registered ($platform).');
+      await _ref.read(pushTokenRepositoryProvider).upsertToken(token, 'android');
+      debugPrint('FCM token registered (android).');
     } catch (error, stackTrace) {
       debugPrint('Failed to register push token: $error\n$stackTrace');
     }
@@ -222,10 +195,6 @@ class PushNotificationCoordinator {
   Future<void> _displayForegroundNotification(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
-
-    // iOS already presents the system banner via
-    // setForegroundNotificationPresentationOptions.
-    if (Platform.isIOS) return;
 
     await _localNotifications.show(
       id: notification.hashCode,

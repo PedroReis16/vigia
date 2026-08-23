@@ -1,15 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/deep_link_listener.dart';
+import 'package:vigia_ui/core/firebase/firebase_bootstrap.dart';
 import 'package:vigia_ui/core/providers/push_notification_provider.dart';
-import 'package:vigia_ui/data/services/push_notification_coordinator.dart';
-import 'package:vigia_ui/firebase_options.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_groups_realtime_provider.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
@@ -28,17 +25,7 @@ Future<void> main() async {
     await dotenv.load(fileName: 'homolog.env');
   }
 
-  if (arePushNotificationsEnabled) {
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      await initializeLocalNotifications();
-    } catch (error, stackTrace) {
-      debugPrint('Firebase initialization skipped: $error\n$stackTrace');
-    }
-  }
+  await initializeFirebaseForPushIfNeeded();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,

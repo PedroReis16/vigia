@@ -29,12 +29,6 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 
 GoRouter? _notificationRouter;
 
-/// Background FCM handler (must be top-level).
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-}
-
 Future<void> initializeLocalNotifications() async {
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 

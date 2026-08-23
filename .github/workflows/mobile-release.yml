@@ -41,6 +41,8 @@ jobs:
             "$SERVICE_PATH/pubspec.yaml" \
             "$SERVICE_PATH/lib" \
             "$SERVICE_PATH/android/app/src/main/AndroidManifest.xml" \
+            "$SERVICE_PATH/homolog.env" \
+            "$SERVICE_PATH/production.env" \
             "$SERVICE_PATH/firebase.json"
           do
             if [ ! -e "$f" ]; then
@@ -365,6 +367,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Hidratar production.env a partir do secret
+        env:
+          MOBILE_PRODUCTION_ENV: ${{ secrets.MOBILE_PRODUCTION_ENV }}
+        run: |
+          set -euo pipefail
+          DEST="$SERVICE_PATH/production.env"
+          if [ -z "${MOBILE_PRODUCTION_ENV:-}" ]; then
+            echo "::warning::Secret MOBILE_PRODUCTION_ENV não configurado; usando production.env do repositório."
+            exit 0
+          fi
+          printf '%s\n' "$MOBILE_PRODUCTION_ENV" > "$DEST"
+          if ! grep -q '^API_URL=' "$DEST"; then
+            echo "::error::MOBILE_PRODUCTION_ENV deve conter a linha API_URL=..."
+            exit 1
+          fi
+          if ! grep -q '^STREAM_BASE_URL=' "$DEST"; then
+            echo "::error::MOBILE_PRODUCTION_ENV deve conter a linha STREAM_BASE_URL=..."
+            exit 1
+          fi
+          echo "✓ production.env hidratado ($(wc -l < "$DEST") linhas)."
 
       - name: Hidratar google-services.json a partir do secret
         env:

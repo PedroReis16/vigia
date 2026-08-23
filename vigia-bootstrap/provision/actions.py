@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
+from pathlib import Path
 
 from .identity import is_provisioned
-from .settings import get_network_path
-from .state import request_pairing_restart
+from .settings import get_network_path, get_settings
+from .state import request_force_pairing, request_pairing_restart
 from .sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
@@ -57,6 +59,18 @@ def fall_is_active() -> bool:
     return result.stdout.strip() == "active"
 
 
+def _clear_fall_local_data() -> None:
+    """Remove só dados runtime do fall; preserva identity.json e network.json."""
+    root = Path(get_settings().data_dir)
+    for rel in ("fall-detection/data", "DB", "data"):
+        path = root / rel
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+            log.info("Removido %s", path)
+        elif path.is_file():
+            path.unlink(missing_ok=True)
+
+
 def clear_wifi() -> None:
     """Apaga só network.json e pára o fall (mantém identidade)."""
     script = WIFI_RESET_SCRIPT
@@ -74,5 +88,12 @@ def clear_wifi() -> None:
 
 
 def unlink_user() -> None:
-    subprocess.run([RESET_SCRIPT], check=False, env=system_subprocess_env())
-    request_pairing_restart()
+    """Desvincula utilizador local: pára fall, limpa dados do fall, mantém rede/identidade."""
+    script = RESET_SCRIPT
+    if os.path.isfile(script) and os.access(script, os.X_OK):
+        subprocess.run([script], check=False, env=system_subprocess_env())
+    else:
+        stop_fall_detection()
+        _clear_fall_local_data()
+        log.info("unlink_user: fallback sem script — rede e identidade preservadas")
+    request_force_pairing()

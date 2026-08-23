@@ -7,6 +7,7 @@ import threading
 _lock = threading.Lock()
 _phase = "idle"
 _pairing_stage = "waiting_app"
+_force_pairing = False
 _cancel: threading.Event | None = None
 
 # Estágios de vínculo (LCD linha 2 durante pairing).
@@ -29,6 +30,25 @@ def request_pairing_restart() -> None:
     """Pede ao supervisor para encerrar o beacon e reabrir o pareamento."""
     if _cancel is not None:
         _cancel.set()
+
+
+def request_force_pairing() -> None:
+    """Força BLE mesmo com identity+network (ex.: após desvincular utilizador)."""
+    global _force_pairing
+    with _lock:
+        _force_pairing = True
+    request_pairing_restart()
+
+
+def clear_force_pairing() -> None:
+    global _force_pairing
+    with _lock:
+        _force_pairing = False
+
+
+def is_force_pairing() -> bool:
+    with _lock:
+        return _force_pairing
 
 
 def set_phase(phase: str) -> None:

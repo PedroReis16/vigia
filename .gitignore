@@ -140,6 +140,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.portainer_admin_password
 .venv
 env/
 venv/

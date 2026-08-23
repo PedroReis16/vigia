@@ -15,4 +15,13 @@
     <p class="mt-2 text-lg">{{ "ALTERNATE_LANGUAGE" | translate }}</p>
     <app-input [options]="availableLanguages" type="dropdown" (valueModelChange)="changeLanguage($event)"
         [value]="languageService.getLanguage()()" />
+    <p-divider />
+    <p-button
+        data-testid="logout-button"
+        [label]="'AUTH.LOGOUT' | translate"
+        icon="pi pi-sign-out"
+        severity="secondary"
+        variant="outlined"
+        (click)="onLogout()"
+    />
 </p-card>

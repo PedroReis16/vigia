@@ -57,11 +57,11 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Framework:** Angular 22
 - **UI:** Optimus UI 2 (fork comunitário MIT do PrimeNG) + Tailwind CSS 4
 - **Tipografia:** Plus Jakarta Sans (Google Fonts, SIL OFL)
-- **Auth:** angular-oauth2-oidc (Authorization Code + PKCE)
+- **Auth:** JWT email/senha (`POST /auth/login|register|refresh|logout`), alinhado ao app Flutter
 - **i18n:** ngx-translate (pt-BR, en-US, es-ES)
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
-- **Status:** boilerplate em camadas com shell autenticado (login/callback/layout/home)
+- **Status:** shell autenticado com login/cadastro JWT, layout e home
 
 ### CI/CD
 
@@ -214,9 +214,9 @@ vigia/
 
 ### vigia-web
 
-**Propósito:** Frontend web Angular — autenticação OAuth2, shell autenticado (layout) e página home. Camadas `core` / `pages` / `shared` com path aliases.
+**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout) e página home. Camadas `core` / `pages` / `shared` com path aliases.
 
-**Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, angular-oauth2-oidc, Vitest, pnpm.
+**Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, Vitest, pnpm.
 
 **Ponto de entrada:** `vigia-web/src/main.ts` → `AppComponent` + `appConfig` (`src/app/app.config.ts`).
 
@@ -226,15 +226,15 @@ vigia/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `src/app/core/` | Config OAuth, guards, interceptors, entities/DTOs, mappers, services HTTP/app, usecases |
-| `src/app/pages/` | Rotas/features: auth (login, callback), layout, home, `main.routes.ts` |
+| `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
+| `src/app/pages/` | Rotas/features: auth (login, register), layout, home, `main.routes.ts` |
 | `src/app/shared/` | Componentes reutilizáveis (input, message, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
-| `src/environments/` | `environment.ts` / `environment.prod.ts` (API, OAuth, idiomas) |
+| `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl` absoluto + idiomas) |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 
-**Rotas:** `/login`, `/callback`, `/` → layout + `authGuard` → `/home`.
+**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/home`.
 
-**Status:** shell e wiring do boilerplate; UI de sidebar/toolbar/login ainda em stubs mínimos; features de domínio (devices) só esboçadas.
+**Status:** login/cadastro JWT e sessão local; UI de sidebar/toolbar ainda em stubs; features de domínio (devices) só esboçadas.
 
 ---
 
@@ -372,10 +372,10 @@ vigia/
 
 ### Angular (vigia-web)
 
-- **Camadas:** `pages/` (features/rotas) → `core/` (services, usecases, guards) → `shared/` (UI reutilizável)
+- **Camadas:** `pages/` (features/rotas) → `core/usecases` → `core/services` → `shared/` (UI reutilizável)
 - **Imports:** path aliases `@core`, `@pages`, `@shared`, `@environments` via barrels `index.ts`
 - **Componentes:** standalone; prefixo `app`
-- **Auth:** `Oauth2Service` + `authGuard` + `AuthInterceptor` (class-based com `withInterceptorsFromDi`)
+- **Auth:** JWT via `AuthHttpService` + `AuthSessionService`; use cases `Login`/`Register`/`Logout`; `authGuard`/`guestGuard`; `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + refresh em 401)
 - **i18n:** arquivos em `public/i18n/*.json` carregados via `TranslateHttpLoader`
 - **Testes:** Vitest via `@angular/build:unit-test`
 
@@ -393,7 +393,7 @@ vigia/
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
-| vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
+| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + layout/home |
 
 ---
 
@@ -485,6 +485,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] vigia-web: `apiUrl` absoluto nos environments (sem `proxy.conf.json`); services usam paths relativos + `ApiBaseUrlInterceptor`
+- [2026-08-23] vigia-web: auth JWT (login/cadastro) no lugar de OAuth2; use cases, sessão, interceptors, `/login` `/register`
 - [2026-08-23] Regras Cursor: `project-documentation.mdc` no formato conciso (mapa + testes); restaurar `vigia-web-usecases.mdc` e `vigia-web-api-urls.mdc`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)
 - [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)

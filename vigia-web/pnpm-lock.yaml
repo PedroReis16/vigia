@@ -50,9 +50,6 @@ importers:
       '@openng/optimus-ui-themes':
         specifier: ^2.0.1
         version: 2.0.1
-      angular-oauth2-oidc:
-        specifier: ^22.0.2
-        version: 22.0.2(@angular/common@22.1.3(@angular/core@22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2))(rxjs@7.8.2))(@angular/core@22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2))
       moment:
         specifier: ^2.30.1
         version: 2.30.1
@@ -1798,12 +1795,6 @@ packages:
       eslint: ^9.0.0 || ^10.0.0
       typescript: '*'
       typescript-eslint: ^8.0.0
-
-  angular-oauth2-oidc@22.0.2:
-    resolution: {integrity: sha512-MDzmf0quLVnsCzVp/G7Pr6YTSMoMMo62u8QFqJzM3madQmWV5JI4dMppvuTPswH+4V2gx4zPXdCjnn8ikVZX+A==}
-    peerDependencies:
-      '@angular/common': '>=22.0.0'
-      '@angular/core': '>=22.0.0'
 
   ansi-escapes@7.3.0:
     resolution: {integrity: sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg==}
@@ -4723,12 +4714,6 @@ snapshots:
     transitivePeerDependencies:
       - chokidar
       - supports-color
-
-  angular-oauth2-oidc@22.0.2(@angular/common@22.1.3(@angular/core@22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2))(rxjs@7.8.2))(@angular/core@22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2)):
-    dependencies:
-      '@angular/common': 22.1.3(@angular/core@22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2))(rxjs@7.8.2)
-      '@angular/core': 22.1.3(@angular/compiler@22.1.3)(rxjs@7.8.2)(zone.js@0.16.2)
-      tslib: 2.8.1
 
   ansi-escapes@7.3.0:
     dependencies:

@@ -8,5 +8,35 @@
       "DARK": "Escuro",
       "LIGHT": "Claro"
     }
+  },
+  "AUTH": {
+    "LOGOUT": "Sair",
+    "FIELDS": {
+      "NAME": "Nome completo",
+      "EMAIL": "E-mail",
+      "PASSWORD": "Senha",
+      "CONFIRM_PASSWORD": "Confirmar senha"
+    },
+    "LOGIN": {
+      "TITLE": "Entrar",
+      "SUBTITLE": "Acesse sua conta Vigia",
+      "SUBMIT": "Entrar",
+      "NO_ACCOUNT": "Não tem uma conta?",
+      "GO_REGISTER": "Cadastre-se"
+    },
+    "REGISTER": {
+      "TITLE": "Criar conta",
+      "SUBTITLE": "Cadastre-se no Vigia",
+      "SUBMIT": "Cadastrar",
+      "HAS_ACCOUNT": "Já tem uma conta?",
+      "GO_LOGIN": "Entrar"
+    },
+    "ERRORS": {
+      "LOGIN": "Não foi possível entrar. Tente novamente.",
+      "REGISTER": "Não foi possível cadastrar. Tente novamente.",
+      "INVALID_CREDENTIALS": "E-mail ou senha inválidos.",
+      "EMAIL_IN_USE": "Este e-mail já está em uso.",
+      "PASSWORD_MISMATCH": "As senhas não coincidem."
+    }
   }
 }

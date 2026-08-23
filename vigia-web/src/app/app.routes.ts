@@ -1,5 +1,8 @@
 import { Routes } from '@angular/router';
-import { LoginComponent, CallbackComponent, mainRoutes } from '@pages';
+import { guestGuard } from '@core/guards';
+import { LoginComponent } from './pages/authentication/login/login.component';
+import { RegisterComponent } from './pages/authentication/register/register.component';
+import { mainRoutes } from './pages/main.routes';
 
 export const routes: Routes = [
   {
@@ -9,10 +12,12 @@ export const routes: Routes = [
   {
     path: 'login',
     component: LoginComponent,
+    canActivate: [guestGuard],
   },
   {
-    path: 'callback',
-    component: CallbackComponent,
+    path: 'register',
+    component: RegisterComponent,
+    canActivate: [guestGuard],
   },
   {
     path: '**',

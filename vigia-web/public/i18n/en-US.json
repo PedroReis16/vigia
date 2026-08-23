@@ -8,5 +8,35 @@
       "DARK": "Dark",
       "LIGHT": "Light"
     }
+  },
+  "AUTH": {
+    "LOGOUT": "Sign out",
+    "FIELDS": {
+      "NAME": "Full name",
+      "EMAIL": "Email",
+      "PASSWORD": "Password",
+      "CONFIRM_PASSWORD": "Confirm password"
+    },
+    "LOGIN": {
+      "TITLE": "Sign in",
+      "SUBTITLE": "Access your Vigia account",
+      "SUBMIT": "Sign in",
+      "NO_ACCOUNT": "Don't have an account?",
+      "GO_REGISTER": "Sign up"
+    },
+    "REGISTER": {
+      "TITLE": "Create account",
+      "SUBTITLE": "Sign up for Vigia",
+      "SUBMIT": "Sign up",
+      "HAS_ACCOUNT": "Already have an account?",
+      "GO_LOGIN": "Sign in"
+    },
+    "ERRORS": {
+      "LOGIN": "Could not sign in. Please try again.",
+      "REGISTER": "Could not sign up. Please try again.",
+      "INVALID_CREDENTIALS": "Invalid email or password.",
+      "EMAIL_IN_USE": "This email is already in use.",
+      "PASSWORD_MISMATCH": "Passwords do not match."
+    }
   }
 }

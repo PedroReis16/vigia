@@ -40,40 +40,43 @@ final class AppColors extends ThemeExtension<AppColors> {
   final Color warning;
 
   static const light = AppColors(
-    primary: Color(0xFF0D3B6D),
-    primaryContainer: Color(0xFFE8F0F7),
-    secondary: Color(0xFF12785D),
-    secondaryContainer: Color(0xFFE8F6F2),
-    background: Color(0xFFF6F9FB),
+    primary: Color(0xFF669CEE),
+    primaryContainer: Color(0xFFE2E7EE),
+    secondary: Color(0xFF68C19B),
+    secondaryContainer: Color(0xFFEAF7F1),
+    background: Color(0xFFFFF9F5),
     surface: Color(0xFFFFFFFF),
-    textPrimary: Color(0xFF102A43),
-    textSecondary: Color(0xFF52677A),
-    outline: Color(0xFF8FA1B1),
-    outlineVariant: Color(0xFFD7E1EA),
+    textPrimary: Color(0xFF46526D),
+    // ~60% visual weight of textPrimary on light surfaces
+    textSecondary: Color(0xFF7A8499),
+    outline: Color(0xFF9AA3B2),
+    outlineVariant: Color(0xFFE2E7EE),
     error: Color(0xFFEF4444),
-    success: Color(0xFF167A5B),
-    info: Color(0xFF2563A6),
+    success: Color(0xFF68C19B),
+    info: Color(0xFF669CEE),
     warning: Color(0xFF9A5B00),
   );
 
   static const dark = AppColors(
-    primary: Color(0xFF71A7D8),
-    primaryContainer: Color(0xFF13365E),
-    secondary: Color(0xFF12785D),
-    secondaryContainer: Color(0xFF164D40),
-    background: Color(0xFF071522),
-    surface: Color(0xFF0D2235),
+    primary: Color(0xFF669CEE),
+    primaryContainer: Color(0xFF2A3A55),
+    secondary: Color(0xFF68C19B),
+    secondaryContainer: Color(0xFF1E3D32),
+    background: Color(0xFF12151C),
+    surface: Color(0xFF1A1F2A),
     textPrimary: Color(0xFFF4F7FA),
-    textSecondary: Color(0xFFA9BAC8),
-    outline: Color(0xFF71879A),
-    outlineVariant: Color(0xFF294052),
+    textSecondary: Color(0xFFA9B0BE),
+    outline: Color(0xFF7A8499),
+    outlineVariant: Color(0xFF2F3848),
     error: Color(0xFFFF6B6B),
-    success: Color(0xFF4FC3A3),
-    info: Color(0xFF71A7D8),
+    success: Color(0xFF68C19B),
+    info: Color(0xFF669CEE),
     warning: Color(0xFFF6C85F),
   );
 
   ColorScheme toColorScheme(Brightness brightness) {
+    // Light primary (#669CEE) is intentionally soft; white onPrimary keeps
+    // filled buttons, FAB, and AppBar chrome on-brand with the auth scaffold.
     final onPrimary = brightness == Brightness.light
         ? const Color(0xFFFFFFFF)
         : background;

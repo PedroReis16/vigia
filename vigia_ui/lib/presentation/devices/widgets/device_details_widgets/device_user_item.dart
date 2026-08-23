@@ -36,13 +36,19 @@ class DeviceUserItem extends StatelessWidget {
                           user.userPicture!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => ColoredBox(
-                            color: Colors.grey.shade300,
-                            child: const Icon(Icons.person),
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.person,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         )
                       : ColoredBox(
-                          color: Colors.grey.shade300,
-                          child: const Icon(Icons.person),
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            Icons.person,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                 ),
               ),
@@ -71,7 +77,7 @@ class DeviceUserItem extends StatelessWidget {
             icon: Icon(
               actionIcon ?? Icons.arrow_forward_ios,
               size: actionIcon == null ? 16 : 22,
-              color: Colors.grey.shade500,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
       ],

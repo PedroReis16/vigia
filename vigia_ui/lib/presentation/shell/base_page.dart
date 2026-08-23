@@ -19,7 +19,7 @@ class BasePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final config = AppBarConfig.fromState(context, GoRouterState.of(context));
-    final colorScheme = Theme.of(context).colorScheme;
+    final appBarTheme = Theme.of(context).appBarTheme;
     // Logo flight is drawn on the enter morph veil — no AppBar Hero
     // (Hero placeholders flash shell content on physical devices).
 
@@ -27,8 +27,8 @@ class BasePage extends StatelessWidget {
       appBar: !config.showAppBar
           ? null
           : AppBar(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
+              backgroundColor: appBarTheme.backgroundColor,
+              foregroundColor: appBarTheme.foregroundColor,
               systemOverlayStyle: SystemUiOverlayStyle.light,
               centerTitle: true,
               title: Material(

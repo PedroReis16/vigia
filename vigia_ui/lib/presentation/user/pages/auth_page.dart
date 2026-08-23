@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 import 'package:vigia_ui/presentation/shell/vigia_logo_hero.dart';
@@ -357,7 +356,7 @@ class _AuthModeToggle extends StatelessWidget {
           currentPage == 0
               ? context.translations.noAccount
               : context.translations.hasAccount,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
         ),
         TextButton(
           style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
@@ -367,9 +366,8 @@ class _AuthModeToggle extends StatelessWidget {
                 ? context.translations.register
                 : context.translations.login,
             style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.light
-                  ? context.appColors.outline
-                  : context.appColors.primary,
+              color: Theme.of(context).colorScheme.onPrimary,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),

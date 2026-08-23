@@ -3,6 +3,7 @@ Executa a captura de vídeo
 """
 
 from concurrent.futures import ThreadPoolExecutor
+import datetime
 import time
 import cv2 # pyright: ignore[reportMissingImports]
 
@@ -46,6 +47,7 @@ def run_capture():
             if now - last_capture > capture_interval:
                 frame_worker.insert_raw_frame(frame.copy(), now)
                 last_capture = now
+                print(f"Captured frame at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
             if show_video:
                 display = cv2.flip(frame, 1)

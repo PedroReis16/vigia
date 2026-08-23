@@ -85,7 +85,7 @@ vigia/
 ├── seed-codes/             # Utilitário dev: publicar frame de teste com assinatura Ed25519
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
-├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
+├── .cursor/rules/          # Regras Cursor (docs + padrões vigia-web)
 └── .vscode/                # Launch configs e tasks do workspace
 ```
 
@@ -485,6 +485,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Regras Cursor: `project-documentation.mdc` no formato conciso (mapa + testes); restaurar `vigia-web-usecases.mdc` e `vigia-web-api-urls.mdc`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)
 - [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)
 - [2026-08-23] vigia-web: trocar Euclid Circular A (paga/CDNFonts) por Plus Jakarta Sans via Google Fonts; remover `public/fonts/` e scripts de download/conversão

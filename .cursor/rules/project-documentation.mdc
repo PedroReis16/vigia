@@ -1,114 +1,86 @@
 ---
-description: Mantém a documentação da estrutura do projeto e os testes alinhados após alterações relevantes, evitando remapeamento repetido do repositório
-globs:
+description: Lê e atualiza docs/project-structure.md em vez de remapear o repositório; testes acompanham mudanças relevantes
 alwaysApply: true
 ---
 
-# Documentação Automática da Estrutura do Projeto
+# Documentação da estrutura do Vigia
 
-## Objetivo
-Evitar remapear toda a estrutura do repositório a cada nova tarefa/execução. O projeto mantém um
-arquivo vivo — `docs/project-structure.md` — que descreve arquitetura, serviços, módulos, decisões
-técnicas, regras de negócio, padrões de código e fluxos de dados. Esse arquivo é a fonte de verdade
-sobre "o que existe e onde está".
+A fonte de verdade é `docs/project-structure.md` (já preenchida). Ela descreve
+módulos, stack, rotas e decisões. Esta regra existe para **não** remapear o
+monorepo a cada conversa.
 
-## Antes de iniciar qualquer tarefa
-1. Leia `docs/project-structure.md` primeiro, antes de explorar o código.
-2. Use esse arquivo como contexto principal sobre estrutura, stack, serviços, regras de negócio e
-   padrões de código.
-3. Só explore o código-fonte diretamente (listar diretórios, abrir múltiplos arquivos) quando:
-   - a tarefa exigir entender a implementação interna de algo específico que a documentação não cobre;
-   - o arquivo estiver ausente, claramente desatualizado, ou não cobrir a área relevante;
-   - o projeto ainda estiver em estágio inicial e a documentação ainda não tiver sido criada (ver
-     seção "Projeto novo / documentação ainda não existe" abaixo);
-   - houver suspeita de inconsistência entre o documentado e o código real (nesse caso, sinalize e
-     corrija a documentação depois de confirmar).
-4. Nunca refaça um mapeamento completo do repositório só porque é uma nova conversa — esse é
-   exatamente o comportamento que esta regra existe para evitar. Uma vez que a estrutura de uma área
-   já foi documentada, confie na documentação para essa área até que uma alteração a torne obsoleta.
+## Antes de qualquer tarefa
 
-## Projeto novo / documentação ainda não existe
-Esta regra é o componente permanente; `docs/project-structure.md` nasce vazio e é construído
-incrementalmente junto com o projeto. Não é necessário — nem esperado — mapear tudo de uma vez no
-início.
+1. Leia `docs/project-structure.md` primeiro.
+2. Use-o como contexto de estrutura, stack, serviços, regras de negócio e padrões.
+3. Só abra o código quando a tarefa exigir implementação interna, a área não
+   estiver documentada, ou houver suspeita de divergência (nesse caso, confirme
+   e corrija o doc).
+4. Nunca refaça um mapeamento completo só porque é uma conversa nova. Confie
+   na área já documentada até ela ficar obsoleta.
 
-- Se `docs/project-structure.md` não existir ainda, crie-o (a partir do template descrito na seção
-  "Formato esperado" abaixo) na primeira alteração estrutural relevante que fizer, preenchendo apenas
-  o que já existe até aquele momento.
-- Se o arquivo existir mas estiver vazio/parcial (só com títulos de seção, por exemplo), trate isso
-  como normal, não como um erro a corrigir de uma vez — vá completando as seções conforme o projeto
-  cresce, seguindo a regra "depois de qualquer alteração estrutural" abaixo.
-- Não invente conteúdo para seções que ainda não se aplicam (ex.: não escreva "mobile" numa seção de
-  stack se ainda não existe app mobile). Deixe a seção ausente ou com um placeholder curto até que
-  exista algo real para documentar.
+## Mapa já documentado (não redescobrir)
 
-## Depois de qualquer alteração estrutural
-Atualize `docs/project-structure.md` na mesma tarefa sempre que a alteração envolver:
-- novo arquivo, módulo, pacote ou serviço criado;
-- arquivo/módulo/serviço removido ou renomeado;
-- nova dependência relevante adicionada (biblioteca, serviço externo, container, imagem Docker);
-- mudança de configuração de infraestrutura (docker-compose, Traefik, CI/CD, variáveis de ambiente,
-  redes, volumes);
-- nova rota/endpoint de API, novo tópico MQTT, nova entidade FIWARE, novo evento/fila, etc.;
-- mudança de decisão arquitetural (ex.: trocar biblioteca, mudar padrão de autenticação, mudar
-  estratégia de deploy);
-- nova regra de negócio ou alteração de limite/validação (ex.: naming de devices, limites de grupo,
-  expiração de convites, schema FIWARE);
-- novo padrão de código adotado no projeto (ex.: camada, convenção de naming, estratégia de testes);
-- novo fluxo de dados entre componentes (ex.: novo canal de comunicação edge↔cloud ou API↔cliente).
+| Pasta | Papel |
+|-------|--------|
+| `vigia-api/` | API atual (.NET) + libs Fiware/Database/Cache/Cloud/Models |
+| `vigia-bootstrap/` | Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade |
+| `vigia-fall/` | Detecção no Raspberry Pi (Python, YOLO, MQTT, BLE) |
+| `vigia_ui/` | App Flutter do cuidador |
+| `vigia-web/` | Frontend web Angular (camadas `pages` → `usecases` → `services`) |
+| `vigia-services/` | API Go legado + CLI `vigia-bootstrap` (histórico) |
+| `docker-compose/` | Local (API .NET + FIWARE + MediaMTX) e deploy |
 
-Alterações puramente internas (refatoração sem mudar comportamento externo, correção de bug, ajuste
-de estilo/lint) **não** exigem atualização da documentação, a menos que também alterem a estrutura de
-pastas/arquivos, uma decisão arquitetural, uma regra de negócio ou um fluxo documentado.
+Detalhes (endpoints, schema FIWARE, compose, CI, decisões) estão no doc — não
+duplique aqui. Atenção: **duas APIs coexistindo** (local = .NET; deploy/release
+de serviço ainda pode referenciar Go). Ao mudar contrato HTTP, confira o runtime.
 
-## Testes devem acompanhar o código
-Sempre que código importante for **adicionado, modificado ou removido**, os testes referentes a essa
-mudança também precisam ser atualizados **na mesma tarefa** — não deixe testes obsoletos, ausentes
-ou inconsistentes com o comportamento novo.
+### vigia-web (padrão de desenvolvimento)
 
-Isso inclui, em particular:
-- novo módulo, serviço, use case, guard, interceptor, componente ou endpoint → criar ou estender
-  os testes correspondentes;
-- alteração de comportamento, contrato, validação ou regra de negócio → ajustar os testes
-  existentes para refletir o novo comportamento esperado;
-- remoção ou renomeação de código coberto por testes → remover, renomear ou reescrever os testes
-  afetados;
-- mudança de assinatura, dependências injetadas ou fluxo de dados testável → atualizar mocks,
-  fixtures e assertions.
+Regras dedicadas em `.cursor/rules/vigia-web-*.mdc` (ativam com globs do web):
 
-Não se aplica a alterações puramente cosméticas (estilo/lint sem mudança de comportamento), a menos
-que quebrem ou tornem irrelevantes testes já existentes — nesse caso, corrija-os na mesma tarefa.
+- **UI → use cases → services** — páginas/componentes não injetam HTTP/auth direto
+  (`vigia-web-usecases.mdc`).
+- **URLs** — `environment.apiUrl` na base; paths relativos nas HTTP services;
+  `ApiBaseUrlInterceptor` concatena (`vigia-web-api-urls.mdc`).
 
-## Como atualizar
-- Edite apenas a seção afetada — não reescreva o documento inteiro a cada mudança.
-- Descrições curtas: 1 a 3 linhas por item. Isto não é o lugar para reexplicar o código.
-- Prefira atualizar uma árvore/lista já existente a duplicar a mesma informação em outro trecho.
-- Ao final do arquivo, adicione uma entrada na seção "Changelog Técnico", no formato:
-  `- [YYYY-MM-DD] Descrição curta da mudança (arquivos/módulos afetados)`
-  Entrada mais recente no topo da lista.
-- Nunca inclua segredos, chaves, tokens, senhas ou credenciais na documentação — nem mesmo como exemplo.
+## Depois de alteração estrutural
 
-## Formato esperado de `docs/project-structure.md`
-1. Visão geral do projeto (1 parágrafo)
-2. Stack tecnológica, organizada por camada (edge, cloud, backend, mobile, CI/CD)
-3. Árvore de diretórios de alto nível, com 1 linha de descrição por pasta
-4. Descrição de cada serviço/módulo principal: propósito, tecnologias, ponto de entrada
-5. Decisões arquiteturais relevantes — o "porquê", não só o "o quê"
-6. Regras de negócio — validações, limites e invariantes do domínio (tabela regra → onde é aplicada)
-7. Padrões de código — convenções por stack (C#, Python, Flutter, infra) e estado dos testes
-8. Fluxos de dados — diagrama mermaid + descrição dos fluxos principais entre componentes
-9. Changelog técnico — lista cronológica de mudanças estruturais, mais recente no topo
+Na **mesma tarefa**, edite só a seção afetada de `docs/project-structure.md` se
+a mudança for:
 
-Detalhes operacionais extensos (setup de Pi, tutorial FIWARE passo a passo) permanecem em
-`README.md` e `docs/DEPLOY.md` dos serviços — referencie-os, não duplique.
+- arquivo/módulo/serviço criado, removido ou renomeado
+- dependência relevante (lib, serviço externo, container, imagem)
+- infra (compose, Traefik, CI/CD, env, redes, volumes)
+- nova rota, tópico MQTT, entidade FIWARE, evento/fila
+- decisão arquitetural (auth, biblioteca, deploy)
+- regra de negócio, padrão de código ou fluxo de dados documentado
+
+Refatoração interna, bugfix ou lint **não** atualizam o doc, salvo se mudarem
+pastas, decisão, regra de negócio ou fluxo documentado.
+
+Como atualizar:
+
+- 1 a 3 linhas por item; não reexplicar código
+- Atualize lista/árvore existente; não duplique a mesma info
+- Changelog no topo: `- [YYYY-MM-DD] Descrição (arquivos/módulos afetados)`
+- Sem segredos, chaves, tokens ou senhas — nem como exemplo
+
+Se o arquivo sumir, recrie-o com: visão geral; stack por camada; árvore;
+módulos (propósito, tech, entrada); decisões (o "porquê"); regras de negócio;
+padrões; fluxos; changelog. Não invente seções para o que ainda não existe.
+
+## Testes acompanham o código
+
+Na **mesma tarefa**, atualize/crie/remova testes quando o comportamento, contrato
+ou superfície pública mudar (novo módulo, use case, guard, interceptor, endpoint,
+validação, etc.). Cosmético/lint sem mudança de comportamento: não mexa nos
+testes, salvo se quebrarem.
 
 ## Regra de ouro
-Pergunta de checagem (documentação): "isso muda a forma como alguém entenderia a estrutura do
-projeto ao ler a documentação?"
-- Sim → documente.
-- Não → não documente (evita inflar o arquivo com ruído).
 
-Pergunta de checagem (testes): "o comportamento, contrato ou superfície pública do código mudou
-de forma relevante?"
-- Sim → atualize, crie ou remova os testes correspondentes na mesma tarefa.
-- Não → não mexa nos testes só por formalidade.
+Documentação: "isso muda como alguém entenderia a estrutura ao ler o doc?"
+- Sim → documente. Não → não documente.
+
+Testes: "o comportamento/contrato/superfície pública mudou de forma relevante?"
+- Sim → alinhe os testes na mesma tarefa. Não → não mexa só por formalidade.

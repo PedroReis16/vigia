@@ -837,7 +837,7 @@ internal class FiwareService : IFiwareService
             return (false, null);
         }
 
-        string? subscriptionId = response.Headers.Location?.Segments.LastOrDefault()?.TrimEnd('/');
+        string? subscriptionId = TryGetIdFromLocation(response.Headers.Location);
 
         OrionSubscriptionDTO createdSubscription = new()
         {
@@ -854,6 +854,17 @@ internal class FiwareService : IFiwareService
             body.Description);
 
         return (true, createdSubscription);
+    }
+
+    private static string? TryGetIdFromLocation(Uri? location)
+    {
+        if (location is null)
+            return null;
+
+        // Orion pode devolver Location relativa; Uri.Segments lança em relative URIs.
+        string path = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString;
+        string? last = path.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        return string.IsNullOrWhiteSpace(last) ? null : last.TrimEnd('/');
     }
 
     private async Task<bool> DeleteSubscriptionAsync(string subscriptionId)
@@ -888,11 +899,68 @@ internal class FiwareService : IFiwareService
     }
     #endregion
 
-#if DEBUG
-    public async Task<bool> EnsureSeedDeviceAsync()
+    public async Task<bool> EnsureDevicesProvisionedAsync(
+        IReadOnlyCollection<(Guid DeviceId, string DeviceName)> devices)
     {
-        Guid deviceId = TestDeviceSeed.Id;
-        string deviceName = TestDeviceSeed.Name;
+        if (devices.Count == 0)
+            return true;
+
+        HashSet<string> provisionedIds = await ListAllProvisionedDeviceIdsAsync();
+        bool allSucceeded = true;
+
+        foreach ((Guid deviceId, string deviceName) in devices)
+        {
+            if (provisionedIds.Contains(deviceId.ToString()))
+                continue;
+
+            _logger.LogWarning(
+                "Device {DeviceId} ({DeviceName}) presente no banco e ausente no FIWARE. Provisionando...",
+                deviceId,
+                deviceName);
+
+            if (!await RegisterSensorAsync(deviceId, deviceName))
+                allSucceeded = false;
+        }
+
+        return allSucceeded;
+    }
+
+    private async Task<HashSet<string>> ListAllProvisionedDeviceIdsAsync()
+    {
+        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+        int offset = 0;
+
+        while (true)
+        {
+            (List<IotAgentDeviceDTO> page, int totalCount) =
+                await ListDevicesPageAsync(offset, DevicesPageSize);
+
+            foreach (IotAgentDeviceDTO device in page)
+            {
+                if (!string.IsNullOrWhiteSpace(device.DeviceId))
+                    ids.Add(device.DeviceId);
+            }
+
+            offset += page.Count;
+
+            if (page.Count == 0 || page.Count < DevicesPageSize || offset >= totalCount)
+                break;
+        }
+
+        return ids;
+    }
+
+#if DEBUG
+    public async Task<bool> EnsureSeedDeviceAsync() =>
+        await RegisterSensorAsync(TestDeviceSeed.Id, TestDeviceSeed.Name);
+#endif
+
+    public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
+    {
+        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        string entityName = $"urn:ngsi-ld:{deviceName}";
+        List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
+        List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
         HttpResponseMessage existing = await _httpClient.GetAsync(
             $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId.ToString())}");
@@ -900,47 +968,24 @@ internal class FiwareService : IFiwareService
         if (existing.IsSuccessStatusCode)
         {
             _logger.LogInformation(
-                "Device seed {DeviceId} ({DeviceName}) já provisionado no FIWARE",
+                "Device {DeviceId} ({DeviceName}) já provisionado no FIWARE. Sincronizando registration/subscrições...",
                 deviceId,
                 deviceName);
 
-            string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
-            string entityName = $"urn:ngsi-ld:{deviceName}";
-            bool commandsSynced = await SyncCommandRegistrationAsync(
-                entityName,
-                entityType,
-                _deviceSchema.GetCommands());
-            bool subscriptionSynced = await SyncDeviceSubscriptionsAsync(entityName, entityType);
-            return commandsSynced && subscriptionSynced;
+            return await SyncCommandRegistrationAsync(entityName, entityType, commands)
+                && await SyncDeviceSubscriptionsAsync(entityName, entityType);
         }
 
         if (existing.StatusCode != HttpStatusCode.NotFound)
         {
             string errorBody = await existing.Content.ReadAsStringAsync();
             _logger.LogError(
-                "Falha ao consultar device seed {DeviceId}. Status={StatusCode}. Body={Body}",
+                "Falha ao consultar device {DeviceId}. Status={StatusCode}. Body={Body}",
                 deviceId,
                 (int)existing.StatusCode,
                 errorBody);
             return false;
         }
-
-        _logger.LogInformation(
-            "Device seed {DeviceId} ({DeviceName}) ausente no FIWARE. Provisionando...",
-            deviceId,
-            deviceName);
-
-        return await RegisterSensorAsync(deviceId, deviceName);
-    }
-#endif
-
-    public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
-    {
-        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
-        string entityName = $"urn:ngsi-ld:{deviceName}";
-
-        List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
-        List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
         _logger.LogInformation(
             "Provisionando device {DeviceId} no IoT Agent com Attributes=[{Attributes}] Commands=[{Commands}]",
@@ -1030,6 +1075,17 @@ internal class FiwareService : IFiwareService
             $"{_orionPath}/v2/entities/{entityName}/attrs?type={entityType}",
             content);
 
-        return response.IsSuccessStatusCode;
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        string errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError(
+            "Falha ao enviar comando {Command} para {EntityName}. Status={StatusCode}. Body={Body}",
+            command.GetCommandName(),
+            entityName,
+            (int)response.StatusCode,
+            errorBody);
+
+        return false;
     }
 }

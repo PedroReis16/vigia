@@ -29,9 +29,13 @@ class WhepLiveSession extends ChangeNotifier {
   bool _rendererReady = false;
   int _connectGeneration = 0;
 
+  /// True after [close] starts — [RTCVideoView] must not keep using [renderer].
+  bool get isClosed => _disposed;
+
   Future<void> initialize() async {
-    if (_rendererReady) return;
+    if (_disposed || _rendererReady) return;
     await renderer.initialize();
+    if (_disposed) return;
     _rendererReady = true;
   }
 
@@ -190,7 +194,9 @@ class WhepLiveSession extends ChangeNotifier {
   Future<void> _teardownPeer() async {
     final stream = _remoteStream;
     _remoteStream = null;
-    renderer.srcObject = null;
+    if (_rendererReady) {
+      renderer.srcObject = null;
+    }
 
     if (stream != null) {
       for (final track in stream.getTracks()) {
@@ -208,15 +214,36 @@ class WhepLiveSession extends ChangeNotifier {
   }
 
   /// Closes the peer connection and renderer. Does not send STOP_STREAMING.
+  ///
+  /// Detaches the remote stream and leaves [playing] immediately so any
+  /// [RTCVideoView] can unmount before the native renderer is disposed —
+  /// disposing while the texture is still attached freezes the app on pop.
   Future<void> close() async {
     if (_disposed) return;
     _disposed = true;
     _connectGeneration++;
+
+    // Drop frames from the widget tree first (sync until the first await).
+    status = WhepLiveStatus.connecting;
+    errorMessage = null;
+    isPaused = false;
+    if (_rendererReady) {
+      renderer.srcObject = null;
+    }
+    if (hasListeners) {
+      notifyListeners();
+    }
+
     await _teardownPeer();
+
+    // Yield so Flutter can rebuild without RTCVideoView before dispose.
+    await Future<void>.delayed(Duration.zero);
+
     if (_rendererReady) {
       await renderer.dispose();
       _rendererReady = false;
     }
-    dispose();
+    // Do not call ChangeNotifier.dispose() here — DeviceVideoPlayer may still
+    // be listening until the route unmounts; _disposed already gates all APIs.
   }
 }

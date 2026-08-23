@@ -5,6 +5,7 @@ using Vigia.Fiware.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
+using Microsoft.AspNetCore.Http;
 
 namespace Vigia.API.Services.Devices;
 
@@ -48,11 +49,26 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
 
             IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
 
-            var result = await fiwareService.SendCommandAsync(deviceName: device.Name, command: deviceCommand.Command, commandValue: deviceCommand.CommandValue);
+            bool result = await fiwareService.SendCommandAsync(
+                deviceName: device.Name,
+                command: deviceCommand.Command,
+                commandValue: deviceCommand.CommandValue);
 
-            return result;
+            if (!result)
+            {
+                throw new HttpResponseException(
+                    StatusCodes.Status502BadGateway,
+                    $"Falha ao enviar comando '{deviceCommand.Command}' para o dispositivo '{device.Name}' via FIWARE. Verifique se o device está provisionado no Orion/IoT Agent.",
+                    ErrorCodes.FIWARE_COMMAND_FAILED);
+            }
+
+            return true;
         }
         catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (HttpResponseException)
         {
             throw;
         }
@@ -77,12 +93,22 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
 
             IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
 
-            return await fiwareService.SendCommandAsync(
+            bool result = await fiwareService.SendCommandAsync(
                 deviceName: device.Name,
                 command: DeviceCommands.STOP_STREAMING,
                 commandValue: null);
+
+            if (!result)
+            {
+                throw new HttpResponseException(
+                    StatusCodes.Status502BadGateway,
+                    $"Falha ao enviar STOP_STREAMING para o dispositivo '{device.Name}' via FIWARE.",
+                    ErrorCodes.FIWARE_COMMAND_FAILED);
+            }
+
+            return true;
         }
-        catch (Exception ex) when (ex is not EntityValidationException)
+        catch (Exception ex) when (ex is not EntityValidationException and not HttpResponseException)
         {
             _logger.LogError(ex, "Error sending undemand STOP_STREAMING to device {DeviceId}", deviceId);
             throw;

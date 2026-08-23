@@ -11,6 +11,7 @@ using Group = Vigia.Models.Entities.Group;
 using Vigia.API.Contracts.CacheServices;
 using Vigia.Models.Contracts;
 using Vigia.Models.Helpers;
+using Microsoft.AspNetCore.Http;
 
 namespace Vigia.API.Services.Devices;
 
@@ -82,14 +83,29 @@ internal class DevicesService(
 
             try
             {
-                await fiwareService.RegisterSensorAsync(newDevice.Id, newDevice.Name);
+                bool provisioned = await fiwareService.RegisterSensorAsync(newDevice.Id, newDevice.Name);
+                if (!provisioned)
+                {
+                    throw new HttpResponseException(
+                        StatusCodes.Status502BadGateway,
+                        $"Não foi possível provisionar o dispositivo '{newDevice.Name}' no FIWARE",
+                        ErrorCodes.FIWARE_PROVISION_FAILED);
+                }
+
                 _logger.LogInformation($"Dispositivo {newDevice.Id} registrado no FIWARE com sucesso");
+            }
+            catch (HttpResponseException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 string errorMsg = $"Houve um erro ao tentar registrar o dispositivo no FIWARE: {ex.GetFullMessage()}";
                 _logger.LogError(errorMsg);
-                throw new Exception(errorMsg);
+                throw new HttpResponseException(
+                    StatusCodes.Status502BadGateway,
+                    errorMsg,
+                    ErrorCodes.FIWARE_PROVISION_FAILED);
             }
 
             try

@@ -26,11 +26,18 @@ public interface IFiwareService
     Task<bool> SyncSubscriptionsAsync();
 
     /// <summary>
-    /// Provisiona um novo device no IoT Agent já com o schema canônico de
+    /// Provisiona um device no IoT Agent com o schema canônico de
     /// <c>Fiware:Devices</c>, sincroniza a registration de comandos no Orion
-    /// e as subscrições de <c>Fiware:Subscriptions</c>.
+    /// e as subscrições de <c>Fiware:Subscriptions</c>. Idempotente: se o device
+    /// já existir, apenas reforça registration/subscrições.
     /// </summary>
     Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName);
+
+    /// <summary>
+    /// Garante que cada device da lista esteja provisionado no IoT Agent.
+    /// Usado no startup para reconciliar órfãos (existem no Postgres, ausentes no FIWARE).
+    /// </summary>
+    Task<bool> EnsureDevicesProvisionedAsync(IReadOnlyCollection<(Guid DeviceId, string DeviceName)> devices);
 
 #if DEBUG
     /// <summary>

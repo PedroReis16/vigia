@@ -1,0 +1,99 @@
+<div class="flex flex-col gap-2">
+  @if (label) {
+    <label [for]="id">{{ label | translate }}</label>
+  }
+  @if (isLoading) {
+    <p-skeleton width="100%" height="42px" />
+  } @else {
+    @switch (type) {
+      @case ('text') {
+        <input
+          pInputText
+          [id]="id"
+          class="w-full"
+          [ngModel]="value"
+          [attr.maxLength]="maxLength && maxLength > 0 ? maxLength : null"
+          [attr.minLength]="minLength || minLength === 0 ? minLength : null"
+          [attr.aria-describedby]="id + '-help'"
+          [readonly]="readonly"
+          [pSize]="pSize"
+          (keyup)="onTextValueChange($event)"
+        />
+      }
+      @case ('password') {
+        <p-password
+          [inputId]="id"
+          [toggleMask]="true"
+          [size]="pSize"
+          [attr.aria-describedby]="id + '-help'"
+          [feedback]="false"
+          [ngModel]="value"
+          (keyup)="onTextValueChange($event)"
+        />
+      }
+      @case ('number') {
+        <p-inputnumber
+          [inputId]="id"
+          [attr.aria-describedby]="id + '-help'"
+          [ngModel]="value"
+          (onInput)="onTextValueChange($event)"
+        />
+      }
+      @case ('mask') {
+        <p-inputmask
+          [inputId]="id"
+          [mask]="mask!"
+          styleClass="w-full"
+          [attr.aria-describedby]="id + '-help'"
+          [ngModel]="value"
+          (keyup)="onTextValueChange($event)"
+        />
+      }
+      @case ('textarea') {
+        <textarea
+          pTextarea
+          [id]="id"
+          [attr.maxLength]="maxLength && maxLength > 0 ? maxLength : null"
+          [attr.minLength]="minLength || minLength === 0 ? minLength : null"
+          [attr.aria-describedby]="id + '-help'"
+          (keyup)="onTextValueChange($event)"
+          class="w-full"
+          [ngModel]="value"
+        ></textarea>
+      }
+      @case ('dropdown') {
+        <p-select
+          [inputId]="id"
+          [options]="options!"
+          styleClass="w-full"
+          [attr.aria-describedby]="id + '-help'"
+          [size]="pSize"
+          (onChange)="onDropdownValueChange($event)"
+          [ngModel]="value"
+          [virtualScroll]="options!.length > 100"
+          [virtualScrollItemSize]="38"
+          [filter]="enableDropdownFilter"
+          filterBy="label"
+        >
+          <ng-template #selectedItem let-selectedOption>
+            <div>{{ selectedOption.label }}</div>
+          </ng-template>
+          <ng-template #dropdownItem let-option>
+            <div>{{ option.label }}</div>
+          </ng-template>
+        </p-select>
+      }
+      @case ('calendar') {
+        <p-datepicker
+          [inputId]="id"
+          dateFormat="dd/mm/yy"
+          styleClass="w-full"
+          [attr.aria-describedby]="id + '-help'"
+          (onSelect)="onCalendarValueChange($event)"
+          (onInput)="onCalendarValueChange($event)"
+          [ngModel]="value"
+        />
+      }
+    }
+  }
+</div>

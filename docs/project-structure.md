@@ -262,7 +262,7 @@ vigia/
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`
+**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`.
 
 ---
 
@@ -482,6 +482,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)
 - [2026-08-23] vigia-web: trocar Euclid Circular A (paga/CDNFonts) por Plus Jakarta Sans via Google Fonts; remover `public/fonts/` e scripts de download/conversão
 - [2026-08-23] vigia-web: restaurar PrimeNG Community via `@openng/optimus-ui` 2.0.1 (MIT), sem `primeng` comercial (`vigia.theme.ts`, provideOptimus, input/message/home)
 - [2026-08-23] vigia-web: remover PrimeNG (licença comercial) e passar a HTML nativo + Tailwind 4 (`shared/theme/vigia.theme.css`, input, message, home)

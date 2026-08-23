@@ -69,6 +69,9 @@ services:
     build:
       context: ../..
       dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+      args:
+        # DEBUG habilita seed do device de teste + EnsureSeedDeviceAsync no FiwareServiceJob
+        BUILD_CONFIGURATION: Debug
     image: vigia-api:local
     container_name: vigia-api
     restart: unless-stopped
@@ -89,7 +92,7 @@ services:
       - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia`)"
+      - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia`)"
       - "traefik.http.routers.vigia-api.entrypoints=web"
       - "traefik.http.routers.vigia-api.priority=50"
       - "traefik.http.services.vigia-api.loadbalancer.server.port=8080"
@@ -103,7 +106,7 @@ services:
     restart: always
     ports:
       - "80:80"
-      - "81:80" # ApiUrls.Fiware → http://localhost:81/fiware
+      - "81:80" # ApiUrls.Fiware → http://host.docker.internal:81/vigia/fiware/
       - "443:443"
       - "1883:1883"
       # RTMP ingest fica no MediaMTX (porta 1935), não no Traefik
@@ -169,7 +172,7 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/orion`)"
+      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/orion`)"
       - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
@@ -200,7 +203,7 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/sth-comet`)"
+      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/sth-comet`)"
       - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
@@ -236,7 +239,7 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/iot`)"
+      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/iot`)"
       - "traefik.http.routers.iot.entrypoints=web"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
@@ -260,7 +263,7 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
       - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
       - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/vigia/fiware/mosquitto"
@@ -296,7 +299,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Playback WebRTC (signaling HTTP). Mídia usa :8189 no host.
-      - "traefik.http.routers.mediamtx-play.rule=(Host(`localhost`) || Host(`127.0.0.1`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/live`)"
+      - "traefik.http.routers.mediamtx-play.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/live`)"
       - "traefik.http.routers.mediamtx-play.entrypoints=web"
       - "traefik.http.routers.mediamtx-play.priority=100"
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"

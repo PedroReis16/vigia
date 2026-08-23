@@ -12,6 +12,12 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+  mqtt:
+    address: ":1883"
+  mqtts:
+    address: ":8883"
+  ingest:
+    address: ":8443"
 
 providers:
   docker:
@@ -26,5 +32,8 @@ certificatesResolvers:
     acme:
       email: vigiadeteccoes@gmail.com
       storage: /certificates/acme.json
-      httpChallenge:
-        entryPoint: web
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"

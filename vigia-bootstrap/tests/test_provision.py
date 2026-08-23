@@ -78,6 +78,9 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
 
     asyncio.run(run())
     assert called["start"] >= 1
+    path = tmp_path / "classifier.json"
+    assert path.exists()
+    assert json.loads(path.read_text()) == {"classifier": "math"}
 
 
 def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:

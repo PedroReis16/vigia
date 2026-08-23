@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from provision.actions import FALL_SERVICE, fall_is_active
+from provision.classifier import ClassifierId, get_classifier
 from provision.identity import is_provisioned
 from provision.settings import get_network_path
 from provision.state import get_pairing_stage, get_phase
@@ -38,6 +39,7 @@ class DeviceSnapshot:
     fall_rss_mib: int = 0
     sys_used_mib: int = 0
     board_temp_c: int | None = None
+    classifier: ClassifierId = "math"
 
 
 def percents_from_delta(
@@ -440,4 +442,5 @@ def read_snapshot() -> DeviceSnapshot:
         fall_rss_mib=fall_rss_mib(cgroup, pids),
         sys_used_mib=_read_sys_used_mib(),
         board_temp_c=_read_board_temp_c(),
+        classifier=get_classifier(),
     )

@@ -37,6 +37,7 @@ def _snap(**kwargs) -> DeviceSnapshot:
         fall_rss_mib=48,
         sys_used_mib=412,
         board_temp_c=55,
+        classifier="math",
     )
     base.update(kwargs)
     return DeviceSnapshot(**base)
@@ -85,7 +86,13 @@ def test_navegacao_wifi_hold_alterar_rede(monkeypatch) -> None:
 
 
 def test_ciclo_nao_inclui_overlays() -> None:
-    assert CYCLE == (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.ATUALIZ)
+    assert CYCLE == (
+        Screen.CPU,
+        Screen.WIFI,
+        Screen.SERVICO,
+        Screen.MODELO,
+        Screen.ATUALIZ,
+    )
     menu = Menu(NullDisplay())
     seen = []
     for _ in range(len(CYCLE)):
@@ -179,6 +186,80 @@ def test_ok_servico_nao_reinicia(monkeypatch) -> None:
     menu.on_ok()
     assert called["n"] == 0
     assert menu.screen is Screen.SERVICO
+
+
+def test_modelo_mostra_label_atual() -> None:
+    menu = Menu(NullDisplay())
+    menu.index = CYCLE.index(Screen.MODELO)
+    l1, l2 = menu.lines_for(_snap(classifier="math"))
+    assert l1 == "Modelo"
+    assert l2 == "Matematico"
+    _, l2 = menu.lines_for(_snap(classifier="gru"))
+    assert l2 == "GRU"
+
+
+def test_modelo_ok_abre_pick_e_up_down_alterna(monkeypatch) -> None:
+    monkeypatch.setattr("ui.menu.get_classifier", lambda: "math")
+    menu = Menu(NullDisplay())
+    menu.index = CYCLE.index(Screen.MODELO)
+    menu.on_ok()
+    assert menu.screen is Screen.MODELO_PICK
+    _, l2 = menu.lines_for(_snap())
+    assert l2 == ">Matematico"
+    menu.on_down()
+    _, l2 = menu.lines_for(_snap())
+    assert l2 == ">GRU"
+    menu.on_up()
+    _, l2 = menu.lines_for(_snap())
+    assert l2 == ">Matematico"
+    assert menu.index == CYCLE.index(Screen.MODELO)
+
+
+def test_modelo_pick_aplica_e_reinicia(monkeypatch) -> None:
+    state = {"classifier": "math", "restart": 0}
+    monkeypatch.setattr(
+        "ui.menu.get_classifier", lambda: state["classifier"]
+    )
+    monkeypatch.setattr(
+        "ui.menu.set_classifier",
+        lambda c: state.__setitem__("classifier", c),
+    )
+    monkeypatch.setattr("ui.menu.is_provisioned", lambda: True)
+    monkeypatch.setattr("provision.actions.fall_is_active", lambda: False)
+    monkeypatch.setattr(
+        "provision.actions.restart_fall_detection",
+        lambda: state.__setitem__("restart", state["restart"] + 1),
+    )
+    menu = Menu(NullDisplay())
+    menu.index = CYCLE.index(Screen.MODELO)
+    menu.on_ok()
+    menu.on_down()
+    menu.on_ok()
+    assert state["classifier"] == "gru"
+    assert state["restart"] == 1
+    assert menu.screen is Screen.MODELO
+    assert menu._flash == ("Modelo", "OK")
+
+
+def test_modelo_pick_mesmo_valor_nao_reinicia(monkeypatch) -> None:
+    state = {"set": 0, "restart": 0}
+    monkeypatch.setattr("ui.menu.get_classifier", lambda: "math")
+    monkeypatch.setattr(
+        "ui.menu.set_classifier",
+        lambda _c: state.__setitem__("set", state["set"] + 1),
+    )
+    monkeypatch.setattr(
+        "provision.actions.restart_fall_detection",
+        lambda: state.__setitem__("restart", state["restart"] + 1),
+    )
+    menu = Menu(NullDisplay())
+    menu.index = CYCLE.index(Screen.MODELO)
+    menu.on_ok()
+    menu.on_ok()
+    assert state["set"] == 0
+    assert state["restart"] == 0
+    assert menu.screen is Screen.MODELO
+    assert menu._flash is None
 
 
 def test_hold_servico_desvincular(monkeypatch) -> None:

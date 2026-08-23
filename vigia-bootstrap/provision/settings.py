@@ -46,3 +46,7 @@ def get_identity_path() -> Path:
 
 def get_network_path() -> Path:
     return Path(os.path.join(get_settings().data_dir, "network.json"))
+
+
+def get_classifier_path() -> Path:
+    return Path(os.path.join(get_settings().data_dir, "classifier.json"))

@@ -15,7 +15,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ML / Visão:** Ultralytics YOLO (pose), OpenCV
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
-- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`)
+- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`)
 - **Deploy:** PyInstaller ARM64, systemd
 
 ### Cloud / Infra
@@ -147,13 +147,13 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `provision/` | `vigia-bootstrap/provision/` | BLE, Wi-Fi, identidade, OTA, estado |
+| `provision/` | `vigia-bootstrap/provision/` | BLE, Wi-Fi, identidade, classificador, OTA, estado |
 | `ui/` | `vigia-bootstrap/ui/` | LCD 16x2, menu, GPIO buttons |
 | `deploy/` | `vigia-bootstrap/deploy/` | Scripts install/uninstall, systemd unit |
 
 **Deploy:** `/opt/vigia/bootstrap/`, systemd `vigia-bootstrap.service`
 
-**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection)
+**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection); `/opt/vigia/classifier.json` (preferência de modelo; default `math`)
 
 **Build:** `make build-linux-arm64` → `dist/vigia-bootstrap-deploy.zip`
 
@@ -316,6 +316,7 @@ vigia/
 | Regra | Onde é aplicada |
 |-------|-----------------|
 | Nome do device deve seguir `^Vigia-[0-9a-f]{8}$` (ex.: `Vigia-a1b2c3d4`) | `DevicesService`, `vigia-bootstrap/provision/identity.py`, `vigia_ui/lib/domain/constants.dart` |
+| Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py` (ecrãs MODELO/MODELO_PICK) |
 | Chave pública Ed25519 (hex 64 chars) obrigatória no registro | `DevicesService` + `DeviceSignatureAuthenticationHandler` |
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
@@ -486,6 +487,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Bootstrap: seleção de classificador no LCD (`MODELO`/`MODELO_PICK`), persistência `classifier.json` (default `math`), `ensure_classifier_config` antes do auto-start do fall (`provision/classifier.py`, `ui/menu.py`, `ui/status.py`)
 - [2026-08-23] Fix upsert de push token: reativar soft-delete no re-login (`UserPushTokenDao.UpsertAsync`); testes unitários em `Vigia.Database.UnitTests`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)
 - [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)

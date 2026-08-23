@@ -22,7 +22,7 @@ Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M  55C
 No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms.
 
 - **Alterar rede** tenta `nmcli` com o SSID/senha digitados. Só grava `network.json` se a ligação for válida; se falhar, mantém a rede atual.
-- **Desvincular** corre `vigia_reset_config.sh` (identidade + rede + perfis NM).
+- **Desvincular** corre `vigia_reset_config.sh`: pára o fall e limpa dados locais do fall; **mantém** `identity.json`, `network.json`, `.env` e perfis Wi‑Fi. O bootstrap reabre o beacon BLE para um novo utilizador na mesma rede.
 
 Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime (chip 0 nos kernels recentes, chip 4 nos mais antigos). O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
 

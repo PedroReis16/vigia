@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:riverpod/misc.dart' show Override;
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
@@ -158,29 +158,26 @@ void main() {
       },
     );
 
-    testWidgets(
-      'authenticated leaving auth with login armed goes to devices',
-      (tester) async {
-        final container = _container(
-          loggedIn: true,
-          coldStartDone: true,
-          extra: [
-            authExitTransitionProvider.overrideWith(_ArmedLogin.new),
-          ],
-        );
-        addTearDown(container.dispose);
+    testWidgets('authenticated leaving auth with login armed goes to devices', (
+      tester,
+    ) async {
+      final container = _container(
+        loggedIn: true,
+        coldStartDone: true,
+        extra: [authExitTransitionProvider.overrideWith(_ArmedLogin.new)],
+      );
+      addTearDown(container.dispose);
 
-        final router = container.read(appRouterProvider);
-        await pumpRouterApp(tester, container: container, router: router);
+      final router = container.read(appRouterProvider);
+      await pumpRouterApp(tester, container: container, router: router);
 
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-        expect(router.state.matchedLocation, AppRoutes.devicesPage);
+      expect(router.state.matchedLocation, AppRoutes.devicesPage);
 
-        // Flush GoRouter morph disarm timer (duration + 120ms).
-        await tester.pump(const Duration(milliseconds: 1000));
-      },
-    );
+      // Flush GoRouter morph disarm timer (duration + 120ms).
+      await tester.pump(const Duration(milliseconds: 1000));
+    });
   });
 }

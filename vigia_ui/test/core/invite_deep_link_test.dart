@@ -34,8 +34,14 @@ void main() {
     });
 
     test('returns null for invalid URI', () {
-      expect(InviteDeepLink.extractToken(Uri.parse('https://example.com/other')), isNull);
-      expect(InviteDeepLink.extractToken(Uri.parse('vigia://other/foo')), isNull);
+      expect(
+        InviteDeepLink.extractToken(Uri.parse('https://example.com/other')),
+        isNull,
+      );
+      expect(
+        InviteDeepLink.extractToken(Uri.parse('vigia://other/foo')),
+        isNull,
+      );
       expect(InviteDeepLink.extractToken(Uri.parse('vigia://invite')), isNull);
       expect(InviteDeepLink.extractToken(Uri.parse('/invite')), isNull);
     });

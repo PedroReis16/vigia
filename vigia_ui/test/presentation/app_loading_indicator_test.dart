@@ -6,9 +6,7 @@ void main() {
   group('AppLoadingIndicator', () {
     testWidgets('shows CircularProgressIndicator', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: AppLoadingIndicator()),
-        ),
+        const MaterialApp(home: Scaffold(body: AppLoadingIndicator())),
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -17,9 +15,7 @@ void main() {
 
     testWidgets('wraps indicator in SizedBox when size is set', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: AppLoadingIndicator(size: 48)),
-        ),
+        const MaterialApp(home: Scaffold(body: AppLoadingIndicator(size: 48))),
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);

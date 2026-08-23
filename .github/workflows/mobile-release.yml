@@ -496,17 +496,28 @@ jobs:
 
       - name: Create GitHub Deployment record
         id: create_deployment
+        shell: bash
         run: |
           set -euo pipefail
-          DEPLOYMENT_ID=$(gh api \
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-ui (Release + APK rolling)" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: []
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments" \
-            -f ref="${{ github.ref }}" \
-            -f environment="production" \
-            -f description="Deploy vigia-ui (Release + APK rolling)" \
-            -F auto_merge=false \
-            -F required_contexts='[]' \
+            --input - \
             --jq '.id')
+
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
 

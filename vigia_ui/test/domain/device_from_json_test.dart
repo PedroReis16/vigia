@@ -27,10 +27,7 @@ void main() {
     });
 
     test('applies defaults when optional fields are missing', () {
-      final device = Device.fromJson({
-        'id': 42,
-        'ownerId': 7,
-      });
+      final device = Device.fromJson({'id': 42, 'ownerId': 7});
 
       expect(device.id, '42');
       expect(device.name, '');

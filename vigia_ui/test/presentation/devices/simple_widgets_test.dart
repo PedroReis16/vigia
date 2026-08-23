@@ -15,9 +15,7 @@ void main() {
 
       await pumpApp(
         tester,
-        child: Scaffold(
-          body: DevicesLoadError(onTryAgain: () => tried = true),
-        ),
+        child: Scaffold(body: DevicesLoadError(onTryAgain: () => tried = true)),
       );
       await tester.pumpAndSettle();
 

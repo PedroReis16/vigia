@@ -17,7 +17,10 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      await expectLater(container.read(authSessionProvider.future), completion(isFalse));
+      await expectLater(
+        container.read(authSessionProvider.future),
+        completion(isFalse),
+      );
       expect(container.read(authSessionProvider).asData?.value, isFalse);
     });
 
@@ -28,7 +31,10 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      await expectLater(container.read(authSessionProvider.future), completion(isTrue));
+      await expectLater(
+        container.read(authSessionProvider.future),
+        completion(isTrue),
+      );
     });
 
     test('setAuthenticated persists tokens and marks session true', () async {
@@ -100,10 +106,16 @@ void main() {
 
       final notifier = container.read(authExitTransitionProvider.notifier);
 
-      expect(container.read(authExitTransitionProvider), AuthTransitionKind.none);
+      expect(
+        container.read(authExitTransitionProvider),
+        AuthTransitionKind.none,
+      );
 
       notifier.armLogin();
-      expect(container.read(authExitTransitionProvider), AuthTransitionKind.login);
+      expect(
+        container.read(authExitTransitionProvider),
+        AuthTransitionKind.login,
+      );
 
       notifier.armRegister();
       expect(
@@ -118,10 +130,16 @@ void main() {
       );
 
       notifier.armLogout();
-      expect(container.read(authExitTransitionProvider), AuthTransitionKind.logout);
+      expect(
+        container.read(authExitTransitionProvider),
+        AuthTransitionKind.logout,
+      );
 
       notifier.disarm();
-      expect(container.read(authExitTransitionProvider), AuthTransitionKind.none);
+      expect(
+        container.read(authExitTransitionProvider),
+        AuthTransitionKind.none,
+      );
     });
   });
 }

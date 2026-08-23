@@ -9,6 +9,7 @@ import 'package:vigia_ui/domain/enums/error_codes.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
 import 'package:vigia_ui/presentation/shared/extensions/text_editing_controller_stream.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 import 'package:vigia_ui/presentation/shared/widgets/form_text_field.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_exit_transition_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_provider.dart';
@@ -190,7 +191,11 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
         runSpacing: 8,
         children: [
           showLoading
-              ? const CircularProgressIndicator.adaptive()
+              ? AppLoadingIndicator(
+                  size: 20,
+                  strokeWidth: 2,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                )
               : const Icon(Icons.login_rounded, size: 20),
           Text(
             context.translations.createAccount,

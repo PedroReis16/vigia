@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class VideoPreview extends StatelessWidget {
   const VideoPreview({required this.controller, super.key});
@@ -21,7 +22,7 @@ class VideoPreview extends StatelessWidget {
           borderRadius: _borderRadius,
           border: Border.all(color: colorScheme.outlineVariant),
         ),
-        child: const CircularProgressIndicator(strokeWidth: 2),
+        child: const AppLoadingIndicator(strokeWidth: 2),
       );
     }
 

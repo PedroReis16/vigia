@@ -15,6 +15,7 @@ VERSION_TAG := $(shell echo "$(VERSION)" | tr '@/ ' '---')
 IMAGE_ARM64 := $(APP_NAME):linux-arm64-$(VERSION_TAG)
 OUT_DIR     := dist/$(APP_NAME)-linux-arm64
 OUT_TAR     := dist/$(APP_NAME)-linux-arm64.tar.gz
+OUT_DEPLOY  := dist/$(APP_NAME)-deploy.zip
 DIST_BUNDLE := dist/$(APP_NAME)
 OTA_STAGING := dist/ota-staging
 OTA_TAR     := dist/vigia-fall-ota-$(VERSION).tar.gz
@@ -36,7 +37,8 @@ NATIVE_LINUX_ARM64 := $(shell \
 	fi)
 
 .PHONY: help ensure-model install-local-deps install-build-deps build build-linux-arm64 \
-	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 package-ota clean
+	build-linux-arm64-native build-linux-arm64-docker package-linux-arm64 package-deploy \
+	package-ota clean
 
 help:
 	@echo "Targets:"
@@ -44,8 +46,9 @@ help:
 	@echo "  install-local-deps Venv local: runtime + OpenCV GUI (SHOW_VIDEO)"
 	@echo "  install-build-deps Build nativo Linux: torch CPU + OpenCV headless"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
-	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"
+	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/, $(OUT_TAR) e $(OUT_DEPLOY)"
 	@echo "                     (nativo em linux/arm64; Docker nos demais hosts)"
+	@echo "  package-deploy     Zip único para scp -> $(OUT_DEPLOY)"
 	@echo "  package-ota        Pacote OTA -> $(OTA_TAR) (requer $(OUT_TAR))"
 	@echo "  clean              Remove artefatos gerados"
 	@echo ""
@@ -159,13 +162,36 @@ package-linux-arm64:
 		}; \
 	fi
 	@tar -czf $(OUT_TAR) -C dist $(APP_NAME)-linux-arm64
+	@$(MAKE) package-deploy
 	@echo ""
 	@echo "✅ Build concluído!"
 	@echo "   Pasta : $(OUT_DIR)"
-	@echo "   SCP   : $(OUT_TAR)"
+	@echo "   Bundle: $(OUT_TAR)"
+	@echo "   Deploy: $(OUT_DEPLOY)"
 	@echo ""
-	@echo "   Para enviar à placa:"
-	@echo "   scp $(OUT_TAR) deploy/install.sh deploy/uninstall.sh deploy/fall-detection.service usuario@<ip-da-placa>:/tmp/"
+	@echo "   Para enviar à placa (um único ficheiro):"
+	@echo "   scp $(OUT_DEPLOY) usuario@<ip-da-placa>:/tmp/"
+	@echo "   ssh usuario@<ip> 'cd /tmp && unzip -o vigia-fall-detection-deploy.zip -d vigia-fall-detection-deploy && sudo ./vigia-fall-detection-deploy/install-on-board.sh'"
+
+# Zip único para instalação manual (mesmo padrão do bootstrap).
+package-deploy:
+	@test -f "$(OUT_TAR)" || { echo "ERRO: $(OUT_TAR) em falta. Corra make build-linux-arm64 antes."; exit 1; }
+	@command -v zip >/dev/null 2>&1 || { echo "ERRO: 'zip' não está instalado."; exit 1; }
+	@rm -f $(OUT_DEPLOY)
+	@rm -rf dist/.deploy-staging
+	@mkdir -p dist/.deploy-staging
+	@cp $(OUT_TAR) \
+		deploy/install-on-board.sh \
+		deploy/install.sh \
+		deploy/uninstall.sh \
+		deploy/fall-detection.service \
+		dist/.deploy-staging/
+	@chmod +x dist/.deploy-staging/install-on-board.sh \
+		dist/.deploy-staging/install.sh \
+		dist/.deploy-staging/uninstall.sh
+	@cd dist/.deploy-staging && zip -q -r ../$(APP_NAME)-deploy.zip .
+	@rm -rf dist/.deploy-staging
+	@echo "✅ Pacote deploy: $(OUT_DEPLOY)"
 
 # Empacota OTA: manifest + scripts + unit + tarball interno.
 # Requer $(OUT_TAR) (rode make build-linux-arm64 antes).

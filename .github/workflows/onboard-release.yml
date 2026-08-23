@@ -2,6 +2,12 @@ name: Vigia - Onboard Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_api:
+        description: "Enviar pacote OTA para a API (opcional)"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -44,6 +50,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             ffmpeg \
+            zip \
             libglib2.0-0 \
             libgomp1 \
             libgl1 \
@@ -89,11 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/release-assets"
-          cp "dist/vigia-fall-ota-${OTA_PACKAGE}.tar.gz" \
-             "dist/${{ env.APP_NAME }}-linux-arm64.tar.gz" \
-             deploy/install.sh \
-             deploy/uninstall.sh \
-             deploy/fall-detection.service \
+          cp "dist/${{ env.APP_NAME }}-deploy.zip" \
+             "dist/vigia-fall-ota-${OTA_PACKAGE}.tar.gz" \
              "${{ github.workspace }}/release-assets/"
 
       - name: Upload build artifacts
@@ -104,7 +108,7 @@ jobs:
           retention-days: 30
 
   #------------------------------------------
-  # 2. Publish — mesma tag/release (rolling) + OTA API
+  # 2. Publish — tag/release (sempre) + OTA API (opcional)
   #------------------------------------------
   publish:
     name: Publish — tag onboard
@@ -133,7 +137,52 @@ jobs:
           git push origin "refs/tags/${TAG}" --force
           echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
+      - name: Reset GitHub Release (remove assets antigos)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+            echo "✓ Release anterior '$TAG' removida (tag mantida)."
+          else
+            echo "Nenhuma release '$TAG' anterior."
+          fi
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Onboard
+          body: |
+            Pacote rolling do **vigia-fall** / onboard (Linux ARM64).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `onboard`.
+            Baixe **`vigia-fall-detection-deploy.zip`** para instalação manual.
+
+            ### Instalação manual na placa
+            ```bash
+            scp vigia-fall-detection-deploy.zip usuario@placa:/tmp/
+            ssh usuario@placa
+            cd /tmp
+            unzip -o vigia-fall-detection-deploy.zip -d vigia-fall-detection-deploy
+            sudo ./vigia-fall-detection-deploy/install-on-board.sh
+            ```
+
+            OTA na API é opcional (checkbox `upload_to_api` ao disparar o workflow).
+          files: |
+            ./artifacts/${{ env.APP_NAME }}-deploy.zip
+            ./artifacts/vigia-fall-ota-${{ env.OTA_PACKAGE }}.tar.gz
+          draft: false
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload device package to Vigia API
+        if: ${{ inputs.upload_to_api }}
         env:
           VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
           OTA_PACKAGE: ${{ env.OTA_PACKAGE }}
@@ -184,33 +233,3 @@ jobs:
           done
 
           echo "✓ Pacote OTA rolling enviado (revision=$REVISION)."
-
-      - name: Create or update GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Vigia Onboard
-          body: |
-            Pacote rolling do **vigia-fall** / onboard (Linux ARM64).
-
-            Cada execução desta pipeline sobrescreve esta release e a tag `onboard`.
-            Na API o artefato OTA também é rolling (chave `onboard`); a `revision` é o SHA do commit.
-
-            ### Instalação manual na placa
-            ```bash
-            scp vigia-fall-detection-linux-arm64.tar.gz install.sh uninstall.sh \
-                fall-detection.service user@placa:/tmp/
-            sudo /tmp/install.sh /tmp/vigia-fall-detection-linux-arm64.tar.gz
-            ```
-          files: |
-            ./artifacts/vigia-fall-ota-${{ env.OTA_PACKAGE }}.tar.gz
-            ./artifacts/${{ env.APP_NAME }}-linux-arm64.tar.gz
-            ./artifacts/install.sh
-            ./artifacts/uninstall.sh
-            ./artifacts/fall-detection.service
-          draft: false
-          prerelease: false
-          make_latest: false
-          overwrite_files: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,12 @@
+{
+  "WELCOME": "Welcome",
+  "WELCOME_MESSAGE": "VIGIA home monitoring",
+  "ALTERNATE_THEME": "Switch theme",
+  "ALTERNATE_LANGUAGE": "Switch language",
+  "SETTINGS": {
+    "THEME": {
+      "DARK": "Dark",
+      "LIGHT": "Light"
+    }
+  }
+}

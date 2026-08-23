@@ -1,0 +1,12 @@
+<div class="h-full p-4 flex flex-col">
+    <app-toolbar />
+    <app-message />
+    <div class="flex flex-1 mt-4 gap-4">
+        <app-sidebar />
+        <div class="flex flex-1 w-full overflow-x-hidden">
+            <div class="w-full">
+                <router-outlet></router-outlet>
+            </div>
+        </div>
+    </div>
+</div>

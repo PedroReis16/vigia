@@ -1,5 +1,5 @@
 ---
-description: Mantém a documentação da estrutura do projeto sempre atualizada após alterações relevantes, evitando remapeamento repetido do repositório
+description: Mantém a documentação da estrutura do projeto e os testes alinhados após alterações relevantes, evitando remapeamento repetido do repositório
 globs:
 alwaysApply: true
 ---
@@ -61,6 +61,24 @@ Alterações puramente internas (refatoração sem mudar comportamento externo, 
 de estilo/lint) **não** exigem atualização da documentação, a menos que também alterem a estrutura de
 pastas/arquivos, uma decisão arquitetural, uma regra de negócio ou um fluxo documentado.
 
+## Testes devem acompanhar o código
+Sempre que código importante for **adicionado, modificado ou removido**, os testes referentes a essa
+mudança também precisam ser atualizados **na mesma tarefa** — não deixe testes obsoletos, ausentes
+ou inconsistentes com o comportamento novo.
+
+Isso inclui, em particular:
+- novo módulo, serviço, use case, guard, interceptor, componente ou endpoint → criar ou estender
+  os testes correspondentes;
+- alteração de comportamento, contrato, validação ou regra de negócio → ajustar os testes
+  existentes para refletir o novo comportamento esperado;
+- remoção ou renomeação de código coberto por testes → remover, renomear ou reescrever os testes
+  afetados;
+- mudança de assinatura, dependências injetadas ou fluxo de dados testável → atualizar mocks,
+  fixtures e assertions.
+
+Não se aplica a alterações puramente cosméticas (estilo/lint sem mudança de comportamento), a menos
+que quebrem ou tornem irrelevantes testes já existentes — nesse caso, corrija-os na mesma tarefa.
+
 ## Como atualizar
 - Edite apenas a seção afetada — não reescreva o documento inteiro a cada mudança.
 - Descrições curtas: 1 a 3 linhas por item. Isto não é o lugar para reexplicar o código.
@@ -85,7 +103,12 @@ Detalhes operacionais extensos (setup de Pi, tutorial FIWARE passo a passo) perm
 `README.md` e `docs/DEPLOY.md` dos serviços — referencie-os, não duplique.
 
 ## Regra de ouro
-Pergunta de checagem: "isso muda a forma como alguém entenderia a estrutura do projeto ao ler a
-documentação?"
+Pergunta de checagem (documentação): "isso muda a forma como alguém entenderia a estrutura do
+projeto ao ler a documentação?"
 - Sim → documente.
 - Não → não documente (evita inflar o arquivo com ruído).
+
+Pergunta de checagem (testes): "o comportamento, contrato ou superfície pública do código mudou
+de forma relevante?"
+- Sim → atualize, crie ou remova os testes correspondentes na mesma tarefa.
+- Não → não mexa nos testes só por formalidade.

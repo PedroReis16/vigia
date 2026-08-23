@@ -55,10 +55,13 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 ### Web
 
 - **Framework:** Angular 22
-- **UI:** PrimeNG, Tailwind CSS 4
-- **Testes:** Vitest
+- **UI:** Optimus UI 2 (fork comunitário MIT do PrimeNG) + Tailwind CSS 4
+- **Tipografia:** Plus Jakarta Sans (Google Fonts, SIL OFL)
+- **Auth:** angular-oauth2-oidc (Authorization Code + PKCE)
+- **i18n:** ngx-translate (pt-BR, en-US, es-ES)
+- **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
-- **Status:** scaffold CLI — sem rotas/features implementadas
+- **Status:** boilerplate em camadas com shell autenticado (login/callback/layout/home)
 
 ### CI/CD
 
@@ -76,7 +79,7 @@ vigia/
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
-├── vigia-web/              # Frontend web Angular (scaffold inicial)
+├── vigia-web/              # Frontend web Angular (boilerplate em camadas)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
 ├── seed-codes/             # Utilitário dev: publicar frame de teste com assinatura Ed25519
@@ -211,13 +214,27 @@ vigia/
 
 ### vigia-web
 
-**Propósito:** Frontend web (futuro). Atualmente scaffold Angular CLI sem rotas implementadas.
+**Propósito:** Frontend web Angular — autenticação OAuth2, shell autenticado (layout) e página home. Camadas `core` / `pages` / `shared` com path aliases.
 
-**Tecnologias:** Angular 22, PrimeNG, Tailwind 4, Vitest, pnpm.
+**Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, angular-oauth2-oidc, Vitest, pnpm.
 
-**Ponto de entrada:** `vigia-web/src/main.ts`
+**Ponto de entrada:** `vigia-web/src/main.ts` → `AppComponent` + `appConfig` (`src/app/app.config.ts`).
 
-**Status:** `app.routes.ts` vazio; boilerplate padrão do CLI.
+**Aliases TypeScript** (`vigia-web/tsconfig.json`): `@core`, `@pages`, `@shared`, `@environments`.
+
+**Arquitetura de pastas:**
+
+| Pasta | Responsabilidade |
+|-------|------------------|
+| `src/app/core/` | Config OAuth, guards, interceptors, entities/DTOs, mappers, services HTTP/app, usecases |
+| `src/app/pages/` | Rotas/features: auth (login, callback), layout, home, `main.routes.ts` |
+| `src/app/shared/` | Componentes reutilizáveis (input, message, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
+| `src/environments/` | `environment.ts` / `environment.prod.ts` (API, OAuth, idiomas) |
+| `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
+
+**Rotas:** `/login`, `/callback`, `/` → layout + `authGuard` → `/home`.
+
+**Status:** shell e wiring do boilerplate; UI de sidebar/toolbar/login ainda em stubs mínimos; features de domínio (devices) só esboçadas.
 
 ---
 
@@ -290,6 +307,8 @@ vigia/
 
 12. **Compartilhamento via grupos** — Devices pertencem a grupos; owner gerencia convites; limite de membros imposto na API.
 
+13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` e `darkModeSelector: '.vigia-dark'`.
+
 ---
 
 ## 6. Regras de Negócio
@@ -348,6 +367,15 @@ vigia/
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
 
+### Angular (vigia-web)
+
+- **Camadas:** `pages/` (features/rotas) → `core/` (services, usecases, guards) → `shared/` (UI reutilizável)
+- **Imports:** path aliases `@core`, `@pages`, `@shared`, `@environments` via barrels `index.ts`
+- **Componentes:** standalone; prefixo `app`
+- **Auth:** `Oauth2Service` + `authGuard` + `AuthInterceptor` (class-based com `withInterceptorsFromDi`)
+- **i18n:** arquivos em `public/i18n/*.json` carregados via `TranslateHttpLoader`
+- **Testes:** Vitest via `@angular/build:unit-test`
+
 ### Infra / Config
 
 - `.env.example` por serviço edge e deploy
@@ -362,7 +390,7 @@ vigia/
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
-| vigia-web | scaffold Vitest padrão |
+| vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
 
@@ -386,6 +414,7 @@ flowchart LR
     end
     subgraph clients [Clientes]
         App[vigiaUi]
+        Web[vigiaWeb]
     end
     Fall -->|"MQTT Ultralight"| FIWARE
     Fall -->|RTMP| MTX
@@ -398,6 +427,7 @@ flowchart LR
     App -->|"WebRTC WHEP"| MTX
     App -->|SignalR| API
     App -->|"BLE pairing"| Bootstrap
+    Web -->|"REST OAuth2"| API
 ```
 
 ### 1. Provisioning (primeiro uso)
@@ -452,5 +482,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] vigia-web: trocar Euclid Circular A (paga/CDNFonts) por Plus Jakarta Sans via Google Fonts; remover `public/fonts/` e scripts de download/conversão
+- [2026-08-23] vigia-web: restaurar PrimeNG Community via `@openng/optimus-ui` 2.0.1 (MIT), sem `primeng` comercial (`vigia.theme.ts`, provideOptimus, input/message/home)
+- [2026-08-23] vigia-web: remover PrimeNG (licença comercial) e passar a HTML nativo + Tailwind 4 (`shared/theme/vigia.theme.css`, input, message, home)
+- [2026-08-23] vigia-web: documentar boilerplate em camadas (`core`/`pages`/`shared`) e corrigir referências (barrels, OAuth, rotas, builders `@angular/build`)
 - [2026-08-23] Regra Cursor atualizada para referenciar seções extras 6–8 (`.cursor/rules/project-documentation.mdc`)
 - [2026-08-23] Documentação inicial completa da estrutura do repositório (`docs/project-structure.md`)

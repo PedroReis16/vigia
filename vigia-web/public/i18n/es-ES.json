@@ -1,0 +1,12 @@
+{
+  "WELCOME": "Bienvenido",
+  "WELCOME_MESSAGE": "Monitoreo doméstico VIGIA",
+  "ALTERNATE_THEME": "Cambiar tema",
+  "ALTERNATE_LANGUAGE": "Cambiar idioma",
+  "SETTINGS": {
+    "THEME": {
+      "DARK": "Oscuro",
+      "LIGHT": "Claro"
+    }
+  }
+}

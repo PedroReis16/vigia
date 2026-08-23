@@ -5,7 +5,7 @@ services:
     container_name: vigia-api
     restart: always
     env_file:
-      - /home/ubuntu/default.env
+      - /home/ubuntu/dockers/default.env
     ports:
       - "8090:8080"
     labels:

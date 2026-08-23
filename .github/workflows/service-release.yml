@@ -21,6 +21,7 @@ env:
   DOTNET_VERSION: "10.0.x"
   IMAGE_TAG: latest
   RELEASE_TAG: service
+  BUILD_CONFIGURATION: Release
 
 jobs:
   #------------------------------------------
@@ -126,6 +127,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           build-args: |
+            BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }}
             VERSION=${{ env.IMAGE_TAG }}
           cache-to: type=gha,mode=max,scope=vigia-api-publish
 
@@ -166,6 +168,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           build-args: |
+            BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }}
             VERSION=${{ env.IMAGE_TAG }}
           cache-from: type=gha,scope=vigia-api-publish
 

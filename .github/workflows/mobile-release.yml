@@ -59,13 +59,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: GitLeaks — secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Scan da árvore atual (não do histórico). Chaves antigas no git log
+      # devem ser rotacionadas; purge de histórico é opcional.
+      - name: GitLeaks — secret scan (working tree)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-git --source . --redact -v --exit-code=2
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 3. SETUP VALIDATION — Flutter, Firebase e config Android
@@ -117,11 +121,13 @@ jobs:
 
           echo "✓ firebase.json válido — projectId: $PROJECT_ID | Android appId: $ANDROID_APP_ID"
 
-      - name: Validar estratégia google-services.json
+      - name: Validar estratégia google-services.json e firebase_options
         run: |
           set -euo pipefail
           REAL_FILE="$SERVICE_PATH/android/app/google-services.json"
           EXAMPLE_FILE="$SERVICE_PATH/android/app/google-services.json.example"
+          FIREBASE_OPTIONS="$SERVICE_PATH/lib/firebase_options.dart"
+          FIREBASE_OPTIONS_EXAMPLE="$SERVICE_PATH/lib/firebase_options.dart.example"
 
           if [ -f "$REAL_FILE" ]; then
             echo "::error::$REAL_FILE encontrado no repositório."
@@ -135,6 +141,19 @@ jobs:
           else
             echo "✓ google-services.json.example presente"
           fi
+
+          if git ls-files --error-unmatch "$FIREBASE_OPTIONS" >/dev/null 2>&1; then
+            echo "::error::$FIREBASE_OPTIONS está versionado."
+            echo "Não commite apiKeys — use firebase_options.dart.example + secret FIREBASE_OPTIONS_DART_BASE64."
+            exit 1
+          fi
+          echo "✓ firebase_options.dart não está no índice git (correto)"
+
+          if [ ! -f "$FIREBASE_OPTIONS_EXAMPLE" ]; then
+            echo "::error::$FIREBASE_OPTIONS_EXAMPLE ausente."
+            exit 1
+          fi
+          echo "✓ firebase_options.dart.example presente"
 
       - name: Dependências desatualizadas (informativo)
         working-directory: ${{ env.SERVICE_PATH }}
@@ -167,6 +186,11 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: dart format --output=none --set-exit-if-changed lib test
 
+      - name: Hidratar firebase_options.dart (example / secret)
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
+
       - name: Flutter — analyze (SAST estático)
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter analyze --fatal-warnings
@@ -186,6 +210,11 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Hidratar firebase_options.dart (example / secret)
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
 
       - name: Flutter — pub get
         working-directory: ${{ env.SERVICE_PATH }}
@@ -303,6 +332,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Hidratar firebase_options.dart (example / secret)
+        if: steps.check.outputs.has_tests == 'true'
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
+
       - name: Flutter — pub get
         if: steps.check.outputs.has_tests == 'true'
         working-directory: ${{ env.SERVICE_PATH }}
@@ -345,6 +380,12 @@ jobs:
           jq empty "$SERVICE_PATH/android/app/google-services.json" \
             || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
           echo "✓ google-services.json hidratado."
+
+      - name: Hidratar firebase_options.dart a partir do secret
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+          REQUIRE_SECRET: "1"
+        run: bash .github/scripts/hydrate-firebase-options.sh
 
       - name: Hidratar keystore Android a partir do secret
         env:

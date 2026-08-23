@@ -12,7 +12,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 
 - **Hardware:** Raspberry Pi 5 (8 GB RAM), Raspberry Pi OS Lite 64-bit
 - **Runtime:** Python 3.12, asyncio (bootstrap), multiprocessing (fall-detection)
-- **ML / Visão:** Ultralytics YOLO (pose), OpenCV
+- **ML / Visão:** Ultralytics YOLO (pose), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
 - **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`)
@@ -165,7 +165,7 @@ vigia/
 
 **Propósito:** Serviço de detecção de quedas — captura de câmera, inferência YOLO pose, detecção de queda, telemetria FIWARE via MQTT, upload de frames assinados, streaming RTMP.
 
-**Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, paho-mqtt, SQLite, PyInstaller.
+**Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, onnxruntime, paho-mqtt, SQLite, PyInstaller.
 
 **Ponto de entrada:** `vigia-fall/main.py` — multiprocess (capture worker + FIWARE runner)
 
@@ -173,17 +173,18 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, fall detector, frame upload |
-| `integration/` | `vigia-fall/integration/` | FIWARE runner (MQTT command listener) |
+| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload, streaming |
+| `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
+| `integration/` | `vigia-fall/integration/` | FIWARE runner (MQTT cmds + `notify_fall`) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
-| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config |
+| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json` |
 
 **Deploy:** `/opt/vigia/fall-detection/`, systemd `fall-detection.service`
 
-**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`)
+**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`); `classifier.json` opcional (default `math`)
 
-**Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA
+**Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui `model/gru_2classes.onnx`)
 
 **Docs operacionais:** `vigia-fall/docs/DEPLOY.md`
 
@@ -316,7 +317,7 @@ vigia/
 | Regra | Onde é aplicada |
 |-------|-----------------|
 | Nome do device deve seguir `^Vigia-[0-9a-f]{8}$` (ex.: `Vigia-a1b2c3d4`) | `DevicesService`, `vigia-bootstrap/provision/identity.py`, `vigia_ui/lib/domain/constants.dart` |
-| Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py` (ecrãs MODELO/MODELO_PICK) |
+| Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); fall lê no start e instancia `FallClassifier`; unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py`; `vigia-fall/capture/classifiers/` |
 | Chave pública Ed25519 (hex 64 chars) obrigatória no registro | `DevicesService` + `DeviceSignatureAuthenticationHandler` |
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
@@ -358,7 +359,7 @@ vigia/
 
 - Docstrings em português
 - **bootstrap:** asyncio (loop UI + supervisor de provisionamento)
-- **fall-detection:** multiprocessing (capture worker + FIWARE runner isolados)
+- **fall-detection:** multiprocessing (capture worker + FIWARE runner isolados); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
 - **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
@@ -391,7 +392,7 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários reais (frame processor, uploader, identity, FIWARE OTA) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, identity, FIWARE OTA) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
@@ -446,9 +447,9 @@ flowchart LR
 
 ### 2. Detecção de queda
 
-1. Câmera captura frames → YOLO pose inference → fall detector avalia postura
-2. Edge publica atributo `fall_state` via MQTT Ultralight
-3. Orion detecta `fall_state==fall` (subscription configurada)
+1. Câmera captura frames → YOLO pose (`extract_poses`) → `FallClassifier` (`math` ou `gru` conforme `classifier.json`)
+2. Em alerta, edge publica atributo Ultralight `fall|{label}` via `notify_fall`
+3. Orion detecta `fall_state` (subscription configurada)
 4. Webhook POST para `/vigia/devices/alert`
 5. API notifica membros do grupo via Firebase push + SignalR
 
@@ -487,6 +488,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fall: miolo pluggável `math`/`gru` (`capture/classifiers/`), leitura de `classifier.json`, port ONNX GRU, `notify_fall`, YOLO partilhado via `extract_poses`
 - [2026-08-23] Bootstrap: seleção de classificador no LCD (`MODELO`/`MODELO_PICK`), persistência `classifier.json` (default `math`), `ensure_classifier_config` antes do auto-start do fall (`provision/classifier.py`, `ui/menu.py`, `ui/status.py`)
 - [2026-08-23] Fix upsert de push token: reativar soft-delete no re-login (`UserPushTokenDao.UpsertAsync`); testes unitários em `Vigia.Database.UnitTests`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)

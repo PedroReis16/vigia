@@ -82,6 +82,11 @@ def get_network_path() -> Path:
     return Path(os.path.join(get_settings().data_dir, "network.json"))
 
 
+def get_classifier_path() -> Path:
+    """Preferência de classificador (math|gru) escrita pelo bootstrap."""
+    return Path(os.path.join(get_settings().data_dir, "classifier.json"))
+
+
 @dataclass(frozen=True)
 class DeviceIdentity:
     """

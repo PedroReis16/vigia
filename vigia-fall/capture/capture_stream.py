@@ -105,9 +105,7 @@ def _rtmp_publish_url(api_base_url: str, device_id: str) -> str:
     if api_base_url.startswith("https"):
         host = api_base_url.split("://")[1].split(":")[0]
     else:
-        host = (
-            f"{api_base_url.split("://")[1].split(":")[0]}:{1935}" or "localhost:1935"
-        )
+        host = f"{api_base_url.split('://')[1].split(':')[0]}:1935" or "localhost:1935"
 
     return f"{protocol}://{host}/live/{device_id}"
 

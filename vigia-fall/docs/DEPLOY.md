@@ -6,6 +6,7 @@ Guia curto para gerar o pacote PyInstaller onedir e instalar na placa.
 
 - **`make`** e **Python 3.12** com dependências do projeto.
 - O ficheiro `yolo26s-pose.pt` é gitignored: o Makefile baixa-o automaticamente se faltar.
+- O modelo GRU `model/gru_2classes.onnx` entra no bundle PyInstaller (classificador `gru`).
 - **Caminho do build** (escolhido automaticamente por `make build-linux-arm64`):
   - **Linux aarch64/arm64** — compilação nativa (CI com `ubuntu-24.04-arm`, VM ARM, placa).
   - **Outros hosts** (macOS, Linux amd64, etc.) — Docker + buildx (`deploy/Dockerfile.linux-arm64-binary`).

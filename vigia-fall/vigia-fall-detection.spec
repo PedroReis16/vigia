@@ -5,7 +5,10 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
-datas = [("yolo26s-pose.pt", ".")]
+datas = [
+    ("yolo26s-pose.pt", "."),
+    ("model/gru_2classes.onnx", "model"),
+]
 binaries = []
 hiddenimports = []
 
@@ -37,6 +40,9 @@ hiddenimports += [
     "getmac",
     "cryptography",
     "paho.mqtt.client",
+    "onnxruntime",
+    "capture.classifiers",
+    "capture.models.gru_classifier",
 ]
 
 a = Analysis(

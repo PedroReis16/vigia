@@ -36,6 +36,7 @@ def _snap(**kwargs) -> DeviceSnapshot:
         sys_cpu_pct=34,
         fall_rss_mib=48,
         sys_used_mib=412,
+        board_temp_c=55,
     )
     base.update(kwargs)
     return DeviceSnapshot(**base)
@@ -84,7 +85,7 @@ def test_navegacao_wifi_hold_alterar_rede(monkeypatch) -> None:
 
 
 def test_ciclo_nao_inclui_overlays() -> None:
-    assert CYCLE == (Screen.CPU, Screen.WIFI, Screen.SERVICO)
+    assert CYCLE == (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.ATUALIZ)
     menu = Menu(NullDisplay())
     seen = []
     for _ in range(len(CYCLE)):
@@ -106,15 +107,42 @@ def test_wifi_mostra_ssid() -> None:
 
 def test_cpu_mostra_fall_e_sistema() -> None:
     menu = Menu(NullDisplay())
-    l1, l2 = menu.lines_for(_snap(fall_cpu_pct=12, sys_cpu_pct=34, fall_rss_mib=48, sys_used_mib=412))
+    l1, l2 = menu.lines_for(
+        _snap(
+            fall_cpu_pct=12,
+            sys_cpu_pct=34,
+            fall_rss_mib=48,
+            sys_used_mib=412,
+            board_temp_c=55,
+        )
+    )
     assert l1 == "F  12%  48M"
+    assert l2 == "S  34% 412M  55C"
+    assert l1[5] == l2[5] == "%"
+    assert l1[10] == l2[10] == "M"
+
+
+def test_cpu_sem_temperatura_mantem_formato() -> None:
+    menu = Menu(NullDisplay())
+    _, l2 = menu.lines_for(_snap(board_temp_c=None, sys_cpu_pct=34, sys_used_mib=412))
     assert l2 == "S  34% 412M"
 
 
 def test_cpu_fall_parado() -> None:
     menu = Menu(NullDisplay())
     l1, _ = menu.lines_for(_snap(fall_active=False, fall_rss_mib=0))
-    assert l1 == "F --%   0M"
+    assert l1 == "F  --%   0M"
+
+
+def test_servico_mostra_consumo_quando_ativo() -> None:
+    menu = Menu(NullDisplay())
+    menu.index = CYCLE.index(Screen.SERVICO)
+    l1, l2 = menu.lines_for(_snap(fall_active=True, fall_cpu_pct=12, fall_rss_mib=48))
+    assert l1 == "Servico ativo"
+    assert l2 == "F  12%  48M"
+    l1, l2 = menu.lines_for(_snap(fall_active=False))
+    assert l1 == "Servico"
+    assert l2 == "parado"
 
 
 def test_status_estagios_pareamento() -> None:
@@ -284,7 +312,7 @@ def test_refresh_iguais_nao_reescreve() -> None:
 def test_on_up_marca_dirty_e_muda_ecra() -> None:
     menu = Menu(NullDisplay())
     menu.on_up()
-    assert menu.screen is Screen.SERVICO
+    assert menu.screen is Screen.ATUALIZ
     assert menu._dirty is True
 
 
@@ -369,9 +397,22 @@ def test_cgroup_procs_e_stat_do_fall() -> None:
 def test_fall_pids_agrega_cgroup_nao_so_mainpid(monkeypatch) -> None:
     monkeypatch.setattr(ui_status, "_cgroup_pids", lambda cg: [10, 11, 12] if cg else [])
     monkeypatch.setattr(ui_status, "descendants_from_root", lambda pid: [pid, 99])
-    assert fall_pids(10, "/system.slice/fall-detection.service") == [10, 11, 12]
+    assert fall_pids(10, "/system.slice/fall-detection.service") == [10, 11, 12, 99]
     assert fall_pids(10, "") == [10, 99]
     assert fall_pids(None, "") == []
+
+
+def test_fall_pids_usa_arvore_quando_cgroup_vazio(monkeypatch) -> None:
+    monkeypatch.setattr(ui_status, "_cgroup_pids", lambda cg: [])
+    monkeypatch.setattr(ui_status, "descendants_from_root", lambda pid: [pid, 20, 21])
+    assert fall_pids(10, "/system.slice/fall-detection.service") == [10, 20, 21]
+
+
+def test_ppid_from_stat_e_temp() -> None:
+    rest = "S 1 1 1 0 -1 0 0 0 0 0 40 10 0 0"
+    assert ui_status._ppid_from_stat(f"123 (python) {rest}") == 1
+    assert ui_status.temp_c_from_millidegrees(55123) == 55
+    assert ui_status.temp_c_from_millidegrees(999999) == 999
 
 
 def test_tree_cpu_ticks_soma_filhos(monkeypatch) -> None:

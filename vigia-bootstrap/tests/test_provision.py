@@ -45,6 +45,9 @@ def test_load_or_create_identity_persiste_e_reutiliza(tmp_path, monkeypatch) -> 
 def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     settings.get_settings.cache_clear()
+    from provision import state as pairing_state
+
+    pairing_state.clear_force_pairing()
     (tmp_path / "identity.json").write_text("{}")
     (tmp_path / "network.json").write_text(
         json.dumps(
@@ -75,6 +78,98 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
 
     asyncio.run(run())
     assert called["start"] >= 1
+
+
+def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+    from provision import actions, state as pairing_state
+
+    pairing_state.clear_force_pairing()
+    identity = tmp_path / "identity.json"
+    network = tmp_path / "network.json"
+    identity.write_text('{"device_id":"x"}')
+    network.write_text('{"ssid":"casa"}')
+    fall_data = tmp_path / "fall-detection" / "data"
+    fall_data.mkdir(parents=True)
+    (fall_data / "cache.bin").write_text("x")
+    (tmp_path / "DB").mkdir()
+    (tmp_path / "DB" / "local.db").write_text("db")
+
+    monkeypatch.setenv("VIGIA_RESET_SCRIPT", str(tmp_path / "missing-script"))
+    monkeypatch.setattr(actions, "stop_fall_detection", lambda: None)
+    cancel = threading.Event()
+    pairing_state.bind_cancel(cancel)
+
+    actions.unlink_user()
+
+    assert identity.exists()
+    assert network.read_text() == '{"ssid":"casa"}'
+    assert not fall_data.exists()
+    assert not (tmp_path / "DB").exists()
+    assert pairing_state.is_force_pairing() is True
+    assert cancel.is_set()
+    pairing_state.clear_force_pairing()
+    pairing_state.bind_cancel(threading.Event())
+
+
+def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+    from provision import state as pairing_state
+    from types import ModuleType
+    import sys
+
+    pairing_state.clear_force_pairing()
+    (tmp_path / "identity.json").write_text(
+        json.dumps(
+            {
+                "device_id": "11111111-1111-1111-1111-111111111111",
+                "device_name": "Vigia-test",
+                "mac_address": "aa:bb:cc:dd:ee:ff",
+                "sign_priv": "11" * 32,
+                "ecdh_priv": "22" * 32,
+            }
+        )
+    )
+    (tmp_path / "network.json").write_text('{"ssid":"casa"}')
+
+    called = {"ble": 0, "start": 0}
+
+    async def fake_beacon(*_args, **_kwargs) -> None:
+        called["ble"] += 1
+        pairing_state.clear_force_pairing()
+
+    fake_ble = ModuleType("provision.ble")
+    fake_ble.init_register_beacon = fake_beacon  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "provision.ble", fake_ble)
+
+    monkeypatch.setattr(
+        "provision.runner.start_fall_detection",
+        lambda: called.__setitem__("start", called["start"] + 1),
+    )
+
+    cancel = threading.Event()
+    pairing_state.bind_cancel(cancel)
+
+    async def run() -> None:
+        task = asyncio.create_task(provision_supervisor(cancel))
+        await asyncio.sleep(0.15)
+        assert called["start"] >= 1
+        assert called["ble"] == 0
+        pairing_state.request_force_pairing()
+        # O wait do supervisor faz sleep(1); dar margem para sair e abrir BLE.
+        await asyncio.sleep(1.4)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert called["ble"] >= 1
+    pairing_state.clear_force_pairing()
+    pairing_state.bind_cancel(threading.Event())
 
 
 def test_get_wifi_service_nmcli_por_omissao(monkeypatch) -> None:

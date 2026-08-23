@@ -1,0 +1,207 @@
+name: Bootstrap Pipeline
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Bootstrap Build"
+
+permissions:
+  contents: write
+
+env:
+  SERVICE_PATH: vigia-bootstrap
+  APP_NAME: vigia-bootstrap
+  LG_VERSION: "0.2.2"
+  # Tag/release mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: bootstrap
+  ARTIFACT_NAME: vigia-bootstrap-linux-arm64
+
+jobs:
+  #------------------------------------------
+  # 1. Run tests (amd64)
+  #------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache liblgpio
+        id: cache-liblgpio
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vigia-liblgpio-${{ env.LG_VERSION }}
+          key: liblgpio-${{ runner.os }}-${{ runner.arch }}-${{ env.LG_VERSION }}
+
+      - name: Install system dependencies + liblgpio
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            swig \
+            wget
+          bash "${{ github.workspace }}/.github/scripts/install-liblgpio.sh"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            ${{ env.SERVICE_PATH }}/requirements.txt
+
+      - name: Install Python dependencies (Makefile)
+        run: make install-local-deps && python -m pip install pytest
+
+      - name: Run tests (Makefile)
+        run: make test
+
+  #------------------------------------------
+  # 2. Build (Linux ARM64 nativo)
+  #------------------------------------------
+  build-release:
+    name: Build - Linux ARM64
+    needs: test
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache liblgpio
+        id: cache-liblgpio
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vigia-liblgpio-${{ env.LG_VERSION }}
+          key: liblgpio-${{ runner.os }}-${{ runner.arch }}-${{ env.LG_VERSION }}
+
+      - name: Install system dependencies + liblgpio
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            swig \
+            wget \
+            zip
+          bash "${{ github.workspace }}/.github/scripts/install-liblgpio.sh"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            ${{ env.SERVICE_PATH }}/requirements.txt
+            ${{ env.SERVICE_PATH }}/requirements-build.txt
+
+      - name: Install Python build dependencies (Makefile)
+        run: make install-build-deps
+
+      - name: Build Linux ARM64 bundle (native Makefile)
+        env:
+          VERSION: latest
+        run: |
+          set -euo pipefail
+          echo "Host: $(uname -s)/$(uname -m)"
+          make build-linux-arm64
+
+      - name: Stage release artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/release-assets"
+          cp "dist/${{ env.APP_NAME }}-deploy.zip" \
+             "${{ github.workspace }}/release-assets/"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ github.workspace }}/release-assets/*
+          retention-days: 30
+
+  #------------------------------------------
+  # 3. Publish — mesma tag/release (rolling)
+  #------------------------------------------
+  publish:
+    name: Publish — tag bootstrap
+    needs: [test, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./artifacts
+
+      - name: Move mutable tag to HEAD
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" -m "Vigia Bootstrap (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
+
+      - name: Reset GitHub Release (remove assets antigos)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+            echo "✓ Release anterior '$TAG' removida (tag mantida)."
+          else
+            echo "Nenhuma release '$TAG' anterior."
+          fi
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Bootstrap
+          body: |
+            Pacote rolling do **vigia-bootstrap** (Linux ARM64).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `bootstrap`.
+            Baixe **apenas** `vigia-bootstrap-deploy.zip`.
+
+            ### Instalação na placa
+            ```bash
+            scp vigia-bootstrap-deploy.zip usuario@placa:/tmp/
+            ssh usuario@placa
+            cd /tmp
+            unzip -o vigia-bootstrap-deploy.zip -d vigia-bootstrap-deploy
+            sudo ./vigia-bootstrap-deploy/install-on-board.sh
+            ```
+
+            O `install-on-board.sh` instala o serviço e apaga o zip + pasta temporária.
+          files: |
+            ./artifacts/vigia-bootstrap-deploy.zip
+          draft: false
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

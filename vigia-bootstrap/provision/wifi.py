@@ -9,6 +9,7 @@ import logging
 from typing import Optional
 
 from .settings import get_network_path, get_settings
+from .sysenv import system_subprocess_env
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ async def _nmcli(*args: str) -> tuple[int, str]:
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=system_subprocess_env(),
     )
     stdout, stderr = await proc.communicate()
     out = (stdout or b"").decode("utf-8", errors="replace").strip()

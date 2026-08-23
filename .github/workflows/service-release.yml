@@ -1,152 +1,109 @@
-name: Vigia API — Service Release
-
-concurrency:
-  group: service-release-vigia-api-${{ inputs.version }}
-  cancel-in-progress: false
-
-run-name: "Vigia API — release v${{ inputs.version }}"
+name: Vigia API — Service Pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Versão a ser publicada (ex.: 1.0.0)"
-        required: true
-        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Service Build"
 
 permissions:
   contents: write
-  pull-requests: read
-  security-events: write 
-  deployments: write 
+  security-events: write
+  deployments: write
 
 env:
-  SERVICE_PATH: vigia-services/apps/vigia-api
-  DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api-go.dockerfile
+  SERVICE_PATH: vigia-api
+  DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
-  TAG_PREFIX: vigia-api
-  GOSEC_VERSION: v2.22.0
-  GOVULNCHECK_VERSION: v1.1.4
+  DOTNET_VERSION: "10.0.x"
+  # Tag mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: service
 
 jobs:
-  # ═══════════════════════════════════════════════════════════════
-  # 1. VALIDATE
-  # ═══════════════════════════════════════════════════════════════
-  validate:
-    name: Validate — version, CHANGELOG, tag
+  #------------------------------------------
+  # 1. Resolve branch (prod vs homolog)
+  #------------------------------------------
+  resolve:
+    name: Resolve environment
+    runs-on: ubuntu-latest
+    outputs:
+      is_homolog: ${{ steps.meta.outputs.is_homolog }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Resolve Docker rolling tag
+        id: meta
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.ref_name }}"
+          if [[ "$BRANCH" == "master" ]]; then
+            echo "is_homolog=false" >> "$GITHUB_OUTPUT"
+            echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_homolog=true" >> "$GITHUB_OUTPUT"
+            echo "image_tag=homolog" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Branch: $BRANCH → image_tag=$([[ "$BRANCH" == "master" ]] && echo latest || echo homolog)"
+
+  #------------------------------------------
+  # 2. Test (.NET)
+  #------------------------------------------
+  test:
+    name: Tests — unit & integration
+    needs: resolve
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Vigia.slnx
+
+      - name: Build
+        run: dotnet build Vigia.slnx -c Release --no-restore
+
+      - name: Test
+        run: |
+          set -euo pipefail
+          dotnet test Vigia.slnx \
+            -c Release \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-vigia-api
+          path: ${{ env.SERVICE_PATH }}/TestResults
+          retention-days: 7
+          if-no-files-found: ignore
+
+  #------------------------------------------
+  # 3. Security (secrets + Dockerfile)
+  #------------------------------------------
+  security:
+    name: Security — secrets & Dockerfile
+    needs: resolve
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
-      - name: Validate semantic version format
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ inputs.version }}"
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
-            echo "::error::Versão '$VERSION' não segue SemVer (ex.: 1.2.3 ou 1.2.3-rc.1)."
-            exit 1
-          fi
-          echo "✓ Formato semântico válido: $VERSION"
-
-      - name: Validate CHANGELOG entry
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          CHANGELOG="./${SERVICE_PATH}/CHANGELOG.md"
-
-          if [ ! -f "$CHANGELOG" ]; then
-            echo "::error::$CHANGELOG não encontrado."
-            echo "Crie o arquivo antes de fazer release."
-            exit 1
-          fi
-
-          # Accepts both Keep a Changelog (## [1.2.3]) and custom (# **[1.2.3]**) formats.
-          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG"; then
-            echo "✓ Versão $VERSION encontrada no CHANGELOG."
-          else
-            echo "::error::Versão $VERSION NÃO encontrada em $CHANGELOG."
-            echo "Adicione '## [$VERSION]' ao CHANGELOG antes de criar o release."
-            exit 1
-          fi
-
-      # Prevent accidentally overwriting a production release that already shipped.
-      - name: Validate git tag uniqueness
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${TAG_PREFIX}@${{ inputs.version }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "::error::A tag '$TAG' já existe no repositório."
-            echo "Use uma versão diferente ou remova a tag existente manualmente."
-            exit 1
-          fi
-          echo "✓ Tag '$TAG' disponível."
-
-      - name: Validate GitHub Release uniqueness
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${TAG_PREFIX}@${{ inputs.version }}"
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "::error::GitHub Release '$TAG' já existe."
-            exit 1
-          fi
-          echo "✓ GitHub Release '$TAG' disponível."
-
-  # ═══════════════════════════════════════════════════════════════
-  # 2. TEST
-  # ═══════════════════════════════════════════════════════════════
-  test:
-    name: Tests — unit & integration
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: ${{ env.SERVICE_PATH }}/go.mod
-          cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
-
-      - name: Go — unit & integration tests
-        working-directory: ${{ env.SERVICE_PATH }}
-        env:
-          GOWORK: off
-        run: |
-          go test ./... \
-            -race \
-            -coverprofile=coverage.out \
-            -covermode=atomic \
-            -timeout=120s
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-vigia-api-${{ inputs.version }}
-          path: ${{ env.SERVICE_PATH }}/coverage.out
-          retention-days: 7
-
-  # ═══════════════════════════════════════════════════════════════
-  # 3. SECURITY
-  # ═══════════════════════════════════════════════════════════════
-  security:
-    name: Security — SAST, SCA, secrets, Dockerfile
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 
-          
       - name: Secret scan (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -158,90 +115,16 @@ jobs:
           dockerfile: ${{ env.DOCKERFILE_PATH }}
           failure-threshold: error
 
-      - name: Set up Go
-        id: setup_go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: ${{ env.SERVICE_PATH }}/go.mod
-          cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
-
-      - name: Cache Go security tools (~/go/bin)
-        id: cache_go_tools
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin
-          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}
-
-      - name: Install security tools (only on cache miss)
-        if: steps.cache_go_tools.outputs.cache-hit != 'true'
-        env:
-          GOWORK: off
-        run: |
-          set -euo pipefail
-          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
-          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-
-      - name: Ensure ~/go/bin is on PATH
-        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
-
-      - name: Go — SAST (gosec)
-        working-directory: ${{ env.SERVICE_PATH }}
-        env:
-          GOWORK: off
-        run: gosec ./...
-
-      - name: Go — dependency vulnerability check (govulncheck)
-        working-directory: ${{ env.SERVICE_PATH }}
-        env:
-          GOWORK: off
-        run: govulncheck ./...
-
-  # ═══════════════════════════════════════════════════════════════
-  # 4. BUILD
-  # ═══════════════════════════════════════════════════════════════
-  build:
-    name: Build — Linux amd64 binary
-    needs: [test, security]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: ${{ env.SERVICE_PATH }}/go.mod
-          cache-dependency-path: ${{ env.SERVICE_PATH }}/go.sum
-
-      - name: Build binary
-        working-directory: ${{ env.SERVICE_PATH }}
-        env:
-          GOWORK: off
-        run: |
-          set -euo pipefail
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build \
-              -trimpath \
-              -ldflags="-s -w" \
-              -o vigia-api \
-              ./cmd
-
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: binary-vigia-api-${{ inputs.version }}
-          path: ${{ env.SERVICE_PATH }}/vigia-api
-          # Short retention: artifact is only needed during this workflow run.
-          retention-days: 1
-
-  # ═══════════════════════════════════════════════════════════════
-  # 5. PUBLISH
-  # ═══════════════════════════════════════════════════════════════
+  #------------------------------------------
+  # 4. Publish — Docker image (rolling tags)
+  #------------------------------------------
   publish:
-    name: Publish — Docker image to Docker Hub
-    needs: [build]
+    name: Publish — Docker Hub
+    needs: [resolve, test, security]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -261,16 +144,15 @@ jobs:
           load: true
           push: false
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
-            VERSION=${{ inputs.version }}
+            VERSION=${{ needs.resolve.outputs.image_tag }}
 
       - name: Trivy — generate SARIF report
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
           format: sarif
@@ -285,26 +167,31 @@ jobs:
       - name: Trivy — block on unfixed CRITICAL/HIGH CVEs
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: table
           ignore-unfixed: true
 
       - name: Push Docker image
+        env:
+          IMAGE_TAG: ${{ needs.resolve.outputs.image_tag }}
         run: |
           set -euo pipefail
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-          echo "✓ Imagens publicadas: ${{ inputs.version }}, ${{ github.sha }}, latest"
+          USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
+          IMAGE="${USERNAME}/${{ env.IMAGE_NAME }}"
 
-  # ═══════════════════════════════════════════════════════════════
-  # 6. PORTAINER DEPLOY — production (EC2)
-  # ═══════════════════════════════════════════════════════════════
+          docker push "${IMAGE}:${IMAGE_TAG}"
+          docker push "${IMAGE}:${{ github.sha }}"
+          echo "✓ Imagens publicadas: ${IMAGE_TAG}, ${{ github.sha }}"
+
+  #------------------------------------------
+  # 5. Portainer deploy — production only
+  #------------------------------------------
   portainer_deploy:
     name: Deploy — Portainer webhook
-    needs: publish
+    needs: [resolve, publish]
+    if: needs.resolve.outputs.is_homolog != 'true'
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -314,73 +201,78 @@ jobs:
         run: |
           set -euo pipefail
           WEBHOOK_URL=$(echo "$WEBHOOK_URL" | tr -d '[:space:]')
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::error::Secret PORTAINER_WEBHOOK_URL não configurado."
+            exit 1
+          fi
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
           if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "204" ]]; then
             echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
             exit 1
           fi
-          echo "✓ Portainer redeploy acionado — vigia-api v${{ inputs.version }} (HTTP ${HTTP_STATUS})."
+          echo "✓ Portainer redeploy acionado — vigia-api:${{ needs.resolve.outputs.image_tag }} (HTTP ${HTTP_STATUS})."
 
-  # ═══════════════════════════════════════════════════════════════
-  # 7. RELEASE — git tag & GitHub Release
-  # ═══════════════════════════════════════════════════════════════
+  #------------------------------------------
+  # 6. Publish — mesma tag git (rolling)
+  #------------------------------------------
   release:
-    name: Release — git tag & GitHub Release
-    needs: portainer_deploy
+    name: Publish — tag service
+    needs: [resolve, publish, portainer_deploy]
+    if: |
+      always() &&
+      needs.resolve.result == 'success' &&
+      needs.publish.result == 'success' &&
+      (needs.portainer_deploy.result == 'success' || needs.portainer_deploy.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create and push git tag
+      - name: Move mutable tag to HEAD
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
-          TAG="${TAG_PREFIX}@${{ inputs.version }}"
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" \
-            -m "Release Vigia API v${{ inputs.version }} — ready for release"
-          git push origin "$TAG"
-          echo "✓ Tag '$TAG' criada e publicada."
+          git tag -f "$TAG" -m "Vigia API / Service (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
-      - name: Extract release notes from CHANGELOG
-        shell: bash
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          set -euo pipefail
-          CHANGELOG="./${SERVICE_PATH}/CHANGELOG.md"
-
-          awk -v version="$VERSION" '
-            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
-            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
-            capture { print }
-          ' "$CHANGELOG" > RELEASE_NOTES.md
-
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Não foi possível extrair release notes para $VERSION de $CHANGELOG."
-            exit 1
-          fi
-
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_PREFIX }}@${{ inputs.version }}
-          name: "Vigia API v${{ inputs.version }}"
-          body_path: ./RELEASE_NOTES.md
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia API / Service
+          body: |
+            Release rolling da **vigia-api**.
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `service`.
+            Não há versionamento SemVer no GitHub.
+
+            ### Docker Hub
+            - Produção (`master`): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:latest`
+            - Homologação (outras branches): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:homolog`
+            - Commit: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:${{ github.sha }}`
           draft: false
-          generate_release_notes: false
+          prerelease: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ═══════════════════════════════════════════════════════════════
-  # 8. DEPLOYMENT AUDIT — register GitHub Deployment entry
-  # ═══════════════════════════════════════════════════════════════
+  #------------------------------------------
+  # 7. Deployment audit (produção)
+  #------------------------------------------
   deployment_audit:
-    name: Deployment audit — register GitHub Deployment
-    needs: [portainer_deploy, release]
-    if: needs.portainer_deploy.result == 'success' && needs.release.result == 'success'
+    name: Deployment audit — GitHub Deployment
+    needs: [resolve, portainer_deploy, release]
+    if: |
+      always() &&
+      needs.resolve.outputs.is_homolog != 'true' &&
+      needs.portainer_deploy.result == 'success' &&
+      needs.release.result == 'success'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -394,7 +286,7 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg ref "${{ github.ref }}" \
             --arg environment "production" \
-            --arg description "Deploy vigia-api v${{ inputs.version }}" \
+            --arg description "Deploy vigia-api:latest" \
             '{
               ref: $ref,
               environment: $environment,
@@ -420,4 +312,4 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-api v${{ inputs.version }} em produção"
+            -f description="vigia-api:latest em produção"

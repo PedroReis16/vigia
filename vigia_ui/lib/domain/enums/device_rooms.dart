@@ -11,7 +11,7 @@ enum DeviceRooms {
 }
 
 extension DeviceRoomsExtension on DeviceRooms {
-  String toApiString() {
+  String? toApiString() {
     return switch (this) {
       DeviceRooms.bedroom => 'Bedroom',
       DeviceRooms.livingRoom => 'LivingRoom',
@@ -21,7 +21,7 @@ extension DeviceRoomsExtension on DeviceRooms {
       DeviceRooms.garage => 'Garage',
       DeviceRooms.backyard => 'Backyard',
       DeviceRooms.frontyard => 'Frontyard',
-      _ => throw UnimplementedError(),
+      DeviceRooms.notDefined => null,
     };
   }
 

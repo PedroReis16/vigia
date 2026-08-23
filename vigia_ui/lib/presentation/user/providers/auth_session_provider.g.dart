@@ -36,7 +36,7 @@ final class AuthSessionProvider
   AuthSession create() => AuthSession();
 }
 
-String _$authSessionHash() => r'5da8be8cde9b9385130cc1c187da1b0a61f94904';
+String _$authSessionHash() => r'ef235cf195cc637d0d7f88b466298ac8dc9b963e';
 
 /// Whether the user has a persisted session (refresh token present).
 

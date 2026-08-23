@@ -1,89 +1,59 @@
-name: Vigia UI — Mobile Release
-
-concurrency:
-  group: release-vigia-ui-${{ inputs.version }}
-  cancel-in-progress: false
-
-run-name: "Vigia UI — v${{ inputs.version }}"
+name: Vigia UI — Mobile Pipeline
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Versão para release (semver X.Y.Z — ex: 1.0.0)"
-        required: true
-        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Mobile Build"
 
 permissions:
   contents: write
-  pull-requests: read
   security-events: write
   deployments: write
 
 env:
   SERVICE_PATH: vigia_ui
   OSV_SCANNER_VERSION: v1.9.2
+  # Tag/release mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: mobile
+  APK_NAME: vigia-ui-release.apk
+  ARTIFACT_NAME: vigia-ui-apk
 
 jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 1. PREFLIGHT — validações leves e rápidas (fail-fast)
+  # 1. PREFLIGHT — estrutura mínima (fail-fast)
   # ═══════════════════════════════════════════════════════════════════════════
   preflight:
-    name: Preflight — versão, CHANGELOG, tag, branch e estrutura
+    name: Preflight — estrutura
     runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.vars.outputs.tag_name }}
-      version:  ${{ inputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Exportar variáveis de release
-        id: vars
-        run: |
-          TAG="vigia-ui@${{ inputs.version }}"
-          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Tag de release: $TAG"
-
-      - name: Validar versão e CHANGELOG
-        run: |
-          chmod +x "$SERVICE_PATH/tool/ci/validate_version.sh"
-          "$SERVICE_PATH/tool/ci/validate_version.sh" "${{ inputs.version }}" "$SERVICE_PATH"
-
-      - name: Validar unicidade da tag de release
-        run: |
-          set -euo pipefail
-          TAG="vigia-ui@${{ inputs.version }}"
-          echo "Verificando se a tag '$TAG' já existe..."
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "::error::A tag '$TAG' já existe no repositório."
-            echo "Use uma versão diferente ou remova a tag existente manualmente."
-            exit 1
-          fi
-          echo "✓ Tag '$TAG' disponível."
-
-      - name: Validar branch de origem
-        run: |
-          set -euo pipefail
-          BRANCH="${{ github.ref_name }}"
-          echo "Branch de origem: $BRANCH"
-          if [[ "$BRANCH" != "master" ]]; then
-            echo "::error::Pipeline de release deve ser disparada a partir de 'master'."
-            echo "Branch atual: '$BRANCH'"
-            exit 1
-          fi
-          echo "✓ Branch '$BRANCH' válida para release."
 
       - name: Validar estrutura mínima do projeto
         run: |
-          chmod +x "$SERVICE_PATH/tool/ci/validate_structure.sh"
-          "$SERVICE_PATH/tool/ci/validate_structure.sh" "$SERVICE_PATH"
+          set -euo pipefail
+          for f in \
+            "$SERVICE_PATH/pubspec.yaml" \
+            "$SERVICE_PATH/lib" \
+            "$SERVICE_PATH/android/app/src/main/AndroidManifest.xml" \
+            "$SERVICE_PATH/homolog.env" \
+            "$SERVICE_PATH/production.env" \
+            "$SERVICE_PATH/firebase.json"
+          do
+            if [ ! -e "$f" ]; then
+              echo "::error::Arquivo/diretório obrigatório ausente: $f"
+              exit 1
+            fi
+          done
+          echo "✓ Estrutura mínima do vigia_ui ok."
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 2. SECURITY — varredura de secrets em todo o repositório
+  # 2. SECURITY — varredura de secrets
   # ═══════════════════════════════════════════════════════════════════════════
   security_secrets:
     name: Security — GitLeaks
@@ -91,16 +61,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: GitLeaks — secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Scan da árvore atual (não do histórico). Chaves antigas no git log
+      # devem ser rotacionadas; purge de histórico é opcional.
+      - name: GitLeaks — secret scan (working tree)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-git --source . --redact -v --exit-code=2
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 3. SETUP VALIDATION — Flutter, Firebase e coerência de configuração Android
+  # 3. SETUP VALIDATION — Flutter, Firebase e config Android
   # ═══════════════════════════════════════════════════════════════════════════
   setup_validation:
     name: Setup validation — Flutter, Firebase e Android config
@@ -149,11 +123,13 @@ jobs:
 
           echo "✓ firebase.json válido — projectId: $PROJECT_ID | Android appId: $ANDROID_APP_ID"
 
-      - name: Validar estratégia google-services.json
+      - name: Validar estratégia google-services.json e firebase_options
         run: |
           set -euo pipefail
           REAL_FILE="$SERVICE_PATH/android/app/google-services.json"
           EXAMPLE_FILE="$SERVICE_PATH/android/app/google-services.json.example"
+          FIREBASE_OPTIONS="$SERVICE_PATH/lib/firebase_options.dart"
+          FIREBASE_OPTIONS_EXAMPLE="$SERVICE_PATH/lib/firebase_options.dart.example"
 
           if [ -f "$REAL_FILE" ]; then
             echo "::error::$REAL_FILE encontrado no repositório."
@@ -164,10 +140,22 @@ jobs:
 
           if [ ! -f "$EXAMPLE_FILE" ]; then
             echo "::warning::google-services.json.example não encontrado."
-            echo "Recomendado: versionar um exemplo sem chaves reais para documentar a estrutura."
           else
             echo "✓ google-services.json.example presente"
           fi
+
+          if git ls-files --error-unmatch "$FIREBASE_OPTIONS" >/dev/null 2>&1; then
+            echo "::error::$FIREBASE_OPTIONS está versionado."
+            echo "Não commite apiKeys — use firebase_options.dart.example + secret FIREBASE_OPTIONS_DART_BASE64."
+            exit 1
+          fi
+          echo "✓ firebase_options.dart não está no índice git (correto)"
+
+          if [ ! -f "$FIREBASE_OPTIONS_EXAMPLE" ]; then
+            echo "::error::$FIREBASE_OPTIONS_EXAMPLE ausente."
+            exit 1
+          fi
+          echo "✓ firebase_options.dart.example presente"
 
       - name: Dependências desatualizadas (informativo)
         working-directory: ${{ env.SERVICE_PATH }}
@@ -196,9 +184,10 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
 
-      - name: Dart — format (obrigatório)
-        working-directory: ${{ env.SERVICE_PATH }}
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Hidratar firebase_options.dart (example / secret)
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
 
       - name: Flutter — analyze (SAST estático)
         working-directory: ${{ env.SERVICE_PATH }}
@@ -220,6 +209,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Hidratar firebase_options.dart (example / secret)
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
+
       - name: Flutter — pub get
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
@@ -229,10 +223,10 @@ jobs:
         run: flutter test --reporter=expanded
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 6. ANDROID SECURITY — AndroidManifest, permissões e configuração de build
+  # 6. ANDROID SECURITY — manifest e permissões
   # ═══════════════════════════════════════════════════════════════════════════
   android_security:
-    name: Android security — manifest, permissões e build config
+    name: Android security — manifest e build config
     needs: preflight
     runs-on: ubuntu-latest
     steps:
@@ -240,8 +234,35 @@ jobs:
 
       - name: Validar segurança Android
         run: |
-          chmod +x "$SERVICE_PATH/tool/ci/validate_android_security.sh"
-          "$SERVICE_PATH/tool/ci/validate_android_security.sh" "$SERVICE_PATH"
+          set -euo pipefail
+          MANIFEST="$SERVICE_PATH/android/app/src/main/AndroidManifest.xml"
+          BUILD_GRADLE="$SERVICE_PATH/android/app/build.gradle"
+          # Flutter newer projects may use .kts
+          if [ ! -f "$BUILD_GRADLE" ]; then
+            BUILD_GRADLE="$SERVICE_PATH/android/app/build.gradle.kts"
+          fi
+
+          if grep -Eqi 'android:debuggable[[:space:]]*=[[:space:]]*"true"' "$MANIFEST"; then
+            echo "::error::android:debuggable=\"true\" encontrado no AndroidManifest."
+            exit 1
+          fi
+          echo "✓ Manifest sem debuggable=true"
+
+          if [ -f "$BUILD_GRADLE" ]; then
+            if grep -Eqi 'debuggable[[:space:]]+[tT]rue' "$BUILD_GRADLE"; then
+              echo "::error::debuggable true encontrado em $(basename "$BUILD_GRADLE")."
+              exit 1
+            fi
+            echo "✓ Build Gradle sem debuggable true"
+          else
+            echo "::warning::build.gradle(.kts) não encontrado — pulando checagem de debuggable no Gradle."
+          fi
+
+          if grep -Eqi 'android:allowBackup[[:space:]]*=[[:space:]]*"true"' "$MANIFEST"; then
+            echo "::warning::android:allowBackup=\"true\" no Manifest — revise se é intencional."
+          fi
+
+          echo "✓ Validação Android security concluída."
 
   # ═══════════════════════════════════════════════════════════════════════════
   # 7. DEPENDENCY SECURITY — OSV Scanner no pubspec.lock
@@ -299,9 +320,7 @@ jobs:
             echo "✓ integration_test/ encontrada — prosseguindo com execução."
           else
             echo "has_tests=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::integration_test/ não encontrada no projeto."
-            echo "Para habilitar: crie vigia_ui/integration_test/ com testes Flutter."
-            echo "Consulte: vigia_ui/docs/mobile-pipeline.md"
+            echo "::notice::integration_test/ não encontrada no projeto — job ignorado."
           fi
 
       - name: Set up Flutter
@@ -310,6 +329,12 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Hidratar firebase_options.dart (example / secret)
+        if: steps.check.outputs.has_tests == 'true'
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+        run: bash .github/scripts/hydrate-firebase-options.sh
 
       - name: Flutter — pub get
         if: steps.check.outputs.has_tests == 'true'
@@ -339,7 +364,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Hidratação de arquivos sensíveis a partir de secrets ────────────────
+      - name: Hidratar production.env a partir do secret
+        env:
+          MOBILE_PRODUCTION_ENV: ${{ secrets.MOBILE_PRODUCTION_ENV }}
+        run: |
+          set -euo pipefail
+          DEST="$SERVICE_PATH/production.env"
+          if [ -z "${MOBILE_PRODUCTION_ENV:-}" ]; then
+            echo "::warning::Secret MOBILE_PRODUCTION_ENV não configurado; usando production.env do repositório."
+            exit 0
+          fi
+          printf '%s\n' "$MOBILE_PRODUCTION_ENV" > "$DEST"
+          if ! grep -q '^API_URL=' "$DEST"; then
+            echo "::error::MOBILE_PRODUCTION_ENV deve conter a linha API_URL=..."
+            exit 1
+          fi
+          if ! grep -q '^STREAM_BASE_URL=' "$DEST"; then
+            echo "::error::MOBILE_PRODUCTION_ENV deve conter a linha STREAM_BASE_URL=..."
+            exit 1
+          fi
+          echo "✓ production.env hidratado ($(wc -l < "$DEST") linhas)."
+
       - name: Hidratar google-services.json a partir do secret
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
@@ -347,7 +392,6 @@ jobs:
           set -euo pipefail
           if [ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]; then
             echo "::error::Secret GOOGLE_SERVICES_JSON_BASE64 não configurado."
-            echo "Veja vigia_ui/README.md (seção 'Setup do CI/CD') para gerar e cadastrar."
             exit 1
           fi
           echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d \
@@ -355,6 +399,12 @@ jobs:
           jq empty "$SERVICE_PATH/android/app/google-services.json" \
             || { echo "::error::google-services.json hidratado é inválido."; exit 1; }
           echo "✓ google-services.json hidratado."
+
+      - name: Hidratar firebase_options.dart a partir do secret
+        env:
+          FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}
+          REQUIRE_SECRET: "1"
+        run: bash .github/scripts/hydrate-firebase-options.sh
 
       - name: Hidratar keystore Android a partir do secret
         env:
@@ -369,8 +419,6 @@ jobs:
             > "$SERVICE_PATH/android/app/release.keystore"
           echo "✓ keystore hidratado em $SERVICE_PATH/android/app/release.keystore"
 
-      # Gera o key.properties consumido pelo signingConfig do Gradle.
-      # O storeFile aponta para release.keystore (relativo a android/app).
       - name: Gerar key.properties para assinatura
         env:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -392,7 +440,6 @@ jobs:
           EOF
           echo "✓ key.properties gerado."
 
-      # ── Toolchain ───────────────────────────────────────────────────────────
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -421,16 +468,15 @@ jobs:
           restore-keys: |
             gradle-build-${{ runner.os }}-
 
-      # ── Build do APK assinado ───────────────────────────────────────────────
       - name: Build APK (release, signed)
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter build apk --release
 
-      - name: Renomear APK com versão
+      - name: Renomear APK (nome rolling)
         run: |
           set -euo pipefail
           SRC="$SERVICE_PATH/build/app/outputs/flutter-apk/app-release.apk"
-          DST="$SERVICE_PATH/build/app/outputs/flutter-apk/vigia-ui-${{ inputs.version }}-release.apk"
+          DST="$SERVICE_PATH/build/app/outputs/flutter-apk/${{ env.APK_NAME }}"
           if [ ! -f "$SRC" ]; then
             echo "::error::APK não encontrado em $SRC."
             exit 1
@@ -441,8 +487,8 @@ jobs:
       - name: Upload APK como workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vigia-ui-${{ inputs.version }}-apk
-          path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/vigia-ui-${{ inputs.version }}-release.apk
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.SERVICE_PATH }}/build/app/outputs/flutter-apk/${{ env.APK_NAME }}
           retention-days: 30
 
       - name: Remover arquivos sensíveis hidratados
@@ -453,13 +499,11 @@ jobs:
           rm -f "$SERVICE_PATH/android/key.properties"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 10. RELEASE & DEPLOY — tag, GitHub Release com APK e audit trail
+  # 10. PUBLISH — tag/release rolling + audit trail
   # ═══════════════════════════════════════════════════════════════════════════
-  release_and_deploy:
-    name: Release & deploy — tag, GitHub Release e audit trail
-    needs:
-      - preflight
-      - build_apk
+  publish:
+    name: Publish — tag mobile
+    needs: [preflight, build_apk]
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -469,20 +513,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── Audit trail — abrir registro de Deployment ─────────────────────────
       - name: Create GitHub Deployment record
         id: create_deployment
+        shell: bash
         run: |
           set -euo pipefail
-          DEPLOYMENT_ID=$(gh api \
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-ui (Release + APK rolling)" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: []
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
             --method POST \
             "/repos/${{ github.repository }}/deployments" \
-            -f ref="${{ github.ref }}" \
-            -f environment="production" \
-            -f description="Deploy vigia-ui v${{ inputs.version }} (Release + APK)" \
-            -F auto_merge=false \
-            -F required_contexts='[]' \
+            --input - \
             --jq '.id')
+
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
 
@@ -494,114 +548,62 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="in_progress" \
-            -f description="Publicando vigia-ui v${{ inputs.version }} (Release + APK)"
+            -f description="Publicando vigia-ui (Release + APK rolling)"
 
-      # ── Download do APK assinado produzido em build_apk ────────────────────
       - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: vigia-ui-${{ inputs.version }}-apk
+          name: ${{ env.ARTIFACT_NAME }}
           path: ./apk
 
-      # ── Extração das release notes do CHANGELOG ────────────────────────────
-      - name: Extrair release notes do CHANGELOG
+      - name: Move mutable tag to HEAD
         env:
-          VERSION: ${{ inputs.version }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
-          CHANGELOG_PATH="$SERVICE_PATH/CHANGELOG.md"
-          echo "Extraindo changelog para versão: $VERSION de $CHANGELOG_PATH"
-
-          awk -v version="$VERSION" '
-            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
-            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
-            capture { print }
-          ' "$CHANGELOG_PATH" > RELEASE_NOTES.md
-
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Não foi possível extrair release notes para versão $VERSION em $CHANGELOG_PATH."
-            exit 1
-          fi
-
-          echo "==> Release notes extraídas:"
-          cat RELEASE_NOTES.md
-
-      - name: Montar corpo completo da release
-        run: |
-          set -euo pipefail
-          COMMIT_SHA="${{ github.sha }}"
-          BRANCH="${{ github.ref_name }}"
-          ACTOR="${{ github.actor }}"
-          VERSION="${{ inputs.version }}"
-
-          cat >> RELEASE_NOTES.md <<EOF
-
-          ---
-          ## Metadados
-
-          | Campo | Valor |
-          |-------|-------|
-          | Versão | \`${VERSION}\` |
-          | Commit | \`${COMMIT_SHA}\` |
-          | Branch | \`${BRANCH}\` |
-          | Flutter | stable |
-          | Disparado por | ${ACTOR} |
-
-          ## Instalação
-
-          Baixe o APK \`vigia-ui-${VERSION}-release.apk\` listado abaixo
-          e instale no dispositivo Android.
-          EOF
-
-      - name: Gerar metadados de release (JSON)
-        run: |
-          set -euo pipefail
-          PUBSPEC_VERSION=$(grep -E "^version:" "$SERVICE_PATH/pubspec.yaml" \
-            | sed 's/version:[[:space:]]*//' | tr -d '[:space:]')
-
-          cat > release-metadata.json <<EOF
-          {
-            "service": "vigia-ui",
-            "version": "${{ inputs.version }}",
-            "pubspec_version": "${PUBSPEC_VERSION}",
-            "tag": "${{ needs.preflight.outputs.tag_name }}",
-            "commit_sha": "${{ github.sha }}",
-            "branch": "${{ github.ref_name }}",
-            "flutter_channel": "stable",
-            "released_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "released_by": "${{ github.actor }}",
-            "apk_asset": "vigia-ui-${{ inputs.version }}-release.apk"
-          }
-          EOF
-
-          echo "==> Metadados de release:"
-          cat release-metadata.json
-
-      - name: Criar e publicar tag de release
-        env:
-          TAG_NAME: ${{ needs.preflight.outputs.tag_name }}
-        run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" -m "Vigia UI / Mobile (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
-          git tag -a "$TAG_NAME" \
-            -m "Release Vigia UI v${{ inputs.version }}"
+      - name: Reset GitHub Release (remove assets antigos)
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+            echo "✓ Release anterior '$TAG' removida (tag mantida)."
+          else
+            echo "Nenhuma release '$TAG' anterior."
+          fi
 
-          git push origin "$TAG_NAME"
-          echo "✓ Tag '$TAG_NAME' criada e publicada."
-
-      - name: Criar GitHub Release
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.preflight.outputs.tag_name }}
-          name: "Vigia UI v${{ inputs.version }}"
-          body_path: ./RELEASE_NOTES.md
-          # APK assinado + metadados JSON ficam disponíveis como assets.
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia UI / Mobile
+          body: |
+            Release rolling do **vigia_ui** (APK Android assinado).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `mobile`.
+            Não há versionamento SemVer no GitHub.
+
+            ### Instalação
+            Baixe o APK `vigia-ui-release.apk` listado abaixo e instale no dispositivo Android.
+
+            ### Metadados
+            - Commit: `${{ github.sha }}`
+            - Branch: `${{ github.ref_name }}`
+            - Flutter: stable
+            - Disparado por: ${{ github.actor }}
           files: |
-            ./apk/vigia-ui-${{ inputs.version }}-release.apk
-            ./release-metadata.json
+            ./apk/${{ env.APK_NAME }}
           draft: false
-          generate_release_notes: false
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -614,7 +616,7 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-ui v${{ inputs.version }} publicado com APK anexado à Release"
+            -f description="vigia-ui publicado (APK anexado à Release rolling mobile)"
 
       - name: Mark deployment as failure
         if: failure()
@@ -625,4 +627,4 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="failure" \
-            -f description="Publicação de vigia-ui v${{ inputs.version }} falhou — verifique os logs"
+            -f description="Publicação de vigia-ui falhou — verifique os logs"

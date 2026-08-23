@@ -1,0 +1,30 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "vigia-fall-detection",
+          "appId": "1:241599132191:android:397eca31b6a2d66d18db2a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "vigia-fall-detection",
+          "appId": "1:241599132191:ios:e16b5d82bf6926a918db2a",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "vigia-fall-detection",
+          "configurations": {
+            "android": "1:241599132191:android:397eca31b6a2d66d18db2a",
+            "ios": "1:241599132191:ios:e16b5d82bf6926a918db2a"
+          }
+        }
+      }
+    }
+  }
+}

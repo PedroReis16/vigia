@@ -21,8 +21,10 @@ class DeviceDetails extends ConsumerStatefulWidget {
   ConsumerState<DeviceDetails> createState() => _DeviceDetailsState();
 }
 
+enum _DeviceDetailsPane { details, edit, users }
+
 class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
-  int _currentPage = 0;
+  _DeviceDetailsPane _pane = _DeviceDetailsPane.details;
 
   final EdgeInsetsGeometry _padding = const EdgeInsets.fromLTRB(16, 16, 16, 24);
 
@@ -33,7 +35,7 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _currentPage);
+    _pageController = PageController();
     _users = [];
   }
 
@@ -44,28 +46,33 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
   }
 
   void _returnToDeviceDetails() {
-    _currentPage = 0;
-    _transitionAnimation(_currentPage);
-    setState(() {});
+    _pageController
+        .animateToPage(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )
+        .then((_) {
+          if (!mounted) return;
+          setState(() => _pane = _DeviceDetailsPane.details);
+        });
   }
 
-  void _routeToEditDeviceProperties() {
-    _currentPage = 1;
-    _transitionAnimation(_currentPage);
-    setState(() {});
-  }
+  void _routeToEditDeviceProperties() => _openPane(_DeviceDetailsPane.edit);
 
-  void _routeToDeviceUsers() {
-    _currentPage = 2;
-    _transitionAnimation(_currentPage);
-    setState(() {});
-  }
+  void _routeToDeviceUsers() => _openPane(_DeviceDetailsPane.users);
 
-  void _transitionAnimation(int page) => _pageController.animateToPage(
-    page,
-    duration: const Duration(milliseconds: 300),
-    curve: Curves.easeInOut,
-  );
+  void _openPane(_DeviceDetailsPane pane) {
+    setState(() => _pane = pane);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,16 +80,25 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
       controller: _pageController,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        _buildBasePage(context),
-        EditDeviceProperties(
-          device: widget.device,
-          returnToPreviousPage: _returnToDeviceDetails,
+        KeyedSubtree(
+          key: const ValueKey('device-details'),
+          child: _buildBasePage(context),
         ),
-        DeviceUsers(
-          deviceId: widget.device.id,
-          isOwner: widget.device.isOwner,
-          users: _users,
-          returnToPreviousPage: _returnToDeviceDetails,
+        KeyedSubtree(
+          key: ValueKey(_pane),
+          child: switch (_pane) {
+            _DeviceDetailsPane.edit => EditDeviceProperties(
+              device: widget.device,
+              returnToPreviousPage: _returnToDeviceDetails,
+            ),
+            _DeviceDetailsPane.users => DeviceUsers(
+              deviceId: widget.device.id,
+              isOwner: widget.device.isOwner,
+              users: _users,
+              returnToPreviousPage: _returnToDeviceDetails,
+            ),
+            _DeviceDetailsPane.details => const SizedBox.expand(),
+          },
         ),
       ],
     );
@@ -151,8 +167,11 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
                           padding: const EdgeInsets.only(bottom: 8),
                           child: DeviceUserItem(
                             user: user,
-                            showActionIcon: hasManyUsers && user == previewUsers.last,
-                            actionIcon: hasManyUsers ? Icons.arrow_forward_ios : null,
+                            showActionIcon:
+                                hasManyUsers && user == previewUsers.last,
+                            actionIcon: hasManyUsers
+                                ? Icons.arrow_forward_ios
+                                : null,
                           ),
                         ),
                       ),

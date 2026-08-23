@@ -196,12 +196,7 @@ class BlePairingService {
     Duration timeout = const Duration(seconds: 60),
     Duration interval = const Duration(milliseconds: 500),
   }) async {
-    const terminal = {
-      'SUCCESS',
-      'WIFI_FAIL',
-      'UNAUTHORIZED',
-      'ERROR_PAYLOAD',
-    };
+    const terminal = {'SUCCESS', 'WIFI_FAIL', 'UNAUTHORIZED', 'ERROR_PAYLOAD'};
 
     final deadline = DateTime.now().add(timeout);
 

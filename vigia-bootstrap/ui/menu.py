@@ -1,4 +1,4 @@
-"""Menu de ecrãs no LCD 16x2."""
+"""Menu de ecrÃÂ£s no LCD 16x2."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import logging
 import time
 
 from provision import actions
+from provision import ota as ota_svc
 from provision import state as pairing_state
 from provision.wifi import switch_network
 from .display import Display, fit
@@ -20,6 +21,7 @@ FLASH_SECONDS = 2.0
 HOLD_WIFI = 2.0
 HOLD_UNLINK = 5.0
 HOLD_EDITOR = 1.0
+OTA_CONFIRM_TIMEOUT_S = 60.0
 BACKSPACE = "\b"
 CHARSET = (
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -45,20 +47,50 @@ class Screen(enum.Enum):
     CPU = 0
     WIFI = 1
     SERVICO = 2
-    NOVA_REDE = 3
-    UNLINK = 4
-    EDIT_SSID = 5
-    EDIT_PWD = 6
-    WIFI_CONNECTING = 7
+    ATUALIZ = 3
+    NOVA_REDE = 4
+    UNLINK = 5
+    EDIT_SSID = 6
+    EDIT_PWD = 7
+    WIFI_CONNECTING = 8
+    OTA_CONFIRM = 9
+    OTA_PROGRESS = 10
+    OTA_CHECK = 11
 
 
-CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO)
+CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.ATUALIZ)
+
+
+def _clamp3(value: int) -> int:
+    return max(0, min(999, int(value)))
+
+
+def _metric_line(
+    prefix: str,
+    cpu: int | None,
+    mem: int,
+    temp_c: int | None = None,
+) -> str:
+    """CPU / RAM / temp em colunas fixas (16 cols): `F  12%  48M` / `S  34% 412M  55C`."""
+    cpu_s = f"{_clamp3(cpu):3d}" if cpu is not None else " --"
+    line = f"{prefix} {cpu_s}% {_clamp3(mem):3d}M"
+    if temp_c is None:
+        return line
+    return f"{line} {_clamp3(temp_c):3d}C"
 
 
 def _eff_line(prefix: str, cpu: int, mem: int, missing: bool = False) -> str:
-    if missing:
-        return f"{prefix} --% {mem:3d}M"
-    return f"{prefix} {cpu:3d}% {mem:3d}M"
+    return _metric_line(prefix, None if missing else cpu, mem)
+
+
+def _progress_bar(pct: int) -> str:
+    pct = max(0, min(100, int(pct)))
+    filled = int(round(pct * 16 / 100))
+    return ("#" * filled + "-" * (16 - filled))[:16]
+
+
+def _sys_line(cpu: int, mem: int, temp_c: int | None) -> str:
+    return _metric_line("S", cpu, mem, temp_c)
 
 
 class Menu:
@@ -79,6 +111,10 @@ class Menu:
         self._last_input = time.monotonic()
         self._standby_seconds = get_pin_config().lcd_standby_seconds
         self._choice_confirm = False
+        self._ota_revision: str | None = None
+        self._ota_progress = 0
+        self._ota_timeout_task: asyncio.Task | None = None
+        self._ota_busy = False
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
@@ -108,6 +144,9 @@ class Menu:
             Screen.EDIT_SSID,
             Screen.EDIT_PWD,
             Screen.WIFI_CONNECTING,
+            Screen.OTA_CONFIRM,
+            Screen.OTA_PROGRESS,
+            Screen.OTA_CHECK,
         )
 
     def note_input(self) -> None:
@@ -161,17 +200,60 @@ class Menu:
             return title, ">Confirmar"
         return title, ">Cancelar"
 
+    def _cancel_ota_timeout(self) -> None:
+        task = self._ota_timeout_task
+        self._ota_timeout_task = None
+        if task is not None and not task.done():
+            task.cancel()
+
+    def offer_ota_update(self, revision: str) -> bool:
+        """Mostra overlay de confirmaÃ§Ã£o OTA (60s). Ignora se jÃ¡ ocupado."""
+        if self._ota_busy or self._busy():
+            return False
+        revision = (revision or "").strip()
+        if not revision:
+            return False
+        self.wake()
+        self._ota_revision = revision
+        self._choice_confirm = False
+        self._overlay = Screen.OTA_CONFIRM
+        self._cancel_ota_timeout()
+        loop = self._loop
+        if loop is not None:
+            self._ota_timeout_task = loop.create_task(self._ota_confirm_timeout())
+        self._request_redraw()
+        return True
+
+    async def _ota_confirm_timeout(self) -> None:
+        try:
+            await asyncio.sleep(OTA_CONFIRM_TIMEOUT_S)
+        except asyncio.CancelledError:
+            return
+        if self._overlay is not Screen.OTA_CONFIRM:
+            return
+        log.info("OTA: timeout 60s Ã¢ÂÂ a ignorar pending")
+        ota_svc.clear_pending()
+        self._ota_revision = None
+        self._cancel_overlay()
+
+    def set_ota_progress(self, pct: int) -> None:
+        self._ota_progress = max(0, min(100, int(pct)))
+        if self._overlay is not Screen.OTA_PROGRESS:
+            self._overlay = Screen.OTA_PROGRESS
+        self._request_redraw()
+
+
     def on_up(self) -> None:
         self.note_input()
         screen = self.screen
-        if screen in (Screen.NOVA_REDE, Screen.UNLINK):
+        if screen in (Screen.NOVA_REDE, Screen.UNLINK, Screen.OTA_CONFIRM):
             self._toggle_choice()
             return
         if screen in (Screen.EDIT_SSID, Screen.EDIT_PWD):
             self._edit_wheel = (self._edit_wheel - 1) % len(CHARSET)
             self._request_redraw()
             return
-        if screen is Screen.WIFI_CONNECTING:
+        if screen in (Screen.WIFI_CONNECTING, Screen.OTA_PROGRESS, Screen.OTA_CHECK):
             return
         self._overlay = None
         self.index = (self.index - 1) % len(CYCLE)
@@ -180,14 +262,14 @@ class Menu:
     def on_down(self) -> None:
         self.note_input()
         screen = self.screen
-        if screen in (Screen.NOVA_REDE, Screen.UNLINK):
+        if screen in (Screen.NOVA_REDE, Screen.UNLINK, Screen.OTA_CONFIRM):
             self._toggle_choice()
             return
         if screen in (Screen.EDIT_SSID, Screen.EDIT_PWD):
             self._edit_wheel = (self._edit_wheel + 1) % len(CHARSET)
             self._request_redraw()
             return
-        if screen is Screen.WIFI_CONNECTING:
+        if screen in (Screen.WIFI_CONNECTING, Screen.OTA_PROGRESS, Screen.OTA_CHECK):
             return
         self._overlay = None
         self.index = (self.index + 1) % len(CYCLE)
@@ -216,6 +298,18 @@ class Menu:
             else:
                 self._cancel_overlay()
                 return
+        elif screen is Screen.OTA_CONFIRM:
+            if self._choice_confirm:
+                self._begin_ota_apply()
+            else:
+                self._cancel_ota_timeout()
+                ota_svc.clear_pending()
+                self._ota_revision = None
+                self._cancel_overlay()
+                return
+        elif screen is Screen.ATUALIZ:
+            self._begin_ota_check()
+            return
         self._request_redraw()
 
     def on_hold(self) -> None:
@@ -285,6 +379,75 @@ class Menu:
         self.note_input()
         self._request_redraw()
 
+    def _begin_ota_check(self) -> None:
+        if self._ota_busy:
+            return
+        loop = self._loop
+        if loop is None:
+            log.warning("LCD: sem event loop para OTA check")
+            return
+        self._overlay = Screen.OTA_CHECK
+        self._request_redraw()
+        loop.create_task(self._run_ota_check())
+
+    async def _run_ota_check(self) -> None:
+        try:
+            newer = await asyncio.to_thread(ota_svc.check_update)
+        except Exception as exc:
+            log.warning("OTA check falhou: %s", exc)
+            self._set_flash("Atualizacao", "Falha check")
+            self._overlay = None
+            self.index = CYCLE.index(Screen.ATUALIZ)
+            self.note_input()
+            self._request_redraw()
+            return
+
+        if newer is None:
+            self._set_flash("Atualizacao", "em dia")
+            self._overlay = None
+            self.index = CYCLE.index(Screen.ATUALIZ)
+            self.note_input()
+            self._request_redraw()
+            return
+
+        ota_svc.write_pending(newer)
+        self.offer_ota_update(newer)
+
+    def _begin_ota_apply(self) -> None:
+        revision = self._ota_revision
+        if not revision or self._ota_busy:
+            return
+        self._cancel_ota_timeout()
+        loop = self._loop
+        if loop is None:
+            log.warning("LCD: sem event loop para OTA apply")
+            return
+        self._ota_busy = True
+        self._ota_progress = 0
+        self._overlay = Screen.OTA_PROGRESS
+        self._request_redraw()
+        loop.create_task(self._run_ota_apply(revision))
+
+    async def _run_ota_apply(self, revision: str) -> None:
+        loop = asyncio.get_running_loop()
+
+        def on_progress(pct: int) -> None:
+            loop.call_soon_threadsafe(self.set_ota_progress, pct)
+
+        try:
+            await ota_svc.run_ota_pipeline(revision, on_progress=on_progress)
+            self._set_flash("Atualizacao", "OK")
+        except Exception as exc:
+            log.exception("OTA apply falhou: %s", exc)
+            self._set_flash("Falha update", fit(str(exc))[:16].strip() or "erro")
+        finally:
+            self._ota_busy = False
+            self._ota_revision = None
+            self._overlay = None
+            self.index = CYCLE.index(Screen.ATUALIZ)
+            self.note_input()
+            self._request_redraw()
+
     def _set_flash(self, line1: str, line2: str) -> None:
         self._flash = (line1, line2)
         self._flash_until = time.monotonic() + FLASH_SECONDS
@@ -313,7 +476,7 @@ class Menu:
                 )
             return (
                 _eff_line("F", snap.fall_cpu_pct, snap.fall_rss_mib, not snap.fall_active),
-                _eff_line("S", snap.sys_cpu_pct, snap.sys_used_mib),
+                _sys_line(snap.sys_cpu_pct, snap.sys_used_mib, snap.board_temp_c),
             )
         if screen is Screen.WIFI:
             return "WiFi", snap.ssid or "nao ligada"
@@ -326,9 +489,22 @@ class Menu:
         if screen is Screen.WIFI_CONNECTING:
             return "WiFi", "A conectar..."
         if screen is Screen.SERVICO:
-            return "Servico", "ativo" if snap.fall_active else "parado"
+            if snap.fall_active:
+                return (
+                    "Servico ativo",
+                    _eff_line("F", snap.fall_cpu_pct, snap.fall_rss_mib),
+                )
+            return "Servico", "parado"
         if screen is Screen.UNLINK:
             return self._choice_lines("Desvincular?")
+        if screen is Screen.ATUALIZ:
+            return "Buscar atualiz.", "OK = procurar"
+        if screen is Screen.OTA_CONFIRM:
+            return self._choice_lines("Nova versao")
+        if screen is Screen.OTA_CHECK:
+            return "Atualizacao", "A procurar..."
+        if screen is Screen.OTA_PROGRESS:
+            return "Atualizando", _progress_bar(self._ota_progress)
         return "Desvincular?", ">Cancelar"
 
     def refresh(self, snapshot: DeviceSnapshot | None = None) -> None:

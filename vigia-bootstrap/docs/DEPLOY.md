@@ -17,12 +17,12 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 
 O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã de eficiência mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
+Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M  55C`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
 
 No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms.
 
 - **Alterar rede** tenta `nmcli` com o SSID/senha digitados. Só grava `network.json` se a ligação for válida; se falhar, mantém a rede atual.
-- **Desvincular** corre `vigia_reset_config.sh` (identidade + rede + perfis NM).
+- **Desvincular** corre `vigia_reset_config.sh`: pára o fall e limpa dados locais do fall; **mantém** `identity.json`, `network.json`, `.env` e perfis Wi‑Fi. O bootstrap reabre o beacon BLE para um novo utilizador na mesma rede.
 
 Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime (chip 0 nos kernels recentes, chip 4 nos mais antigos). O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
 
@@ -53,30 +53,28 @@ make build-linux-arm64
 **Saída:**
 
 - `dist/vigia-bootstrap-linux-arm64/` — onedir (executável + `_internal/`).
-- `dist/vigia-bootstrap-linux-arm64.tar.gz` — ficheiro para copiar para a placa.
+- `dist/vigia-bootstrap-linux-arm64.tar.gz` — bundle interno.
+- `dist/vigia-bootstrap-deploy.zip` — **pacote único** para enviar à placa.
 
 ## Instalação na placa
 
 Instale **primeiro** o bootstrap, depois o fall-detection.
 
+Baixe `vigia-bootstrap-deploy.zip` (release `bootstrap` ou `dist/` após o build) e envie um único ficheiro:
+
 ```bash
-scp dist/vigia-bootstrap-linux-arm64.tar.gz \
-    deploy/install.sh \
-    deploy/uninstall.sh \
-    deploy/vigia-bootstrap.service \
-    deploy/vigia_reset_config.sh \
-    deploy/vigia_reset_wifi.sh \
-    usuario@placa:/tmp/
+scp vigia-bootstrap-deploy.zip usuario@placa:/tmp/
 ```
 
 Na placa:
 
 ```bash
-sudo chmod +x /tmp/install.sh
-sudo /tmp/install.sh /tmp/vigia-bootstrap-linux-arm64.tar.gz
+cd /tmp
+unzip -o vigia-bootstrap-deploy.zip -d vigia-bootstrap-deploy
+sudo ./vigia-bootstrap-deploy/install-on-board.sh
 ```
 
-Isto instala `liblgpio1` e `i2c-tools` se faltarem, activa I2C, extrai para `/opt/vigia/bootstrap/`, instala o unit e os scripts (incluindo `vigia-bootstrap-uninstall`).
+Isto corre `install.sh`, instala `liblgpio1` e `i2c-tools` se faltarem, activa I2C, extrai para `/opt/vigia/bootstrap/`, instala o unit e os scripts (incluindo `vigia-bootstrap-uninstall`), e no fim remove o zip e a pasta temporária.
 
 Desinstalar:
 

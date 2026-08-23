@@ -3,6 +3,7 @@ import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class WifiProvisionForm extends StatefulWidget {
   const WifiProvisionForm({
@@ -162,18 +163,12 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                   tooltip: context.translations.refreshNetworks,
                   onPressed: busy || _loadingNetworks ? null : _loadNetworks,
                   icon: _loadingNetworks
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.primary,
-                          ),
-                        )
-                      : Icon(
-                          Icons.refresh_rounded,
+                      ? AppLoadingIndicator(
+                          size: 20,
+                          strokeWidth: 2,
                           color: colorScheme.primary,
-                        ),
+                        )
+                      : Icon(Icons.refresh_rounded, color: colorScheme.primary),
                 ),
             ],
           ),
@@ -198,9 +193,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           if (_manualEntry)
             _buildNetworkSection(textTheme, colorScheme, busy)
           else
-            Expanded(
-              child: _buildNetworkSection(textTheme, colorScheme, busy),
-            ),
+            Expanded(child: _buildNetworkSection(textTheme, colorScheme, busy)),
           if (hasSelection) ...[
             const SizedBox(height: 12),
             if (_requiresPassword)
@@ -253,13 +246,10 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             child: FilledButton(
               onPressed: busy || !hasSelection ? null : _submit,
               child: busy
-                  ? SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colorScheme.onPrimary,
-                      ),
+                  ? AppLoadingIndicator(
+                      size: 16,
+                      strokeWidth: 2,
+                      color: colorScheme.onPrimary,
                     )
                   : Text(context.translations.sendCredentials),
             ),
@@ -286,10 +276,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.translations.networkSsid,
-              prefixIcon: Icon(
-                Icons.wifi,
-                color: colorScheme.onSurfaceVariant,
-              ),
+              prefixIcon: Icon(Icons.wifi, color: colorScheme.onSurfaceVariant),
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
@@ -305,7 +292,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     }
 
     if (_loadingNetworks) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+      return const Center(child: AppLoadingIndicator(strokeWidth: 2));
     }
 
     if (_networks.isEmpty) {
@@ -361,9 +348,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                       child: Row(
                         children: [
                           Icon(
-                            network.isSecure
-                                ? Icons.lock_outline
-                                : Icons.wifi,
+                            network.isSecure ? Icons.lock_outline : Icons.wifi,
                             size: 22,
                             color: colorScheme.primary,
                           ),

@@ -49,7 +49,11 @@ class DeviceCard extends StatelessWidget {
                               context,
                               device.room ?? DeviceRooms.notDefined,
                             ),
-                            style: TextStyle(color: Colors.grey.shade600),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                           _buildRunningStatus(context, device.isRunning),
                         ],
@@ -99,7 +103,9 @@ class DeviceCard extends StatelessWidget {
           isRunning
               ? context.translations.online
               : context.translations.offline,
-          style: TextStyle(color: Colors.grey.shade600),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         Icon(
           Icons.circle,

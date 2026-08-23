@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:vigia_ui/data/services/whep_live_session.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class DeviceVideoPlayer extends StatefulWidget {
   const DeviceVideoPlayer({
@@ -68,10 +69,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         fit: StackFit.expand,
-        children: [
-          video,
-          if (_showControls) _buildControlsOverlay(context),
-        ],
+        children: [video, if (_showControls) _buildControlsOverlay(context)],
       ),
     );
 
@@ -95,15 +93,18 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
                 : toHeroContext.widget as Hero;
             return hero.child;
           },
-      child: Material(
-        type: MaterialType.transparency,
-        child: content,
-      ),
+      child: Material(type: MaterialType.transparency, child: content),
     );
   }
 
   Widget _buildVideo(BuildContext context) {
     final session = widget.session;
+
+    // Prefer this over [playing] after teardown starts — avoids mounting
+    // RTCVideoView against a disposing native renderer (app-wide freeze).
+    if (session.isClosed) {
+      return const ColoredBox(color: Colors.black);
+    }
 
     if (session.status == WhepLiveStatus.connecting) {
       return ColoredBox(
@@ -112,7 +113,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(),
+              const AppLoadingIndicator(color: Colors.white),
               const SizedBox(height: 12),
               Text(
                 context.translations.connectingTitle,
@@ -194,9 +195,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
                 onPressed: widget.onToggleFullscreen,
                 color: Colors.white,
                 icon: Icon(
-                  widget.fullscreen
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
+                  widget.fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
                 ),
               ),
             ),

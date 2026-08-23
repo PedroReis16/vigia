@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Vigia.Database.Contracts;
 using Vigia.Fiware.Contracts;
+using Vigia.Models.Entities;
 
 namespace Vigia.Fiware.BackgroundJobs;
 
@@ -49,8 +51,45 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
                     _logger.LogInformation(
                         "Sincronização do schema (attributes/commands) dos devices realizada com sucesso");
 
+                    //3. Garante as subscrições Orion definidas em Fiware:Subscriptions
+                    bool subscriptionsSynced = await fiwareService.SyncSubscriptionsAsync();
+                    if (!subscriptionsSynced)
+                    {
+                        _logger.LogWarning(
+                            "Tentativa {Attempt}/{MaxAttempts}: sincronização das subscrições Orion finalizou com falhas",
+                            attempt,
+                            maxAttempts);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Sincronização das subscrições Orion realizada com sucesso");
+                    }
+
+                    //4. Reconcilia devices do Postgres ausentes no IoT Agent (órfãos de falhas anteriores)
+                    IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
+                    List<Device> dbDevices = await devicesDao.AllAsync();
+                    List<(Guid DeviceId, string DeviceName)> toProvision = dbDevices
+                        .Where(d => !string.IsNullOrWhiteSpace(d.Name))
+                        .Select(d => (d.Id, d.Name))
+                        .ToList();
+
+                    bool dbProvisioned = await fiwareService.EnsureDevicesProvisionedAsync(toProvision);
+                    if (!dbProvisioned)
+                    {
+                        _logger.LogWarning(
+                            "Tentativa {Attempt}/{MaxAttempts}: falha ao provisionar um ou mais devices do banco no FIWARE",
+                            attempt,
+                            maxAttempts);
+                        continue;
+                    }
+
+                    _logger.LogInformation(
+                        "Reconciliação de {Count} device(s) do banco com o FIWARE concluída",
+                        toProvision.Count);
+
 #if DEBUG
-                    //3. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
+                    //5. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
                     bool seedDeviceReady = await fiwareService.EnsureSeedDeviceAsync();
                     if (!seedDeviceReady)
                     {
@@ -58,15 +97,12 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
                             "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o device seed no FIWARE",
                             attempt,
                             maxAttempts);
+                        continue;
                     }
-                    else
-                    {
-                        _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
-                        return;
-                    }
-#else
-                    return;
+
+                    _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
 #endif
+                    return;
                 }
             }
             catch (Exception ex)

@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/push_notification_provider.dart';
 import 'package:vigia_ui/core/providers/repository_providers/auth_repository_provider.dart';
 import 'package:vigia_ui/domain/DTOs/user_credentials.dart';
 import 'package:vigia_ui/domain/enums/auth_status.dart';
@@ -83,5 +84,6 @@ class AuthController extends _$AuthController {
           accessToken: credentials.accessToken,
           refreshToken: credentials.refreshToken,
         );
+    await ref.read(pushNotificationCoordinatorProvider).syncAfterLogin();
   }
 }

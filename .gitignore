@@ -33,6 +33,7 @@ MANIFEST
 *.manifest
 *.spec
 !vigia-fall/vigia-fall-detection.spec
+!vigia-bootstrap/vigia-bootstrap.spec
 
 # Installer logs
 pip-log.txt
@@ -139,6 +140,7 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+.portainer_admin_password
 .venv
 env/
 venv/
@@ -273,7 +275,56 @@ app.*.map.json
 vigia-services/apps/vigia-api/cmd/__debug_bin*
 docker-compose/**/certificates
 docker-compose/**/minio_data
+docker-compose/local/firebase-service-account.json
 
 vigia-bootstrap/data/
 vigia-fall/data/
 vigia-fall/test-videos/
+
+# Angular / Node (vigia-web)
+# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+
+# Compiled output
+dist/
+tmp/
+out-tsc/
+bazel-out/
+
+# Node
+node_modules/
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+package-lock.json
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+.history/*
+
+# Miscellaneous
+.angular/
+.sass-cache/
+connect.lock
+coverage/
+libpeerconnection.log
+testem.log
+typings/
+__screenshots__/
+
+# System files
+.DS_Store
+Thumbs.db

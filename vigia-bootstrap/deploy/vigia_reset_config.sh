@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Reset de configuração de utilizador na placa (chamado pelo botão longo).
-# Não reinicia o fall: o bootstrap reentra no beacon de pareamento.
+# Reset de vínculo de utilizador na placa (botão longo Desvincular).
+# Mantém identity.json, network.json, .env e perfis Wi‑Fi do NetworkManager
+# para permitir parear um novo utilizador na mesma rede/dispositivo.
+# Não reinicia o fall: o bootstrap reabre o beacon de pareamento.
 set -euo pipefail
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -8,24 +10,14 @@ if [[ "$(id -u)" -ne 0 ]]; then
   exit 1
 fi
 
+DATA_DIR="${DATA_DIR:-/opt/vigia}"
+
 echo "→ A parar fall-detection (se existir)..."
 systemctl stop fall-detection.service 2>/dev/null || true
 
-echo "→ A remover identidade, rede e dados de utilizador..."
-rm -f /opt/vigia/.env
-rm -f /opt/vigia/identity.json
-rm -f /opt/vigia/network.json
-rm -f /opt/vigia/fall-detection/data/identity.json
-rm -rf /opt/vigia/fall-detection/data
-rm -rf /opt/vigia/data
+echo "→ A limpar dados locais do fall (mantém identidade e rede)..."
+rm -rf "${DATA_DIR}/fall-detection/data"
+rm -rf "${DATA_DIR}/DB"
+rm -rf "${DATA_DIR}/data"
 
-if command -v nmcli >/dev/null 2>&1; then
-  echo "→ A remover perfis Wi‑Fi do NetworkManager..."
-  while IFS=: read -r uuid kind; do
-    if [[ "${kind}" == "802-11-wireless" ]]; then
-      nmcli connection delete uuid "${uuid}" >/dev/null 2>&1 || true
-    fi
-  done < <(nmcli -t -f UUID,TYPE connection show 2>/dev/null || true)
-fi
-
-echo "✅ Configuração de utilizador redefinida. O bootstrap deve reabrir o pareamento BLE."
+echo "✅ Vínculo local limpo. Rede e identidade preservadas — o bootstrap deve reabrir o pareamento BLE."

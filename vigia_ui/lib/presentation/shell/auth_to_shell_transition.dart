@@ -59,8 +59,11 @@ class AuthToShellTransition extends StatelessWidget {
         final bodyScrimAlpha = reverse
             ? 0.0
             : 1.0 -
-                const Interval(0.62, 0.92, curve: Curves.easeOutCubic)
-                    .transform(t);
+                  const Interval(
+                    0.62,
+                    0.92,
+                    curve: Curves.easeOutCubic,
+                  ).transform(t);
 
         // Logout: keep Auth painting from frame 0 (decode logo/forms under the
         // veil). Reveal only once the veil covers the screen — never Offstage.
@@ -105,9 +108,7 @@ class AuthToShellTransition extends StatelessWidget {
             left: 0,
             right: 0,
             child: IgnorePointer(
-              child: Center(
-                child: VigiaLogoHero.image(height: logoH),
-              ),
+              child: Center(child: VigiaLogoHero.image(height: logoH)),
             ),
           );
         }

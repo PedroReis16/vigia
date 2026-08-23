@@ -68,9 +68,12 @@ jobs:
             onboard)
               TAG_PREFIX="board"
               ;;
+            api)
+              TAG_PREFIX="api"
+              ;;
             *)
               echo "::error::Projeto '$PROJECT' não possui prefixo de tag configurado."
-              echo "Projetos suportados: onboard → board@<version>"
+              echo "Projetos suportados: onboard → board@<version>, api → api@<version>"
               exit 1
               ;;
           esac
@@ -178,7 +181,8 @@ jobs:
 
             case "$PROJECT" in
               onboard) TAG_PREFIX="board" ;;
-              *) TAG_PREFIX="$PROJECT" ;;
+              api)     TAG_PREFIX="api" ;;
+              *)       TAG_PREFIX="$PROJECT" ;;
             esac
 
             PREV_TAG=$(git tag -l "${TAG_PREFIX}@*" --sort=-v:refname | head -n1 || true)

@@ -9,6 +9,7 @@ import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/scanning_view.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/status_view.dart';
 import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/wifi_provision_form.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class NewDeviceModal extends ConsumerStatefulWidget {
   const NewDeviceModal({super.key});
@@ -75,11 +76,7 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
   }
 
   Widget _progressIcon() {
-    return const SizedBox(
-      width: 40,
-      height: 40,
-      child: CircularProgressIndicator(strokeWidth: 3),
-    );
+    return const AppLoadingIndicator(size: 40, strokeWidth: 3);
   }
 
   @override

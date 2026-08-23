@@ -39,11 +39,7 @@ class StatusView extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        Text(
-          title,
-          style: textTheme.titleMedium,
-          textAlign: TextAlign.center,
-        ),
+        Text(title, style: textTheme.titleMedium, textAlign: TextAlign.center),
         const SizedBox(height: 8),
         Text(
           description,

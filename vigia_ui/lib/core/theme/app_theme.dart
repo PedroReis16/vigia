@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:vigia_ui/core/theme/app_assets.dart';
 import 'package:vigia_ui/core/theme/theme_colors.dart';
@@ -19,6 +20,28 @@ abstract final class AppTheme {
     Brightness brightness,
   ) {
     final colorScheme = colors.toColorScheme(brightness);
+    // Same primary as auth scaffold / morph veil so login → shell is seamless.
+    final appBarBackground = colors.primary;
+    final appBarForeground = colorScheme.onPrimary;
+
+    final buttonStyle = ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colors.outlineVariant;
+        }
+        return colors.primary;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return colors.textSecondary;
+        }
+        return colorScheme.onPrimary;
+      }),
+      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 14)),
+      shape: const WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: _buttonBorderRadius),
+      ),
+    );
 
     return ThemeData(
       useMaterial3: true,
@@ -26,15 +49,25 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colors.background,
       extensions: [colors, assets],
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: colors.primary,
-        foregroundColor: colorScheme.onPrimary,
+        backgroundColor: appBarBackground,
+        foregroundColor: appBarForeground,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(color: colorScheme.onPrimary),
+        iconTheme: IconThemeData(color: appBarForeground),
         titleTextStyle: TextStyle(
-          color: colorScheme.onPrimary,
+          color: appBarForeground,
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
@@ -78,16 +111,8 @@ abstract final class AppTheme {
         hintStyle: TextStyle(color: colors.textSecondary),
         labelStyle: TextStyle(color: colors.textSecondary),
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: colors.primary,
-          foregroundColor: colorScheme.onPrimary,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: const RoundedRectangleBorder(
-            borderRadius: _buttonBorderRadius,
-          ),
-        ),
-      ),
+      filledButtonTheme: FilledButtonThemeData(style: buttonStyle),
+      elevatedButtonTheme: ElevatedButtonThemeData(style: buttonStyle),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: colors.textPrimary,
@@ -101,6 +126,26 @@ abstract final class AppTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: colors.primary,
         foregroundColor: colorScheme.onPrimary,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.surface;
+          }
+          return colors.outlineVariant;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.secondary;
+          }
+          return colors.primaryContainer;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return colors.secondary;
+          }
+          return colors.outline;
+        }),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.surface,
@@ -135,8 +180,8 @@ abstract final class AppTheme {
       ),
       datePickerTheme: DatePickerThemeData(
         backgroundColor: colors.surface,
-        headerBackgroundColor: colors.primary,
-        headerForegroundColor: colorScheme.onPrimary,
+        headerBackgroundColor: appBarBackground,
+        headerForegroundColor: appBarForeground,
         dayForegroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return colorScheme.onPrimary;

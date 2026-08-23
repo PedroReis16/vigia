@@ -14,6 +14,7 @@ import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_details_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_details_widgets/device_user_item.dart';
 import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class DeviceUsers extends ConsumerStatefulWidget {
   final String deviceId;
@@ -88,7 +89,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
       if (!mounted) return;
       context.showSnackbar(
         message: t.shareLinkCopied,
-        color: theme.colorScheme.primary,
+        color: theme.colorScheme.onSurface,
       );
     } catch (e) {
       if (!mounted) return;
@@ -104,9 +105,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
   Future<File?> _prepareShareIcon() async {
     try {
       final bytes = await rootBundle.load(AppAssets.icon);
-      final file = File(
-        '${Directory.systemTemp.path}/vigia_share_icon.png',
-      );
+      final file = File('${Directory.systemTemp.path}/vigia_share_icon.png');
       await file.writeAsBytes(bytes.buffer.asUint8List());
       return file;
     } catch (_) {
@@ -150,7 +149,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
       if (isSelf) {
         context.showSnackbar(
           message: t.leftGroupSuccess,
-          color: theme.colorScheme.primary,
+          color: theme.colorScheme.onSurface,
         );
         if (context.mounted) {
           context.go(AppRoutes.devicesPage);
@@ -160,7 +159,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
 
       context.showSnackbar(
         message: t.userRemovedSuccess,
-        color: theme.colorScheme.primary,
+        color: theme.colorScheme.onSurface,
       );
     } catch (_) {
       if (!mounted) return;
@@ -212,7 +211,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
 
           Expanded(
             child: usersAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: AppLoadingIndicator()),
               error: (e, _) => Center(child: Text(e.toString())),
               data: (list) {
                 if (list.isEmpty) {
@@ -248,10 +247,10 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
                 child: FilledButton.icon(
                   onPressed: canShare && !_sharing ? _shareInvite : null,
                   icon: _sharing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      ? AppLoadingIndicator(
+                          size: 16,
+                          strokeWidth: 2,
+                          color: theme.colorScheme.onPrimary,
                         )
                       : const Icon(Icons.share),
                   label: Text(atLimit ? t.shareLimitReached : t.shareDevice),

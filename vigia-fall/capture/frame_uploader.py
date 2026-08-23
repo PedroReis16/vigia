@@ -8,7 +8,7 @@ Canonical (API DeviceSignatureAuthenticationHandler):
   POST\\n/devices/{deviceId}/frame\\n{unix_ts}\\n{sha256_hex(raw_body)}
 
 Path assinado é sem PathBase (/vigia). Em DEBUG, identity do device seedado
-deve usar shared.test_device_seed.SIGN_PRIVATE_KEY (ver get_device_identity).
+deve usar shared.test_device_seed.SIGN_PRIVATE_KEY (derivada; ver get_device_identity).
 """
 
 from __future__ import annotations

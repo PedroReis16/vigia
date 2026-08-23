@@ -27,6 +27,7 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
   late final WhepLiveSession _session;
   bool _fullscreen = false;
   bool _starting = false;
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -41,9 +42,10 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _session.removeListener(_onSessionUpdate);
-    // Close peer/tracks only — STOP_STREAMING is owned by MediaMTX unDemand.
+    // Safety net for non-PopScope exits — prefer [_leave] so teardown finishes
+    // before the route (and Hero) tear down the RTCVideoView.
     unawaited(_session.close());
-    _restoreSystemUi();
+    unawaited(_restoreSystemUi());
     super.dispose();
   }
 
@@ -136,7 +138,35 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
       await _exitFullscreen();
       return;
     }
-    if (context.canPop()) context.pop();
+    await _leave();
+  }
+
+  /// Tear down WebRTC before the route pop so Hero / dispose never race the
+  /// native video texture (that race freezes the whole app).
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    try {
+      try {
+        await _session.close();
+      } catch (_) {
+        // Still leave the page even if peer teardown fails.
+      }
+      await _restoreSystemUi();
+      if (!mounted) return;
+      if (context.canPop()) context.pop();
+    } finally {
+      if (mounted) _leaving = false;
+    }
+  }
+
+  Future<void> _onPopInvoked(bool didPop, Object? result) async {
+    if (didPop) return;
+    if (_fullscreen) {
+      await _exitFullscreen();
+      return;
+    }
+    await _leave();
   }
 
   @override
@@ -150,28 +180,32 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
     final showFullscreen = _fullscreen || isLandscape;
 
     if (showFullscreen) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          fit: StackFit.expand,
-          children: [
-            DeviceVideoPlayer(
-              session: _session,
-              fullscreen: true,
-              onToggleFullscreen: _toggleFullscreen,
-              onRetry: _retryLive,
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  onPressed: _onBack,
-                  color: Colors.white,
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _onPopInvoked,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              DeviceVideoPlayer(
+                session: _session,
+                fullscreen: true,
+                onToggleFullscreen: _toggleFullscreen,
+                onRetry: _retryLive,
+              ),
+              SafeArea(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: IconButton(
+                    onPressed: _onBack,
+                    color: Colors.white,
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -182,52 +216,56 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
     MediaQuery.sizeOf(context);
     final keyboardVisible = View.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: _RouteReveal(
-          begin: 0.2,
-          child: AppBar(
-            title: Text(nickname),
-            leading: IconButton(
-              onPressed: _onBack,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            ),
-          ),
-        ),
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ClipRect(
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              heightFactor: keyboardVisible ? 0 : 1,
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: DeviceVideoPlayer(
-                  session: _session,
-                  fullscreen: false,
-                  onToggleFullscreen: _toggleFullscreen,
-                  onRetry: _retryLive,
-                  heroTag: heroTag,
-                ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: _onPopInvoked,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(kToolbarHeight),
+          child: _RouteReveal(
+            begin: 0.2,
+            child: AppBar(
+              title: Text(nickname),
+              leading: IconButton(
+                onPressed: _onBack,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
               ),
             ),
           ),
-          Expanded(
-            child: _RouteReveal(
-              begin: 0.18,
-              slide: const Offset(0, 0.02),
-              child: device == null
-                  ? Center(child: Text(context.translations.noDevicesFound))
-                  : DeviceDetails(device: device),
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRect(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                heightFactor: keyboardVisible ? 0 : 1,
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: DeviceVideoPlayer(
+                    session: _session,
+                    fullscreen: false,
+                    onToggleFullscreen: _toggleFullscreen,
+                    onRetry: _retryLive,
+                    heroTag: heroTag,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: _RouteReveal(
+                begin: 0.18,
+                slide: const Offset(0, 0.02),
+                child: device == null
+                    ? Center(child: Text(context.translations.noDevicesFound))
+                    : DeviceDetails(device: device),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

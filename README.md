@@ -183,6 +183,147 @@ Antes de iniciar a configuração, certifique-se:
             sudo nmcli connection delete "<NOME REDE>"
         ```
 
+- `Atualizar o serviço bootstrap na placa`
+
+    O **vigia-bootstrap** é o control plane da placa (pareamento BLE, Wi‑Fi, LCD e GPIO). Corre como serviço systemd em `/opt/vigia/bootstrap/`.
+
+    O pacote de deploy é o zip único da release GitHub **Vigia Bootstrap** (tag `bootstrap`): `vigia-bootstrap-deploy.zip`.
+
+    1. **Remover um serviço existente**
+
+        Na placa (SSH):
+
+        ```bash
+        # Remove serviço, binário e scripts (mantém identity/network)
+        sudo vigia-bootstrap-uninstall
+        ```
+
+        Se também quiser apagar identidade, rede e `.env` (será preciso parear de novo):
+
+        ```bash
+        sudo vigia-bootstrap-uninstall --purge-data
+        ```
+
+        Se o comando `vigia-bootstrap-uninstall` não existir (instalação antiga/manual):
+
+        ```bash
+        sudo systemctl stop vigia-bootstrap.service
+        sudo systemctl disable vigia-bootstrap.service
+        sudo rm -f /etc/systemd/system/vigia-bootstrap.service
+        sudo systemctl daemon-reload
+        sudo rm -rf /opt/vigia/bootstrap
+        ```
+
+    2. **Enviar o pacote do computador para a placa**
+
+        No PC:
+
+        1. Abra a release **Vigia Bootstrap** (tag `bootstrap`) no repositório
+        2. Baixe **apenas** `vigia-bootstrap-deploy.zip`
+        3. Envie para a placa:
+
+        ```bash
+        scp vigia-bootstrap-deploy.zip vigia@vigia.local:/tmp/
+        ```
+
+        Substitua o destino (`vigia@vigia.local` ou IP Tailscale) conforme o acesso disponível.
+
+    3. **Instalar o serviço na placa**
+
+        Na placa (SSH):
+
+        ```bash
+        cd /tmp
+        unzip -o vigia-bootstrap-deploy.zip -d vigia-bootstrap-deploy
+        sudo ./vigia-bootstrap-deploy/install-on-board.sh
+        ```
+
+        O script instala o bootstrap, ativa `vigia-bootstrap.service` e apaga o zip e a pasta temporária.
+
+        Conferir:
+
+        ```bash
+        sudo systemctl status vigia-bootstrap.service
+        journalctl -u vigia-bootstrap.service -n 80 --no-pager
+        ```
+
+        **Notas**
+
+        - Sem `--purge-data` na desinstalação, identidade e Wi‑Fi já gravados são reutilizados
+        - Se o I2C acabou de ser ativado pela primeira vez, pode ser necessário um reboot para o LCD (`/dev/i2c-1`)
+        - Detalhes de hardware, build local e variáveis de ambiente: `vigia-bootstrap/docs/DEPLOY.md`
+
+- `Atualizar o serviço fall-detection na placa`
+
+    O **vigia-fall-detection** é o serviço de detecção de quedas (câmara + modelo). Corre como serviço systemd em `/opt/vigia/fall-detection/`. Depende do bootstrap já ter gravado `identity.json` e `network.json`.
+
+    O pacote de deploy é o zip único da release GitHub **Vigia Onboard** (tag `onboard`): `vigia-fall-detection-deploy.zip`.
+
+    1. **Remover um serviço existente**
+
+        Na placa (SSH):
+
+        ```bash
+        # Remove serviço e binário (mantém identity/network do bootstrap)
+        sudo vigia-fall-detection-uninstall
+        ```
+
+        Se também quiser apagar a base SQLite local do fall (`/opt/vigia/DB`):
+
+        ```bash
+        sudo vigia-fall-detection-uninstall --purge-data
+        ```
+
+        Se o comando `vigia-fall-detection-uninstall` não existir (instalação antiga/manual):
+
+        ```bash
+        sudo systemctl stop fall-detection.service
+        sudo systemctl disable fall-detection.service
+        sudo rm -f /etc/systemd/system/fall-detection.service
+        sudo systemctl daemon-reload
+        sudo rm -rf /opt/vigia/fall-detection
+        ```
+
+    2. **Enviar o pacote do computador para a placa**
+
+        No PC:
+
+        1. Abra a release **Vigia Onboard** (tag `onboard`) no repositório
+        2. Baixe **`vigia-fall-detection-deploy.zip`**
+        3. Envie para a placa:
+
+        ```bash
+        scp vigia-fall-detection-deploy.zip vigia@vigia.local:/tmp/
+        ```
+
+        Substitua o destino (`vigia@vigia.local` ou IP Tailscale) conforme o acesso disponível.
+
+    3. **Instalar o serviço na placa**
+
+        Na placa (SSH):
+
+        ```bash
+        cd /tmp
+        unzip -o vigia-fall-detection-deploy.zip -d vigia-fall-detection-deploy
+        sudo ./vigia-fall-detection-deploy/install-on-board.sh
+        ```
+
+        O script instala o fall-detection, ativa `fall-detection.service` e apaga o zip e a pasta temporária.
+
+        Conferir:
+
+        ```bash
+        sudo systemctl status fall-detection.service
+        journalctl -u fall-detection.service -n 80 --no-pager
+        ```
+
+        **Notas**
+
+        - Instale **primeiro** o bootstrap; o fall só arranca com `identity.json` e `network.json` presentes
+        - Sem `--purge-data` na desinstalação, a identidade/rede do bootstrap e o `.env` em `/opt/vigia/` são mantidos
+        - A pipeline Onboard também gera um pacote OTA (`vigia-fall-ota-onboard.tar.gz`); o envio automático para a API é opcional (`upload_to_api`)
+        - Detalhes de build local e variáveis de ambiente: `vigia-fall/docs/DEPLOY.md`
+
 
 ## FIWARE
 

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 import 'package:vigia_ui/presentation/shell/vigia_logo_hero.dart';
@@ -244,15 +243,15 @@ class _AuthBootBody extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final logoHeight = VigiaLogoHero.authHeight;
-        final centeredGap =
-            ((constraints.maxHeight - logoHeight) / 2).clamp(0.0, double.infinity);
+        final centeredGap = ((constraints.maxHeight - logoHeight) / 2).clamp(
+          0.0,
+          double.infinity,
+        );
         final topGap = lerpDouble(centeredGap, 0.0, t)!;
 
         return SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          physics: t < 0.99
-              ? const NeverScrollableScrollPhysics()
-              : null,
+          physics: t < 0.99 ? const NeverScrollableScrollPhysics() : null,
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
@@ -340,10 +339,7 @@ class _AuthBootBody extends StatelessWidget {
 }
 
 class _AuthModeToggle extends StatelessWidget {
-  const _AuthModeToggle({
-    required this.currentPage,
-    required this.onToggle,
-  });
+  const _AuthModeToggle({required this.currentPage, required this.onToggle});
 
   final int currentPage;
   final VoidCallback onToggle;
@@ -357,7 +353,7 @@ class _AuthModeToggle extends StatelessWidget {
           currentPage == 0
               ? context.translations.noAccount
               : context.translations.hasAccount,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
         ),
         TextButton(
           style: const ButtonStyle(splashFactory: NoSplash.splashFactory),
@@ -367,9 +363,8 @@ class _AuthModeToggle extends StatelessWidget {
                 ? context.translations.register
                 : context.translations.login,
             style: TextStyle(
-              color: Theme.of(context).brightness == Brightness.light
-                  ? context.appColors.outline
-                  : context.appColors.primary,
+              color: Theme.of(context).colorScheme.onPrimary,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),

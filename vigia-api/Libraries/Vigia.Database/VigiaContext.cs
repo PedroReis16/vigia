@@ -11,6 +11,7 @@ public class VigiaDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<FiwareProperties> FiwareProperties { get; set; } = null!;
     public DbSet<GroupInvite> GroupInvites { get; set; } = null!;
+    public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
 
     public VigiaDbContext(DbContextOptions<VigiaDbContext> options) : base(options)
     {
@@ -31,6 +32,7 @@ public class VigiaDbContext : DbContext
         _ = modelBuilder.ApplyConfiguration(new RefreshTokensConfiguration());
         _ = modelBuilder.ApplyConfiguration(new FiwarePropertiesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new GroupInvitesConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new UserPushTokensConfiguration());
 
         _ = modelBuilder.Ignore<BaseEntity>();
     }

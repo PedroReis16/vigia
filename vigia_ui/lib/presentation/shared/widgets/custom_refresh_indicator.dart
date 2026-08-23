@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 /// Pull-to-refresh that reveals an arrow by drag progress and, past the
 /// threshold, shows [releaseLabel] until the user releases to refresh.
@@ -160,13 +161,10 @@ class _CustomRefreshIndicatorState extends State<CustomRefreshIndicator> {
 
     if (_refreshing) {
       if (!widget.useIndicator) return const SizedBox.shrink();
-      return SizedBox(
-        width: 22,
-        height: 22,
-        child: CircularProgressIndicator(
-          strokeWidth: 2.5,
-          color: colors.primary,
-        ),
+      return AppLoadingIndicator(
+        size: 22,
+        strokeWidth: 2.5,
+        color: colors.primary,
       );
     }
 

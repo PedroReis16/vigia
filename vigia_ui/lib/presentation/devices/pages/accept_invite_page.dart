@@ -5,6 +5,7 @@ import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_details_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/pending_invite_provider.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 
 class AcceptInvitePage extends ConsumerStatefulWidget {
   const AcceptInvitePage({super.key, required this.token});
@@ -36,16 +37,16 @@ class _AcceptInvitePageState extends ConsumerState<AcceptInvitePage> {
           .acceptInvite(widget.token);
       ref.read(pendingInviteTokenProvider.notifier).clear();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.inviteAcceptedSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.inviteAcceptedSuccess)));
       context.go(AppRoutes.devicesPage);
     } catch (e) {
       ref.read(pendingInviteTokenProvider.notifier).clear();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.inviteAcceptedError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.inviteAcceptedError)));
       context.go(AppRoutes.devicesPage);
     }
   }
@@ -59,7 +60,7 @@ class _AcceptInvitePageState extends ConsumerState<AcceptInvitePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(),
+            const AppLoadingIndicator(),
             const SizedBox(height: 16),
             Text(t.acceptingInvite),
           ],

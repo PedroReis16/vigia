@@ -11,8 +11,9 @@ class Converters {
       DeviceRooms.bathroom => context.translations.bathroom,
       DeviceRooms.garage => context.translations.garage,
       DeviceRooms.office => context.translations.office,
+      DeviceRooms.backyard => context.translations.backyard,
+      DeviceRooms.frontyard => context.translations.frontyard,
       DeviceRooms.notDefined => context.translations.roomNotDefined,
-      _ => throw UnimplementedError(),
     };
   }
 }

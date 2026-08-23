@@ -5,6 +5,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/core/app_router.dart';
 import 'package:vigia_ui/core/deep_link_listener.dart';
+import 'package:vigia_ui/core/firebase/firebase_bootstrap.dart';
+import 'package:vigia_ui/core/providers/push_notification_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_groups_realtime_provider.dart';
 import 'package:vigia_ui/core/theme/app_theme.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
@@ -14,14 +16,16 @@ import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  String envFile = "";
-  if (kDebugMode) {
-    envFile = "homolog.env";
-  } else {
-    envFile = ".env";
+  // Release used to load ".env" (never bundled) and crash before runApp → frozen splash.
+  final envFile = kDebugMode ? 'homolog.env' : 'production.env';
+  try {
+    await dotenv.load(fileName: envFile);
+  } catch (error, stackTrace) {
+    debugPrint('Failed to load $envFile: $error\n$stackTrace');
+    await dotenv.load(fileName: 'homolog.env');
   }
 
-  await dotenv.load(fileName: envFile);
+  await initializeFirebaseForPushIfNeeded();
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -39,6 +43,11 @@ class MyApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     // Keep SignalR bridge alive for the whole app session.
     ref.watch(deviceGroupsRealtimeBridgeProvider);
+
+    final pushCoordinator = ref.read(pushNotificationCoordinatorProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      pushCoordinator.initialize(router);
+    });
 
     return MaterialApp.router(
       onGenerateTitle: (context) => context.translations.appTitle,

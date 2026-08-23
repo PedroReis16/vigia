@@ -6,6 +6,7 @@ import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/shared/extensions/show_snackbar.dart';
+import 'package:vigia_ui/presentation/shared/widgets/app_loading_indicator.dart';
 import 'package:vigia_ui/presentation/shared/widgets/form_text_field.dart';
 
 class EditDeviceProperties extends ConsumerStatefulWidget {
@@ -81,7 +82,7 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
 
       context.showSnackbar(
         message: context.translations.deviceUpdatedSuccess,
-        color: Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).colorScheme.onSurface,
       );
       widget.returnToPreviousPage();
     } catch (_) {
@@ -273,10 +274,10 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
                   child: FilledButton(
                     onPressed: _canSave ? _saveChanges : null,
                     child: _isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        ? AppLoadingIndicator(
+                            size: 16,
+                            strokeWidth: 2,
+                            color: Theme.of(context).colorScheme.onPrimary,
                           )
                         : Text(t.saveChanges),
                   ),

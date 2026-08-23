@@ -11,6 +11,7 @@ using Vigia.Fiware.Contracts;
 using Vigia.Fiware.Models.DeviceDTOs;
 using Vigia.Fiware.Models.RegistrationDTOs;
 using Vigia.Fiware.Models.ServiceDTOs;
+using Vigia.Fiware.Models.SubscriptionDTOs;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 
@@ -23,14 +24,15 @@ namespace Vigia.Fiware.Services;
 internal class FiwareService : IFiwareService
 {
     private const int DevicesPageSize = 100;
+    private const int SubscriptionsPageSize = 100;
 
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<FiwareService> _logger;
     private readonly IFiwarePropertiesDao _fiwarePropertiesDao;
     private readonly DeviceSchemaOptions _deviceSchema;
+    private readonly SubscriptionSchemaOptions _subscriptions;
     private readonly string _iotAgentPath;
-    private readonly string _sthCommetPath;
     private readonly string _orionPath;
     private readonly string _iotAgentProviderUrl;
 
@@ -43,6 +45,7 @@ internal class FiwareService : IFiwareService
         HttpClient httpClient,
         IConfiguration configuration,
         IOptionsSnapshot<DeviceSchemaOptions> deviceSchemaOptions,
+        IOptionsSnapshot<SubscriptionSchemaOptions> subscriptionOptions,
         IFiwarePropertiesDao fiwarePropertiesDao,
         ILogger<FiwareService> logger)
     {
@@ -51,8 +54,8 @@ internal class FiwareService : IFiwareService
         _logger = logger;
         _fiwarePropertiesDao = fiwarePropertiesDao;
         _deviceSchema = deviceSchemaOptions.Value;
+        _subscriptions = subscriptionOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
-        _sthCommetPath = configuration.GetValue<string>("Fiware:Paths:SthComet")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
         _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
     }
@@ -231,7 +234,7 @@ internal class FiwareService : IFiwareService
         return true;
     }
 
-    private async Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit)
+    public async Task<(List<IotAgentDeviceDTO> Devices, int TotalCount)> ListDevicesPageAsync(int offset, int limit)
     {
         string url =
             $"{_iotAgentPath}/devices" +
@@ -580,11 +583,384 @@ internal class FiwareService : IFiwareService
     }
     #endregion
 
-#if DEBUG
-    public async Task<bool> EnsureSeedDeviceAsync()
+    #region Métodos de sincronização de subscriptions
+    public async Task<bool> SyncSubscriptionsAsync()
     {
-        Guid deviceId = TestDeviceSeed.Id;
-        string deviceName = TestDeviceSeed.Name;
+        List<SubscriptionDefinitionOptions> definitions = _subscriptions.GetSubscriptions();
+        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        List<OrionSubscriptionDTO> subscriptions = await ListSubscriptionsAsync();
+
+        if (definitions.Count == 0)
+        {
+            _logger.LogInformation("Nenhuma subscrição configurada em Fiware:Subscriptions.");
+            return true;
+        }
+
+        _logger.LogInformation(
+            "Sincronizando {Count} subscrição(ões) Orion a partir de Fiware:Subscriptions",
+            definitions.Count);
+
+        bool allSucceeded = true;
+        int offset = 0;
+
+        while (true)
+        {
+            (List<IotAgentDeviceDTO> devices, int totalCount) = await ListDevicesPageAsync(offset, DevicesPageSize);
+
+            if (devices.Count == 0)
+                break;
+
+            foreach (IotAgentDeviceDTO device in devices)
+            {
+                if (string.IsNullOrWhiteSpace(device.EntityName))
+                    continue;
+
+                string deviceEntityType = string.IsNullOrWhiteSpace(device.EntityType)
+                    ? entityType
+                    : device.EntityType;
+
+                if (!await SyncDeviceSubscriptionsAsync(
+                    device.EntityName,
+                    deviceEntityType,
+                    definitions,
+                    subscriptions))
+                {
+                    allSucceeded = false;
+                }
+            }
+
+            offset += devices.Count;
+
+            if (devices.Count < DevicesPageSize || offset >= totalCount)
+                break;
+        }
+
+        return allSucceeded;
+    }
+
+    private async Task<bool> SyncDeviceSubscriptionsAsync(
+        string entityName,
+        string entityType,
+        IReadOnlyCollection<SubscriptionDefinitionOptions>? definitions = null,
+        List<OrionSubscriptionDTO>? subscriptionsCache = null)
+    {
+        List<SubscriptionDefinitionOptions> expected = (definitions ?? _subscriptions.GetSubscriptions()).ToList();
+        List<OrionSubscriptionDTO> subscriptions = subscriptionsCache ?? await ListSubscriptionsAsync();
+
+        bool allSucceeded = true;
+
+        foreach (SubscriptionDefinitionOptions definition in expected)
+        {
+            List<OrionSubscriptionDTO> urlSubscriptions = subscriptions
+                .Where(s => IsSubscriptionForEntity(s, entityName, entityType)
+                    && UrlsMatch(s.Notification.Http.Url, definition.Notification.Url))
+                .ToList();
+
+            OrionSubscriptionDTO? matching = urlSubscriptions.FirstOrDefault(s =>
+                MatchesDefinition(s, definition));
+
+            if (matching is not null)
+            {
+                foreach (OrionSubscriptionDTO duplicate in urlSubscriptions.Where(s => s.Id != matching.Id))
+                {
+                    if (!await DeleteSubscriptionAsync(duplicate.Id))
+                    {
+                        allSucceeded = false;
+                        continue;
+                    }
+
+                    subscriptions.RemoveAll(s => s.Id == duplicate.Id);
+                }
+
+                continue;
+            }
+
+            foreach (OrionSubscriptionDTO outdated in urlSubscriptions)
+            {
+                if (await DeleteSubscriptionAsync(outdated.Id))
+                    subscriptions.RemoveAll(s => s.Id == outdated.Id);
+                else
+                    allSucceeded = false;
+            }
+
+            (bool created, OrionSubscriptionDTO? createdSubscription) =
+                await CreateSubscriptionAsync(entityName, entityType, definition);
+
+            if (created && createdSubscription is not null)
+                subscriptions.Add(createdSubscription);
+            else
+                allSucceeded = false;
+        }
+
+        return allSucceeded;
+    }
+
+    private static bool MatchesDefinition(
+        OrionSubscriptionDTO subscription,
+        SubscriptionDefinitionOptions definition)
+    {
+        bool urlMatches = UrlsMatch(subscription.Notification.Http.Url, definition.Notification.Url);
+        bool conditionAttrsMatch = AttrsMatch(subscription.Subject.Condition.Attrs, definition.GetConditionAttrs());
+        bool notificationAttrsMatch = AttrsMatch(subscription.Notification.Attrs, definition.GetNotificationAttrs());
+        bool queryMatches = string.Equals(
+            subscription.Subject.Condition.Expression?.Q?.Trim(),
+            definition.GetExpression(),
+            StringComparison.Ordinal);
+        string expectedFormat = definition.GetAttrsFormat();
+        bool formatMatches = string.IsNullOrWhiteSpace(subscription.Notification.AttrsFormat)
+            || string.Equals(
+                subscription.Notification.AttrsFormat,
+                expectedFormat,
+                StringComparison.OrdinalIgnoreCase);
+
+        return urlMatches && conditionAttrsMatch && notificationAttrsMatch && queryMatches && formatMatches;
+    }
+
+    private static bool IsSubscriptionForEntity(
+        OrionSubscriptionDTO subscription,
+        string entityName,
+        string entityType) =>
+        subscription.Subject.Entities.Any(entity =>
+            string.Equals(entity.Id, entityName, StringComparison.Ordinal)
+            && string.Equals(entity.Type, entityType, StringComparison.Ordinal));
+
+    private static bool UrlsMatch(string current, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(current) || string.IsNullOrWhiteSpace(expected))
+            return false;
+
+        return string.Equals(
+            current.TrimEnd('/'),
+            expected.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<List<OrionSubscriptionDTO>> ListSubscriptionsAsync()
+    {
+        List<OrionSubscriptionDTO> subscriptions = [];
+        int offset = 0;
+
+        while (true)
+        {
+            string url =
+                $"{_orionPath}/v2/subscriptions" +
+                $"?limit={SubscriptionsPageSize}&offset={offset}";
+
+            HttpResponseMessage response = await _httpClient.GetAsync(url);
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return subscriptions;
+
+            response.EnsureSuccessStatusCode();
+
+            string responseContent = await response.Content.ReadAsStringAsync();
+            if (string.IsNullOrWhiteSpace(responseContent) || responseContent == "[]")
+                break;
+
+            List<OrionSubscriptionDTO>? page = JsonSerializer.Deserialize<List<OrionSubscriptionDTO>>(
+                responseContent,
+                JsonOptions);
+
+            if (page is null || page.Count == 0)
+                break;
+
+            subscriptions.AddRange(page);
+            offset += page.Count;
+
+            if (page.Count < SubscriptionsPageSize)
+                break;
+        }
+
+        return subscriptions;
+    }
+
+    private async Task<(bool Success, OrionSubscriptionDTO? Subscription)> CreateSubscriptionAsync(
+        string entityName,
+        string entityType,
+        SubscriptionDefinitionOptions definition)
+    {
+        List<string> conditionAttrs = definition.GetConditionAttrs();
+        List<string> notificationAttrs = definition.GetNotificationAttrs();
+        string? expression = definition.GetExpression();
+
+        NewOrionSubscriptionDTO body = new()
+        {
+            Description = definition.FormatDescription(entityName, entityType),
+            Subject = new OrionSubscriptionSubjectDTO
+            {
+                Entities =
+                [
+                    new OrionRegistrationEntityDTO
+                    {
+                        Id = entityName,
+                        Type = entityType
+                    }
+                ],
+                Condition = new OrionSubscriptionConditionDTO
+                {
+                    Attrs = conditionAttrs,
+                    Expression = expression is null
+                        ? null
+                        : new OrionSubscriptionExpressionDTO
+                        {
+                            Q = expression
+                        }
+                }
+            },
+            Notification = new OrionSubscriptionNotificationDTO
+            {
+                Http = new OrionSubscriptionHttpDTO
+                {
+                    Url = definition.Notification.Url.TrimEnd('/')
+                },
+                Attrs = notificationAttrs,
+                AttrsFormat = definition.GetAttrsFormat()
+            }
+        };
+
+        using StringContent content = new(
+            JsonSerializer.Serialize(body, JsonOptions),
+            Encoding.UTF8,
+            "application/json");
+
+        HttpResponseMessage response = await _httpClient.PostAsync($"{_orionPath}/v2/subscriptions", content);
+        bool success = response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.Created;
+        if (!success)
+        {
+            string errorBody = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "Falha ao criar subscrição para {EntityName} ({Description}). Status={StatusCode}. Body={Body}",
+                entityName,
+                body.Description,
+                (int)response.StatusCode,
+                errorBody);
+            return (false, null);
+        }
+
+        string? subscriptionId = TryGetIdFromLocation(response.Headers.Location);
+
+        OrionSubscriptionDTO createdSubscription = new()
+        {
+            Id = subscriptionId ?? string.Empty,
+            Description = body.Description,
+            Subject = body.Subject,
+            Notification = body.Notification
+        };
+
+        _logger.LogInformation(
+            "Subscrição criada para {EntityName} ({SubscriptionId}): {Description}",
+            entityName,
+            createdSubscription.Id,
+            body.Description);
+
+        return (true, createdSubscription);
+    }
+
+    private static string? TryGetIdFromLocation(Uri? location)
+    {
+        if (location is null)
+            return null;
+
+        // Orion pode devolver Location relativa; Uri.Segments lança em relative URIs.
+        string path = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString;
+        string? last = path.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+        return string.IsNullOrWhiteSpace(last) ? null : last.TrimEnd('/');
+    }
+
+    private async Task<bool> DeleteSubscriptionAsync(string subscriptionId)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionId))
+            return false;
+
+        HttpResponseMessage response = await _httpClient.DeleteAsync(
+            $"{_orionPath}/v2/subscriptions/{Uri.EscapeDataString(subscriptionId)}");
+
+        return response.IsSuccessStatusCode
+            || response.StatusCode == HttpStatusCode.NoContent
+            || response.StatusCode == HttpStatusCode.NotFound;
+    }
+
+    private async Task DeleteManagedSubscriptionsAsync(string entityName, string entityType)
+    {
+        HashSet<string> managedUrls = _subscriptions.GetSubscriptions()
+            .Select(definition => definition.Notification.Url.TrimEnd('/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (managedUrls.Count == 0)
+            return;
+
+        List<OrionSubscriptionDTO> subscriptions = await ListSubscriptionsAsync();
+        foreach (OrionSubscriptionDTO subscription in subscriptions.Where(s =>
+            IsSubscriptionForEntity(s, entityName, entityType)
+            && managedUrls.Contains(s.Notification.Http.Url.TrimEnd('/'))))
+        {
+            await DeleteSubscriptionAsync(subscription.Id);
+        }
+    }
+    #endregion
+
+    public async Task<bool> EnsureDevicesProvisionedAsync(
+        IReadOnlyCollection<(Guid DeviceId, string DeviceName)> devices)
+    {
+        if (devices.Count == 0)
+            return true;
+
+        HashSet<string> provisionedIds = await ListAllProvisionedDeviceIdsAsync();
+        bool allSucceeded = true;
+
+        foreach ((Guid deviceId, string deviceName) in devices)
+        {
+            if (provisionedIds.Contains(deviceId.ToString()))
+                continue;
+
+            _logger.LogWarning(
+                "Device {DeviceId} ({DeviceName}) presente no banco e ausente no FIWARE. Provisionando...",
+                deviceId,
+                deviceName);
+
+            if (!await RegisterSensorAsync(deviceId, deviceName))
+                allSucceeded = false;
+        }
+
+        return allSucceeded;
+    }
+
+    private async Task<HashSet<string>> ListAllProvisionedDeviceIdsAsync()
+    {
+        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+        int offset = 0;
+
+        while (true)
+        {
+            (List<IotAgentDeviceDTO> page, int totalCount) =
+                await ListDevicesPageAsync(offset, DevicesPageSize);
+
+            foreach (IotAgentDeviceDTO device in page)
+            {
+                if (!string.IsNullOrWhiteSpace(device.DeviceId))
+                    ids.Add(device.DeviceId);
+            }
+
+            offset += page.Count;
+
+            if (page.Count == 0 || page.Count < DevicesPageSize || offset >= totalCount)
+                break;
+        }
+
+        return ids;
+    }
+
+#if DEBUG
+    public async Task<bool> EnsureSeedDeviceAsync() =>
+        await RegisterSensorAsync(TestDeviceSeed.Id, TestDeviceSeed.Name);
+#endif
+
+    public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
+    {
+        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        string entityName = $"urn:ngsi-ld:{deviceName}";
+        List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
+        List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
         HttpResponseMessage existing = await _httpClient.GetAsync(
             $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId.ToString())}");
@@ -592,42 +968,24 @@ internal class FiwareService : IFiwareService
         if (existing.IsSuccessStatusCode)
         {
             _logger.LogInformation(
-                "Device seed {DeviceId} ({DeviceName}) já provisionado no FIWARE",
+                "Device {DeviceId} ({DeviceName}) já provisionado no FIWARE. Sincronizando registration/subscrições...",
                 deviceId,
                 deviceName);
 
-            string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
-            string entityName = $"urn:ngsi-ld:{deviceName}";
-            return await SyncCommandRegistrationAsync(entityName, entityType, _deviceSchema.GetCommands());
+            return await SyncCommandRegistrationAsync(entityName, entityType, commands)
+                && await SyncDeviceSubscriptionsAsync(entityName, entityType);
         }
 
         if (existing.StatusCode != HttpStatusCode.NotFound)
         {
             string errorBody = await existing.Content.ReadAsStringAsync();
             _logger.LogError(
-                "Falha ao consultar device seed {DeviceId}. Status={StatusCode}. Body={Body}",
+                "Falha ao consultar device {DeviceId}. Status={StatusCode}. Body={Body}",
                 deviceId,
                 (int)existing.StatusCode,
                 errorBody);
             return false;
         }
-
-        _logger.LogInformation(
-            "Device seed {DeviceId} ({DeviceName}) ausente no FIWARE. Provisionando...",
-            deviceId,
-            deviceName);
-
-        return await RegisterSensorAsync(deviceId, deviceName);
-    }
-#endif
-
-    public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
-    {
-        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
-        string entityName = $"urn:ngsi-ld:{deviceName}";
-
-        List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
-        List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
 
         _logger.LogInformation(
             "Provisionando device {DeviceId} no IoT Agent com Attributes=[{Attributes}] Commands=[{Commands}]",
@@ -669,11 +1027,16 @@ internal class FiwareService : IFiwareService
             return false;
         }
 
-        return await SyncCommandRegistrationAsync(entityName, entityType, commands);
+        return await SyncCommandRegistrationAsync(entityName, entityType, commands)
+            && await SyncDeviceSubscriptionsAsync(entityName, entityType);
     }
 
     public async Task DeleteSensorAsync(Guid deviceId, string deviceName)
     {
+        string entityName = $"urn:ngsi-ld:{deviceName}";
+        string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        await DeleteManagedSubscriptionsAsync(entityName, entityType);
+
         Task deleteIotAgentTask = DeleteDeviceFromIotAgentAsync(deviceId);
         Task deleteOrionTask = DeleteDeviceFromOrionAsync(deviceName);
 
@@ -712,6 +1075,17 @@ internal class FiwareService : IFiwareService
             $"{_orionPath}/v2/entities/{entityName}/attrs?type={entityType}",
             content);
 
-        return response.IsSuccessStatusCode;
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        string errorBody = await response.Content.ReadAsStringAsync();
+        _logger.LogError(
+            "Falha ao enviar comando {Command} para {EntityName}. Status={StatusCode}. Body={Body}",
+            command.GetCommandName(),
+            entityName,
+            (int)response.StatusCode,
+            errorBody);
+
+        return false;
     }
 }

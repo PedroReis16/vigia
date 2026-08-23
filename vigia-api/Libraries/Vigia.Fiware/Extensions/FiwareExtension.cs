@@ -16,6 +16,7 @@ public static class FiwareExtension
     public static IServiceCollection AddFiware(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<DeviceSchemaOptions>(configuration.GetSection(DeviceSchemaOptions.SectionName));
+        services.Configure<SubscriptionSchemaOptions>(configuration.GetSection(SubscriptionSchemaOptions.SectionName));
 
         services.AddHttpClient<IFiwareService, FiwareService>(httpClient =>
         {

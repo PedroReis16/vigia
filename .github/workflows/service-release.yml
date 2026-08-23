@@ -19,40 +19,16 @@ env:
   DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-api.dockerfile
   IMAGE_NAME: vigia-api
   DOTNET_VERSION: "10.0.x"
-  # Tag mutável — nunca versionada; cada run sobrescreve a mesma.
+  IMAGE_TAG: latest
   RELEASE_TAG: service
+  BUILD_CONFIGURATION: Release
 
 jobs:
   #------------------------------------------
-  # 1. Resolve branch (prod vs homolog)
-  #------------------------------------------
-  resolve:
-    name: Resolve environment
-    runs-on: ubuntu-latest
-    outputs:
-      is_homolog: ${{ steps.meta.outputs.is_homolog }}
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-    steps:
-      - name: Resolve Docker rolling tag
-        id: meta
-        run: |
-          set -euo pipefail
-          BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" == "master" ]]; then
-            echo "is_homolog=false" >> "$GITHUB_OUTPUT"
-            echo "image_tag=latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_homolog=true" >> "$GITHUB_OUTPUT"
-            echo "image_tag=homolog" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Branch: $BRANCH → image_tag=$([[ "$BRANCH" == "master" ]] && echo latest || echo homolog)"
-
-  #------------------------------------------
-  # 2. Test (.NET)
+  # 1. Test (.NET)
   #------------------------------------------
   test:
     name: Tests — unit & integration
-    needs: resolve
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -92,11 +68,10 @@ jobs:
           if-no-files-found: ignore
 
   #------------------------------------------
-  # 3. Security (secrets + Dockerfile)
+  # 2. Security (secrets + Dockerfile)
   #------------------------------------------
   security:
     name: Security — secrets & Dockerfile
-    needs: resolve
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -118,11 +93,11 @@ jobs:
           failure-threshold: error
 
   #------------------------------------------
-  # 4. Publish — Docker image (rolling tags)
+  # 3. Publish — Docker image (rolling tags)
   #------------------------------------------
   publish:
     name: Publish — Docker Hub
-    needs: [resolve, test, security]
+    needs: [test, security]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -145,16 +120,21 @@ jobs:
           platforms: linux/amd64
           load: true
           push: false
+          # Attestations geram manifest list incompatível com `load` + `docker push`.
+          provenance: false
+          sbom: false
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           build-args: |
-            VERSION=${{ needs.resolve.outputs.image_tag }}
+            BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }}
+            VERSION=${{ env.IMAGE_TAG }}
+          cache-to: type=gha,mode=max,scope=vigia-api-publish
 
       - name: Trivy — generate SARIF report
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
           format: sarif
@@ -169,31 +149,35 @@ jobs:
       - name: Trivy — block on unfixed CRITICAL/HIGH CVEs
         uses: aquasecurity/trivy-action@v0.24.0
         with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.resolve.outputs.image_tag }}"
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
           severity: "CRITICAL,HIGH"
           exit-code: "1"
           format: table
           ignore-unfixed: true
 
       - name: Push Docker image
-        env:
-          IMAGE_TAG: ${{ needs.resolve.outputs.image_tag }}
-        run: |
-          set -euo pipefail
-          USERNAME="${{ secrets.DOCKERHUB_USERNAME }}"
-          IMAGE="${USERNAME}/${{ env.IMAGE_NAME }}"
-
-          docker push "${IMAGE}:${IMAGE_TAG}"
-          docker push "${IMAGE}:${{ github.sha }}"
-          echo "✓ Imagens publicadas: ${IMAGE_TAG}, ${{ github.sha }}"
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          build-args: |
+            BUILD_CONFIGURATION=${{ env.BUILD_CONFIGURATION }}
+            VERSION=${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=vigia-api-publish
 
   #------------------------------------------
-  # 5. Portainer deploy — production only
+  # 4. Portainer deploy — production only
   #------------------------------------------
   portainer_deploy:
     name: Deploy — Portainer webhook
-    needs: [resolve, publish]
-    if: needs.resolve.outputs.is_homolog != 'true'
+    needs: [publish]
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -212,17 +196,16 @@ jobs:
             echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
             exit 1
           fi
-          echo "✓ Portainer redeploy acionado — vigia-api:${{ needs.resolve.outputs.image_tag }} (HTTP ${HTTP_STATUS})."
+          echo "✓ Portainer redeploy acionado — vigia-api:${{ env.IMAGE_TAG }} (HTTP ${HTTP_STATUS})."
 
   #------------------------------------------
   # 6. Publish — mesma tag git (rolling)
   #------------------------------------------
   release:
     name: Publish — tag service
-    needs: [resolve, publish, portainer_deploy]
+    needs: [publish, portainer_deploy]
     if: |
       always() &&
-      needs.resolve.result == 'success' &&
       needs.publish.result == 'success' &&
       (needs.portainer_deploy.result == 'success' || needs.portainer_deploy.result == 'skipped')
     runs-on: ubuntu-latest
@@ -255,8 +238,7 @@ jobs:
             Não há versionamento SemVer no GitHub.
 
             ### Docker Hub
-            - Produção (`master`): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:latest`
-            - Homologação (outras branches): `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:homolog`
+            - Rolling: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:latest`
             - Commit: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-api:${{ github.sha }}`
           draft: false
           prerelease: false
@@ -269,10 +251,9 @@ jobs:
   #------------------------------------------
   deployment_audit:
     name: Deployment audit — GitHub Deployment
-    needs: [resolve, portainer_deploy, release]
+    needs: [portainer_deploy, release]
     if: |
       always() &&
-      needs.resolve.outputs.is_homolog != 'true' &&
       needs.portainer_deploy.result == 'success' &&
       needs.release.result == 'success'
     runs-on: ubuntu-latest

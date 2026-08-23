@@ -2,20 +2,24 @@
 
 App Flutter do Vigia (Android / iOS).
 
-## Firebase (credenciais)
+## Firebase (credenciais — Android)
 
-`lib/firebase_options.dart` **não é versionado** (contém apiKeys).
+Push/FCM é **Android-only**. Execuções no **iPhone/simulador iOS** não inicializam Firebase.
 
-### Setup local
+No Android, o app usa `android/app/google-services.json` (gitignored). Opcionalmente,
+`lib/firebase_options.dart` pode ser gerado pelo FlutterFire CLI, mas **não é necessário**
+para compilar nem rodar no iOS.
+
+### Setup local (Android / push)
 
 ```bash
-# Opção A — FlutterFire CLI
+# Opção A — FlutterFire CLI (gera google-services.json + firebase_options.dart)
 dart pub global activate flutterfire_cli
 flutterfire configure
 
-# Opção B — a partir do exemplo
-cp lib/firebase_options.dart.example lib/firebase_options.dart
-# edite apiKey / appId / etc. com os valores do Console Firebase
+# Opção B — google-services.json manual
+cp android/app/google-services.json.example android/app/google-services.json
+# edite com os valores do Console Firebase
 ```
 
 `android/app/google-services.json` também é gitignored — copie de

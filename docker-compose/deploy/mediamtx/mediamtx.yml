@@ -17,9 +17,10 @@ webrtcICEServers2:
 # Em Docker local (macOS), anunciar hosts explicitos evita candidatos ICE invalidos.
 webrtcIPsFromInterfaces: false
 webrtcAdditionalHosts:
-  - vigia-deteccoes.duckdns.org
-  - 54.157.40.38
+  - stream.vigiadeteccoes.com.br
 
+# Porta fixa de mídia WebRTC (precisa estar publicada no host — ver infra.sh).
+webrtcLocalUDPAddress: :8189
 # Fallback ICE por TCP para cenarios onde UDP local falha.
 webrtcLocalTCPAddress: :8189
 

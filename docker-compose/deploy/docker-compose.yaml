@@ -7,7 +7,6 @@ services:
     env_file:
       - /home/ubuntu/default.env
     ports:
-      # Host 8090 evita colisão com o dashboard do Traefik (:8080). Rede interna usa 8080.
       - "8090:8080"
     labels:
       - "traefik.enable=true"

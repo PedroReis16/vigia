@@ -4,8 +4,9 @@ com autenticação DeviceSignature (Ed25519).
 
 Deps: pip install -r requirements.txt
 
-Par de chaves alinhado com TestDeviceSeed (DEBUG). Reinicie a API para
-sincronizar SignPublicKey no banco se ainda estiver o placeholder antigo.
+Par de chaves alinhado com TestDeviceSeed (DEBUG). A private key é derivada
+(SHA-256 de "vigia-debug-test-device-v1") — não versionar hex cru.
+Reinicie a API para sincronizar SignPublicKey no banco se ainda estiver antiga.
 """
 
 from __future__ import annotations
@@ -22,12 +23,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 # --- config (espelha Vigia.Models.Seed.TestDeviceSeed) ---
 BASE_URL = "http://localhost:8090/vigia"
 DEVICE_ID = "b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"
-# Raw private seed (32 bytes hex) — NÃO é a SignPublicKey do banco
-SIGN_PRIVATE_KEY_HEX = (
-    "a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff00"
-)
-# Pública correspondente (deve bater com Devices.sign_public_key):
-# 42aaead72ceea9f9423f281440c6cfac7a5f99b796b81862f452328972b21b61
+_DEBUG_SEED_PASSPHRASE = b"vigia-debug-test-device-v1"
 FRAME_PATH = Path(__file__).parent / "assets" / "frame.jpg"
 
 _MIN_JPEG = bytes.fromhex(
@@ -42,8 +38,12 @@ _MIN_JPEG = bytes.fromhex(
 )
 
 
+def _sign_private_key_hex() -> str:
+    return hashlib.sha256(_DEBUG_SEED_PASSPHRASE).hexdigest()
+
+
 def _load_signing_key() -> Ed25519PrivateKey:
-    priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(SIGN_PRIVATE_KEY_HEX))
+    priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(_sign_private_key_hex()))
     pub_hex = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
     print(f"SignPublicKey esperada no banco: {pub_hex}")
     return priv

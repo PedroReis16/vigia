@@ -19,14 +19,14 @@ import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  String envFile = "";
-  if (kDebugMode) {
-    envFile = "homolog.env";
-  } else {
-    envFile = ".env";
+  // Release used to load ".env" (never bundled) and crash before runApp → frozen splash.
+  final envFile = kDebugMode ? 'homolog.env' : 'production.env';
+  try {
+    await dotenv.load(fileName: envFile);
+  } catch (error, stackTrace) {
+    debugPrint('Failed to load $envFile: $error\n$stackTrace');
+    await dotenv.load(fileName: 'homolog.env');
   }
-
-  await dotenv.load(fileName: envFile);
 
   if (arePushNotificationsEnabled) {
     try {

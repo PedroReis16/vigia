@@ -37,16 +37,16 @@ class _AcceptInvitePageState extends ConsumerState<AcceptInvitePage> {
           .acceptInvite(widget.token);
       ref.read(pendingInviteTokenProvider.notifier).clear();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.inviteAcceptedSuccess)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.inviteAcceptedSuccess)));
       context.go(AppRoutes.devicesPage);
     } catch (e) {
       ref.read(pendingInviteTokenProvider.notifier).clear();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.inviteAcceptedError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t.inviteAcceptedError)));
       context.go(AppRoutes.devicesPage);
     }
   }

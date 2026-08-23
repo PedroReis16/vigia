@@ -38,7 +38,9 @@ class AuthSession extends _$AuthSession {
 
     // Remove push token while the access token is still available.
     try {
-      await ref.read(pushNotificationCoordinatorProvider).unregisterCurrentToken();
+      await ref
+          .read(pushNotificationCoordinatorProvider)
+          .unregisterCurrentToken();
     } catch (_) {}
 
     // Clear locally first so GoRouter redirect runs immediately.

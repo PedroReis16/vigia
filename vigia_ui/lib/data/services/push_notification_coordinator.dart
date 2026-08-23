@@ -152,9 +152,7 @@ class PushNotificationCoordinator {
         badge: true,
         sound: true,
       );
-      debugPrint(
-        'Push permission status: ${settings.authorizationStatus}',
-      );
+      debugPrint('Push permission status: ${settings.authorizationStatus}');
     } catch (error, stackTrace) {
       debugPrint('Push permission request failed: $error\n$stackTrace');
     }
@@ -185,7 +183,9 @@ class PushNotificationCoordinator {
     if (!authenticated) return;
 
     try {
-      await _ref.read(pushTokenRepositoryProvider).upsertToken(token, 'android');
+      await _ref
+          .read(pushTokenRepositoryProvider)
+          .upsertToken(token, 'android');
       debugPrint('FCM token registered (android).');
     } catch (error, stackTrace) {
       debugPrint('Failed to register push token: $error\n$stackTrace');

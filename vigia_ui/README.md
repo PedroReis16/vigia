@@ -1,17 +1,45 @@
 # vigia_ui
 
-A new Flutter project.
+App Flutter do Vigia (Android / iOS).
 
-## Getting Started
+## Firebase (credenciais)
 
-This project is a starting point for a Flutter application.
+`lib/firebase_options.dart` **não é versionado** (contém apiKeys).
 
-A few resources to get you started if this is your first Flutter project:
+### Setup local
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+# Opção A — FlutterFire CLI
+dart pub global activate flutterfire_cli
+flutterfire configure
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# Opção B — a partir do exemplo
+cp lib/firebase_options.dart.example lib/firebase_options.dart
+# edite apiKey / appId / etc. com os valores do Console Firebase
+```
+
+`android/app/google-services.json` também é gitignored — copie de
+`google-services.json.example` ou baixe no Firebase Console.
+
+### CI (GitHub Actions)
+
+Secrets necessários no repositório:
+
+| Secret | Uso |
+|--------|-----|
+| `FIREBASE_OPTIONS_DART_BASE64` | `firebase_options.dart` real (base64) |
+| `GOOGLE_SERVICES_JSON_BASE64` | `google-services.json` (base64) |
+| `ANDROID_KEYSTORE_BASE64` | keystore de release |
+| `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` | assinatura |
+
+Gerar o base64 do `firebase_options.dart` (PowerShell):
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("vigia_ui\lib\firebase_options.dart"))
+```
+
+Bash:
+
+```bash
+base64 -w0 vigia_ui/lib/firebase_options.dart
+```

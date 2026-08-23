@@ -61,7 +61,9 @@ abstract final class AuthTransitionWarmUp {
                   child: VigiaLogoHero.image(height: VigiaLogoHero.authHeight),
                 ),
                 Center(
-                  child: VigiaLogoHero.image(height: VigiaLogoHero.appBarHeight),
+                  child: VigiaLogoHero.image(
+                    height: VigiaLogoHero.appBarHeight,
+                  ),
                 ),
                 const Opacity(
                   opacity: 0.5,

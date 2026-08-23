@@ -26,10 +26,6 @@ class AppLoadingIndicator extends StatelessWidget {
 
     if (size == null) return indicator;
 
-    return SizedBox(
-      width: size,
-      height: size,
-      child: indicator,
-    );
+    return SizedBox(width: size, height: size, child: indicator);
   }
 }

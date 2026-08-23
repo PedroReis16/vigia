@@ -1,0 +1,6 @@
+# Extends the built-in rule set. See: https://github.com/gitleaks/gitleaks
+# No path allowlists — secrets must not live in the working tree.
+title = "Vigia gitleaks config"
+
+[extend]
+useDefault = true

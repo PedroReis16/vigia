@@ -6,7 +6,8 @@ extension ShowSnackbar on BuildContext {
     required Color color,
     Duration duration = const Duration(seconds: 2),
   }) {
-    final onColor = ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+    final onColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
         ? Colors.white
         : const Color(0xFF46526D);
 

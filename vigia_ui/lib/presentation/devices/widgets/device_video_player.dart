@@ -69,10 +69,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
       behavior: HitTestBehavior.opaque,
       child: Stack(
         fit: StackFit.expand,
-        children: [
-          video,
-          if (_showControls) _buildControlsOverlay(context),
-        ],
+        children: [video, if (_showControls) _buildControlsOverlay(context)],
       ),
     );
 
@@ -96,10 +93,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
                 : toHeroContext.widget as Hero;
             return hero.child;
           },
-      child: Material(
-        type: MaterialType.transparency,
-        child: content,
-      ),
+      child: Material(type: MaterialType.transparency, child: content),
     );
   }
 
@@ -195,9 +189,7 @@ class _DeviceVideoPlayerState extends State<DeviceVideoPlayer> {
                 onPressed: widget.onToggleFullscreen,
                 color: Colors.white,
                 icon: Icon(
-                  widget.fullscreen
-                      ? Icons.fullscreen_exit
-                      : Icons.fullscreen,
+                  widget.fullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
                 ),
               ),
             ),

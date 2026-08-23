@@ -112,9 +112,7 @@ class DevicesRepository {
           "Permissões insuficientes para obter a configuração de provisionamento.",
         );
       }
-      throw Exception(
-        _apiErrorMessage(e) ?? 'Failed to get provision config',
-      );
+      throw Exception(_apiErrorMessage(e) ?? 'Failed to get provision config');
     } catch (e) {
       rethrow;
     }
@@ -186,10 +184,7 @@ class DevicesRepository {
 
   Future<void> acceptShareInvite(String token) async {
     try {
-      await dio.post(
-        "$_devicesEndpoint/share/accept",
-        data: {'token': token},
-      );
+      await dio.post("$_devicesEndpoint/share/accept", data: {'token': token});
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
         throw UnauthorizedException(
@@ -258,10 +253,7 @@ class DevicesRepository {
     try {
       await dio.patch(
         '$_devicesEndpoint/$deviceId/command',
-        data: {
-          'command': command,
-          'commandValue': commandValue ?? '',
-        },
+        data: {'command': command, 'commandValue': commandValue ?? ''},
       );
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {

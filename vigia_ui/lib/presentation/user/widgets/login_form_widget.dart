@@ -125,7 +125,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                   color: Theme.of(context).colorScheme.onPrimary,
                 )
               : const Icon(Icons.login_rounded, size: 20),
-          Text(context.translations.login, style: const TextStyle(fontSize: 16)),
+          Text(
+            context.translations.login,
+            style: const TextStyle(fontSize: 16),
+          ),
         ],
       );
     }

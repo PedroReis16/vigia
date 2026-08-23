@@ -168,10 +168,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                           strokeWidth: 2,
                           color: colorScheme.primary,
                         )
-                      : Icon(
-                          Icons.refresh_rounded,
-                          color: colorScheme.primary,
-                        ),
+                      : Icon(Icons.refresh_rounded, color: colorScheme.primary),
                 ),
             ],
           ),
@@ -196,9 +193,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
           if (_manualEntry)
             _buildNetworkSection(textTheme, colorScheme, busy)
           else
-            Expanded(
-              child: _buildNetworkSection(textTheme, colorScheme, busy),
-            ),
+            Expanded(child: _buildNetworkSection(textTheme, colorScheme, busy)),
           if (hasSelection) ...[
             const SizedBox(height: 12),
             if (_requiresPassword)
@@ -281,10 +276,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               labelText: context.translations.networkSsid,
-              prefixIcon: Icon(
-                Icons.wifi,
-                color: colorScheme.onSurfaceVariant,
-              ),
+              prefixIcon: Icon(Icons.wifi, color: colorScheme.onSurfaceVariant),
             ),
           ),
           if (_wifiScan.isScanSupported) ...[
@@ -356,9 +348,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
                       child: Row(
                         children: [
                           Icon(
-                            network.isSecure
-                                ? Icons.lock_outline
-                                : Icons.wifi,
+                            network.isSecure ? Icons.lock_outline : Icons.wifi,
                             size: 22,
                             color: colorScheme.primary,
                           ),

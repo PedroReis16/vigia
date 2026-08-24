@@ -201,7 +201,7 @@ vigia/
 
 **Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push notifications.
 
-**Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, flutter_webrtc, signalr_netcore, Firebase.
+**Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, flutter_webrtc, signalr_netcore, Firebase (Android only).
 
 **Ponto de entrada:** `vigia_ui/lib/main.dart`
 
@@ -213,10 +213,12 @@ vigia/
 | `lib/domain/` | DTOs, enums, models de UI |
 | `lib/data/` | Services, repositories, API client |
 | `lib/presentation/` | Pages, widgets, providers de UI |
+| `packages/firebase_*_android/` | Overrides path de `firebase_core` / `firebase_messaging` sem plataforma iOS (evita firebase-ios-sdk no SPM) |
+| `packages/wifi_scan/` | Fork local com Swift Package Manager |
 
 **Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`
 
-**Plataformas:** Android + iOS (push apenas Android)
+**Plataformas:** Android + iOS (push/FCM apenas Android; plugins Firebase não entram no build iOS)
 
 ---
 
@@ -305,7 +307,7 @@ vigia/
 
 7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda device de teste via `TestDeviceSeed`.
 
-8. **Push notifications Android-only** — Firebase/FCM configurado apenas para Android; iOS sem push por enquanto.
+8. **Push notifications Android-only** — Firebase/FCM só no Android: `dependency_overrides` apontam para `packages/firebase_*_android` (sem plataforma iOS), bootstrap/coordenador com guard `Platform.isAndroid`; iOS não liga firebase-ios-sdk.
 
 9. **Ultralight + MQTT** — Comandos entregues via MQTT, não poll. Collection `commands` vazia no MongoDB do IoT Agent é comportamento esperado.
 
@@ -379,6 +381,7 @@ vigia/
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
+- **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
 
@@ -401,7 +404,7 @@ vigia/
 |---------|-----------|
 | vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, frame_shm/stream_runner, event_shm/fall_shm/log_bridge/state_log, FIWARE loop/OTA, identity) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
-| vigia_ui | ~13 testes widget/domain/router |
+| vigia_ui | ~14 testes widget/domain/router/push Android-only |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
@@ -498,6 +501,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-24] vigia_ui: Firebase/FCM fora do build iOS — overrides path `packages/firebase_*_android` (só plataforma Android); teste `push_notification_android_only_test.dart`
 - [2026-08-24] Edge debug local: OTA/install derivados de `DATA_DIR` (placa mantém `/var/lib/vigia/ota`); launch configs Python; `.env` local sem paths de instalação (`provision/settings.py`, `shared/settings.py`, `ota.py`, `fiware_runner.py`, `.vscode/launch.json`)
 - [2026-08-24] Fall: pipeline captura→YOLO com backpressure (skip vs drop-oldest), archive no ritmo de classificação, YOLO `YOLO_IMGSZ`/`YOLO_TRACKER`, warmup `p{id}=k/N` e métricas `capture metrics` (`capture_runner`, `frame_worker`, `frame_processor`, `settings`, classifiers)
 - [2026-08-24] Fall: captura full-rate desacoplada — todos os frames arquivados (`CaptureFrameArchive`); classificação subsampled em `FRAME_RATE`; sem throttle no loop (`capture_runner`, `frame_archive`, `settings`)

@@ -1,0 +1,24 @@
+name: firebase_core
+description: >
+  Android-only fork of firebase_core for Vigia. Keeps FCM on Android while
+  preventing the Firebase iOS SDK from being linked into iPhone builds.
+version: 4.13.0
+publish_to: none
+homepage: https://firebase.google.com/docs/flutter/setup
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  firebase_core_platform_interface: ^8.1.0
+  flutter:
+    sdk: flutter
+  meta: ^1.8.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: io.flutter.plugins.firebase.core
+        pluginClass: FlutterFirebaseCorePlugin

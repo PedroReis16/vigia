@@ -6,10 +6,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path as _Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -26,10 +24,11 @@ from shared import (
 )
 from shared.event_types import EVENT_FALL_STATE
 from shared.log_config import configure_logging
+from shared.settings import resolve_ota_dir
 
 logger = logging.getLogger(__name__)
 
-OTA_DIR = _Path(os.getenv("VIGIA_OTA_DIR", "/var/lib/vigia/ota"))
+OTA_DIR = resolve_ota_dir()
 PENDING_PATH = OTA_DIR / "pending.json"
 
 fiware_client: mqtt.Client | None = None

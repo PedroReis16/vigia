@@ -97,6 +97,8 @@ O unit usa `EnvironmentFile=-/opt/vigia/.env` (opcional, partilhado com o fall-d
 - `BUTTON_OK=17` `BUTTON_UP=22` `BUTTON_DOWN=23`
 - `LCD_STANDBY_SECONDS=20`
 
+Com `DATA_DIR=/opt/vigia`, OTA fica em `/var/lib/vigia/ota` (override: `VIGIA_OTA_DIR`). Em debug local (`DATA_DIR=./data`), OTA vai para `{DATA_DIR}/ota` sem precisar de paths de instalação.
+
 O LCD mostra o estágio de vínculo (`Aguardando app`, `Usuario encontrado`, `Esperando internet`, `A conectar...`, `Rede invalida`, …). Credenciais Wi‑Fi só são gravadas em `network.json` depois do `nmcli` ligar com sucesso.
 
 ## Verificar

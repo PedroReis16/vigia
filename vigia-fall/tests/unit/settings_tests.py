@@ -62,6 +62,12 @@ def test_Settings_from_env_SemVariaveisDefinidas_RetornaValoresPadrao(
     monkeypatch.delenv("YOLO_TRACKER", raising=False)
     monkeypatch.delenv("FRAME_RATE", raising=False)
     monkeypatch.delenv("SLIDER_WINDOW", raising=False)
+    monkeypatch.delenv("DATA_DIR", raising=False)
+    monkeypatch.delenv("DEBUG", raising=False)
+    monkeypatch.delenv("WIFI_MOCK_RESULT", raising=False)
+    monkeypatch.delenv("STATE_LOG_MODE", raising=False)
+    monkeypatch.delenv("STATE_LOG_INTERVAL_S", raising=False)
+    monkeypatch.delenv("CAPTURE_ARCHIVE_FRAMES", raising=False)
 
     # Act
     settings = Settings.from_env()
@@ -82,3 +88,37 @@ def test_get_settings_ChamadoDuasVezes_RetornaMesmaInstancia(
 
     # Assert
     assert primeira is segunda
+
+
+def test_resolve_ota_dir_usa_data_dir_em_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shared.settings import get_settings, resolve_ota_dir
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("VIGIA_OTA_DIR", raising=False)
+    get_settings.cache_clear()
+    assert resolve_ota_dir() == tmp_path / "ota"
+
+
+def test_resolve_ota_dir_placa_usa_var_lib(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from shared.settings import get_settings, resolve_ota_dir
+
+    monkeypatch.setenv("DATA_DIR", "/opt/vigia")
+    monkeypatch.delenv("VIGIA_OTA_DIR", raising=False)
+    get_settings.cache_clear()
+    assert resolve_ota_dir() == Path("/var/lib/vigia/ota")
+
+
+def test_resolve_ota_dir_explicito(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shared.settings import get_settings, resolve_ota_dir
+
+    explicit = tmp_path / "custom-ota"
+    monkeypatch.setenv("DATA_DIR", "/opt/vigia")
+    monkeypatch.setenv("VIGIA_OTA_DIR", str(explicit))
+    get_settings.cache_clear()
+    assert resolve_ota_dir() == explicit

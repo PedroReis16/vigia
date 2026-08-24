@@ -86,7 +86,7 @@ vigia/
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
-└── .vscode/                # Launch configs e tasks do workspace
+└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall) e tasks do workspace
 ```
 
 ---
@@ -153,7 +153,9 @@ vigia/
 
 **Deploy:** `/opt/vigia/bootstrap/`, systemd `vigia-bootstrap.service`
 
-**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection); `/opt/vigia/classifier.json` (preferência de modelo; default `math`)
+**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection); `/opt/vigia/classifier.json` (preferência de modelo; default `math`). Em debug local: `{DATA_DIR}/` (ex.: `./data`).
+
+**Paths de instalação vs debug:** `DATA_DIR` define identity/network; OTA usa `VIGIA_OTA_DIR` ou, se `DATA_DIR≠/opt/vigia`, `{DATA_DIR}/ota` (na placa: `/var/lib/vigia/ota`); install root = `VIGIA_INSTALL_ROOT` ou `DATA_DIR`.
 
 **Build:** `make build-linux-arm64` → `dist/vigia-bootstrap-deploy.zip`
 
@@ -336,7 +338,7 @@ vigia/
 | Atributos FIWARE: `system_status`, `network_status`, `stream_status`, `detected_person`, `fall_state` | `appsettings.json` (`Fiware:Devices:Attributes`) |
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
-| OTA pendente gravado em `/var/lib/vigia/ota/pending.json` | `vigia-fall` (comando `device_update`) |
+| OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
 | Device de teste em DEBUG: `Vigia-a1b2c3d4` | `Vigia.Models/Seed/TestDeviceSeed.cs` |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
@@ -367,7 +369,7 @@ vigia/
 - **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via shared memory); classificação ~`FRAME_RATE`; stream full-rate com `stream_on`; fall_state via fila leve de strings; logging centralizado; compatível com `spawn`/`fork` (`mp_compat`, ffmpeg cross-platform)
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
-- **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
+- **Config:** `.env.example` por serviço; placa: `DATA_DIR=/opt/vigia`, OTA em `/var/lib/vigia/ota`; debug local: `DATA_DIR=./data` (OTA → `{DATA_DIR}/ota`)
 
 ### Flutter (vigia_ui)
 
@@ -496,6 +498,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-24] Edge debug local: OTA/install derivados de `DATA_DIR` (placa mantém `/var/lib/vigia/ota`); launch configs Python; `.env` local sem paths de instalação (`provision/settings.py`, `shared/settings.py`, `ota.py`, `fiware_runner.py`, `.vscode/launch.json`)
 - [2026-08-24] Fall: pipeline captura→YOLO com backpressure (skip vs drop-oldest), archive no ritmo de classificação, YOLO `YOLO_IMGSZ`/`YOLO_TRACKER`, warmup `p{id}=k/N` e métricas `capture metrics` (`capture_runner`, `frame_worker`, `frame_processor`, `settings`, classifiers)
 - [2026-08-24] Fall: captura full-rate desacoplada — todos os frames arquivados (`CaptureFrameArchive`); classificação subsampled em `FRAME_RATE`; sem throttle no loop (`capture_runner`, `frame_archive`, `settings`)
 - [2026-08-23] vigia-fall: STATE_LOG_MODE verbose + fallback standalone + fix perda SHM (`log_bridge`, `frame_worker`, `settings`, `main.py`)

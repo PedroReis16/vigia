@@ -75,6 +75,8 @@ Copie um `.env` para `/opt/vigia/.env` (o unit usa `EnvironmentFile=-/opt/vigia/
 - `DEBUG=false`
 - `DATA_DIR=/opt/vigia` (mesmo valor que o bootstrap)
 
+Com `DATA_DIR=/opt/vigia`, pending OTA em `/var/lib/vigia/ota`. Em debug local (`DATA_DIR=./data`), OTA → `{DATA_DIR}/ota`.
+
 `YOLO_POSE_MODEL` pode continuar `yolo26s-pose` (resolve para o `.pt` empacotado) ou um caminho absoluto.
 
 ## Verificar

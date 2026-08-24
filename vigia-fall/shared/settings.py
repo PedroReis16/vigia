@@ -16,6 +16,13 @@ from . import test_device_seed
 
 logger = logging.getLogger(__name__)
 
+# Carregar .env cedo para paths resolvidos no import de outros módulos (ex.: OTA).
+load_dotenv()
+
+# Defaults da placa (systemd). Em debug local use DATA_DIR fora de /opt/vigia.
+PROD_DATA_DIR = "/opt/vigia"
+PROD_OTA_DIR = "/var/lib/vigia/ota"
+
 
 def _parse_capture_source(raw: str) -> int | str:
     """
@@ -48,7 +55,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     yolo_tracker: str = "bytetrack.yaml"
     frame_rate: int = 12
     slider_window_size: int = 30
-    data_dir: str = "/opt/vigia"
+    data_dir: str = PROD_DATA_DIR
     debug: bool = True
     wifi_mock_result: str = "success"
     state_log_mode: str = "verbose"
@@ -72,7 +79,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             or "bytetrack.yaml",
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
-            data_dir=os.getenv("DATA_DIR", "/opt/vigia") or "/opt/vigia",
+            data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
             debug=helpers_convert_to_bool(os.getenv("DEBUG", "true")),
             wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
             state_log_mode=_parse_state_log_mode(os.getenv("STATE_LOG_MODE", "verbose")),
@@ -109,6 +116,19 @@ def get_classifier_path() -> Path:
     """Preferência de classificador (math|gru) escrita pelo bootstrap."""
     return Path(os.path.join(get_settings().data_dir, "classifier.json"))
 
+
+def resolve_ota_dir() -> Path:
+    """
+    Diretório OTA: VIGIA_OTA_DIR explícito, senão {DATA_DIR}/ota em dev local,
+    ou /var/lib/vigia/ota na instalação da placa (DATA_DIR=/opt/vigia).
+    """
+    explicit = (os.getenv("VIGIA_OTA_DIR") or "").strip()
+    if explicit:
+        return Path(explicit)
+    data_dir = (get_settings().data_dir or PROD_DATA_DIR).rstrip("/") or PROD_DATA_DIR
+    if data_dir != PROD_DATA_DIR:
+        return Path(data_dir) / "ota"
+    return Path(PROD_OTA_DIR)
 
 @dataclass(frozen=True)
 class DeviceIdentity:

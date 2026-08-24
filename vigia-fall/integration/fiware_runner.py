@@ -142,14 +142,18 @@ def run_fiware(stream_event: EventType | None = None):
 
 def notify_fall(label: str) -> None:
     """
-    Publica alerta de queda como atributo UltraLight no FIWARE via MQTT.
-    Conexão de curta duração — independente do subscriber run_fiware().
+    Publica o atributo UltraLight ``fall`` (→ ``fall_state`` no Orion) via MQTT.
+
+    Deve ser chamado em qualquer transição de estado (normal, suspect, fall, …),
+    não só em quedas — o Orion só notifica o webhook quando o valor muda para
+    ``fall`` (subscription ``fall_state==fall``).
     """
     identity = get_device_identity()
     network = get_network_settings()
     host, port = _mqtt_endpoint(network.api_base_url)
     topic = f"/{network.fiware_api_key}/{identity.device_id}/attrs"
-    payload = f"fall|{label}"
+    state = normalize_fall_state(label)
+    payload = f"fall|{state}"
 
     client = mqtt.Client(
         callback_api_version=CallbackAPIVersion.VERSION2,
@@ -160,4 +164,23 @@ def notify_fall(label: str) -> None:
     client.connect(host=host, port=port, keepalive=60)
     client.publish(topic, payload)
     client.disconnect()
+    print(f"FIWARE fall_state={state}", flush=True)
+
+
+_FALL_STATE_ALIASES: dict[str, str] = {
+    "fall": "fall",
+    "falling": "fall",
+    "normal": "normal",
+    "adl": "normal",
+    "ok": "normal",
+    "suspect": "suspect",
+    "false_positive": "false_positive",
+    "falsepositive": "false_positive",
+}
+
+
+def normalize_fall_state(label: str) -> str:
+    """Mapeia labels dos classificadores para valores canónicos de fall_state."""
+    key = (label or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return _FALL_STATE_ALIASES.get(key, key or "normal")
 

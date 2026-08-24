@@ -9,7 +9,7 @@ import numpy as np  # pyright: ignore[reportMissingImports]
 
 from capture.classifiers import FallClassifier, create_classifier, get_classifier_id
 from capture.frame_processor import extract_poses
-from integration.fiware_runner import notify_fall
+from integration.fiware_runner import normalize_fall_state, notify_fall
 from shared import get_settings
 
 
@@ -25,6 +25,7 @@ class FrameWorker:
     ) -> None:
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
         self._classifier = classifier if classifier is not None else create_classifier()
+        self._last_published_fall_state: str | None = None
 
     def __consume_raw_frame(self) -> bool:
         item = self.raw_frame_queue.get()
@@ -47,13 +48,20 @@ class FrameWorker:
                 f"{' ALERT' if decision.alert else ''}",
                 flush=True,
             )
-            if decision.alert:
-                try:
-                    notify_fall(decision.label)
-                except Exception as error:
-                    print(f"Falha FIWARE notify_fall: {error}", flush=True)
+            self._publish_fall_state(decision.label)
 
         return True
+
+    def _publish_fall_state(self, label: str) -> None:
+        """Publica fall_state no FIWARE só quando o valor canónico muda."""
+        state = normalize_fall_state(label)
+        if state == self._last_published_fall_state:
+            return
+        try:
+            notify_fall(label)
+            self._last_published_fall_state = state
+        except Exception as error:
+            print(f"Falha FIWARE notify_fall: {error}", flush=True)
 
     def run(self) -> None:
         while True:

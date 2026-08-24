@@ -92,7 +92,7 @@ def test_FrameWorker_run_ComSentinelNaFilaInicial_EncerraSemProcessar(
     assert processados == []
 
 
-def test_FrameWorker_alert_chama_notify_fall(
+def test_FrameWorker_publica_todos_os_estados_com_dedupe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     notified: list[str] = []
@@ -102,6 +102,9 @@ def test_FrameWorker_alert_chama_notify_fall(
 
     clf = MagicMock()
     clf.process.return_value = [
+        FallDecision(person_id=1, label="NORMAL", alert=False),
+        FallDecision(person_id=1, label="SUSPECT", alert=False),
+        FallDecision(person_id=1, label="FALL", alert=True),
         FallDecision(person_id=1, label="FALL", alert=True),
     ]
     monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
@@ -115,7 +118,7 @@ def test_FrameWorker_alert_chama_notify_fall(
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
 
-    assert notified == ["FALL"]
+    assert notified == ["NORMAL", "SUSPECT", "FALL"]
 
 
 def test_get_worker_ComSettingsPadrao_RetornaWorkerConfigurado(

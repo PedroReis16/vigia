@@ -448,7 +448,7 @@ flowchart LR
 ### 2. Detecção de queda
 
 1. Câmera captura frames → YOLO pose (`extract_poses`) → `FallClassifier` (`math` ou `gru` conforme `classifier.json`)
-2. Em alerta, edge publica atributo Ultralight `fall|{label}` via `notify_fall`
+2. Em cada transição de estado, edge publica UltraLight `fall|{normal|suspect|fall|…}` via `notify_fall` (dedupe por valor); Orion notifica a API só quando `fall_state==fall`
 3. Orion detecta `fall_state` (subscription configurada)
 4. Webhook POST para `/vigia/devices/alert`
 5. API notifica membros do grupo via Firebase push + SignalR
@@ -488,6 +488,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fall: publicar todos os `fall_state` (normal/suspect/fall/…) com dedupe; payload UltraLight canónico para Orion (`notify_fall` + `normalize_fall_state`)
 - [2026-08-23] Fall: miolo pluggável `math`/`gru` (`capture/classifiers/`), leitura de `classifier.json`, port ONNX GRU, `notify_fall`, YOLO partilhado via `extract_poses`
 - [2026-08-23] Bootstrap: seleção de classificador no LCD (`MODELO`/`MODELO_PICK`), persistência `classifier.json` (default `math`), `ensure_classifier_config` antes do auto-start do fall (`provision/classifier.py`, `ui/menu.py`, `ui/status.py`)
 - [2026-08-23] Fix upsert de push token: reativar soft-delete no re-login (`UserPushTokenDao.UpsertAsync`); testes unitários em `Vigia.Database.UnitTests`

@@ -5,6 +5,7 @@ Executa a captura de vídeo
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from multiprocessing.queues import Queue as MpQueue
 from multiprocessing.synchronize import Event as EventType
 import time
 import cv2  # pyright: ignore[reportMissingImports]
@@ -16,8 +17,7 @@ from shared import (
 )
 from capture.frame_worker import get_worker
 from capture.frame_uploader import maybe_upload_thumbnail
-from capture.capture_stream import is_streaming, shutdown_stream, stop_stream, stream_video
-
+from streaming.frame_ipc import put_frame
 
 def _opencv_has_gui() -> bool:
     """False em builds headless (placa / PyInstaller) — imshow/waitKey não existem."""
@@ -28,20 +28,23 @@ def _opencv_has_gui() -> bool:
     markers = ("GTK", "Cocoa", "QT", "Win32 UI", "OpenGL")
     return any(marker in info for marker in markers)
 
-
 def _is_file_source(source: int | str) -> bool:
     return isinstance(source, str)
-
 
 def _source_label(source: int | str) -> str:
     if _is_file_source(source):
         return f"vídeo {source}"
     return f"câmera {source}"
 
-
-def run_capture(stream_event: EventType | None = None):
+def run_capture(
+    stream_event: EventType | None = None,
+    frame_queue: MpQueue | None = None,
+):
     """
-    Executa a captura de vídeo
+    Executa a captura de vídeo.
+
+    Quando ``frame_queue`` é fornecida e o streaming está ativo, enfileira
+    frames flipados para o processo de streaming via IPC.
     """
 
     if stream_event is not None:
@@ -107,10 +110,8 @@ def run_capture(stream_event: EventType | None = None):
             # Thumbnail para a API (cadência interna ~60s; não bloqueia captura).
             maybe_upload_thumbnail(flipped_frame)
 
-            if get_stream_status():
-                stream_video(flipped_frame)
-            elif is_streaming():
-                stop_stream()
+            if frame_queue is not None and get_stream_status():
+                put_frame(frame_queue, flipped_frame)
 
         if cap is not None:
             cap.release()
@@ -118,7 +119,6 @@ def run_capture(stream_event: EventType | None = None):
         print(f"Erro ao executar a captura: {e}")
         raise e
     finally:
-        shutdown_stream()
         # HighGUI (waitKey/imshow/destroy*) não existe em builds headless do OpenCV.
         if show_video:
             cv2.destroyAllWindows()

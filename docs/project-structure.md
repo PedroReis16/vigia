@@ -167,14 +167,15 @@ vigia/
 
 **Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, onnxruntime, paho-mqtt, SQLite, PyInstaller.
 
-**Ponto de entrada:** `vigia-fall/main.py` — multiprocess (capture worker + FIWARE runner)
+**Ponto de entrada:** `vigia-fall/main.py` — multiprocess (capture + FIWARE + streaming sob demanda)
 
 **Módulos principais:**
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload, streaming |
+| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; enfileira frames para streaming via IPC |
 | `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
+| `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); IPC de frames + FFmpeg; `mp_compat` para spawn (Windows/macOS) |
 | `integration/` | `vigia-fall/integration/` | FIWARE runner (MQTT cmds + `notify_fall`) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
@@ -359,7 +360,7 @@ vigia/
 
 - Docstrings em português
 - **bootstrap:** asyncio (loop UI + supervisor de provisionamento)
-- **fall-detection:** multiprocessing (capture worker + FIWARE runner isolados); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`
+- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via Queue IPC); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`; IPC compatível com `spawn` (Windows/macOS) e `fork` (Linux/Pi) via `freeze_support`, join graceful e resolução cross-platform do ffmpeg
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
 - **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
@@ -392,7 +393,7 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, identity, FIWARE OTA) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, streaming IPC/runner, identity, FIWARE OTA) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
@@ -456,11 +457,12 @@ flowchart LR
 ### 3. Streaming ao vivo
 
 1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
-2. IoT Agent publica comando no MQTT → fall-detection recebe
-3. Fall inicia captura RTMP para MediaMTX
-4. App consome stream via WebRTC/WHEP
-5. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
-6. Comando `stream_off` encerra streaming
+2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
+3. Supervisor (`main.py`) sobe processo `run_stream`; captura enfileira frames flipados na `Queue` IPC (maxsize=2, drop-oldest)
+4. Processo streaming consome frames → FFmpeg → RTMP/MediaMTX
+5. App consome stream via WebRTC/WHEP
+6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
+7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e drena a Queue (zero FFmpeg/encode idle)
 
 ### 4. OTA (atualização de firmware)
 
@@ -488,6 +490,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fall: IPC/streaming cross-platform (Windows/macOS spawn) — `freeze_support`, stop graceful da Queue, ffmpeg PATH/Homebrew, `close_fds` só em Unix (`streaming/mp_compat.py`, `rtmp.py`, `main.py`)
+- [2026-08-23] Fall: streaming RTMP isolado em processo sob demanda (`streaming/`); frames via Queue IPC só com `stream_on`; captura sem FFmpeg (`main.py`, `capture_runner`, `streaming/`)
 - [2026-08-23] Fall: publicar todos os `fall_state` (normal/suspect/fall/…) com dedupe; payload UltraLight canónico para Orion (`notify_fall` + `normalize_fall_state`)
 - [2026-08-23] Fall: miolo pluggável `math`/`gru` (`capture/classifiers/`), leitura de `classifier.json`, port ONNX GRU, `notify_fall`, YOLO partilhado via `extract_poses`
 - [2026-08-23] Bootstrap: seleção de classificador no LCD (`MODELO`/`MODELO_PICK`), persistência `classifier.json` (default `math`), `ensure_classifier_config` antes do auto-start do fall (`provision/classifier.py`, `ui/menu.py`, `ui/status.py`)

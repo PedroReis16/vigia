@@ -1,5 +1,5 @@
 """
-Módulo para o processo de streaming de vídeo
+Publicação RTMP via FFmpeg (worker em thread dedicada).
 """
 
 from __future__ import annotations
@@ -25,35 +25,49 @@ from shared import (
 _SHUTDOWN = object()
 _RECONNECT_BACKOFF_S = 2.0
 _MAX_RECONNECT_ATTEMPTS = 5
-_BUNDLE_PATH_MARKERS = ("/_internal", "_internal/")
+_BUNDLE_PATH_MARKERS = (
+    "/_internal",
+    "_internal/",
+    "\\_internal",
+    "_internal\\",
+)
 
 
 def _is_bundle_lib_path(path: str) -> bool:
     if not path:
         return False
     meipass = getattr(sys, "_MEIPASS", None)
-    if meipass and (path == meipass or path.startswith(f"{meipass}/")):
-        return True
+    if meipass:
+        try:
+            if os.path.normpath(path) == os.path.normpath(meipass):
+                return True
+            if os.path.normpath(path).startswith(os.path.normpath(meipass) + os.sep):
+                return True
+        except (OSError, TypeError, ValueError):
+            pass
     return any(marker in path for marker in _BUNDLE_PATH_MARKERS)
 
 
 def _scrub_path_env(value: str) -> str | None:
-    parts = [p for p in value.split(":") if p and not _is_bundle_lib_path(p)]
-    return ":".join(parts) if parts else None
+    parts = [
+        p for p in value.split(os.pathsep) if p and not _is_bundle_lib_path(p)
+    ]
+    return os.pathsep.join(parts) if parts else None
 
 
 def _system_subprocess_env() -> dict[str, str]:
     """
     Ambiente para binários do sistema (ex.: ffmpeg).
 
-    O bootloader do PyInstaller injeta `_internal` em LD_LIBRARY_PATH; o ffmpeg
-    do apt passa a carregar o libstdc++ do bundle (mais antigo) e falha com
-    GLIBCXX_/CXXABI_ not found. Remove paths do bundle e restaura o valor
-    original quando existir (LD_LIBRARY_PATH_ORIG).
+    No Linux (placa / PyInstaller), o bootloader injeta `_internal` em
+    LD_LIBRARY_PATH e o ffmpeg do apt falha com GLIBCXX_/CXXABI_. Em Windows e
+    macOS essas variáveis normalmente não existem — devolvemos o env limpo sem
+    alterar o PATH do utilizador.
     """
     env = os.environ.copy()
 
-    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LIBRARY_PATH"):
+    # Só relevante em Unix; no Windows estes nomes não costumam existir.
+    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
         env.pop(f"{key}_ORIG", None)
         current = env.get(key)
         if current is None:
@@ -72,23 +86,34 @@ def _system_subprocess_env() -> dict[str, str]:
             env.pop("LD_LIBRARY_PATH", None)
         else:
             env["LD_LIBRARY_PATH"] = cleaned_orig
-    else:
-        # Sem original: não herdar o LD_LIBRARY_PATH do frozen app.
+    elif sys.platform.startswith("linux"):
+        # Sem original: não herdar o LD_LIBRARY_PATH do frozen app (só Linux).
         env.pop("LD_LIBRARY_PATH", None)
 
     return env
 
 
 def _ffmpeg_executable() -> str:
-    """Resolve o ffmpeg do sistema, evitando qualquer binário do bundle."""
-    for candidate in ("/usr/bin/ffmpeg", "/bin/ffmpeg"):
-        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-            return candidate
-    found = shutil.which("ffmpeg", path="/usr/bin:/bin:/usr/local/bin")
-    if found:
-        return found
-    return "ffmpeg"
+    """
+    Resolve o ffmpeg do sistema (Linux, macOS Homebrew, Windows PATH).
+    Evita binários do bundle PyInstaller quando possível.
+    """
+    unix_candidates = (
+        "/usr/bin/ffmpeg",
+        "/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",  # macOS Intel Homebrew / Linux local
+        "/opt/homebrew/bin/ffmpeg",  # macOS Apple Silicon Homebrew
+    )
+    if sys.platform != "win32":
+        for candidate in unix_candidates:
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
 
+    for name in ("ffmpeg.exe", "ffmpeg"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
 
 def _rtmp_publish_url(api_base_url: str, device_id: str) -> str:
     """
@@ -178,15 +203,18 @@ class RtmpPublisher:
             url,
         ]
 
-        self._process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            bufsize=0,
-            env=_system_subprocess_env(),
-            close_fds=True,
-        )
+        # Windows não permite close_fds=True com redirecionamento de stdin/out/err.
+        popen_kwargs: dict = {
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.PIPE,
+            "bufsize": 0,
+            "env": _system_subprocess_env(),
+        }
+        if sys.platform != "win32":
+            popen_kwargs["close_fds"] = True
+
+        self._process = subprocess.Popen(command, **popen_kwargs)
         self._width = width
         self._height = height
         self._fps = fps
@@ -261,7 +289,7 @@ class RtmpPublisher:
 
 class StreamWorker:
     """
-    Consome frames em thread dedicada para não bloquear o loop de captura.
+    Consome frames em thread dedicada para não bloquear o loop do runner.
     """
 
     def __init__(self, queue_size: int = 2) -> None:

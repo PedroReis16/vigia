@@ -51,6 +51,7 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     wifi_mock_result: str = "success"
     state_log_mode: str = "verbose"
     state_log_interval_s: float = 2.0
+    capture_archive_frames: int = 300
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -71,6 +72,9 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
             state_log_mode=_parse_state_log_mode(os.getenv("STATE_LOG_MODE", "verbose")),
             state_log_interval_s=float(os.getenv("STATE_LOG_INTERVAL_S", "2.0")),
+            capture_archive_frames=max(
+                1, int(os.getenv("CAPTURE_ARCHIVE_FRAMES", "300"))
+            ),
         )
 
 

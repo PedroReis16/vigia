@@ -16,6 +16,7 @@ from shared import (
     init_stream_event,
 )
 from shared.log_config import configure_logging
+from capture.frame_archive import CaptureFrameArchive
 from capture.frame_worker import get_worker
 from capture.frame_uploader import maybe_upload_thumbnail
 from integration.fall_shm import init_fall_shm
@@ -63,8 +64,9 @@ def run_capture(
     """
     Executa a captura de vídeo.
 
-    Com streaming ativo, lê a câmera em full-rate e escreve frames flipados
-    na shared memory. A classificação YOLO permanece limitada a ``frame_rate``.
+    Lê a fonte em full-rate (sem throttle). Todos os frames passam pelo
+    ``CaptureFrameArchive``; só entram na janela deslizante (YOLO) quando
+    ``frame_rate`` permite. Com streaming ativo, escreve frames flipados na SHM.
     """
     configure_logging("capture")
 
@@ -104,6 +106,7 @@ def run_capture(
         last_classify = 0.0
         classify_interval = 1.0 / settings.frame_rate
         stream_fps = _resolve_stream_fps(cap)
+        frame_archive = CaptureFrameArchive(max_frames=settings.capture_archive_frames)
 
         frame_worker = get_worker()
 
@@ -112,14 +115,9 @@ def run_capture(
 
         while True:
             now = time.monotonic()
-            streaming = frame_shm is not None and get_stream_status()
 
-            if not streaming and now - last_classify < classify_interval:
-                if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
-                if not show_video:
-                    time.sleep(0.001)
-                continue
+            if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
+                break
 
             ret, frame = cap.read()
 
@@ -129,22 +127,25 @@ def run_capture(
                     continue
                 break
 
-            flipped_frame = cv2.flip(frame, 1)
+            capture_ts = now
+
+            frame_archive.push(frame, capture_ts)
 
             if now - last_classify >= classify_interval:
                 last_classify = now
-                frame_worker.insert_raw_frame(frame.copy(), now)
+                frame_worker.insert_raw_frame(frame.copy(), capture_ts)
 
             if show_video:
-                cv2.imshow("Preview movimentos", flipped_frame)
+                cv2.imshow("Preview movimentos", frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
-            maybe_upload_thumbnail(flipped_frame)
+            maybe_upload_thumbnail(frame)
 
+            streaming = frame_shm is not None and get_stream_status()
             if streaming:
-                frame_shm.write(flipped_frame, stream_fps)
+                frame_shm.write(frame, stream_fps)
 
         if cap is not None:
             cap.release()

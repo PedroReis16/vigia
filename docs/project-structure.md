@@ -173,7 +173,7 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; shared memory para streaming (full-rate) e `EventShmRing` para fall_state/logs |
+| `capture/` | `vigia-fall/capture/` | Câmera full-rate, YOLO subsampled (`FRAME_RATE`), `CaptureFrameArchive` (clipes futuros), upload; SHM streaming + `EventShmRing` fall_state/logs |
 | `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
 | `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); `frame_shm` + publish direto FFmpeg; `mp_compat` spawn |
 | `integration/` | `vigia-fall/integration/` | Processo FIWARE com MQTT persistente (cmds + attrs); `fall_shm` (`EventShmRing`) |
@@ -452,17 +452,18 @@ flowchart LR
 
 ### 2. Detecção de queda
 
-1. Câmera captura frames → YOLO pose (`extract_poses`) → `FallClassifier` (`math` ou `gru` conforme `classifier.json`)
-2. Em cada transição de estado, o FrameWorker escreve o label em `EventShmRing` (fall); o processo FIWARE publica UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms, dedupe no capture e no FIWARE); logs de decisão vão para SHM separado e são drenados pelo supervisor
-3. Orion detecta `fall_state` (subscription configurada)
-4. Webhook POST para `/vigia/devices/alert`
-5. API notifica membros do grupo via Firebase push + SignalR
+1. Câmera/vídeo: leitura **full-rate** (`cap.read()` sem throttle) → todos os frames em `CaptureFrameArchive` (`CAPTURE_ARCHIVE_FRAMES`, default 300)
+2. Subsample ~`FRAME_RATE`: frames selecionados → YOLO pose (`extract_poses`) → `FallClassifier` (`math` ou `gru` conforme `classifier.json`)
+3. Em cada transição de estado, o FrameWorker escreve o label em `EventShmRing` (fall); o processo FIWARE publica UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms, dedupe no capture e no FIWARE); logs de decisão vão para SHM separado e são drenados pelo supervisor
+4. Orion detecta `fall_state` (subscription configurada)
+5. Webhook POST para `/vigia/devices/alert`
+6. API notifica membros do grupo via Firebase push + SignalR
 
 ### 3. Streaming ao vivo
 
 1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
 2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
-3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate** e escreve frames flipados em **shared memory** (`frame_shm`, latest-only); YOLO permanece em ~`FRAME_RATE`
+3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate** (sempre, com ou sem stream), arquiva todos os frames, classifica em ~`FRAME_RATE` e escreve frames flipados na **shared memory** (`frame_shm`, latest-only) quando `stream_on`
 4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → RTMP/MediaMTX
 5. App consome stream via WebRTC/WHEP
 6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
@@ -494,6 +495,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-24] Fall: captura full-rate desacoplada — todos os frames arquivados (`CaptureFrameArchive`); classificação subsampled em `FRAME_RATE`; sem throttle no loop (`capture_runner`, `frame_archive`, `settings`)
 - [2026-08-23] vigia-fall: STATE_LOG_MODE verbose + fallback standalone + fix perda SHM (`log_bridge`, `frame_worker`, `settings`, `main.py`)
 - [2026-08-23] vigia-fall: fall_state e logs via EventShmRing (padrão streaming); LogDrain no supervisor; Queue removida (`shared/event_shm.py`, `integration/fall_shm.py`, `shared/log_bridge.py`, `frame_worker`, `main.py`)
 - [2026-08-23] Fall: streaming low-latency — shared memory (`frame_shm`), captura full-rate com `stream_on`, YOLO em `FRAME_RATE`, publish direto FFmpeg low-delay (`capture_runner`, `streaming/rtmp.py`, `main.py`)

@@ -181,9 +181,9 @@ vigia/
 | `database/` | `vigia-fall/database/` | SQLite local |
 | `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json`, `log_config`, `event_shm`, `log_bridge` |
 
-**IPC fall_state e logs:** `EventShmRing` (shared memory, multi-slot, drop-oldest) — captura escreve fall_state e logs de decisão sem I/O; FIWARE faz poll (50 ms) e publica MQTT; supervisor drena logs via `LogDrainThread` (~1 ms) para stdout único.
+**IPC fall_state e logs:** `EventShmRing` (shared memory, multi-slot, drop-oldest) — captura escreve fall_state e logs de decisão sem I/O; FIWARE faz poll (50 ms) e publica MQTT; supervisor drena logs via `LogDrainThread` (~1 ms) para stdout único (`log_shm` 128 slots).
 
-**Logging:** `shared/log_config.configure_logging` com flush imediato; decisões YOLO via `log_bridge.emit_log` → SHM → drain no `main`; `LOG_LEVEL` (default `INFO`); `PYTHONUNBUFFERED=1` no systemd unit.
+**Logging:** `shared/log_config.configure_logging` com flush imediato; decisões via `log_bridge.emit_log` → SHM → drain no `main`; logger `vigia.decision`. **`STATE_LOG_MODE`:** `verbose` (prototipação — toda decisão, warm-up, no_person), `changes` (só transições), `heartbeat` (+ ping a cada `STATE_LOG_INTERVAL_S`). Defaults dev: `LOG_LEVEL=DEBUG`, `STATE_LOG_MODE=verbose`. Fallback standalone (`python -m capture`) escreve direto em `vigia.decision`. Filtro: `journalctl -u fall-detection -f | grep vigia.decision`.
 
 **Deploy:** `/opt/vigia/fall-detection/`, systemd `fall-detection.service`
 
@@ -397,7 +397,7 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, frame_shm/stream_runner, event_shm/fall_shm/log_bridge, FIWARE loop/OTA, identity) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, frame_shm/stream_runner, event_shm/fall_shm/log_bridge/state_log, FIWARE loop/OTA, identity) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
@@ -494,6 +494,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] vigia-fall: STATE_LOG_MODE verbose + fallback standalone + fix perda SHM (`log_bridge`, `frame_worker`, `settings`, `main.py`)
 - [2026-08-23] vigia-fall: fall_state e logs via EventShmRing (padrão streaming); LogDrain no supervisor; Queue removida (`shared/event_shm.py`, `integration/fall_shm.py`, `shared/log_bridge.py`, `frame_worker`, `main.py`)
 - [2026-08-23] Fall: streaming low-latency — shared memory (`frame_shm`), captura full-rate com `stream_on`, YOLO em `FRAME_RATE`, publish direto FFmpeg low-delay (`capture_runner`, `streaming/rtmp.py`, `main.py`)
 - [2026-08-23] vigia-fall: logging centralizado + fall state IPC leve + MQTT persistente no processo FIWARE (`shared/log_config.py`, `integration/fall_ipc.py`, `fiware_runner`, `frame_worker`)

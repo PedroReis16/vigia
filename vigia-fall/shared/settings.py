@@ -27,6 +27,13 @@ def _parse_capture_source(raw: str) -> int | str:
     return str(Path(value).expanduser().resolve())
 
 
+def _parse_state_log_mode(raw: str) -> str:
+    mode = (raw or "verbose").strip().lower()
+    if mode not in ("verbose", "changes", "heartbeat"):
+        return "verbose"
+    return mode
+
+
 @dataclass(frozen=True)
 class Settings:  # pylint: disable=too-many-instance-attributes
     """
@@ -42,6 +49,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     data_dir: str = "/opt/vigia"
     debug: bool = True
     wifi_mock_result: str = "success"
+    state_log_mode: str = "verbose"
+    state_log_interval_s: float = 2.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -60,6 +69,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
             data_dir=os.getenv("DATA_DIR", "/opt/vigia") or "/opt/vigia",
             debug=helpers_convert_to_bool(os.getenv("DEBUG", "true")),
             wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
+            state_log_mode=_parse_state_log_mode(os.getenv("STATE_LOG_MODE", "verbose")),
+            state_log_interval_s=float(os.getenv("STATE_LOG_INTERVAL_S", "2.0")),
         )
 
 

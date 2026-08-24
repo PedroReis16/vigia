@@ -115,7 +115,7 @@ def test_FrameWorker_enfileira_estados_com_dedupe(
     )
     monkeypatch.setattr("capture.frame_worker.emit_log", lambda *a, **k: None)
 
-    worker = FrameWorker(frame_rate=2, classifier=clf)
+    worker = FrameWorker(frame_rate=2, classifier=clf, state_log_mode="changes")
     worker.insert_raw_frame(_frame(), 1.0)
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
@@ -146,15 +146,15 @@ def test_FrameWorker_loga_so_em_mudanca_de_label(
     monkeypatch.setattr("capture.frame_worker.enqueue_fall_state", lambda *a, **k: None)
     monkeypatch.setattr("capture.frame_worker.emit_log", capture_log)
 
-    worker = FrameWorker(frame_rate=2, classifier=clf)
+    worker = FrameWorker(frame_rate=2, classifier=clf, state_log_mode="changes")
     worker.insert_raw_frame(_frame(), 1.0)
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
 
     assert logged == [
-        "Person 1: NORMAL",
-        "Person 1: SUSPECT",
-        "Person 2: NORMAL",
+        "state Person 1: NORMAL",
+        "state Person 1: SUSPECT",
+        "state Person 2: NORMAL",
     ]
 
 

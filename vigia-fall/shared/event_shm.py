@@ -109,15 +109,21 @@ class EventShmRing:
         capture_ts: float = 0.0,
         person_id: int = 0,
         level: int = 0,
-    ) -> bool:
-        """Enfileira evento. Descarta o mais antigo se a fila estiver cheia."""
+    ) -> int:
+        """
+        Enfileira evento. Descarta o mais antigo se a fila estiver cheia.
+
+        Retorna quantos eventos foram descartados por esta escrita.
+        """
         text = (payload or "").encode("utf-8", errors="replace")[: self._payload_max]
         if not text and event_type != EVENT_FALL_STATE:
-            return False
+            return 0
 
         write_seq, read_seq, slot_count, _ = self._read_header()
+        dropped = 0
         while write_seq - read_seq >= slot_count:
             read_seq += 1
+            dropped += 1
 
         next_seq = write_seq + 1
         slot_idx = (next_seq - 1) % slot_count
@@ -137,7 +143,7 @@ class EventShmRing:
         if text:
             self._shm.buf[offset + _SLOT_META_SIZE : offset + _SLOT_META_SIZE + len(text)] = text
         self._write_header(next_seq, read_seq)
-        return True
+        return dropped
 
     def read_next(self, timeout: float = 0.05) -> EventRecord | None:
         """Consome o próximo evento ou None se timeout."""

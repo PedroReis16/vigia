@@ -62,7 +62,7 @@ def main():
     stream_event = Event()
     frame_shm = FrameShmRing.create()
     fall_shm = EventShmRing.create(slot_count=8, payload_max=64)
-    log_shm = EventShmRing.create(slot_count=32, payload_max=256)
+    log_shm = EventShmRing.create(slot_count=128, payload_max=256)
 
     start_log_drain(log_shm.name)
 

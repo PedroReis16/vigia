@@ -30,7 +30,7 @@ hiddenimports += [
     "shared",
     "shared.bundle_paths",
     "streaming",
-    "streaming.frame_ipc",
+    "streaming.frame_shm",
     "streaming.mp_compat",
     "streaming.rtmp",
     "streaming.stream_runner",

@@ -6,11 +6,9 @@ from __future__ import annotations
 
 import logging
 import os
-import queue
 import shutil
 import subprocess
 import sys
-import threading
 import time
 from urllib.parse import urlparse
 
@@ -19,13 +17,11 @@ import numpy as np
 from shared import (
     get_device_identity,
     get_network_settings,
-    get_settings,
     set_stream_status,
 )
 
 logger = logging.getLogger(__name__)
 
-_SHUTDOWN = object()
 _RECONNECT_BACKOFF_S = 2.0
 _MAX_RECONNECT_ATTEMPTS = 5
 _BUNDLE_PATH_MARKERS = (
@@ -174,6 +170,10 @@ class RtmpPublisher:
             "-hide_banner",
             "-loglevel",
             "error",
+            "-fflags",
+            "nobuffer",
+            "-flags",
+            "low_delay",
             "-f",
             "rawvideo",
             "-pix_fmt",
@@ -200,6 +200,10 @@ class RtmpPublisher:
             "-keyint_min",
             str(fps),
             "-bf",
+            "0",
+            "-muxdelay",
+            "0",
+            "-muxpreload",
             "0",
             "-f",
             "flv",
@@ -290,208 +294,95 @@ class RtmpPublisher:
         return raw.decode(errors="replace").strip()
 
 
-class StreamWorker:
+_publisher = RtmpPublisher()
+_failures = 0
+_next_attempt_at = 0.0
+
+
+def _resolve_target(stream_fps: int) -> tuple[int, str]:
+    url = _rtmp_publish_url(
+        get_network_settings().api_base_url,
+        get_device_identity().device_id,
+    )
+    fps = stream_fps if stream_fps > 0 else 30
+    return fps, url
+
+
+def _prepare_frame(frame: np.ndarray) -> np.ndarray | None:
+    height, width = frame.shape[:2]
+    width -= width % 2
+    height -= height % 2
+    if height == 0 or width == 0:
+        return None
+    return np.ascontiguousarray(frame[:height, :width])
+
+
+def publish_frame(frame: np.ndarray, stream_fps: int) -> None:
     """
-    Consome frames em thread dedicada para não bloquear o loop do runner.
+    Publica um frame BGR via RTMP (sem fila intermédia).
     """
+    global _failures, _next_attempt_at
 
-    def __init__(self, queue_size: int = 2) -> None:
-        self._queue: queue.Queue[np.ndarray | object] = queue.Queue(maxsize=queue_size)
-        self._publisher = RtmpPublisher()
-        self._thread: threading.Thread | None = None
-        self._lock = threading.Lock()
-        self._active = False
-        self._fps = 0
-        self._url = ""
-        self._next_attempt_at = 0.0
-        self._failures = 0
-
-    @property
-    def is_active(self) -> bool:
-        return self._active or self._publisher.is_running
-
-    def submit(self, frame: np.ndarray) -> None:
-        """
-        Enfileira uma cópia do frame. Se a fila estiver cheia, descarta o mais antigo.
-        """
-        self._ensure_started()
-        self._active = True
-
-        # OpenCV reutiliza o buffer no próximo cap.read(); a cópia é necessária.
-        payload = frame.copy()
-
-        try:
-            self._queue.put_nowait(payload)
-        except queue.Full:
-            try:
-                self._queue.get_nowait()
-            except queue.Empty:
-                pass
-            try:
-                self._queue.put_nowait(payload)
-            except queue.Full:
-                pass
-
-    def stop(self) -> None:
-        """
-        Interrompe a publicação e esvazia a fila, mantendo a thread viva.
-        """
-        self._active = False
-        self._next_attempt_at = 0.0
-        self._failures = 0
-        self._drain_queue()
-        with self._lock:
-            self._publisher.stop()
-
-    def shutdown(self) -> None:
-        """
-        Encerra publicação e a thread do worker.
-        """
-        self.stop()
-        try:
-            self._queue.put_nowait(_SHUTDOWN)
-        except queue.Full:
-            self._drain_queue()
-            try:
-                self._queue.put_nowait(_SHUTDOWN)
-            except queue.Full:
-                pass
-
-        thread = self._thread
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=3)
-        self._thread = None
-
-    def _ensure_started(self) -> None:
-        with self._lock:
-            if self._thread is not None and self._thread.is_alive():
-                return
-            self._thread = threading.Thread(
-                target=self._run,
-                name="rtmp-stream",
-                daemon=True,
-            )
-            self._thread.start()
-
-    def _drain_queue(self) -> None:
-        while True:
-            try:
-                self._queue.get_nowait()
-            except queue.Empty:
-                break
-
-    def _resolve_target(self) -> tuple[int, str]:
-        if not self._url or not self._fps:
-            settings = get_settings()
-            self._fps = settings.frame_rate
-            self._url = _rtmp_publish_url(
-                get_network_settings().api_base_url,
-                get_device_identity().device_id,
-            )
-        return self._fps, self._url
-
-    def _publish(self, frame: np.ndarray) -> None:
-        height, width = frame.shape[:2]
-        width -= width % 2
-        height -= height % 2
-        if height == 0 or width == 0:
-            return
-
-        frame = np.ascontiguousarray(frame[:height, :width])
-        fps, url = self._resolve_target()
-
-        with self._lock:
-            if not self._active:
-                return
-            self._publisher.start(width, height, fps, url)
-            self._publisher.write(frame)
-
-    def _run(self) -> None:
-        while True:
-            try:
-                item = self._queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-
-            if item is _SHUTDOWN:
-                with self._lock:
-                    self._publisher.stop()
-                break
-
-            if not self._active:
-                continue
-
-            now = time.monotonic()
-            if now < self._next_attempt_at:
-                continue
-
-            try:
-                self._publish(item)
-            except Exception as exc:
-                self._handle_publish_failure(exc)
-            else:
-                if self._failures:
-                    logger.info("Publicação RTMP restabelecida")
-                self._failures = 0
-
-    def _handle_publish_failure(self, exc: Exception) -> None:
-        self._failures += 1
-        with self._lock:
-            self._publisher.stop()
-
-        if self._failures >= _MAX_RECONNECT_ATTEMPTS:
-            logger.error(
-                "Streaming encerrado após %s falhas consecutivas: %s",
-                _MAX_RECONNECT_ATTEMPTS,
-                exc,
-            )
-            try:
-                set_stream_status(False)
-            except RuntimeError:
-                pass
-            self.stop()
-            return
-
-        backoff = _RECONNECT_BACKOFF_S * self._failures
-        self._next_attempt_at = time.monotonic() + backoff
-        logger.warning(
-            "Erro ao publicar frame no RTMP "
-            "(tentativa %s/%s, nova em %.1fs): %s",
-            self._failures,
-            _MAX_RECONNECT_ATTEMPTS,
-            backoff,
-            exc,
-        )
-
-
-_worker = StreamWorker(queue_size=2)
-
-
-def stream_video(frame: np.ndarray) -> None:
-    """
-    Enfileira o frame para publicação RTMP em thread dedicada.
-    """
     if frame is None or frame.size == 0:
         return
-    _worker.submit(frame)
+
+    now = time.monotonic()
+    if now < _next_attempt_at:
+        return
+
+    prepared = _prepare_frame(frame)
+    if prepared is None:
+        return
+
+    fps, url = _resolve_target(stream_fps)
+    try:
+        _publisher.start(prepared.shape[1], prepared.shape[0], fps, url)
+        _publisher.write(prepared)
+    except Exception as exc:
+        _handle_publish_failure(exc)
+        return
+
+    if _failures:
+        logger.info("Publicação RTMP restabelecida")
+    _failures = 0
 
 
-def is_streaming() -> bool:
-    """
-    Indica se o streaming está ativo (fila/publisher).
-    """
-    return _worker.is_active
+def _handle_publish_failure(exc: Exception) -> None:
+    global _failures, _next_attempt_at
 
+    _failures += 1
+    _publisher.stop()
 
-def stop_stream() -> None:
-    """
-    Interrompe a publicação RTMP, se estiver ativa.
-    """
-    _worker.stop()
+    if _failures >= _MAX_RECONNECT_ATTEMPTS:
+        logger.error(
+            "Streaming encerrado após %s falhas consecutivas: %s",
+            _MAX_RECONNECT_ATTEMPTS,
+            exc,
+        )
+        try:
+            set_stream_status(False)
+        except RuntimeError:
+            pass
+        return
+
+    backoff = _RECONNECT_BACKOFF_S * _failures
+    _next_attempt_at = time.monotonic() + backoff
+    logger.warning(
+        "Erro ao publicar frame no RTMP "
+        "(tentativa %s/%s, nova em %.1fs): %s",
+        _failures,
+        _MAX_RECONNECT_ATTEMPTS,
+        backoff,
+        exc,
+    )
 
 
 def shutdown_stream() -> None:
     """
-    Encerra o worker de streaming por completo.
+    Encerra o publisher RTMP.
     """
-    _worker.shutdown()
+    global _failures, _next_attempt_at
+
+    _publisher.stop()
+    _failures = 0
+    _next_attempt_at = 0.0

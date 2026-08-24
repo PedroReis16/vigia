@@ -20,7 +20,7 @@ from shared.log_config import configure_logging
 from capture.frame_worker import get_worker
 from capture.frame_uploader import maybe_upload_thumbnail
 from integration.fall_ipc import init_fall_queue
-from streaming.frame_ipc import put_frame
+from streaming.frame_shm import FrameShmRing
 
 logger = logging.getLogger(__name__)
 
@@ -45,18 +45,25 @@ def _source_label(source: int | str) -> str:
     return f"câmera {source}"
 
 
+def _resolve_stream_fps(cap: cv2.VideoCapture) -> int:
+    cap_prop_fps = getattr(cv2, "CAP_PROP_FPS", 5)
+    raw = cap.get(cap_prop_fps)
+    fps = int(raw) if raw and raw > 0 else 30
+    if fps > 120:
+        fps = 30
+    return max(fps, 1)
+
+
 def run_capture(
     stream_event: EventType | None = None,
-    frame_queue: MpQueue | None = None,
+    frame_shm_name: str | None = None,
     fall_queue: MpQueue | None = None,
 ):
     """
     Executa a captura de vídeo.
 
-    Quando ``frame_queue`` é fornecida e o streaming está ativo, enfileira
-    frames flipados para o processo de streaming via IPC.
-    Quando ``fall_queue`` é fornecida, o FrameWorker enfileira fall_state
-    para o processo FIWARE.
+    Com streaming ativo, lê a câmera em full-rate e escreve frames flipados
+    na shared memory. A classificação YOLO permanece limitada a ``frame_rate``.
     """
     configure_logging("capture")
 
@@ -64,6 +71,8 @@ def run_capture(
         init_stream_event(stream_event)
     if fall_queue is not None:
         init_fall_queue(fall_queue)
+
+    frame_shm = FrameShmRing.attach(frame_shm_name) if frame_shm_name else None
 
     frame_worker = None
     executor = None
@@ -89,8 +98,9 @@ def run_capture(
                 f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
             )
 
-        last_capture = 0.0
-        capture_interval = 1.0 / settings.frame_rate
+        last_classify = 0.0
+        classify_interval = 1.0 / settings.frame_rate
+        stream_fps = _resolve_stream_fps(cap)
 
         frame_worker = get_worker()
 
@@ -99,7 +109,9 @@ def run_capture(
 
         while True:
             now = time.monotonic()
-            if now - last_capture < capture_interval:
+            streaming = frame_shm is not None and get_stream_status()
+
+            if not streaming and now - last_classify < classify_interval:
                 if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
                     break
                 if not show_video:
@@ -114,21 +126,22 @@ def run_capture(
                     continue
                 break
 
-            last_capture = now
-            frame_worker.insert_raw_frame(frame.copy(), now)
-
             flipped_frame = cv2.flip(frame, 1)
+
+            if now - last_classify >= classify_interval:
+                last_classify = now
+                frame_worker.insert_raw_frame(frame.copy(), now)
+
             if show_video:
                 cv2.imshow("Preview movimentos", flipped_frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
-            # Thumbnail para a API (cadência interna ~60s; não bloqueia captura).
             maybe_upload_thumbnail(flipped_frame)
 
-            if frame_queue is not None and get_stream_status():
-                put_frame(frame_queue, flipped_frame)
+            if streaming:
+                frame_shm.write(flipped_frame, stream_fps)
 
         if cap is not None:
             cap.release()
@@ -136,7 +149,8 @@ def run_capture(
         logger.error("Erro ao executar a captura: %s", e)
         raise e
     finally:
-        # HighGUI (waitKey/imshow/destroy*) não existe em builds headless do OpenCV.
+        if frame_shm is not None:
+            frame_shm.close()
         if show_video:
             cv2.destroyAllWindows()
         if frame_worker is not None:

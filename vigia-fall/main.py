@@ -12,7 +12,7 @@ from integration.fall_ipc import drain_fall_queue
 from shared import get_identity_path, get_network_path
 from shared.log_config import configure_logging
 from streaming import run_stream
-from streaming.frame_ipc import drain_queue
+from streaming.frame_shm import FrameShmRing
 from streaming.mp_compat import prepare_multiprocessing, stop_child_process
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,10 @@ def _require_provisioned() -> None:
         )
 
 
-def _start_stream_task(frame_queue: Queue, stream_event: Event) -> Process:
+def _start_stream_task(frame_shm_name: str, stream_event: Event) -> Process:
     task = Process(
         target=run_stream,
-        args=(frame_queue, stream_event),
+        args=(frame_shm_name, stream_event),
         name="stream",
     )
     task.start()
@@ -59,7 +59,7 @@ def main():
     _require_provisioned()
 
     stream_event = Event()
-    frame_queue: Queue = Queue(maxsize=2)
+    frame_shm = FrameShmRing.create()
     fall_queue: Queue = Queue(maxsize=8)
 
     fiware_task = Process(
@@ -69,7 +69,7 @@ def main():
     )
     capture_task = Process(
         target=run_capture,
-        args=(stream_event, frame_queue, fall_queue),
+        args=(stream_event, frame_shm.name, fall_queue),
         name="capture",
     )
     stream_task: Process | None = None
@@ -86,21 +86,22 @@ def main():
             stream_alive = stream_task is not None and stream_task.is_alive()
 
             if wants_stream and not stream_alive:
-                # Evita lixo de uma sessão anterior (spawn/Windows).
-                drain_queue(frame_queue)
-                stream_task = _start_stream_task(frame_queue, stream_event)
+                frame_shm.reset_sequence()
+                stream_task = _start_stream_task(frame_shm.name, stream_event)
             elif not wants_stream and stream_alive:
-                # Event já limpo pelo FIWARE → run_stream sai sozinho; join antes de terminate.
-                stop_child_process(stream_task, frame_queue=frame_queue)
+                stop_child_process(stream_task)
                 stream_task = None
+                frame_shm.reset_sequence()
 
             time.sleep(0.5)
     finally:
         stream_event.clear()
-        stop_child_process(stream_task, frame_queue=frame_queue)
+        stop_child_process(stream_task)
         kill_task(fiware_task)
         kill_task(capture_task)
-        drain_queue(frame_queue)
+        frame_shm.reset_sequence()
+        frame_shm.close()
+        frame_shm.unlink()
         drain_fall_queue(fall_queue)
 
 

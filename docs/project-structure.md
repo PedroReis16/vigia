@@ -173,9 +173,9 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; enfileira frames para streaming e fall_state para FIWARE via IPC |
+| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; shared memory para streaming (full-rate) e fila leve para fall_state/FIWARE |
 | `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
-| `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); IPC de frames + FFmpeg; `mp_compat` para spawn (Windows/macOS) |
+| `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); `frame_shm` + publish direto FFmpeg; `mp_compat` spawn |
 | `integration/` | `vigia-fall/integration/` | Processo FIWARE com MQTT persistente (cmds + attrs); `fall_ipc` (fila leve de fall_state) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
@@ -364,7 +364,7 @@ vigia/
 
 - Docstrings em português
 - **bootstrap:** asyncio (loop UI + supervisor de provisionamento)
-- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via Queue IPC); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`; fall_state via fila leve de strings para o processo FIWARE (MQTT persistente); logging centralizado (`LOG_LEVEL`, flush imediato); IPC compatível com `spawn` (Windows/macOS) e `fork` (Linux/Pi) via `freeze_support`, join graceful e resolução cross-platform do ffmpeg
+- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via shared memory); classificação ~`FRAME_RATE`; stream full-rate com `stream_on`; fall_state via fila leve de strings; logging centralizado; compatível com `spawn`/`fork` (`mp_compat`, ffmpeg cross-platform)
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
 - **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
@@ -397,7 +397,7 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, streaming IPC/runner, fall_ipc, FIWARE loop/OTA, identity) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, frame_shm/stream_runner, fall_ipc, FIWARE loop/OTA, identity) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
@@ -462,11 +462,11 @@ flowchart LR
 
 1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
 2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
-3. Supervisor (`main.py`) sobe processo `run_stream`; captura enfileira frames flipados na `Queue` IPC (maxsize=2, drop-oldest)
-4. Processo streaming consome frames → FFmpeg → RTMP/MediaMTX
+3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate** e escreve frames flipados em **shared memory** (`frame_shm`, latest-only); YOLO permanece em ~`FRAME_RATE`
+4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → RTMP/MediaMTX
 5. App consome stream via WebRTC/WHEP
 6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
-7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e drena a Queue (zero FFmpeg/encode idle)
+7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e reseta sequence (zero FFmpeg/encode idle)
 
 ### 4. OTA (atualização de firmware)
 
@@ -494,6 +494,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] Fall: streaming low-latency — shared memory (`frame_shm`), captura full-rate com `stream_on`, YOLO em `FRAME_RATE`, publish direto FFmpeg low-delay (`capture_runner`, `streaming/rtmp.py`, `main.py`)
 - [2026-08-23] vigia-fall: logging centralizado + fall state IPC leve + MQTT persistente no processo FIWARE (`shared/log_config.py`, `integration/fall_ipc.py`, `fiware_runner`, `frame_worker`)
 - [2026-08-23] Fall: IPC/streaming cross-platform (Windows/macOS spawn) — `freeze_support`, stop graceful da Queue, ffmpeg PATH/Homebrew, `close_fds` só em Unix (`streaming/mp_compat.py`, `rtmp.py`, `main.py`)
 - [2026-08-23] Fall: streaming RTMP isolado em processo sob demanda (`streaming/`); frames via Queue IPC só com `stream_on`; captura sem FFmpeg (`main.py`, `capture_runner`, `streaming/`)

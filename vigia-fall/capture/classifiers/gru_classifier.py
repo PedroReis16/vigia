@@ -24,6 +24,17 @@ class GruFallClassifier:
         )
         self._last_inference: dict[int, float] = {}
 
+    @property
+    def window_capacity(self) -> int:
+        return GRU_WINDOW_SIZE
+
+    def get_window_fill(self) -> dict[int, tuple[int, int]]:
+        return {
+            person_id: (len(buffer), GRU_WINDOW_SIZE)
+            for person_id, buffer in self._buffers.items()
+            if len(buffer) > 0
+        }
+
     def process(self, observations: list[PoseObservation]) -> list[FallDecision]:
         decisions: list[FallDecision] = []
 

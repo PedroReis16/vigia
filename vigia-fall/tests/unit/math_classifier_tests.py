@@ -44,6 +44,7 @@ def test_math_classifier_janela_incompleta_sem_decisao(
     clf = MathFallClassifier(window_size=3)
     decisions = clf.process([_obs(1, 1.0)])
     assert decisions == []
+    assert clf.get_window_fill()[1] == (1, 3)
 
 
 def test_math_classifier_janela_cheia_emite_decisao(

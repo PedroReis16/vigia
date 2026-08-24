@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from capture.classifiers.types import FallDecision
-from capture.frame_worker import FrameWorker, get_worker
+from capture.frame_worker import FrameWorker, _format_window_fill, get_worker
 from shared import get_settings
 
 
@@ -21,6 +21,8 @@ def _frame() -> np.ndarray:
 def _mock_classifier() -> MagicMock:
     clf = MagicMock()
     clf.process.return_value = []
+    clf.get_window_fill.return_value = {1: (3, 20)}
+    clf.window_capacity = 20
     return clf
 
 
@@ -28,26 +30,29 @@ def test_FrameWorker_insert_raw_frame_ComFilaDisponivel_ArmazenaFrame() -> None:
     worker = FrameWorker(frame_rate=2, classifier=_mock_classifier())
     frame = _frame()
 
-    worker.insert_raw_frame(frame, 1.0)
+    accepted = worker.insert_raw_frame(frame, 1.0)
 
+    assert accepted is True
     assert worker.raw_frame_queue.qsize() == 1
     queued_frame, ts = worker.raw_frame_queue.queue[0]
     assert np.array_equal(queued_frame, frame)
     assert ts == 1.0
 
 
-def test_FrameWorker_insert_raw_frame_ComFilaCheia_SubstituiFrameMaisAntigo() -> None:
+def test_FrameWorker_try_insert_raw_frame_ComFilaCheia_IgnoraFrame() -> None:
     worker = FrameWorker(frame_rate=1, classifier=_mock_classifier())
     frame_antigo = _frame()
     frame_novo = np.ones((4, 4, 3), dtype=np.uint8)
     worker.insert_raw_frame(frame_antigo, 1.0)
 
-    worker.insert_raw_frame(frame_novo, 2.0)
+    accepted = worker.try_insert_raw_frame(frame_novo, 2.0)
 
+    assert accepted is False
     assert worker.raw_frame_queue.qsize() == 1
     queued_frame, ts = worker.raw_frame_queue.queue[0]
-    assert np.array_equal(queued_frame, frame_novo)
-    assert ts == 2.0
+    assert np.array_equal(queued_frame, frame_antigo)
+    assert ts == 1.0
+    assert worker._queue_skips == 1
 
 
 def test_FrameWorker_stop_ComWorkerAtivo_EncerraExecucaoRun(
@@ -178,10 +183,45 @@ def test_get_worker_ComSettingsPadrao_RetornaWorkerConfigurado(
 
     worker = get_worker()
 
-    assert worker.raw_frame_queue.maxsize == 5
+    assert worker.raw_frame_queue.maxsize == 2
 
 
 def test_FrameWorker_stop_InsereSentinel() -> None:
     worker = FrameWorker(frame_rate=2, classifier=_mock_classifier())
     worker.stop()
     assert worker.raw_frame_queue.get_nowait() is None
+
+
+def test_format_window_fill_ComPreenchimentoParcial() -> None:
+    clf = MagicMock()
+    clf.get_window_fill.return_value = {1: (7, 20)}
+    assert _format_window_fill(clf) == "p1=7/20"
+
+
+def test_format_window_fill_SemBuffer_UsaCapacidade() -> None:
+    clf = MagicMock()
+    clf.get_window_fill.return_value = {}
+    clf.window_capacity = 30
+    assert _format_window_fill(clf) == "window=0/30"
+
+
+def test_FrameWorker_log_warmup_IncluiPreenchimentoDaJanela(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logged: list[str] = []
+
+    monkeypatch.setattr(
+        "capture.frame_worker.extract_poses",
+        lambda _f, _d: [MagicMock()],
+    )
+    monkeypatch.setattr(
+        "capture.frame_worker.emit_log",
+        lambda _l, message, **_: logged.append(message),
+    )
+
+    worker = FrameWorker(frame_rate=2, classifier=_mock_classifier(), state_log_mode="verbose")
+    worker.insert_raw_frame(_frame(), 1.0)
+    worker.raw_frame_queue.put_nowait(None)
+    worker.run()
+
+    assert logged == ["state warmup: poses=1 p1=3/20 janela incompleta"]

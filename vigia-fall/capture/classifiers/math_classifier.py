@@ -114,6 +114,13 @@ class MathFallClassifier:
         self._slider_window_manager = SlidingWindowManager(window_size=window_size)
         self._last_state: dict[int, FallState] = {}
 
+    @property
+    def window_capacity(self) -> int:
+        return self._slider_window_manager.window_size
+
+    def get_window_fill(self) -> dict[int, tuple[int, int]]:
+        return self._slider_window_manager.get_fill_status()
+
     def process(self, observations: list[PoseObservation]) -> list[FallDecision]:
         if not observations:
             return []

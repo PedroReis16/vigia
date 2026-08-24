@@ -6,6 +6,7 @@ import numpy as np
 
 from capture.classifiers.types import PoseObservation
 from capture.models import get_person_runtime_store, get_yolo_model
+from shared import get_settings
 
 
 def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservation]:
@@ -13,6 +14,7 @@ def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservatio
     Corre YOLO track e devolve keypoints crus (17, 3) por pessoa.
     """
     try:
+        settings = get_settings()
         model = get_yolo_model()
 
         track_result = model.track(
@@ -21,7 +23,8 @@ def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservatio
             conf=0.25,
             verbose=False,
             persist=True,
-            tracker="botsort.yaml",
+            tracker=settings.yolo_tracker,
+            imgsz=settings.yolo_imgsz,
             classes=[0],
         )
 

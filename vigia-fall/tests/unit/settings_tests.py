@@ -15,6 +15,8 @@ def test_Settings_from_env_ComVariaveisDefinidas_RetornaConfiguracaoCorreta(
     monkeypatch.setenv("CAPTURE_SOURCE", "2")
     monkeypatch.setenv("SHOW_VIDEO", "true")
     monkeypatch.setenv("YOLO_POSE_MODEL", "modelo-teste")
+    monkeypatch.setenv("YOLO_IMGSZ", "416")
+    monkeypatch.setenv("YOLO_TRACKER", "custom.yaml")
     monkeypatch.setenv("FRAME_RATE", "24")
     monkeypatch.setenv("SLIDER_WINDOW", "15")
 
@@ -25,6 +27,8 @@ def test_Settings_from_env_ComVariaveisDefinidas_RetornaConfiguracaoCorreta(
     assert settings.capture_source == 2
     assert settings.show_video is True
     assert settings.yolo_pose_model == "modelo-teste"
+    assert settings.yolo_imgsz == 416
+    assert settings.yolo_tracker == "custom.yaml"
     assert settings.frame_rate == 24
     assert settings.slider_window_size == 15
 
@@ -54,6 +58,8 @@ def test_Settings_from_env_SemVariaveisDefinidas_RetornaValoresPadrao(
     monkeypatch.delenv("CAPTURE_LOOP", raising=False)
     monkeypatch.delenv("SHOW_VIDEO", raising=False)
     monkeypatch.delenv("YOLO_POSE_MODEL", raising=False)
+    monkeypatch.delenv("YOLO_IMGSZ", raising=False)
+    monkeypatch.delenv("YOLO_TRACKER", raising=False)
     monkeypatch.delenv("FRAME_RATE", raising=False)
     monkeypatch.delenv("SLIDER_WINDOW", raising=False)
 

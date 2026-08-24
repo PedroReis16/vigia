@@ -38,6 +38,7 @@ def test_gru_strategy_espera_janela_cheia(gru_strategy):
     strategy, model = gru_strategy
     for i in range(GRU_WINDOW_SIZE - 1):
         assert strategy.process([_obs(1, float(i))]) == []
+        assert strategy.get_window_fill()[1] == (i + 1, GRU_WINDOW_SIZE)
     model.predict.assert_not_called()
 
 

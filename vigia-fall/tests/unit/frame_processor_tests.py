@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from capture.frame_processor import extract_poses
+from shared.settings import Settings
 
 
 def test_extract_poses_sem_deteccoes_retorna_lista_vazia(
@@ -15,6 +16,10 @@ def test_extract_poses_sem_deteccoes_retorna_lista_vazia(
     modelo.track.return_value = []
     monkeypatch.setattr("capture.frame_processor.get_yolo_model", lambda: modelo)
     monkeypatch.setattr(
+        "capture.frame_processor.get_settings",
+        lambda: Settings(yolo_imgsz=320, yolo_tracker="bytetrack.yaml"),
+    )
+    monkeypatch.setattr(
         "capture.frame_processor.get_person_runtime_store",
         lambda: MagicMock(cleanup=MagicMock()),
     )
@@ -22,7 +27,14 @@ def test_extract_poses_sem_deteccoes_retorna_lista_vazia(
     result = extract_poses(np.zeros((8, 8, 3), dtype=np.uint8), 1.0)
 
     assert result == []
-    modelo.track.assert_called_once()
+    call_kwargs = modelo.track.call_args.kwargs
+    assert call_kwargs["device"] == "cpu"
+    assert call_kwargs["conf"] == 0.25
+    assert call_kwargs["verbose"] is False
+    assert call_kwargs["persist"] is True
+    assert call_kwargs["tracker"] == "bytetrack.yaml"
+    assert call_kwargs["imgsz"] == 320
+    assert call_kwargs["classes"] == [0]
 
 
 def test_extract_poses_com_pessoa_retorna_observation(
@@ -46,6 +58,10 @@ def test_extract_poses_com_pessoa_retorna_observation(
     cleanup = MagicMock()
     monkeypatch.setattr("capture.frame_processor.get_yolo_model", lambda: modelo)
     monkeypatch.setattr(
+        "capture.frame_processor.get_settings",
+        lambda: Settings(yolo_imgsz=416, yolo_tracker="bytetrack.yaml"),
+    )
+    monkeypatch.setattr(
         "capture.frame_processor.get_person_runtime_store",
         lambda: MagicMock(cleanup=cleanup),
     )
@@ -57,6 +73,7 @@ def test_extract_poses_com_pessoa_retorna_observation(
     assert observations[0].keypoints.shape == (17, 3)
     assert observations[0].timestamp == 2.5
     cleanup.assert_called_once()
+    assert modelo.track.call_args.kwargs["imgsz"] == 416
 
 
 def test_extract_poses_com_excecao_propaga_runtime_error(

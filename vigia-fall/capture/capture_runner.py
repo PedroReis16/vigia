@@ -64,9 +64,9 @@ def run_capture(
     """
     Executa a captura de vídeo.
 
-    Lê a fonte em full-rate (sem throttle). Todos os frames passam pelo
-    ``CaptureFrameArchive``; só entram na janela deslizante (YOLO) quando
-    ``frame_rate`` permite. Com streaming ativo, escreve frames flipados na SHM.
+    Lê a fonte em full-rate (sem throttle). Frames entram no archive e na
+    janela deslizante (YOLO) no ritmo ``frame_rate``, com backpressure quando
+    o worker está ocupado. Com streaming ativo, escreve frames flipados na SHM.
     """
     configure_logging("capture")
 
@@ -129,11 +129,14 @@ def run_capture(
 
             capture_ts = now
 
-            frame_archive.push(frame, capture_ts)
-
-            if now - last_classify >= classify_interval:
+            if (
+                now - last_classify >= classify_interval
+                and frame_worker.can_accept_frame()
+            ):
                 last_classify = now
-                frame_worker.insert_raw_frame(frame.copy(), capture_ts)
+                classified_frame = frame.copy()
+                frame_archive.push(classified_frame, capture_ts, copy=False)
+                frame_worker.try_insert_raw_frame(classified_frame, capture_ts)
 
             if show_video:
                 cv2.imshow("Preview movimentos", frame)

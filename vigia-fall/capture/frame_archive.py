@@ -35,11 +35,12 @@ class CaptureFrameArchive:
     def __len__(self) -> int:
         return len(self._frames)
 
-    def push(self, frame: np.ndarray, capture_ts: float) -> None:
+    def push(
+        self, frame: np.ndarray, capture_ts: float, *, copy: bool = True
+    ) -> None:
         """Empilha frame + timestamp; descarta o mais antigo se cheio."""
-        self._frames.append(
-            ArchivedFrame(frame=frame.copy(), capture_ts=capture_ts)
-        )
+        stored = frame.copy() if copy else frame
+        self._frames.append(ArchivedFrame(frame=stored, capture_ts=capture_ts))
 
     def snapshot(self) -> list[tuple[np.ndarray, float]]:
         """Cópia ordenada (mais antigo → mais recente) para montagem de clip."""

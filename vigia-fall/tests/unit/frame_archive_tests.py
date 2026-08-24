@@ -36,6 +36,15 @@ def test_frame_archive_SnapshotCopiaIndependente() -> None:
     assert archive.snapshot()[0][0][0, 0, 0] == 7
 
 
+def test_frame_archive_PushSemCopy_ReutilizaReferencia() -> None:
+    archive = CaptureFrameArchive(max_frames=2)
+    frame = _frame(5)
+    archive.push(frame, 1.0, copy=False)
+    frame[0, 0, 0] = 99
+
+    assert archive.snapshot()[0][0][0, 0, 0] == 99
+
+
 def test_frame_archive_RejeitaMaxFramesInvalido() -> None:
     with pytest.raises(ValueError, match="max_frames"):
         CaptureFrameArchive(max_frames=0)

@@ -87,6 +87,8 @@ def _run_capture_with_mocks(
             classifies["n"] += 1
 
         mock_worker.insert_raw_frame.side_effect = _track_classify
+        mock_worker.try_insert_raw_frame.side_effect = _track_classify
+        mock_worker.can_accept_frame.return_value = True
 
         try:
             capture_runner.run_capture(
@@ -112,6 +114,61 @@ def test_run_capture_StreamingOn_LeTodosEClassificaSubsampled() -> None:
     assert reads == writes
     assert classifies < reads
     assert classifies >= 1
+
+
+def test_run_capture_RespeitaBackpressureNaFila() -> None:
+    reads = {"n": 0}
+
+    mock_cap = MagicMock()
+    mock_cap.isOpened.return_value = True
+    mock_cap.get.return_value = 30.0
+
+    def _read():
+        if reads["n"] >= 4:
+            return False, None
+        reads["n"] += 1
+        return True, _fake_frame()
+
+    mock_cap.read.side_effect = _read
+
+    mock_worker = MagicMock()
+    mock_worker.run.return_value = None
+    mock_worker.can_accept_frame.side_effect = [True, False, True]
+
+    times = iter([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.14, 0.16, 0.18])
+
+    fake_cv2 = MagicMock()
+    fake_cv2.VideoCapture.return_value = mock_cap
+
+    with (
+        patch.object(capture_runner, "get_settings") as mock_settings,
+        patch.object(capture_runner, "cv2", fake_cv2),
+        patch.object(capture_runner, "_resolve_stream_fps", return_value=30),
+        patch.object(capture_runner, "get_worker", return_value=mock_worker),
+        patch.object(capture_runner, "get_stream_status", return_value=False),
+        patch.object(capture_runner, "maybe_upload_thumbnail"),
+        patch.object(
+            capture_runner.time,
+            "monotonic",
+            side_effect=lambda: next(times, 1.0),
+        ),
+        patch.object(capture_runner, "ThreadPoolExecutor") as mock_executor_cls,
+        patch.object(
+            capture_runner,
+            "CaptureFrameArchive",
+            side_effect=lambda max_frames: CaptureFrameArchive(max_frames=max_frames),
+        ),
+    ):
+        mock_settings.return_value.capture_source = 0
+        mock_settings.return_value.show_video = False
+        mock_settings.return_value.capture_loop = False
+        mock_settings.return_value.frame_rate = 100
+        mock_settings.return_value.capture_archive_frames = 300
+        mock_executor_cls.return_value = MagicMock()
+
+        capture_runner.run_capture()
+
+    assert mock_worker.try_insert_raw_frame.call_count == 2
 
 
 def test_resolve_stream_fps_FallbackQuandoZero() -> None:

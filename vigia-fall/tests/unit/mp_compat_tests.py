@@ -7,7 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from integration.fall_ipc import enqueue_fall_state, init_fall_queue
+from integration.fall_shm import enqueue_fall_state, init_fall_shm
+from shared.event_shm import EventShmRing
+from shared.event_types import EVENT_FALL_STATE
 from streaming import mp_compat
 from streaming import rtmp as rtmp_mod
 from streaming.frame_shm import FrameShmRing
@@ -19,8 +21,8 @@ def _spawn_write_shm(shm_name: str, value: int) -> None:
     ring.close()
 
 
-def _spawn_enqueue_fall(queue, label: str) -> None:
-    init_fall_queue(queue)
+def _spawn_enqueue_fall(shm_name: str, label: str) -> None:
+    init_fall_shm(shm_name)
     enqueue_fall_state(label)
 
 
@@ -45,14 +47,22 @@ def test_shm_write_ComContextoSpawn() -> None:
         owner.unlink()
 
 
-def test_fall_queue_ComContextoSpawn_PreservaString() -> None:
-    ctx = mp.get_context("spawn")
-    queue = ctx.Queue(maxsize=8)
-    proc = ctx.Process(target=_spawn_enqueue_fall, args=(queue, "fall"))
-    proc.start()
-    proc.join(timeout=15)
-    assert proc.exitcode == 0
-    assert queue.get(timeout=5.0) == "fall"
+def test_fall_shm_ComContextoSpawn_PreservaString() -> None:
+    owner = EventShmRing.create(slot_count=8, payload_max=64)
+    try:
+        ctx = mp.get_context("spawn")
+        proc = ctx.Process(target=_spawn_enqueue_fall, args=(owner.name, "fall"))
+        proc.start()
+        proc.join(timeout=15)
+        assert proc.exitcode == 0
+
+        event = owner.read_next(timeout=5.0)
+        assert event is not None
+        assert event.event_type == EVENT_FALL_STATE
+        assert event.payload == "fall"
+    finally:
+        owner.close()
+        owner.unlink()
 
 
 def test_event_Compartilhado_ComContextoSpawn() -> None:

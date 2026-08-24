@@ -10,22 +10,21 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path as _Path
-from queue import Empty
 from typing import Any
 from urllib.parse import urlparse
 
 import paho.mqtt.client as mqtt
-from multiprocessing.queues import Queue as MpQueue
 from multiprocessing.synchronize import Event as EventType
 from paho.mqtt.enums import CallbackAPIVersion
 
-from integration.fall_ipc import init_fall_queue
+from integration.fall_shm import attach_fall_shm
 from shared import (
     get_device_identity,
     get_network_settings,
     init_stream_event,
     set_stream_status,
 )
+from shared.event_types import EVENT_FALL_STATE
 from shared.log_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -167,10 +166,10 @@ def normalize_fall_state(label: str) -> str:
 
 def run_fiware(
     stream_event: EventType | None = None,
-    fall_queue: MpQueue | None = None,
+    fall_shm_name: str | None = None,
 ) -> None:
     """
-    Processo FIWARE: cliente MQTT persistente (cmds + attrs) e poll da fall_queue.
+    Processo FIWARE: cliente MQTT persistente (cmds + attrs) e poll da fall SHM.
     """
     global fiware_client, fiware_topic
 
@@ -178,8 +177,6 @@ def run_fiware(
 
     if stream_event is not None:
         init_stream_event(stream_event)
-    if fall_queue is not None:
-        init_fall_queue(fall_queue)
 
     identity = get_device_identity()
     network_settings = get_network_settings()
@@ -194,21 +191,24 @@ def run_fiware(
     fiware_client.connect(host=broker_host, port=broker_port, keepalive=60)
     fiware_client.loop_start()
 
+    fall_shm = attach_fall_shm(fall_shm_name) if fall_shm_name else None
     last_state: str | None = None
     try:
-        if fall_queue is None:
-            # Sem fila de telemetria: só mantém o cliente MQTT para cmds.
+        if fall_shm is None:
             while True:
                 time.sleep(0.5)
         else:
             while True:
-                try:
-                    label = fall_queue.get(timeout=0.5)
-                except Empty:
+                event = fall_shm.read_next(timeout=0.05)
+                if event is None:
+                    continue
+                if event.event_type != EVENT_FALL_STATE:
                     continue
                 last_state = apply_fall_label(
-                    fiware_client, topic_attrs, label, last_state
+                    fiware_client, topic_attrs, event.payload, last_state
                 )
     finally:
+        if fall_shm is not None:
+            fall_shm.close()
         fiware_client.loop_stop()
         fiware_client.disconnect()

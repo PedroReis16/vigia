@@ -96,7 +96,7 @@ def test_FrameWorker_run_ComSentinelNaFilaInicial_EncerraSemProcessar(
 def test_FrameWorker_enfileira_estados_com_dedupe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    enqueued: list[str] = []
+    enqueued: list[tuple[str, float]] = []
 
     def fake_extract(frame, capture_date):
         return [MagicMock()]
@@ -111,23 +111,29 @@ def test_FrameWorker_enfileira_estados_com_dedupe(
     monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
     monkeypatch.setattr(
         "capture.frame_worker.enqueue_fall_state",
-        lambda label: enqueued.append(label),
+        lambda label, capture_ts=0.0: enqueued.append((label, capture_ts)),
     )
+    monkeypatch.setattr("capture.frame_worker.emit_log", lambda *a, **k: None)
 
     worker = FrameWorker(frame_rate=2, classifier=clf)
     worker.insert_raw_frame(_frame(), 1.0)
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
 
-    assert enqueued == ["NORMAL", "SUSPECT", "FALL"]
+    assert enqueued == [("NORMAL", 1.0), ("SUSPECT", 1.0), ("FALL", 1.0)]
 
 
 def test_FrameWorker_loga_so_em_mudanca_de_label(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    logged: list[str] = []
+
     def fake_extract(frame, capture_date):
         return [MagicMock()]
+
+    def capture_log(level, message, *, capture_ts=0.0, person_id=0):
+        if level >= logging.INFO:
+            logged.append(message)
 
     clf = MagicMock()
     clf.process.return_value = [
@@ -137,16 +143,15 @@ def test_FrameWorker_loga_so_em_mudanca_de_label(
         FallDecision(person_id=2, label="NORMAL", alert=False),
     ]
     monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
-    monkeypatch.setattr("capture.frame_worker.enqueue_fall_state", lambda _label: None)
+    monkeypatch.setattr("capture.frame_worker.enqueue_fall_state", lambda *a, **k: None)
+    monkeypatch.setattr("capture.frame_worker.emit_log", capture_log)
 
     worker = FrameWorker(frame_rate=2, classifier=clf)
-    with caplog.at_level(logging.INFO, logger="capture.frame_worker"):
-        worker.insert_raw_frame(_frame(), 1.0)
-        worker.raw_frame_queue.put_nowait(None)
-        worker.run()
+    worker.insert_raw_frame(_frame(), 1.0)
+    worker.raw_frame_queue.put_nowait(None)
+    worker.run()
 
-    info_msgs = [r.message for r in caplog.records if r.levelno == logging.INFO]
-    assert info_msgs == [
+    assert logged == [
         "Person 1: NORMAL",
         "Person 1: SUSPECT",
         "Person 2: NORMAL",

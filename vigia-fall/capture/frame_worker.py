@@ -10,9 +10,10 @@ import numpy as np  # pyright: ignore[reportMissingImports]
 
 from capture.classifiers import FallClassifier, create_classifier, get_classifier_id
 from capture.frame_processor import extract_poses
-from integration.fall_ipc import enqueue_fall_state
+from integration.fall_shm import enqueue_fall_state
 from integration.fiware_runner import normalize_fall_state
 from shared import get_settings
+from shared.log_bridge import emit_log
 
 logger = logging.getLogger(__name__)
 
@@ -48,34 +49,48 @@ class FrameWorker:
 
         decisions = self._classifier.process(observations)
         for decision in decisions:
-            self._log_decision(decision)
-            self._publish_fall_state(decision.label)
+            self._log_decision(decision, capture_date)
+            self._publish_fall_state(decision.label, capture_date)
 
         return True
 
-    def _log_decision(self, decision) -> None:
+    def _log_decision(self, decision, capture_ts: float) -> None:
         """INFO só em mudança de label (ou ALERT); DEBUG nas repetições."""
         person_id = decision.person_id
         label = decision.label
         changed = self._last_logged.get(person_id) != label
         if changed or decision.alert:
             suffix = " ALERT" if decision.alert else ""
-            logger.info("Person %s: %s%s", person_id, label, suffix)
+            emit_log(
+                logging.INFO,
+                f"Person {person_id}: {label}{suffix}",
+                capture_ts=capture_ts,
+                person_id=person_id,
+            )
             if changed:
                 self._last_logged[person_id] = label
         else:
-            logger.debug("Person %s: %s", person_id, label)
+            emit_log(
+                logging.DEBUG,
+                f"Person {person_id}: {label}",
+                capture_ts=capture_ts,
+                person_id=person_id,
+            )
 
-    def _publish_fall_state(self, label: str) -> None:
+    def _publish_fall_state(self, label: str, capture_ts: float) -> None:
         """Enfileira fall_state para o processo FIWARE só quando o valor canónico muda."""
         state = normalize_fall_state(label)
         if state == self._last_published_fall_state:
             return
         try:
-            enqueue_fall_state(label)
+            enqueue_fall_state(label, capture_ts=capture_ts)
             self._last_published_fall_state = state
         except Exception as error:
-            logger.warning("Falha ao enfileirar fall_state: %s", error)
+            emit_log(
+                logging.WARNING,
+                f"Falha ao enfileirar fall_state: {error}",
+                capture_ts=capture_ts,
+            )
 
     def run(self) -> None:
         while True:

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import logging
-from multiprocessing.queues import Queue as MpQueue
 from multiprocessing.synchronize import Event as EventType
 import time
 import cv2  # pyright: ignore[reportMissingImports]
@@ -19,7 +18,8 @@ from shared import (
 from shared.log_config import configure_logging
 from capture.frame_worker import get_worker
 from capture.frame_uploader import maybe_upload_thumbnail
-from integration.fall_ipc import init_fall_queue
+from integration.fall_shm import init_fall_shm
+from shared.log_bridge import init_log_shm
 from streaming.frame_shm import FrameShmRing
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,8 @@ def _resolve_stream_fps(cap: cv2.VideoCapture) -> int:
 def run_capture(
     stream_event: EventType | None = None,
     frame_shm_name: str | None = None,
-    fall_queue: MpQueue | None = None,
+    fall_shm_name: str | None = None,
+    log_shm_name: str | None = None,
 ):
     """
     Executa a captura de vídeo.
@@ -69,8 +70,10 @@ def run_capture(
 
     if stream_event is not None:
         init_stream_event(stream_event)
-    if fall_queue is not None:
-        init_fall_queue(fall_queue)
+    if fall_shm_name is not None:
+        init_fall_shm(fall_shm_name)
+    if log_shm_name is not None:
+        init_log_shm(log_shm_name)
 
     frame_shm = FrameShmRing.attach(frame_shm_name) if frame_shm_name else None
 

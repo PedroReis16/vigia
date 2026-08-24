@@ -3,13 +3,14 @@ Ponto de entrada do programa
 """
 
 import logging
-from multiprocessing import Event, Process, Queue
+from multiprocessing import Event, Process
 import time
 
 from capture import run_capture
 from integration import run_fiware
-from integration.fall_ipc import drain_fall_queue
 from shared import get_identity_path, get_network_path
+from shared.event_shm import EventShmRing
+from shared.log_bridge import drain_pending_logs, start_log_drain, stop_log_drain
 from shared.log_config import configure_logging
 from streaming import run_stream
 from streaming.frame_shm import FrameShmRing
@@ -60,16 +61,19 @@ def main():
 
     stream_event = Event()
     frame_shm = FrameShmRing.create()
-    fall_queue: Queue = Queue(maxsize=8)
+    fall_shm = EventShmRing.create(slot_count=8, payload_max=64)
+    log_shm = EventShmRing.create(slot_count=32, payload_max=256)
+
+    start_log_drain(log_shm.name)
 
     fiware_task = Process(
         target=run_fiware,
-        args=(stream_event, fall_queue),
+        args=(stream_event, fall_shm.name),
         name="fiware",
     )
     capture_task = Process(
         target=run_capture,
-        args=(stream_event, frame_shm.name, fall_queue),
+        args=(stream_event, frame_shm.name, fall_shm.name, log_shm.name),
         name="capture",
     )
     stream_task: Process | None = None
@@ -99,10 +103,17 @@ def main():
         stop_child_process(stream_task)
         kill_task(fiware_task)
         kill_task(capture_task)
+        stop_log_drain()
+        drain_pending_logs(log_shm.name)
+        fall_shm.reset()
+        log_shm.reset()
         frame_shm.reset_sequence()
         frame_shm.close()
         frame_shm.unlink()
-        drain_fall_queue(fall_queue)
+        fall_shm.close()
+        fall_shm.unlink()
+        log_shm.close()
+        log_shm.unlink()
 
 
 if __name__ == "__main__":

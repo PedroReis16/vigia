@@ -4,6 +4,7 @@ Publicação RTMP via FFmpeg (worker em thread dedicada).
 
 from __future__ import annotations
 
+import logging
 import os
 import queue
 import shutil
@@ -21,6 +22,8 @@ from shared import (
     get_settings,
     set_stream_status,
 )
+
+logger = logging.getLogger(__name__)
 
 _SHUTDOWN = object()
 _RECONNECT_BACKOFF_S = 2.0
@@ -428,7 +431,7 @@ class StreamWorker:
                 self._handle_publish_failure(exc)
             else:
                 if self._failures:
-                    print("Publicação RTMP restabelecida")
+                    logger.info("Publicação RTMP restabelecida")
                 self._failures = 0
 
     def _handle_publish_failure(self, exc: Exception) -> None:
@@ -437,8 +440,10 @@ class StreamWorker:
             self._publisher.stop()
 
         if self._failures >= _MAX_RECONNECT_ATTEMPTS:
-            print(
-                f"Streaming encerrado após {_MAX_RECONNECT_ATTEMPTS} falhas consecutivas: {exc}"
+            logger.error(
+                "Streaming encerrado após %s falhas consecutivas: %s",
+                _MAX_RECONNECT_ATTEMPTS,
+                exc,
             )
             try:
                 set_stream_status(False)
@@ -449,10 +454,13 @@ class StreamWorker:
 
         backoff = _RECONNECT_BACKOFF_S * self._failures
         self._next_attempt_at = time.monotonic() + backoff
-        print(
-            f"Erro ao publicar frame no RTMP "
-            f"(tentativa {self._failures}/{_MAX_RECONNECT_ATTEMPTS}, "
-            f"nova em {backoff:.1f}s): {exc}"
+        logger.warning(
+            "Erro ao publicar frame no RTMP "
+            "(tentativa %s/%s, nova em %.1fs): %s",
+            self._failures,
+            _MAX_RECONNECT_ATTEMPTS,
+            backoff,
+            exc,
         )
 
 

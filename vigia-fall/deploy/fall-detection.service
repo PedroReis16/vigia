@@ -15,6 +15,7 @@ ConditionPathExists=/opt/vigia/network.json
 Type=simple
 WorkingDirectory=/opt/vigia/fall-detection
 EnvironmentFile=-/opt/vigia/.env
+Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/vigia/fall-detection/vigia-fall-detection
 Restart=on-failure
 RestartSec=5

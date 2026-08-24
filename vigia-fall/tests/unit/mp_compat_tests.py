@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from integration.fall_ipc import enqueue_fall_state, init_fall_queue
 from streaming.frame_ipc import get_frame, put_frame
 from streaming import mp_compat
 from streaming import rtmp as rtmp_mod
@@ -16,6 +17,12 @@ def _spawn_put_frame(queue, value: int) -> None:
     """Target picklável para Process(spawn)."""
     frame = np.full((2, 2, 3), value, dtype=np.uint8)
     put_frame(queue, frame)
+
+
+def _spawn_enqueue_fall(queue, label: str) -> None:
+    """Target picklável: string via fall_queue entre processos."""
+    init_fall_queue(queue)
+    enqueue_fall_state(label)
 
 
 def _spawn_read_event(event, result_queue) -> None:
@@ -33,6 +40,16 @@ def test_ipc_put_get_ComContextoSpawn_PreservaFrame() -> None:
     restored = get_frame(queue, timeout=5.0)
     assert restored is not None
     np.testing.assert_array_equal(restored, np.full((2, 2, 3), 7, dtype=np.uint8))
+
+
+def test_fall_queue_ComContextoSpawn_PreservaString() -> None:
+    ctx = mp.get_context("spawn")
+    queue = ctx.Queue(maxsize=8)
+    proc = ctx.Process(target=_spawn_enqueue_fall, args=(queue, "fall"))
+    proc.start()
+    proc.join(timeout=15)
+    assert proc.exitcode == 0
+    assert queue.get(timeout=5.0) == "fall"
 
 
 def test_event_Compartilhado_ComContextoSpawn() -> None:

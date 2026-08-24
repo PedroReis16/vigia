@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from unittest.mock import MagicMock
 
@@ -92,10 +93,10 @@ def test_FrameWorker_run_ComSentinelNaFilaInicial_EncerraSemProcessar(
     assert processados == []
 
 
-def test_FrameWorker_publica_todos_os_estados_com_dedupe(
+def test_FrameWorker_enfileira_estados_com_dedupe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    notified: list[str] = []
+    enqueued: list[str] = []
 
     def fake_extract(frame, capture_date):
         return [MagicMock()]
@@ -109,8 +110,8 @@ def test_FrameWorker_publica_todos_os_estados_com_dedupe(
     ]
     monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
     monkeypatch.setattr(
-        "capture.frame_worker.notify_fall",
-        lambda label: notified.append(label),
+        "capture.frame_worker.enqueue_fall_state",
+        lambda label: enqueued.append(label),
     )
 
     worker = FrameWorker(frame_rate=2, classifier=clf)
@@ -118,7 +119,38 @@ def test_FrameWorker_publica_todos_os_estados_com_dedupe(
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
 
-    assert notified == ["NORMAL", "SUSPECT", "FALL"]
+    assert enqueued == ["NORMAL", "SUSPECT", "FALL"]
+
+
+def test_FrameWorker_loga_so_em_mudanca_de_label(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def fake_extract(frame, capture_date):
+        return [MagicMock()]
+
+    clf = MagicMock()
+    clf.process.return_value = [
+        FallDecision(person_id=1, label="NORMAL", alert=False),
+        FallDecision(person_id=1, label="NORMAL", alert=False),
+        FallDecision(person_id=1, label="SUSPECT", alert=False),
+        FallDecision(person_id=2, label="NORMAL", alert=False),
+    ]
+    monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
+    monkeypatch.setattr("capture.frame_worker.enqueue_fall_state", lambda _label: None)
+
+    worker = FrameWorker(frame_rate=2, classifier=clf)
+    with caplog.at_level(logging.INFO, logger="capture.frame_worker"):
+        worker.insert_raw_frame(_frame(), 1.0)
+        worker.raw_frame_queue.put_nowait(None)
+        worker.run()
+
+    info_msgs = [r.message for r in caplog.records if r.levelno == logging.INFO]
+    assert info_msgs == [
+        "Person 1: NORMAL",
+        "Person 1: SUSPECT",
+        "Person 2: NORMAL",
+    ]
 
 
 def test_get_worker_ComSettingsPadrao_RetornaWorkerConfigurado(

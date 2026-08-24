@@ -3,14 +3,18 @@ Worker para processamento assíncrono dos frames capturados
 """
 
 from functools import lru_cache
+import logging
 import queue
 
 import numpy as np  # pyright: ignore[reportMissingImports]
 
 from capture.classifiers import FallClassifier, create_classifier, get_classifier_id
 from capture.frame_processor import extract_poses
-from integration.fiware_runner import normalize_fall_state, notify_fall
+from integration.fall_ipc import enqueue_fall_state
+from integration.fiware_runner import normalize_fall_state
 from shared import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class FrameWorker:
@@ -26,6 +30,7 @@ class FrameWorker:
         self.raw_frame_queue = queue.Queue(maxsize=frame_rate)
         self._classifier = classifier if classifier is not None else create_classifier()
         self._last_published_fall_state: str | None = None
+        self._last_logged: dict[int, str] = {}
 
     def __consume_raw_frame(self) -> bool:
         item = self.raw_frame_queue.get()
@@ -43,25 +48,34 @@ class FrameWorker:
 
         decisions = self._classifier.process(observations)
         for decision in decisions:
-            print(
-                f"Person {decision.person_id}: {decision.label}"
-                f"{' ALERT' if decision.alert else ''}",
-                flush=True,
-            )
+            self._log_decision(decision)
             self._publish_fall_state(decision.label)
 
         return True
 
+    def _log_decision(self, decision) -> None:
+        """INFO só em mudança de label (ou ALERT); DEBUG nas repetições."""
+        person_id = decision.person_id
+        label = decision.label
+        changed = self._last_logged.get(person_id) != label
+        if changed or decision.alert:
+            suffix = " ALERT" if decision.alert else ""
+            logger.info("Person %s: %s%s", person_id, label, suffix)
+            if changed:
+                self._last_logged[person_id] = label
+        else:
+            logger.debug("Person %s: %s", person_id, label)
+
     def _publish_fall_state(self, label: str) -> None:
-        """Publica fall_state no FIWARE só quando o valor canónico muda."""
+        """Enfileira fall_state para o processo FIWARE só quando o valor canónico muda."""
         state = normalize_fall_state(label)
         if state == self._last_published_fall_state:
             return
         try:
-            notify_fall(label)
+            enqueue_fall_state(label)
             self._last_published_fall_state = state
         except Exception as error:
-            print(f"Falha FIWARE notify_fall: {error}", flush=True)
+            logger.warning("Falha ao enfileirar fall_state: %s", error)
 
     def run(self) -> None:
         while True:
@@ -96,7 +110,7 @@ class FrameWorker:
 def get_worker() -> FrameWorker:
     settings = get_settings()
     classifier_id = get_classifier_id()
-    print(f"FrameWorker classifier={classifier_id}", flush=True)
+    logger.info("FrameWorker classifier=%s", classifier_id)
     return FrameWorker(
         settings.frame_rate,
         create_classifier(classifier_id),

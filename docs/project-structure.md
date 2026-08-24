@@ -173,13 +173,17 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; enfileira frames para streaming via IPC |
+| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, frame upload; enfileira frames para streaming e fall_state para FIWARE via IPC |
 | `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
 | `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); IPC de frames + FFmpeg; `mp_compat` para spawn (Windows/macOS) |
-| `integration/` | `vigia-fall/integration/` | FIWARE runner (MQTT cmds + `notify_fall`) |
+| `integration/` | `vigia-fall/integration/` | Processo FIWARE com MQTT persistente (cmds + attrs); `fall_ipc` (fila leve de fall_state) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
-| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json` |
+| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json`, `log_config` (`LOG_LEVEL`) |
+
+**IPC fall_state:** captura enfileira strings (`maxsize=8`, drop-oldest) via `enqueue_fall_state`; o processo FIWARE faz poll, dedupe e `publish` no cliente MQTT único — YOLO não faz I/O de rede.
+
+**Logging:** `shared/log_config.configure_logging` com flush imediato; `LOG_LEVEL` (default `INFO`); `PYTHONUNBUFFERED=1` no systemd unit.
 
 **Deploy:** `/opt/vigia/fall-detection/`, systemd `fall-detection.service`
 
@@ -360,7 +364,7 @@ vigia/
 
 - Docstrings em português
 - **bootstrap:** asyncio (loop UI + supervisor de provisionamento)
-- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via Queue IPC); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`; IPC compatível com `spawn` (Windows/macOS) e `fork` (Linux/Pi) via `freeze_support`, join graceful e resolução cross-platform do ffmpeg
+- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via Queue IPC); miolo de classificação via `FallClassifier` (`math` | `gru`) lido de `classifier.json`; fall_state via fila leve de strings para o processo FIWARE (MQTT persistente); logging centralizado (`LOG_LEVEL`, flush imediato); IPC compatível com `spawn` (Windows/macOS) e `fork` (Linux/Pi) via `freeze_support`, join graceful e resolução cross-platform do ffmpeg
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
 - **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
@@ -393,7 +397,7 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, streaming IPC/runner, identity, FIWARE OTA) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, streaming IPC/runner, fall_ipc, FIWARE loop/OTA, identity) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
@@ -449,7 +453,7 @@ flowchart LR
 ### 2. Detecção de queda
 
 1. Câmera captura frames → YOLO pose (`extract_poses`) → `FallClassifier` (`math` ou `gru` conforme `classifier.json`)
-2. Em cada transição de estado, edge publica UltraLight `fall|{normal|suspect|fall|…}` via `notify_fall` (dedupe por valor); Orion notifica a API só quando `fall_state==fall`
+2. Em cada transição de estado, o FrameWorker enfileira o label na `fall_queue`; o processo FIWARE publica UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (dedupe no capture e no FIWARE); Orion notifica a API só quando `fall_state==fall`
 3. Orion detecta `fall_state` (subscription configurada)
 4. Webhook POST para `/vigia/devices/alert`
 5. API notifica membros do grupo via Firebase push + SignalR
@@ -490,6 +494,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-23] vigia-fall: logging centralizado + fall state IPC leve + MQTT persistente no processo FIWARE (`shared/log_config.py`, `integration/fall_ipc.py`, `fiware_runner`, `frame_worker`)
 - [2026-08-23] Fall: IPC/streaming cross-platform (Windows/macOS spawn) — `freeze_support`, stop graceful da Queue, ffmpeg PATH/Homebrew, `close_fds` só em Unix (`streaming/mp_compat.py`, `rtmp.py`, `main.py`)
 - [2026-08-23] Fall: streaming RTMP isolado em processo sob demanda (`streaming/`); frames via Queue IPC só com `stream_on`; captura sem FFmpeg (`main.py`, `capture_runner`, `streaming/`)
 - [2026-08-23] Fall: publicar todos os `fall_state` (normal/suspect/fall/…) com dedupe; payload UltraLight canónico para Orion (`notify_fall` + `normalize_fall_state`)

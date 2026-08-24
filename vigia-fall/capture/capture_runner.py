@@ -5,6 +5,7 @@ Executa a captura de vídeo
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from multiprocessing.queues import Queue as MpQueue
 from multiprocessing.synchronize import Event as EventType
 import time
@@ -15,9 +16,14 @@ from shared import (
     get_stream_status,
     init_stream_event,
 )
+from shared.log_config import configure_logging
 from capture.frame_worker import get_worker
 from capture.frame_uploader import maybe_upload_thumbnail
+from integration.fall_ipc import init_fall_queue
 from streaming.frame_ipc import put_frame
+
+logger = logging.getLogger(__name__)
+
 
 def _opencv_has_gui() -> bool:
     """False em builds headless (placa / PyInstaller) — imshow/waitKey não existem."""
@@ -28,27 +34,36 @@ def _opencv_has_gui() -> bool:
     markers = ("GTK", "Cocoa", "QT", "Win32 UI", "OpenGL")
     return any(marker in info for marker in markers)
 
+
 def _is_file_source(source: int | str) -> bool:
     return isinstance(source, str)
+
 
 def _source_label(source: int | str) -> str:
     if _is_file_source(source):
         return f"vídeo {source}"
     return f"câmera {source}"
 
+
 def run_capture(
     stream_event: EventType | None = None,
     frame_queue: MpQueue | None = None,
+    fall_queue: MpQueue | None = None,
 ):
     """
     Executa a captura de vídeo.
 
     Quando ``frame_queue`` é fornecida e o streaming está ativo, enfileira
     frames flipados para o processo de streaming via IPC.
+    Quando ``fall_queue`` é fornecida, o FrameWorker enfileira fall_state
+    para o processo FIWARE.
     """
+    configure_logging("capture")
 
     if stream_event is not None:
         init_stream_event(stream_event)
+    if fall_queue is not None:
+        init_fall_queue(fall_queue)
 
     frame_worker = None
     executor = None
@@ -60,7 +75,7 @@ def run_capture(
         source = settings.capture_source
         show_video = settings.show_video
         if show_video and not _opencv_has_gui():
-            print(
+            logger.warning(
                 "SHOW_VIDEO=true, mas o OpenCV é headless "
                 "(opencv-python-headless). Use requirements-debug.txt "
                 "no venv local, ou SHOW_VIDEO=false na placa."
@@ -87,6 +102,8 @@ def run_capture(
             if now - last_capture < capture_interval:
                 if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
                     break
+                if not show_video:
+                    time.sleep(0.001)
                 continue
 
             ret, frame = cap.read()
@@ -116,7 +133,7 @@ def run_capture(
         if cap is not None:
             cap.release()
     except Exception as e:
-        print(f"Erro ao executar a captura: {e}")
+        logger.error("Erro ao executar a captura: %s", e)
         raise e
     finally:
         # HighGUI (waitKey/imshow/destroy*) não existe em builds headless do OpenCV.
@@ -134,7 +151,8 @@ def main() -> None:
 
     Uso: python -m capture  (a partir de vigia-fall/)
     """
+    configure_logging("capture")
     try:
         run_capture()
     except KeyboardInterrupt:
-        print("Interrompido pelo usuário")
+        logger.info("Interrompido pelo usuário")

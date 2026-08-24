@@ -5,6 +5,7 @@ Variáveis de ambiente do projeto
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -12,6 +13,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from .helpers import helpers_convert_to_bool
 from . import test_device_seed
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_capture_source(raw: str) -> int | str:
@@ -153,9 +156,10 @@ def _align_test_device_sign_key(identity: DeviceIdentity) -> DeviceIdentity:
         )
     )
     identity_path.chmod(0o600)
-    print(
+    logger.info(
         "Device identity: SignPrivateKey alinhada ao TestDeviceSeed (DEBUG) "
-        f"para device_id={aligned.device_id}"
+        "para device_id=%s",
+        aligned.device_id,
     )
     return aligned
 

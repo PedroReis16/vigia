@@ -2,14 +2,20 @@
 Ponto de entrada do programa
 """
 
+import logging
 from multiprocessing import Event, Process, Queue
 import time
+
 from capture import run_capture
 from integration import run_fiware
+from integration.fall_ipc import drain_fall_queue
 from shared import get_identity_path, get_network_path
+from shared.log_config import configure_logging
 from streaming import run_stream
 from streaming.frame_ipc import drain_queue
 from streaming.mp_compat import prepare_multiprocessing, stop_child_process
+
+logger = logging.getLogger(__name__)
 
 
 def kill_task(task: Process | None) -> None:
@@ -36,7 +42,11 @@ def _require_provisioned() -> None:
 
 
 def _start_stream_task(frame_queue: Queue, stream_event: Event) -> Process:
-    task = Process(target=run_stream, args=(frame_queue, stream_event))
+    task = Process(
+        target=run_stream,
+        args=(frame_queue, stream_event),
+        name="stream",
+    )
     task.start()
     return task
 
@@ -45,13 +55,23 @@ def main():
     """
     Executa a rotina principal do programa (captura + Fiware + streaming sob demanda).
     """
+    configure_logging("main")
     _require_provisioned()
 
     stream_event = Event()
     frame_queue: Queue = Queue(maxsize=2)
+    fall_queue: Queue = Queue(maxsize=8)
 
-    fiware_task = Process(target=run_fiware, args=(stream_event,))
-    capture_task = Process(target=run_capture, args=(stream_event, frame_queue))
+    fiware_task = Process(
+        target=run_fiware,
+        args=(stream_event, fall_queue),
+        name="fiware",
+    )
+    capture_task = Process(
+        target=run_capture,
+        args=(stream_event, frame_queue, fall_queue),
+        name="capture",
+    )
     stream_task: Process | None = None
 
     fiware_task.start()
@@ -81,6 +101,7 @@ def main():
         kill_task(fiware_task)
         kill_task(capture_task)
         drain_queue(frame_queue)
+        drain_fall_queue(fall_queue)
 
 
 if __name__ == "__main__":
@@ -88,4 +109,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("Interrompido pelo usuário")
+        logging.getLogger(__name__).info("Interrompido pelo usuário")

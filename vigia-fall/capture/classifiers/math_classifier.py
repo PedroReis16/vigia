@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from math import dist
 from typing import Any
 
@@ -21,6 +22,8 @@ from capture.models import (
     get_smoothed_scale,
     get_trunk_angle,
 )
+
+logger = logging.getLogger(__name__)
 
 # TODO: Calibrar os valores de weights a partir de dados reais e rotulados
 _WEIGHTS = {
@@ -179,9 +182,10 @@ class MathFallClassifier:
                     )
                 )
             except Exception as error:
-                print(
-                    f"Erro ao extrair features person_id={person_id}: {error}",
-                    flush=True,
+                logger.warning(
+                    "Erro ao extrair features person_id=%s: %s",
+                    person_id,
+                    error,
                 )
 
         return decisions

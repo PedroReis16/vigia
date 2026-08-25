@@ -95,6 +95,7 @@ services:
       - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia`)"
       - "traefik.http.routers.vigia-api.entrypoints=web"
       - "traefik.http.routers.vigia-api.priority=50"
+      - "traefik.http.routers.vigia-api.middlewares=cors@file"
       - "traefik.http.services.vigia-api.loadbalancer.server.port=8080"
     networks:
       - vigia-network

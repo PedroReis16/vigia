@@ -1,0 +1,52 @@
+.device-video-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+}
+
+.device-video-player--fullscreen {
+  aspect-ratio: unset;
+  width: 100vw;
+  height: 100vh;
+}
+
+.device-video-player__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.device-video-player__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.device-video-player__controls {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 38%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.device-video-player__control-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.device-video-player__control-btn--corner {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+}

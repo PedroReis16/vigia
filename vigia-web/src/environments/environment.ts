@@ -7,4 +7,5 @@ export const environment = {
     { value: 'es-ES', label: 'Español' },
   ],
   apiUrl: 'http://localhost:81/vigia',
+  streamBaseUrl: 'http://localhost:81',
 };

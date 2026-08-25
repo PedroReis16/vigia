@@ -1,7 +1,9 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { Device } from '@core/entities/classes/device';
+import { DeviceGroupsRealtimeService } from '@core/services';
 import { GetDevicesService } from '@core/usecases';
 import { DeviceCardComponent } from '@shared/components/device-card/device-card.component';
 
@@ -16,6 +18,8 @@ type DevicesViewState = 'loading' | 'ready' | 'empty' | 'error';
 })
 export class DevicesComponent implements OnInit {
   private readonly getDevices = inject(GetDevicesService);
+  private readonly realtime = inject(DeviceGroupsRealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly state = signal<DevicesViewState>('loading');
   readonly devices = signal<Device[]>([]);
@@ -23,6 +27,11 @@ export class DevicesComponent implements OnInit {
 
   ngOnInit(): void {
     void this.loadDevices();
+    this.realtime.membershipChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        void this.loadDevices();
+      });
   }
 
   async loadDevices(): Promise<void> {

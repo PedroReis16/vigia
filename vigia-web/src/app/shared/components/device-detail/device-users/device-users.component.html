@@ -1,0 +1,47 @@
+<p-confirmDialog />
+
+<div class="device-users">
+  <div class="device-users__header">
+    <div class="device-users__title-row">
+      <button type="button" class="device-users__back" (click)="onBack()">
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      </button>
+      <h2 class="device-users__title">{{ 'DEVICES.USERS.TITLE' | translate }}</h2>
+    </div>
+    <span class="device-users__count">
+      {{ 'DEVICES.USERS.COUNT' | translate: { current: users().length, max: maxGroupUsers } }}
+    </span>
+  </div>
+
+  <div class="device-users__list">
+    @if (users().length === 0) {
+      <p class="device-users__empty">{{ 'DEVICES.USERS.EMPTY' | translate }}</p>
+    } @else {
+      @for (user of users(); track user.id) {
+        @let isSelf = user.id === currentUserId;
+        @let canRemove = !user.isOwner && (isOwner() || isSelf);
+        <app-device-user-item
+          [user]="user"
+          [showAction]="canRemove"
+          [actionIcon]="isSelf ? 'leave' : 'remove'"
+          (action)="onRemoveUser(user)"
+        />
+      }
+    }
+  </div>
+
+  @if (isOwner()) {
+    <p-button
+      styleClass="w-full"
+      icon="pi pi-share-alt"
+      [label]="
+        users().length >= maxGroupUsers
+          ? ('DEVICES.USERS.SHARE_LIMIT' | translate)
+          : ('DEVICES.USERS.SHARE' | translate)
+      "
+      [disabled]="!canShare || sharing()"
+      [loading]="sharing()"
+      (onClick)="onShare()"
+    />
+  }
+</div>

@@ -1,0 +1,30 @@
+<div class="device-user-item">
+  <div class="device-user-item__avatar" aria-hidden="true">
+    @if (user().userPictureUrl) {
+      <img [src]="user().userPictureUrl" [alt]="user().name" />
+    } @else {
+      <i class="pi pi-user"></i>
+    }
+  </div>
+  <div class="device-user-item__info">
+    <span class="device-user-item__name">{{ user().name }}</span>
+    @if (user().isOwner) {
+      <span class="device-user-item__badge">{{ 'DEVICES.USERS.OWNER' | translate }}</span>
+    }
+  </div>
+  @if (showAction() && actionIcon()) {
+    <button type="button" class="device-user-item__action" (click)="onAction($event)">
+      @switch (actionIcon()) {
+        @case ('remove') {
+          <i class="pi pi-user-minus" aria-hidden="true"></i>
+        }
+        @case ('leave') {
+          <i class="pi pi-sign-out" aria-hidden="true"></i>
+        }
+        @case ('arrow') {
+          <i class="pi pi-chevron-right" aria-hidden="true"></i>
+        }
+      }
+    </button>
+  }
+</div>

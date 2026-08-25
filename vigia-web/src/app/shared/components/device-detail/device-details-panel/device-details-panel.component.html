@@ -1,0 +1,85 @@
+<div class="device-details-panel">
+  <div class="device-details-panel__viewport">
+    <div class="device-details-panel__track" [class.device-details-panel__track--sub]="pane() !== 'details'">
+      <section class="device-details-panel__page">
+        <div class="device-details-panel__header">
+          <h2 class="device-details-panel__title">{{ device().displayName }}</h2>
+          @if (isOwner(device())) {
+            <button type="button" class="device-details-panel__edit" (click)="openEdit()">
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+
+        <dl class="device-details-panel__info">
+          <div>
+            <dt>{{ 'DEVICES.DETAIL.NICKNAME' | translate }}</dt>
+            <dd>{{ device().nickname || '—' }}</dd>
+          </div>
+          @if (device().room) {
+            <div>
+              <dt>{{ 'DEVICES.DETAIL.ROOM' | translate }}</dt>
+              <dd>{{ roomKey(device()) | translate }}</dd>
+            </div>
+          }
+          <div>
+            <dt>{{ 'DEVICES.DETAIL.ID' | translate }}</dt>
+            <dd class="device-details-panel__mono">{{ device().id }}</dd>
+          </div>
+        </dl>
+
+        <h3 class="device-details-panel__section-title">{{ 'DEVICES.USERS.TITLE' | translate }}</h3>
+
+        @if (usersLoading()) {
+          <p-skeleton height="3rem" />
+        } @else if (usersError()) {
+          <p class="device-details-panel__error">{{ 'DEVICES.ERRORS.USERS' | translate }}</p>
+        } @else if (users().length === 0) {
+          <p class="device-details-panel__empty">{{ 'DEVICES.USERS.EMPTY' | translate }}</p>
+        } @else {
+          <button type="button" class="device-details-panel__users-preview" (click)="openUsers()">
+            @for (user of users().slice(0, 3); track user.id; let last = $last) {
+              <app-device-user-item
+                [user]="user"
+                [showAction]="users().length > 3 && last"
+                [actionIcon]="users().length > 3 && last ? 'arrow' : null"
+              />
+            }
+            @if (users().length > 3) {
+              <span class="device-details-panel__see-all">
+                {{ 'DEVICES.USERS.SEE_ALL' | translate }}
+              </span>
+            }
+          </button>
+        }
+
+        <h3 class="device-details-panel__section-title">{{ 'DEVICES.CLIPS.TITLE' | translate }}</h3>
+        <a [routerLink]="['/devices', device().id, 'clips']" pButton class="p-button-text">
+          {{ 'DEVICES.CLIPS.VIEW' | translate }}
+        </a>
+      </section>
+
+      <section class="device-details-panel__page device-details-panel__sub">
+        @switch (pane()) {
+          @case ('edit') {
+            <app-edit-device-properties
+              [device]="device()"
+              (back)="backToDetails()"
+              (saved)="onDeviceSaved($event)"
+            />
+          }
+          @case ('users') {
+            <app-device-users
+              [deviceId]="device().id"
+              [isOwner]="isOwner(device())"
+              [users]="users()"
+              (back)="backToDetails()"
+              (usersChanged)="usersChanged.emit()"
+              (leftGroup)="leftGroup.emit()"
+            />
+          }
+        }
+      </section>
+    </div>
+  </div>
+</div>

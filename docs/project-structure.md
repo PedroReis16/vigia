@@ -61,7 +61,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **i18n:** ngx-translate (pt-BR, en-US, es-ES)
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
-- **Status:** shell autenticado com login/cadastro JWT, listagem read-only de devices, layout e home
+- **Status:** shell autenticado com login/cadastro JWT, listagem de devices, detalhes com stream WHEP, edição, sharing e SignalR
 
 ### CI/CD
 
@@ -214,7 +214,7 @@ vigia/
 
 ### vigia-web
 
-**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout), listagem read-only de devices e página home. Camadas `core` / `pages` / `shared` com path aliases.
+**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout), listagem e detalhes de devices (stream WHEP, edição, usuários/compartilhamento), página home. Camadas `core` / `pages` / `shared` com path aliases.
 
 **Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, Vitest, pnpm.
 
@@ -229,12 +229,12 @@ vigia/
 | `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
 | `src/app/pages/` | Rotas/features: auth (login, register), layout, devices, home, `main.routes.ts` |
 | `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
-| `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl` absoluto + idiomas) |
+| `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl`, `streamBaseUrl` absolutos + idiomas) |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 
-**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/home` (tema/idioma/logout). Sem cadastro de devices na web.
+**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (tema/idioma/logout). Sem cadastro BLE de devices na web.
 
-**Status:** login/cadastro JWT e sessão local; listagem read-only de devices (`GET /devices/list`, cards); sidebar com nav mínima; detalhes/stream ainda não.
+**Status:** login/cadastro JWT e sessão local; listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento, SignalR `device-groups`; clips stub.
 
 ---
 
@@ -485,6 +485,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-25] vigia-web: detalhes do device (`/devices/:id`, `/devices/:id/clips`), stream WHEP, edição, usuários/sharing, SignalR; `streamBaseUrl` nos environments; use cases e services de device detail
 - [2026-08-25] docker-compose local: CORS no Traefik para rota `vigia-api` (`cors@file`), permitindo o web Angular em `localhost:4200` sem alterar a API (`/devices`, cards, `GetDevicesService` → `GET /devices/list`); default pós-login `/devices`
 - [2026-08-23] vigia-web: `apiUrl` absoluto nos environments (sem `proxy.conf.json`); services usam paths relativos + `ApiBaseUrlInterceptor`
 - [2026-08-23] vigia-web: auth JWT (login/cadastro) no lugar de OAuth2; use cases, sessão, interceptors, `/login` `/register`

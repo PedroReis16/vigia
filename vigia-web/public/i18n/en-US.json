@@ -46,7 +46,59 @@
     "ONLINE": "Online",
     "OFFLINE": "Offline",
     "ERRORS": {
-      "LIST": "Could not load devices. Please try again."
+      "LIST": "Could not load devices. Please try again.",
+      "DETAIL": "Could not load the device. Please try again.",
+      "NOT_FOUND": "Device not found.",
+      "UPDATE": "Could not update the device.",
+      "USERS": "Could not load users.",
+      "SHARE": "Could not generate the share link.",
+      "REMOVE_USER": "Could not remove the user.",
+      "STREAM_COMMAND": "Could not start streaming."
+    },
+    "DETAIL": {
+      "NICKNAME": "Name",
+      "ROOM": "Room",
+      "ID": "Identifier",
+      "BACK": "Back to devices",
+      "CONNECTING": "Connecting",
+      "CONNECTION_ERROR": "An error occurred while connecting to the stream.",
+      "TRY_AGAIN": "Try again"
+    },
+    "EDIT": {
+      "SAVE_CLIPS": "Save clips",
+      "CLIPS_INFO": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+      "SAVE": "Save changes",
+      "SUCCESS": "Device updated successfully",
+      "ERROR": "Could not update the device",
+      "DISCARD_TITLE": "Discard changes?",
+      "DISCARD_MESSAGE": "You have unsaved changes. Do you want to discard them?",
+      "DISCARD": "Discard"
+    },
+    "USERS": {
+      "TITLE": "Users",
+      "EMPTY": "No users found",
+      "SEE_ALL": "See all",
+      "OWNER": "Owner",
+      "COUNT": "{{current}}/{{max}}",
+      "SHARE": "Share",
+      "SHARE_LIMIT": "User limit reached",
+      "SHARE_SUBJECT": "Vigia invite",
+      "SHARE_COPIED": "Link copied. Share it with who you want to invite.",
+      "SHARE_ERROR": "Could not generate the share link",
+      "REMOVE_TITLE": "Remove user",
+      "REMOVE_MESSAGE": "Remove {{name}} from access to this group's devices?",
+      "REMOVE_CONFIRM": "Remove",
+      "REMOVE_SUCCESS": "User removed successfully",
+      "REMOVE_ERROR": "Could not remove the user",
+      "LEAVE_TITLE": "Leave group",
+      "LEAVE_MESSAGE": "You will lose access to this group's devices.",
+      "LEAVE_CONFIRM": "Leave",
+      "LEAVE_SUCCESS": "You left the group"
+    },
+    "CLIPS": {
+      "TITLE": "Clips",
+      "VIEW": "View clips",
+      "STUB": "Clips playback is not available on the web yet."
     },
     "ROOMS": {
       "Bedroom": "Bedroom",
@@ -59,5 +111,8 @@
       "Frontyard": "Front yard",
       "NotDefined": "Room not defined"
     }
+  },
+  "COMMON": {
+    "CANCEL": "Cancel"
   }
 }

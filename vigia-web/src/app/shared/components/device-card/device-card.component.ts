@@ -1,4 +1,5 @@
 import { Component, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { CardModule } from '@openng/optimus-ui/card';
 import { Device } from '@core/entities/classes/device';
@@ -7,7 +8,7 @@ import { deviceRoomI18nKey } from '@core/enums';
 @Component({
   selector: 'app-device-card',
   standalone: true,
-  imports: [CardModule, TranslateModule],
+  imports: [CardModule, TranslateModule, RouterLink],
   templateUrl: './device-card.component.html',
   styleUrl: './device-card.component.css',
 })

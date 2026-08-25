@@ -1,13 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
 import { Device } from '@core/entities/classes/device';
 import { DeviceRooms } from '@core/enums';
+import { DeviceGroupsRealtimeService } from '@core/services';
 import { GetDevicesService } from '@core/usecases';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
+import { NEVER } from 'rxjs';
 import { DevicesComponent } from './devices.component';
 
 describe('DevicesComponent', () => {
@@ -35,6 +38,15 @@ describe('DevicesComponent', () => {
       imports: [DevicesComponent, TranslateModule.forRoot()],
       providers: [
         { provide: GetDevicesService, useValue: getDevices },
+        {
+          provide: DeviceGroupsRealtimeService,
+          useValue: {
+            membershipChanged$: NEVER,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+          },
+        },
+        provideRouter([]),
         provideAnimationsAsync(),
         provideOptimus({
           theme: {

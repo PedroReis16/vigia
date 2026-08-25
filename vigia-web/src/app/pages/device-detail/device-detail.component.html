@@ -1,0 +1,59 @@
+<section
+  #pageRoot
+  class="device-detail"
+  [class.device-detail--fullscreen]="fullscreen()"
+  data-testid="device-detail-page"
+>
+  @if (state() === 'loading') {
+    <div class="device-detail__center" data-testid="device-detail-loading">
+      <i class="pi pi-spin pi-spinner text-2xl" aria-hidden="true"></i>
+    </div>
+  } @else if (state() === 'error') {
+    <div class="device-detail__center" data-testid="device-detail-error">
+      <p>{{ 'DEVICES.ERRORS.DETAIL' | translate }}</p>
+      <p-button [label]="'DEVICES.RETRY' | translate" (onClick)="loadDevice()" />
+    </div>
+  } @else if (state() === 'not_found') {
+    <div class="device-detail__center" data-testid="device-detail-not-found">
+      <p>{{ 'DEVICES.ERRORS.NOT_FOUND' | translate }}</p>
+      <p-button [label]="'DEVICES.DETAIL.BACK' | translate" routerLink="/devices" />
+    </div>
+  } @else if (device(); as device) {
+    @if (!fullscreen()) {
+      <header class="device-detail__header">
+        <button type="button" class="device-detail__back" (click)="onBack()">
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        </button>
+        <h1 class="device-detail__title">{{ device.displayName }}</h1>
+      </header>
+    }
+
+    <div class="device-detail__video" [class.device-detail__video--collapsed]="videoCollapsed()">
+      <app-device-video-player
+        [sessionState]="sessionState()"
+        [fullscreen]="fullscreen()"
+        (retry)="onRetryLive()"
+        (togglePause)="onTogglePause()"
+        (toggleFullscreen)="onToggleFullscreen()"
+      />
+    </div>
+
+    @if (!fullscreen()) {
+      <div class="device-detail__panel">
+        <app-device-details-panel
+          [device]="device"
+          [users]="users()"
+          [usersLoading]="usersLoading()"
+          [usersError]="usersError()"
+          (deviceUpdated)="onDeviceUpdated($event)"
+          (usersChanged)="onUsersChanged()"
+          (leftGroup)="onLeftGroup()"
+        />
+      </div>
+    } @else {
+      <button type="button" class="device-detail__fullscreen-back" (click)="onBack()">
+        <i class="pi pi-arrow-left text-white" aria-hidden="true"></i>
+      </button>
+    }
+  }
+</section>

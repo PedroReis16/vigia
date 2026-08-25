@@ -3,6 +3,13 @@
   height: 100%;
 }
 
+.device-card__link {
+  display: block;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
 .device-card__frame {
   aspect-ratio: 16 / 10;
 }

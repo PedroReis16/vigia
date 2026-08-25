@@ -5,3 +5,5 @@ export * from './storage/storage.service';
 export * from './message/message.service';
 export * from './http/devices/devices.service';
 export * from './http/auth/auth-http.service';
+export * from './realtime/device-groups-realtime.service';
+export * from './streaming/whep-live-session';

@@ -12,6 +12,7 @@
         </div>
       </div>
     } @else if (device(); as device) {
+      <a [routerLink]="['/devices', device.id]" class="device-card__link">
       <div class="device-card__frame flex flex-col">
         <div class="device-card__thumb relative grow basis-0 overflow-hidden bg-surface-200 dark:bg-surface-700">
           @if (device.thumbnailUrl && !imageFailed()) {
@@ -45,6 +46,7 @@
           </div>
         </div>
       </div>
+      </a>
     }
   </ng-template>
 </p-card>

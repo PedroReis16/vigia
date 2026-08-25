@@ -46,7 +46,59 @@
     "ONLINE": "Ativo",
     "OFFLINE": "Desabilitado",
     "ERRORS": {
-      "LIST": "Não foi possível carregar os dispositivos. Tente novamente."
+      "LIST": "Não foi possível carregar os dispositivos. Tente novamente.",
+      "DETAIL": "Não foi possível carregar o dispositivo. Tente novamente.",
+      "NOT_FOUND": "Dispositivo não encontrado.",
+      "UPDATE": "Não foi possível atualizar o dispositivo.",
+      "USERS": "Não foi possível carregar os usuários.",
+      "SHARE": "Não foi possível gerar o link de compartilhamento.",
+      "REMOVE_USER": "Não foi possível remover o usuário.",
+      "STREAM_COMMAND": "Não foi possível iniciar o streaming."
+    },
+    "DETAIL": {
+      "NICKNAME": "Nome",
+      "ROOM": "Ambiente",
+      "ID": "Identificador",
+      "BACK": "Voltar aos dispositivos",
+      "CONNECTING": "Conectando",
+      "CONNECTION_ERROR": "Ocorreu um erro ao conectar ao stream.",
+      "TRY_AGAIN": "Tentar novamente"
+    },
+    "EDIT": {
+      "SAVE_CLIPS": "Salvar clips",
+      "CLIPS_INFO": "Quando ativado, o Vigia armazenará clips de vídeo curtos para análise posterior de possíveis situações de queda.",
+      "SAVE": "Salvar alterações",
+      "SUCCESS": "Dispositivo atualizado com sucesso",
+      "ERROR": "Não foi possível atualizar o dispositivo",
+      "DISCARD_TITLE": "Descartar alterações?",
+      "DISCARD_MESSAGE": "Você tem alterações não salvas. Deseja descartá-las?",
+      "DISCARD": "Descartar"
+    },
+    "USERS": {
+      "TITLE": "Usuários",
+      "EMPTY": "Nenhum usuário encontrado",
+      "SEE_ALL": "Ver todos",
+      "OWNER": "Proprietário",
+      "COUNT": "{{current}}/{{max}}",
+      "SHARE": "Compartilhar",
+      "SHARE_LIMIT": "Limite de usuários atingido",
+      "SHARE_SUBJECT": "Convite Vigia",
+      "SHARE_COPIED": "Link copiado. Compartilhe com quem quiser convidar.",
+      "SHARE_ERROR": "Não foi possível gerar o link de compartilhamento",
+      "REMOVE_TITLE": "Remover usuário",
+      "REMOVE_MESSAGE": "Remover {{name}} do acesso aos dispositivos deste grupo?",
+      "REMOVE_CONFIRM": "Remover",
+      "REMOVE_SUCCESS": "Usuário removido com sucesso",
+      "REMOVE_ERROR": "Não foi possível remover o usuário",
+      "LEAVE_TITLE": "Sair do grupo",
+      "LEAVE_MESSAGE": "Você perderá o acesso aos dispositivos deste grupo.",
+      "LEAVE_CONFIRM": "Sair",
+      "LEAVE_SUCCESS": "Você saiu do grupo"
+    },
+    "CLIPS": {
+      "TITLE": "Clips",
+      "VIEW": "Ver clips",
+      "STUB": "A visualização de clips ainda não está disponível na web."
     },
     "ROOMS": {
       "Bedroom": "Quarto",
@@ -59,5 +111,8 @@
       "Frontyard": "Frente",
       "NotDefined": "Ambiente indefinido"
     }
+  },
+  "COMMON": {
+    "CANCEL": "Cancelar"
   }
 }

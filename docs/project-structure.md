@@ -232,7 +232,7 @@ vigia/
 | `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl`, `streamBaseUrl` absolutos + idiomas) |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 
-**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (tema/idioma). Shell: toolbar full-bleed (logo + avatar/logout). Sem cadastro BLE de devices na web.
+**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web.
 
 **Status:** login/cadastro JWT e sessão local; listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento, SignalR `device-groups`; clips stub.
 
@@ -307,7 +307,7 @@ vigia/
 
 12. **Compartilhamento via grupos** — Devices pertencem a grupos; owner gerencia convites; limite de membros imposto na API.
 
-13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` e `darkModeSelector: '.vigia-dark'`.
+13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` (primary `#669CEE`, light-only como Flutter `ThemeMode.light`; `darkModeSelector: false`).
 
 ---
 
@@ -488,6 +488,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-25] vigia-web: tema claro only (como Flutter); remove toggle dark, `darkModeSelector: false`
+- [2026-08-25] vigia-web: fundo da página e cards alinhados ao Flutter (surface-50/950 + content); corrige escala dark do Aura
+- [2026-08-25] vigia-web: tema alinhado ao Flutter (`#669CEE`, default light); ThemeService inicia no AppComponent
 - [2026-08-25] vigia-web: toolbar full-bleed com logo Vigia à esquerda e avatar/logout à direita (sem links de nav)
 - [2026-08-25] vigia-web: shell com toolbar superior (cores primary do VigiaTheme, nav Dispositivos/Home, avatar + popover logout); remove sidebar; logout sai da Home
 - [2026-08-25] vigia-web: detalhes do device (`/devices/:id`, `/devices/:id/clips`), stream WHEP, edição, usuários/sharing, SignalR; `streamBaseUrl` nos environments; use cases e services de device detail

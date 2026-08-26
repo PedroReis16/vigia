@@ -51,7 +51,7 @@ describe('DevicesComponent', () => {
         provideOptimus({
           theme: {
             preset: VigiaTheme,
-            options: { darkModeSelector: '.vigia-dark' },
+            options: { darkModeSelector: false },
           },
         }),
       ],

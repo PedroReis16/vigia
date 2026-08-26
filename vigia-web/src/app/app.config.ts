@@ -29,7 +29,8 @@ export const appConfig: ApplicationConfig = {
       theme: {
         preset: VigiaTheme,
         options: {
-          darkModeSelector: '.vigia-dark',
+          // Light-only — same as Flutter ThemeMode.light
+          darkModeSelector: false,
         },
       },
     }),

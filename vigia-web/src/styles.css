@@ -11,4 +11,15 @@ body {
   padding: 0;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
   font-size: 12px;
+  /* Flutter AppColors.light.background #FFF9F5 */
+  background-color: var(--p-surface-50);
+  color: var(--p-text-color);
+}
+
+/* Cards use Optimus content tokens (Flutter AppColors.surface) */
+.p-card {
+  background: var(--p-content-background);
+  color: var(--p-content-color);
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: none;
 }

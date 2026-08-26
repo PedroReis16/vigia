@@ -88,6 +88,13 @@ builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvide
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(option =>
 {
+    option.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Vigia API",
+        Version = "v1",
+        Description = "API REST do VIGIA — autenticação, devices, alertas, OTA e integração FIWARE."
+    });
+    option.EnableAnnotations();
     option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
@@ -106,7 +113,6 @@ builder.Services.AddSwaggerGen(option =>
     });
     var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
-    option.DocumentFilter<TagDescriptionsDocumentFilter>();
     if (File.Exists(xmlPath))
     {
         option.IncludeXmlComments(xmlPath);
@@ -128,7 +134,7 @@ app.UseSwagger(c =>
 });
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint($"/{basePath}/swagger/v1/swagger.json", "GeoCidadao.GerenciamentoPostsAPI v1");
+    options.SwaggerEndpoint($"/{basePath}/swagger/v1/swagger.json", "Vigia API v1");
     options.RoutePrefix = $"{basePath}/swagger";
 });
 

@@ -48,8 +48,9 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// </summary>
     [HttpPost]
     [AllowAnonymous]
+    [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadDeviceUpdate(
-        [FromForm] IFormFile fileChunk,
+        IFormFile fileChunk,
         [FromForm] string revision,
         [FromForm] Guid fileId,
         [FromForm] int chunkIndex,

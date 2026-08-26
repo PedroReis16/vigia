@@ -370,7 +370,7 @@ vigia/
 - **EF Core:** snake_case (tabelas/colunas), UUID como PK, soft-delete (`DeletedAt`), enums mapeados para PostgreSQL
 - **JSON:** enums serializados como string (`JsonStringEnumConverter`)
 - **Scopes:** services usam `IServiceScopeFactory` para acesso scoped a DAOs
-- **Swagger:** tags via `TagTransformerDocument`; Bearer auth documentado
+- **Swagger:** OpenAPI v1 (`Vigia API`); Bearer auth documentado; uploads `multipart/form-data` sem `[FromForm]` em `IFormFile`
 
 ### Python (edge)
 
@@ -509,6 +509,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-26] vigia-api Swagger: correção geração OpenAPI (upload OTA `IFormFile`), metadados `Vigia API v1`, remoção de `TagDescriptionsDocumentFilter` (`Program.cs`, `DeviceUpdatesController.cs`)
 - [2026-08-25] Seed local do edge: `seed-codes/seed_local_edge.py` + `edge-data/` (TestDeviceSeed); bootstrap/fall `.env.example` com `DATA_DIR=../edge-data`
 - [2026-08-25] vigia_ui iOS: `NSLocalNetworkUsageDescription` no `Info.plist` para HTTP à API na LAN; probe debug `debug_api_connectivity_probe.dart`; parsing seguro de erros Dio no login
 - [2026-08-24] vigia_ui: Firebase/FCM fora do build iOS — overrides path `packages/firebase_*_android` (só plataforma Android); teste `push_notification_android_only_test.dart`

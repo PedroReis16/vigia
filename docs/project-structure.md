@@ -82,7 +82,8 @@ vigia/
 ├── vigia-web/              # Frontend web Angular (boilerplate em camadas)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
-├── seed-codes/             # Utilitário dev: publicar frame de teste com assinatura Ed25519
+├── seed-codes/             # Utilitários dev: frame assinado + seed do edge local
+├── edge-data/              # Mock local identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
@@ -218,6 +219,8 @@ vigia/
 
 **Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`
 
+**iOS (device físico / LAN):** `Info.plist` declara `NSLocalNetworkUsageDescription` + `NSAllowsLocalNetworking` para HTTP ao IP local do Mac (ex.: `10.x`). Sem “Rede Local” permitido em Ajustes, o app não alcança a API e nenhum request aparece nos logs.
+
 **Plataformas:** Android + iOS (push/FCM apenas Android; plugins Firebase não entram no build iOS)
 
 ---
@@ -250,9 +253,14 @@ vigia/
 
 ### seed-codes
 
-**Propósito:** Utilitário de desenvolvimento para publicar frame JPEG de teste na API usando assinatura Ed25519.
+**Propósito:** Utilitários de desenvolvimento — frame assinado e mock do edge local (sem Pi/BLE).
 
-**Ponto de entrada:** `seed-codes/publish_frame.py`
+| Script | Função |
+|--------|--------|
+| `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` (Ed25519 / TestDeviceSeed) |
+| `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
+
+**Edge mock local:** `edge-data/` (gitignored exceto README). Bootstrap/fall usam `DATA_DIR=../edge-data`. Device: `Vigia-a1b2c3d4` / admin group. Login app: `admin` / `admin123`.
 
 ---
 
@@ -501,6 +509,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-25] Seed local do edge: `seed-codes/seed_local_edge.py` + `edge-data/` (TestDeviceSeed); bootstrap/fall `.env.example` com `DATA_DIR=../edge-data`
+- [2026-08-25] vigia_ui iOS: `NSLocalNetworkUsageDescription` no `Info.plist` para HTTP à API na LAN; probe debug `debug_api_connectivity_probe.dart`; parsing seguro de erros Dio no login
 - [2026-08-24] vigia_ui: Firebase/FCM fora do build iOS — overrides path `packages/firebase_*_android` (só plataforma Android); teste `push_notification_android_only_test.dart`
 - [2026-08-24] Edge debug local: OTA/install derivados de `DATA_DIR` (placa mantém `/var/lib/vigia/ota`); launch configs Python; `.env` local sem paths de instalação (`provision/settings.py`, `shared/settings.py`, `ota.py`, `fiware_runner.py`, `.vscode/launch.json`)
 - [2026-08-24] Fall: pipeline captura→YOLO com backpressure (skip vs drop-oldest), archive no ritmo de classificação, YOLO `YOLO_IMGSZ`/`YOLO_TRACKER`, warmup `p{id}=k/N` e métricas `capture metrics` (`capture_runner`, `frame_worker`, `frame_processor`, `settings`, classifiers)

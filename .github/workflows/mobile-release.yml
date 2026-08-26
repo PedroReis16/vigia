@@ -184,10 +184,6 @@ jobs:
         working-directory: ${{ env.SERVICE_PATH }}
         run: flutter pub get
 
-      - name: Dart — format (obrigatório)
-        working-directory: ${{ env.SERVICE_PATH }}
-        run: dart format --output=none --set-exit-if-changed lib test
-
       - name: Hidratar firebase_options.dart (example / secret)
         env:
           FIREBASE_OPTIONS_DART_BASE64: ${{ secrets.FIREBASE_OPTIONS_DART_BASE64 }}

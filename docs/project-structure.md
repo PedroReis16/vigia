@@ -228,11 +228,11 @@ vigia/
 |-------|------------------|
 | `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
 | `src/app/pages/` | Rotas/features: auth (login, register), layout, devices, home, `main.routes.ts` |
-| `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
+| `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, toolbar superior), preset de tema Optimus UI (`vigia.theme.ts`) |
 | `src/environments/` | `environment.ts` / `environment.prod.ts` (`apiUrl`, `streamBaseUrl` absolutos + idiomas) |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 
-**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (tema/idioma/logout). Sem cadastro BLE de devices na web.
+**Rotas:** `/login`, `/register` (`guestGuard`); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (tema/idioma). Shell: toolbar full-bleed (logo + avatar/logout). Sem cadastro BLE de devices na web.
 
 **Status:** login/cadastro JWT e sessão local; listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento, SignalR `device-groups`; clips stub.
 
@@ -393,7 +393,7 @@ vigia/
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
-| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/home |
+| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
 
 ---
 
@@ -485,6 +485,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-25] vigia-web: toolbar full-bleed com logo Vigia à esquerda e avatar/logout à direita (sem links de nav)
+- [2026-08-25] vigia-web: shell com toolbar superior (cores primary do VigiaTheme, nav Dispositivos/Home, avatar + popover logout); remove sidebar; logout sai da Home
 - [2026-08-25] vigia-web: detalhes do device (`/devices/:id`, `/devices/:id/clips`), stream WHEP, edição, usuários/sharing, SignalR; `streamBaseUrl` nos environments; use cases e services de device detail
 - [2026-08-25] docker-compose local: CORS no Traefik para rota `vigia-api` (`cors@file`), permitindo o web Angular em `localhost:4200` sem alterar a API (`/devices`, cards, `GetDevicesService` → `GET /devices/list`); default pós-login `/devices`
 - [2026-08-23] vigia-web: `apiUrl` absoluto nos environments (sem `proxy.conf.json`); services usam paths relativos + `ApiBaseUrlInterceptor`

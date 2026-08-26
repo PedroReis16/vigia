@@ -1,0 +1,76 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0;
+  background-color: var(--p-primary-color, #111d63);
+  color: var(--p-primary-contrast-color, #ffffff);
+}
+
+.toolbar__logo {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+  text-decoration: none;
+}
+
+.toolbar__logo img {
+  display: block;
+  height: 3.5rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.toolbar__user {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.toolbar__avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 9999px;
+  color: inherit;
+}
+
+.toolbar__avatar-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, #ffffff 80%, transparent);
+  outline-offset: 2px;
+}
+
+.toolbar__menu {
+  min-width: 10rem;
+}
+
+.toolbar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+
+.toolbar__menu-item:hover {
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+}

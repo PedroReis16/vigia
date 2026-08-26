@@ -1,15 +1,12 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideRouter } from '@angular/router';
 import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
 import { HomeComponent } from './home.component';
 import { ThemeService } from '@core/services/theme/theme.service';
 import { LanguageService } from '@core/services/language/language.service';
-import { MessageService } from '@core/services';
-import { LogoutService } from '@core/usecases';
 import { InputComponent } from '@shared/components/input/input.component';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
 
@@ -23,7 +20,6 @@ describe('HomeComponent', () => {
   let languageService: {
     setLanguage: ReturnType<typeof vi.fn>;
   };
-  let logout: { execute: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     const selectedTheme = signal('dark');
@@ -46,16 +42,11 @@ describe('HomeComponent', () => {
       ]),
     };
 
-    logout = { execute: vi.fn().mockResolvedValue(undefined) };
-
     await TestBed.configureTestingModule({
       imports: [HomeComponent, TranslateModule.forRoot(), InputComponent],
       providers: [
         { provide: ThemeService, useValue: themeSpy },
         { provide: LanguageService, useValue: languageSpy },
-        { provide: LogoutService, useValue: logout },
-        MessageService,
-        provideRouter([{ path: 'login', children: [] }]),
         provideAnimationsAsync(),
         provideOptimus({
           theme: {
@@ -118,10 +109,5 @@ describe('HomeComponent', () => {
     const themeButton = compiled.querySelector('[data-testid="theme-toggle"]') as HTMLElement;
     themeButton?.click();
     expect(themeService.setTheme).toHaveBeenCalled();
-  });
-
-  it('should logout via use case', async () => {
-    await component.onLogout();
-    expect(logout.execute).toHaveBeenCalled();
   });
 });

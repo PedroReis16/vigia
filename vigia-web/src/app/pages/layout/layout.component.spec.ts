@@ -1,10 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
+import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
-import { DeviceGroupsRealtimeService } from '@core/services';
+import { DeviceGroupsRealtimeService, MessageService } from '@core/services';
+import { LogoutService } from '@core/usecases';
 import { NEVER } from 'rxjs';
 import { LayoutComponent } from '@pages';
+import { VigiaTheme } from '@shared/theme/vigia.theme';
 
 describe('LayoutComponent', () => {
   let component: LayoutComponent;
@@ -15,6 +19,9 @@ describe('LayoutComponent', () => {
       imports: [LayoutComponent, TranslateModule.forRoot()],
       providers: [
         provideRouter([]),
+        provideAnimationsAsync(),
+        MessageService,
+        { provide: LogoutService, useValue: { execute: vi.fn().mockResolvedValue(undefined) } },
         {
           provide: DeviceGroupsRealtimeService,
           useValue: {
@@ -23,6 +30,12 @@ describe('LayoutComponent', () => {
             disconnect: vi.fn().mockResolvedValue(undefined),
           },
         },
+        provideOptimus({
+          theme: {
+            preset: VigiaTheme,
+            options: { darkModeSelector: '.vigia-dark' },
+          },
+        }),
       ],
     }).compileComponents();
 
@@ -33,5 +46,11 @@ describe('LayoutComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('should render toolbar without sidebar', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="app-toolbar"]')).toBeTruthy();
+    expect(compiled.querySelector('[data-testid="app-sidebar"]')).toBeNull();
   });
 });

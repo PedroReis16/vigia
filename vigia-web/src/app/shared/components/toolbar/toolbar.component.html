@@ -1,0 +1,41 @@
+<header class="toolbar" data-testid="app-toolbar">
+  <a routerLink="/devices" class="toolbar__logo" data-testid="toolbar-logo" aria-label="Vigia">
+    <img src="images/vigia-logo.png" alt="Vigia" height="56" width="56" />
+  </a>
+
+  <div class="toolbar__user">
+    <button
+      type="button"
+      class="toolbar__avatar-btn"
+      data-testid="user-menu-trigger"
+      aria-haspopup="menu"
+      aria-label="User"
+      (click)="toggleUserMenu($event)"
+    >
+      @if (userPictureUrl) {
+        <p-avatar [image]="userPictureUrl" shape="circle" size="large" />
+      } @else {
+        <p-avatar icon="pi pi-user" shape="circle" size="large" />
+      }
+    </button>
+
+    <p-popover
+      #userMenu
+      styleClass="toolbar__popover"
+      appendTo="body"
+      (onShow)="alignUserMenuToRight()"
+    >
+      <div class="toolbar__menu">
+        <button
+          type="button"
+          class="toolbar__menu-item"
+          data-testid="logout-button"
+          (click)="onLogout()"
+        >
+          <i class="pi pi-sign-out" aria-hidden="true"></i>
+          <span>{{ 'AUTH.LOGOUT' | translate }}</span>
+        </button>
+      </div>
+    </p-popover>
+  </div>
+</header>

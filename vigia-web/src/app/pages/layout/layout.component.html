@@ -1,9 +1,8 @@
-<div class="h-full p-4 flex flex-col">
+<div class="h-full flex flex-col">
     <app-toolbar />
-    <app-message />
-    <div class="flex flex-1 mt-4 gap-4">
-        <app-sidebar />
-        <div class="flex flex-1 w-full overflow-x-hidden">
+    <div class="flex flex-1 flex-col min-h-0 p-4">
+        <app-message />
+        <div class="flex flex-1 mt-4 w-full overflow-x-hidden">
             <div class="w-full">
                 <router-outlet></router-outlet>
             </div>

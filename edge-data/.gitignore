@@ -1,6 +1,0 @@
-# Edge local mock data (identity / network / classifier).
-# Generate with: python seed-codes/seed_local_edge.py
-# Do not commit secrets or generated JSON from this folder.
-*
-!.gitignore
-!README.md

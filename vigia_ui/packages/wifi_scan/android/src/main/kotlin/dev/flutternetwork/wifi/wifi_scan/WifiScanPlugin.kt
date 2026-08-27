@@ -49,6 +49,7 @@ private const val CAN_GET_RESULTS_NO_LOC_DISABLED = 5
 
 /** Magic codes */
 private const val ASK_FOR_LOC_PERM = -1
+private const val ASK_FOR_NEARBY_WIFI_PERM = -2
 
 /** WifiScanPlugin
  *
@@ -69,6 +70,7 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     private val locationPermissionCoarse = arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
     private val locationPermissionFine = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
     private val locationPermissionBoth = locationPermissionCoarse + locationPermissionFine
+    private val nearbyWifiPermission = arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES)
 
     // plugin interfaces
     private lateinit var channel: MethodChannel
@@ -184,6 +186,13 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                             }
                         }
                     }
+                    ASK_FOR_NEARBY_WIFI_PERM -> askForNearbyWifiPermission { granted ->
+                        if (granted) {
+                            result.success(canStartScan(askPermission = false))
+                        } else {
+                            result.success(CAN_START_SCAN_NO_LOC_PERM_DENIED)
+                        }
+                    }
                     else -> result.success(canCode)
                 }
             }
@@ -215,6 +224,13 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                             }
                         }
                     }
+                    ASK_FOR_NEARBY_WIFI_PERM -> askForNearbyWifiPermission { granted ->
+                        if (granted) {
+                            result.success(canGetScannedResults(askPermission = false))
+                        } else {
+                            result.success(CAN_GET_RESULTS_NO_LOC_PERM_DENIED)
+                        }
+                    }
                     else -> result.success(canCode)
                 }
             }
@@ -223,13 +239,29 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }
     }
 
+    private fun usesNearbyWifiPermission(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+    private fun hasNearbyWifiPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.NEARBY_WIFI_DEVICES
+        ) == PackageManager.PERMISSION_GRANTED
+
     private fun canStartScan(askPermission: Boolean): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return CAN_START_SCAN_YES
+        }
+
+        if (usesNearbyWifiPermission()) {
+            if (hasNearbyWifiPermission()) return CAN_START_SCAN_YES
+            return if (askPermission) ASK_FOR_NEARBY_WIFI_PERM
+            else CAN_START_SCAN_NO_LOC_PERM_REQUIRED
+        }
+
         val hasLocPerm = hasLocationPermission()
         val isLocEnabled = isLocationEnabled()
         return when {
-            // for SDK < P[28] : Not in guide, should not require any additional permissions
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.P -> CAN_START_SCAN_YES
-            // for SDK >= Q[29]: CHANGE_WIFI_STATE & ACCESS_x_LOCATION & "Location enabled"
             hasLocPerm && isLocEnabled -> CAN_START_SCAN_YES
             hasLocPerm -> CAN_START_SCAN_NO_LOC_DISABLED
             askPermission -> ASK_FOR_LOC_PERM
@@ -240,8 +272,12 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     private fun startScan(): Boolean = wifi!!.startScan()
 
     private fun canGetScannedResults(askPermission: Boolean): Int {
-        // check all prerequisite conditions
-        // ACCESS_WIFI_STATE & ACCESS_x_LOCATION & "Location enabled"
+        if (usesNearbyWifiPermission()) {
+            if (hasNearbyWifiPermission()) return CAN_GET_RESULTS_YES
+            return if (askPermission) ASK_FOR_NEARBY_WIFI_PERM
+            else CAN_GET_RESULTS_NO_LOC_PERM_REQUIRED
+        }
+
         val hasLocPerm = hasLocationPermission()
         val isLocEnabled = isLocationEnabled()
         return when {
@@ -331,6 +367,20 @@ class WifiScanPlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             true
         }
         ActivityCompat.requestPermissions(activity!!, permissions, permissionCode)
+    }
+
+    private fun askForNearbyWifiPermission(callback: (Boolean) -> Unit) {
+        if (activity == null) return callback.invoke(false)
+
+        val permissionCode = 6567900 + Random.Default.nextInt(100)
+        requestPermissionCookie[permissionCode] = { grantArray ->
+            callback.invoke(
+                grantArray.isNotEmpty() &&
+                    grantArray[0] == PackageManager.PERMISSION_GRANTED
+            )
+            true
+        }
+        ActivityCompat.requestPermissions(activity!!, nearbyWifiPermission, permissionCode)
     }
 
     private fun isLocationEnabled(): Boolean =

@@ -1,0 +1,24 @@
+.accept-invite {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.accept-invite__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.accept-invite__spinner {
+  font-size: 2rem;
+}
+
+.accept-invite__content p {
+  margin: 0;
+  color: var(--p-text-muted-color);
+}

@@ -40,6 +40,11 @@
       "PASSWORD_MISMATCH": "As senhas não coincidem."
     }
   },
+  "INVITE": {
+    "ACCEPTING": "Aceitando convite…",
+    "SUCCESS": "Convite aceito. Os dispositivos compartilhados já estão disponíveis.",
+    "ERROR": "Não foi possível aceitar o convite."
+  },
   "DEVICES": {
     "TITLE": "Dispositivos",
     "EMPTY": "Nenhum dispositivo encontrado",

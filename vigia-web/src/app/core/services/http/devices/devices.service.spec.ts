@@ -174,4 +174,13 @@ describe('DevicesService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null);
   });
+
+  it('accepts share invite', () => {
+    service.acceptShareInvite('invite-token').subscribe();
+
+    const req = httpMock.expectOne('/devices/share/accept');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ token: 'invite-token' });
+    req.flush(null);
+  });
 });

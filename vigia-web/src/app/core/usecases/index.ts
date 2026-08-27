@@ -4,6 +4,7 @@ export * from './update-device/update-device.service';
 export * from './start-device-streaming/start-device-streaming.service';
 export * from './get-device-users/get-device-users.service';
 export * from './generate-device-share-link/generate-device-share-link.service';
+export * from './accept-share-invite/accept-share-invite.service';
 export * from './remove-device-user/remove-device-user.service';
 export * from './auth-use-case.error';
 export * from './devices-use-case.error';

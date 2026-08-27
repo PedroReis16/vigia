@@ -53,6 +53,10 @@ export class DevicesService {
     return this.http.delete<void>(`${this.basePath}/${deviceId}/users/${userId}`);
   }
 
+  acceptShareInvite(token: string): Observable<void> {
+    return this.http.post<void>(`${this.basePath}/share/accept`, { token });
+  }
+
   private normalizeListResponse(response: HttpResponse<DeviceDto[] | null>): DeviceDto[] {
     if (response.status === 204 || response.body == null) {
       return [];

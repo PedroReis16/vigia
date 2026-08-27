@@ -30,6 +30,18 @@ public class InviteRedirectController(IConfiguration configuration) : Controller
         string deepLink = $"{deepLinkBase}{Uri.EscapeDataString(code)}";
         string safeHref = System.Net.WebUtility.HtmlEncode(deepLink);
 
+        string? webInviteBase = _configuration.GetValue<string>("Invite:WebInviteBase");
+        string webLinkHtml = string.Empty;
+        if (!string.IsNullOrWhiteSpace(webInviteBase))
+        {
+            if (!webInviteBase.EndsWith('/'))
+                webInviteBase += "/";
+
+            string webInviteUrl = $"{webInviteBase}{Uri.EscapeDataString(code)}";
+            string safeWebHref = System.Net.WebUtility.HtmlEncode(webInviteUrl);
+            webLinkHtml = $"""<p><a href="{safeWebHref}">Continuar na web</a></p>""";
+        }
+
         string html = $$"""
             <!DOCTYPE html>
             <html lang="pt-BR">
@@ -51,6 +63,7 @@ public class InviteRedirectController(IConfiguration configuration) : Controller
               <div>
                 <p>Abrindo o Vigia…</p>
                 <p><a href="{{safeHref}}">Abrir no aplicativo</a></p>
+                {{webLinkHtml}}
               </div>
             </body>
             </html>

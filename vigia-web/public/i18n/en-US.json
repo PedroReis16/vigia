@@ -40,6 +40,11 @@
       "PASSWORD_MISMATCH": "Passwords do not match."
     }
   },
+  "INVITE": {
+    "ACCEPTING": "Accepting invite…",
+    "SUCCESS": "Invite accepted. Shared devices are now available.",
+    "ERROR": "Could not accept the invite."
+  },
   "DEVICES": {
     "TITLE": "Devices",
     "EMPTY": "No devices found",

@@ -14,7 +14,7 @@ class FirebaseMessaging extends FirebasePlugin {
   // instance with the default app before a user specifies an app.
   FirebaseMessagingPlatform? _delegatePackingProperty;
 
-  static Map<String, FirebaseMessaging> _firebaseMessagingInstances = {};
+  static final Map<String, FirebaseMessaging> _firebaseMessagingInstances = {};
 
   FirebaseMessagingPlatform get _delegate {
     return _delegatePackingProperty ??= FirebaseMessagingPlatform.instanceFor(

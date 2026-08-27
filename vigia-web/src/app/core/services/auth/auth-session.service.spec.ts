@@ -31,12 +31,18 @@ describe('AuthSessionService', () => {
 
   it('is authenticated when refresh token exists', () => {
     expect(service.isAuthenticated()).toBe(false);
+    const accessToken = [
+      btoa(JSON.stringify({ alg: 'none' })),
+      btoa(JSON.stringify({ sub: 'user-1' })),
+      '',
+    ].join('.');
+    
     service.setSession({
-      accessToken: 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyLTEifQ.',
+      accessToken: accessToken, //gitleaks:allow
       refreshToken: 'refresh',
     });
     expect(service.isAuthenticated()).toBe(true);
-    expect(service.getAccessToken()).toBe('eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyLTEifQ.');
+    expect(service.getAccessToken()).toBe(accessToken);
     expect(service.getRefreshToken()).toBe('refresh');
     expect(service.getUserId()).toBe('user-1');
   });

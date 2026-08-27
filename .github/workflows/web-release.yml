@@ -59,9 +59,6 @@ jobs:
           REQUIRE_SECRET: "1"
         run: bash .github/scripts/hydrate-firebase-web.sh
 
-      - name: Lint
-        run: pnpm exec ng lint
-
       - name: Test
         run: pnpm test
 

@@ -1,0 +1,158 @@
+{
+  "@@locale": "pt",
+  "appTitle": "Vigia",
+  "email": "Email",
+  "password": "Senha",
+  "login": "Entrar",
+  "register": "Cadastre-se",
+  "logout": "Sair",
+  "noAccount": "Não tem uma conta?",
+  "hasAccount": "Já tem uma conta?",
+  "invalidCredentials": "Usuário ou senha inválidos",
+  "loginError": "Erro ao fazer login",
+  "devices": "Dispositivos",
+  "settings": "Configurações",
+  "home": "Início",
+  "stage": "Etapa",
+  "sheetRecord": "Ficha #{id}",
+  "@sheetRecord": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "noDevicesFound": "Nenhum dispositivo encontrado",
+  "errorWithMessage": "Erro: {message}",
+  "@errorWithMessage": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addDevice": "Adicionar dispositivo",
+  "scanningHint": "Siga o tutorial e aproxime o celular do Vigia. A busca já está em andamento.",
+  "stepPowerOnTitle": "Ligue o dispositivo",
+  "stepPowerOnDescription": "Conecte o Vigia à tomada e aguarde até que a luz indique que ele está pronto para a configuração.",
+  "stepPairTitle": "Vincule ao aplicativo",
+  "stepPairDescription": "Aproxime o celular do Vigia para iniciar o vínculo com o aplicativo.",
+  "stepWaitTitle": "Aguarde a confirmação",
+  "stepWaitDescription": "Aguarde alguns segundos até que a configuração seja concluída com sucesso.",
+  "connectingTitle": "Conectando",
+  "connectingDescription": "Dispositivo encontrado. Estabelecendo a conexão com o Vigia…",
+  "authenticatingTitle": "Validando dispositivo",
+  "authenticatingDescription": "Confirmando a identidade do Vigia e autenticando o aplicativo…",
+  "registeringTitle": "Registrando dispositivo",
+  "registeringDescription": "Criando o registro do dispositivo nos servidores Vigia…",
+  "fetchingConfigTitle": "Preparando configuração",
+  "fetchingConfigDescription": "Obtendo as informações necessárias para conectar o Vigia…",
+  "testingNetworkTitle": "Testando a rede",
+  "testingNetworkDescription": "Aguardando o Vigia conectar ao Wi‑Fi…",
+  "connectionEstablished": "Conexão estabelecida",
+  "deviceLinkedSuccess": "{deviceName} foi vinculado com sucesso.",
+  "@deviceLinkedSuccess": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "confirm": "Confirmar",
+  "connectionFailed": "Não foi possível conectar",
+  "connectionErrorFallback": "Ocorreu um erro ao procurar ou conectar ao dispositivo.",
+  "tryAgain": "Tentar novamente",
+  "devicesLoadError": "Parece que estamos passando por problemas técnicos.",
+  "wifiNetwork": "Rede Wi‑Fi",
+  "refreshNetworks": "Atualizar redes",
+  "selectWifiHint": "Selecione a rede que o Vigia deve usar.",
+  "manualWifiHintIos": "No iOS, informe manualmente o nome da rede.",
+  "noNetworksFound": "Nenhuma rede encontrada. Tente atualizar a lista.",
+  "selectOrEnterWifi": "Selecione ou informe uma rede Wi‑Fi.",
+  "networkPassword": "Senha da rede",
+  "networkPasswordRequired": "Informe a senha da rede",
+  "openNetworkNoPassword": "Rede aberta — senha não necessária.",
+  "sendCredentials": "Enviar credenciais",
+  "networkSsid": "Nome da rede (SSID)",
+  "backToFoundNetworks": "Voltar para redes encontradas",
+  "noNetworksAvailable": "Nenhuma rede disponível",
+  "enterNetworkManually": "Informar rede manualmente",
+  "enterAnotherNetwork": "Informar outra rede",
+  "signalExcellent": "Sinal excelente",
+  "signalGood": "Sinal bom",
+  "signalFair": "Sinal moderado",
+  "signalWeak": "Sinal fraco",
+  "usernameForm": "Nome completo",
+  "passwordConfirm": "Confirmar senha",
+  "emailInvalid": "O email inserido não representa um endereço válido",
+  "passwordInvalid": "A senha deve ter pelo menos 8 caracteres",
+  "passwordConfirmationInvalid": "As senhas inseridas não coincidem",
+  "userEmailAlreadyInUse": "O email já está sendo usado por outro usuário",
+  "registerUnknownError": "Ocorreu um erro ao realizar criar conta",
+  "welcomeToVigia": "Bem-vindo ao Vigia",
+  "createAccount": "Criar conta",
+  "deviceNickname": "Nome",
+  "deviceName": "Nome do dispositivo",
+  "deviceRoom": "Cômodo",
+  "deviceIdLabel": "Identificador",
+  "bedroom": "Quarto",
+  "livingRoom": "Sala",
+  "kitchen": "Cozinha",
+  "bathroom": "Banheiro",
+  "office": "Escritório",
+  "garage": "Garagem",
+  "backyard": "Quintal",
+  "frontyard": "Frente",
+  "online": "Ativo",
+  "offline": "Desabilitado",
+  "roomNotDefined": "Ambiente indefinido",
+  "saveClips": "Salvar clips",
+  "whatAreClips": "O que são clips?",
+  "whenEnabledClipsWillStoreClipsForAnalysis": "Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda",
+  "saveChanges": "Salvar alterações",
+  "deviceUpdatedSuccess": "Dispositivo atualizado com sucesso",
+  "deviceUpdateError": "Não foi possível atualizar o dispositivo",
+  "discardChangesTitle": "Descartar alterações?",
+  "discardChangesMessage": "Existem alterações que ainda não foram salvas.",
+  "discard": "Descartar",
+  "cancel": "Cancelar",
+  "deviceUsers": "Usuários",
+  "noUsersFound": "Nenhum usuário encontrado",
+  "back": "Voltar",
+  "seeAllUsers": "Ver todos",
+  "deviceUsersCount": "{current}/{max}",
+  "@deviceUsersCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "shareDevice": "Compartilhar",
+  "shareLimitReached": "Limite de usuários atingido",
+  "shareDeviceInviteSubject": "Convite para o Vigia",
+  "shareLinkCopied": "Link copiado. Compartilhe com quem deseja convidar.",
+  "shareLinkError": "Não foi possível gerar o link de compartilhamento",
+  "deviceOwner": "Proprietário",
+  "removeUserTitle": "Remover usuário?",
+  "removeUserMessage": "Remover {name} do acesso aos dispositivos deste grupo?",
+  "@removeUserMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "removeUserConfirm": "Remover",
+  "leaveGroupTitle": "Sair do grupo?",
+  "leaveGroupMessage": "Você perderá o acesso aos dispositivos compartilhados neste grupo.",
+  "leaveGroupConfirm": "Sair",
+  "userRemovedSuccess": "Usuário removido com sucesso",
+  "leftGroupSuccess": "Você saiu do grupo",
+  "userRemoveError": "Não foi possível remover o usuário",
+  "acceptingInvite": "Aceitando convite…",
+  "inviteAcceptedSuccess": "Convite aceito. Os dispositivos compartilhados já estão disponíveis.",
+  "inviteAcceptedError": "Não foi possível aceitar o convite",
+  "clips": "Clips",
+  "viewClips": "Ver clips",
+  "account": "Conta",
+  "session": "Sessão"
+}
+

@@ -1,0 +1,141 @@
+{
+  "WELCOME": "Welcome",
+  "WELCOME_MESSAGE": "VIGIA home monitoring",
+  "ALTERNATE_THEME": "Switch theme",
+  "ALTERNATE_LANGUAGE": "Switch language",
+  "SETTINGS": {
+    "THEME": {
+      "DARK": "Dark",
+      "LIGHT": "Light"
+    }
+  },
+  "AUTH": {
+    "LOGOUT": "Sign out",
+    "WELCOME": "Welcome to Vigia",
+    "FIELDS": {
+      "NAME": "Full name",
+      "EMAIL": "Email",
+      "PASSWORD": "Password",
+      "CONFIRM_PASSWORD": "Confirm password"
+    },
+    "LOGIN": {
+      "TITLE": "Sign in",
+      "SUBTITLE": "Access your Vigia account",
+      "SUBMIT": "Sign in",
+      "NO_ACCOUNT": "Don't have an account?",
+      "GO_REGISTER": "Sign up"
+    },
+    "REGISTER": {
+      "TITLE": "Create account",
+      "SUBTITLE": "Sign up for Vigia",
+      "SUBMIT": "Create account",
+      "HAS_ACCOUNT": "Already have an account?",
+      "GO_LOGIN": "Sign in"
+    },
+    "ERRORS": {
+      "LOGIN": "Could not sign in. Please try again.",
+      "REGISTER": "Could not sign up. Please try again.",
+      "INVALID_CREDENTIALS": "Invalid email or password.",
+      "EMAIL_IN_USE": "This email is already in use.",
+      "PASSWORD_MISMATCH": "Passwords do not match."
+    }
+  },
+  "INVITE": {
+    "ACCEPTING": "Accepting invite…",
+    "SUCCESS": "Invite accepted. Shared devices are now available.",
+    "ERROR": "Could not accept the invite."
+  },
+  "DEVICES": {
+    "TITLE": "Devices",
+    "EMPTY": "No devices found",
+    "RETRY": "Try again",
+    "ONLINE": "Online",
+    "OFFLINE": "Offline",
+    "ERRORS": {
+      "LIST": "Could not load devices. Please try again.",
+      "DETAIL": "Could not load the device. Please try again.",
+      "NOT_FOUND": "Device not found.",
+      "UPDATE": "Could not update the device.",
+      "USERS": "Could not load users.",
+      "SHARE": "Could not generate the share link.",
+      "REMOVE_USER": "Could not remove the user.",
+      "STREAM_COMMAND": "Could not start streaming."
+    },
+    "DETAIL": {
+      "NICKNAME": "Name",
+      "ROOM": "Room",
+      "ID": "Identifier",
+      "BACK": "Back to devices",
+      "CONNECTING": "Connecting",
+      "CONNECTION_ERROR": "An error occurred while connecting to the stream.",
+      "TRY_AGAIN": "Try again"
+    },
+    "EDIT": {
+      "TITLE": "Edit device",
+      "DESCRIPTION": "Name, room, and clip recording",
+      "SAVE_CLIPS": "Save clips",
+      "CLIPS_INFO": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+      "SAVE": "Save changes",
+      "SUCCESS": "Device updated successfully",
+      "ERROR": "Could not update the device",
+      "DISCARD_TITLE": "Discard changes?",
+      "DISCARD_MESSAGE": "You have unsaved changes. Do you want to discard them?",
+      "DISCARD": "Discard"
+    },
+    "USERS": {
+      "TITLE": "Users",
+      "EMPTY": "No users found",
+      "LOADING": "Loading users…",
+      "DESCRIPTION": "Share access and manage members",
+      "SEE_ALL": "See all",
+      "OPEN_LIST": "Open user list",
+      "OWNER": "Owner",
+      "COUNT": "{{current}}/{{max}}",
+      "SHARE": "Share",
+      "SHARE_LIMIT": "User limit reached",
+      "SHARE_SUBJECT": "Vigia invite",
+      "SHARE_COPIED": "Link copied. Share it with who you want to invite.",
+      "SHARE_ERROR": "Could not generate the share link",
+      "REMOVE_TITLE": "Remove user",
+      "REMOVE_MESSAGE": "Remove {{name}} from access to this group's devices?",
+      "REMOVE_CONFIRM": "Remove",
+      "REMOVE_ACTION": "Remove user",
+      "REMOVE_SUCCESS": "User removed successfully",
+      "REMOVE_ERROR": "Could not remove the user",
+      "LEAVE_TITLE": "Leave group",
+      "LEAVE_MESSAGE": "You will lose access to this group's devices.",
+      "LEAVE_CONFIRM": "Leave",
+      "LEAVE_ACTION": "Leave group",
+      "LEAVE_SUCCESS": "You left the group"
+    },
+    "CLIPS": {
+      "TITLE": "Clips",
+      "DESCRIPTION": "Review device recordings",
+      "WEB_SOON": "Coming soon on web",
+      "VIEW": "View clips",
+      "STUB": "Clips playback is not available on the web yet."
+    },
+    "ROOMS": {
+      "Bedroom": "Bedroom",
+      "LivingRoom": "Living room",
+      "Kitchen": "Kitchen",
+      "Bathroom": "Bathroom",
+      "Office": "Office",
+      "Garage": "Garage",
+      "Backyard": "Backyard",
+      "Frontyard": "Front yard",
+      "NotDefined": "Room not defined"
+    }
+  },
+  "COMMON": {
+    "CANCEL": "Cancel"
+  },
+  "NOTIFICATIONS": {
+    "TITLE": "Notifications",
+    "EMPTY": "No notifications",
+    "MARK_ALL_READ": "Mark all as read",
+    "FALL_ALERT": "Fall alert",
+    "ENABLE_HINT": "Click the bell and allow notifications to receive fall alerts.",
+    "BLOCKED": "Notifications are blocked in this browser. Enable them in site settings."
+  }
+}

@@ -1,0 +1,178 @@
+<section
+  #pageRoot
+  class="device-detail"
+  [class.device-detail--fullscreen]="fullscreen()"
+  [class.device-detail--enter-pending]="enterPending()"
+  [class.device-detail--exit-pending]="exitPending()"
+  [style.--reveal-cx.px]="revealClip().cx"
+  [style.--reveal-cy.px]="revealClip().cy"
+  [style.--reveal-rx.px]="revealClip().rx"
+  [style.--reveal-ry.px]="revealClip().ry"
+  [style.--reveal-progress]="revealProgress()"
+  data-testid="device-detail-page"
+>
+  @if (state() === 'error') {
+    <div
+      class="flex min-h-60 flex-1 flex-col items-center justify-center gap-4 p-4 text-center"
+      data-testid="device-detail-error"
+    >
+      <p class="m-0 text-lg text-surface-600">{{ 'DEVICES.ERRORS.DETAIL' | translate }}</p>
+      <p-button
+        [label]="'DEVICES.RETRY' | translate"
+        icon="pi pi-refresh"
+        (onClick)="loadDevice()"
+      />
+    </div>
+  } @else if (state() === 'not_found') {
+    <div
+      class="flex min-h-60 flex-1 flex-col items-center justify-center gap-4 p-4 text-center"
+      data-testid="device-detail-not-found"
+    >
+      <p class="m-0 text-lg text-surface-600">{{ 'DEVICES.ERRORS.NOT_FOUND' | translate }}</p>
+      <p-button
+        [label]="'DEVICES.DETAIL.BACK' | translate"
+        icon="pi pi-chevron-left"
+        routerLink="/devices"
+      />
+    </div>
+  } @else {
+    @let detailDevice = device();
+    @if (!fullscreen()) {
+      <header class="device-detail__appbar device-detail__transition-reveal" data-testid="device-detail-appbar">
+        <button type="button" class="device-detail__back" (click)="onBack()" aria-label="Back">
+          <i class="pi pi-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="device-detail__appbar-main">
+          <h1 class="device-detail__appbar-title">
+            {{ detailDevice?.displayName ?? transitionTitle() }}
+          </h1>
+          @if (detailDevice) {
+            <span
+              class="device-detail__appbar-status"
+              data-testid="device-detail-appbar-status"
+            >
+              {{ (detailDevice.isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
+              <span
+                class="inline-block h-2 w-2 rounded-full"
+                [class.bg-green-500]="detailDevice.isRunning"
+                [class.bg-red-500]="!detailDevice.isRunning"
+                aria-hidden="true"
+              ></span>
+            </span>
+          }
+        </div>
+        <span class="device-detail__appbar-spacer" aria-hidden="true"></span>
+      </header>
+    }
+
+    <div class="device-detail__content">
+      @if (!fullscreen()) {
+        <nav class="device-detail__desktop-nav device-detail__transition-reveal">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 border-0 bg-transparent p-1 text-sm text-surface-600 hover:text-surface-900"
+            (click)="onBack()"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+            <span>{{ 'DEVICES.DETAIL.BACK' | translate }}</span>
+          </button>
+        </nav>
+      }
+
+      <div class="device-detail__layout" data-testid="device-detail-layout">
+        <div class="device-detail__player-wrap">
+          <div
+            class="device-detail__video"
+            [class.device-detail__video--collapsed]="videoCollapsed()"
+          >
+            <div
+              class="device-detail__video-inner"
+              data-testid="device-detail-video-target"
+            >
+              @if (showLivePlayer()) {
+                <app-device-video-player
+                  [sessionState]="sessionState()"
+                  [fullscreen]="fullscreen()"
+                  (retry)="onRetryLive()"
+                  (togglePause)="onTogglePause()"
+                  (toggleFullscreen)="onToggleFullscreen()"
+                />
+              } @else if (enterPending() || exitPending()) {
+                <div
+                  class="device-detail__video-shell device-video-player"
+                  aria-hidden="true"
+                ></div>
+              } @else {
+                <div
+                  class="device-detail__video-placeholder device-video-player"
+                  data-testid="device-detail-loading"
+                >
+                  @if (detailDevice?.thumbnailUrl) {
+                    <img
+                      class="device-detail__video-placeholder-image"
+                      [src]="detailDevice.thumbnailUrl"
+                      [alt]="detailDevice.displayName"
+                    />
+                  } @else {
+                    <div class="device-detail__video-placeholder-fallback" aria-hidden="true">
+                      <i class="pi pi-video text-3xl text-surface-500"></i>
+                    </div>
+                  }
+                  @if (!detailDevice) {
+                    <div class="device-detail__video-placeholder-spinner">
+                      <i class="pi pi-spin pi-spinner text-2xl text-white" aria-hidden="true"></i>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (!fullscreen() && (detailDevice || enterPending())) {
+            <aside
+              class="device-detail__clips device-detail__transition-reveal"
+              [class.device-detail__clips--placeholder]="!detailDevice"
+              data-testid="device-detail-clips"
+            >
+              @if (detailDevice) {
+                <app-device-detail-action-row
+                  icon="pi pi-video"
+                  title="DEVICES.CLIPS.VIEW"
+                  description="DEVICES.CLIPS.DESCRIPTION"
+                  [meta]="'DEVICES.CLIPS.WEB_SOON' | translate"
+                  [routerLink]="['/devices', detailDevice.id, 'clips']"
+                  testId="device-clips-desktop-action"
+                />
+              } @else {
+                <div class="device-detail__clips-placeholder" aria-hidden="true"></div>
+              }
+            </aside>
+          }
+        </div>
+
+        @if (!fullscreen()) {
+          <div class="device-detail__panel device-detail__transition-reveal">
+            @if (detailDevice) {
+              <app-device-details-panel
+                class="device-detail__panel-content"
+                [device]="detailDevice"
+                [users]="users()"
+                [usersLoading]="usersLoading()"
+                [usersError]="usersError()"
+                (deviceUpdated)="onDeviceUpdated($event)"
+                (usersChanged)="onUsersChanged()"
+                (leftGroup)="onLeftGroup()"
+              />
+            } @else {
+              <div class="device-detail__panel-placeholder" aria-hidden="true"></div>
+            }
+          </div>
+        } @else {
+          <button type="button" class="device-detail__fullscreen-back" (click)="onBack()">
+            <i class="pi pi-chevron-left text-white" aria-hidden="true"></i>
+          </button>
+        }
+      </div>
+    </div>
+  }
+</section>

@@ -1,599 +1,235 @@
-name: Vigia Fall Detection — Onboard Release
-
-concurrency:
-  group: release-vigia-fall-detection-${{ inputs.version }}
-  cancel-in-progress: false
-
-run-name: "Vigia Fall Detection — v${{ inputs.version }}"
+name: Vigia - Onboard Pipeline
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Versão para release (ex: 1.2.3)"
-        required: true
-        type: string
+      upload_to_api:
+        description: "Enviar pacote OTA para a API (opcional)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Onboard Build"
 
 permissions:
-  contents: write        
-  security-events: write 
-  deployments: write     
+  contents: write
 
 env:
-  SERVICE_PATH: fall-detection
-  SERVICE_SLUG: vigia-fall-detection
-  TAG_PREFIX: vigia-fall-detection
-  PYTHON_VERSION: "3.11"
-  DOCKERFILE_PATH: fall-detection/deploy/Dockerfile.linux-arm64-binary
+  SERVICE_PATH: vigia-fall
+  APP_NAME: vigia-fall-detection
+  # Tag/release mutável — nunca versionada; cada run sobrescreve a mesma.
+  RELEASE_TAG: onboard
   ARTIFACT_NAME: vigia-fall-detection-linux-arm64
+  # Nome do pacote OTA / chave rolling na API (alinhado à tag GitHub).
+  OTA_PACKAGE: onboard
 
 jobs:
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 1. VALIDATE
-  # ═══════════════════════════════════════════════════════════════════════════
-  validate:
-    name: Validate — version, branch, files, changelog, tag
-    runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.set_tag.outputs.tag_name }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ── Formato de versão ──────────────────────────────────────────────────
-      - name: Validate version format (MAJOR.MINOR.PATCH)
-        run: |
-          VERSION="${{ inputs.version }}"
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Versão '$VERSION' inválida. Use o formato MAJOR.MINOR.PATCH (ex: 1.2.3)."
-            exit 1
-          fi
-          echo "✓ Formato de versão válido: $VERSION"
-
-      # ── Branch de origem ───────────────────────────────────────────────────
-      - name: Validate source branch (master or main only)
-        run: |
-          BRANCH="${{ github.ref_name }}"
-          if [[ "$BRANCH" != "master" ]]; then
-            echo "::error::Este workflow deve ser executado a partir de 'master' ou 'main'. Branch atual: '$BRANCH'."
-            exit 1
-          fi
-          echo "✓ Branch válida: $BRANCH"
-
-      # ── Arquivos essenciais ────────────────────────────────────────────────
-      # Verifica apenas arquivos do fall-detection, sem tocar em outros projetos.
-      - name: Validate essential files (fall-detection scope only)
-        run: |
-          set -euo pipefail
-          MISSING=""
-          for f in \
-            fall-detection/pyproject.toml \
-            fall-detection/CHANGELOG.md \
-            fall-detection/main.py \
-            fall-detection/requirements-common.txt \
-            fall-detection/requirements-headless.txt \
-            fall-detection/requirements-binary.txt \
-            fall-detection/Makefile \
-            fall-detection/deploy/Dockerfile.linux-arm64-binary \
-            fall-detection/src/app/__init__.py; do
-            if [ ! -f "$f" ]; then
-              MISSING="${MISSING}\n  ✗ $f"
-            fi
-          done
-          if [ -n "$MISSING" ]; then
-            printf "::error::Arquivos essenciais ausentes do fall-detection:%b\n" "$MISSING"
-            exit 1
-          fi
-          echo "✓ Todos os arquivos essenciais do projeto estão presentes."
-
-      # ── CHANGELOG ─────────────────────────────────────────────────────────
-      - name: Validate CHANGELOG entry for this version
-        run: |
-          VERSION="${{ inputs.version }}"
-          CHANGELOG="fall-detection/CHANGELOG.md"
-          if grep -qE "^#{1,2} \*?\*?\[${VERSION}\]" "$CHANGELOG"; then
-            echo "✓ Versão $VERSION encontrada no CHANGELOG."
-          else
-            echo "::error::Versão '$VERSION' não encontrada em $CHANGELOG."
-            echo "Adicione a seção '## [$VERSION]' ao CHANGELOG antes de executar este workflow."
-            exit 1
-          fi
-
-      # ── Unicidade da tag ───────────────────────────────────────────────────
-      - name: Validate tag uniqueness
-        run: |
-          TAG="${TAG_PREFIX}@${{ inputs.version }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "::error::A tag '$TAG' já existe. Use uma versão diferente ou delete a tag manualmente."
-            exit 1
-          fi
-          echo "✓ Tag '$TAG' está disponível."
-
-      # ── Unicidade da GitHub Release ────────────────────────────────────────
-      - name: Validate GitHub Release uniqueness
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${TAG_PREFIX}@${{ inputs.version }}"
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "::error::GitHub Release '$TAG' já existe."
-            exit 1
-          fi
-          echo "✓ GitHub Release '$TAG' disponível."
-
-      - name: Set tag name output
-        id: set_tag
-        run: echo "tag_name=${TAG_PREFIX}@${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 2. SECURITY
-  # ═══════════════════════════════════════════════════════════════════════════
-  security:
-    name: Security — secrets scan & dependency audit
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Gitleaks varre todo o histórico visível do checkout.
-      - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            fall-detection/requirements-common.txt
-            fall-detection/requirements-headless.txt
-            fall-detection/requirements-ci.txt
-
-      - name: Install pip-audit (via requirements-ci.txt)
-        working-directory: fall-detection
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-ci.txt
-
-      - name: Dependency vulnerability audit (pip-audit — fall-detection only)
-        working-directory: fall-detection
-        run: |
-          python -m pip_audit \
-            -r requirements-headless.txt \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2025-71176
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 3. QUALITY
-  # ═══════════════════════════════════════════════════════════════════════════
-  quality:
-    name: Quality — lint (pylint) & SAST (bandit)
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install system deps (opencv headless requirements)
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            fall-detection/requirements-common.txt
-            fall-detection/requirements-headless.txt
-            fall-detection/requirements-ci.txt
-            fall-detection/pyproject.toml
-
-      - name: Install Python dependencies (fall-detection)
-        working-directory: fall-detection
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          # torch CPU wheel — ultralytics exige torch mas não precisamos de GPU em CI
-          python -m pip install \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
-          python -m pip install -r requirements-headless.txt
-          python -m pip install -e .
-          # Garante opencv-headless (ultralytics instala opencv-python que conflita no embedded)
-          python -m pip uninstall -y opencv-python 2>/dev/null || true
-          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install -r requirements-ci.txt
-
-      # Lint escopo: src/app (somente código do fall-detection)
-      - name: Lint (pylint) — fall-detection/src/app
-        working-directory: fall-detection
-        run: python -m pylint src/app
-
-      # SAST escopo: src/app (somente código do fall-detection)
-      - name: SAST (bandit) — fall-detection/src/app
-        working-directory: fall-detection
-        run: python -m bandit -r src/app -ll
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 4. TEST — UNIT
-  # ═══════════════════════════════════════════════════════════════════════════
-  test_unit:
-    name: Tests — unit (pytest -m "not integration")
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install system deps
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            fall-detection/requirements-common.txt
-            fall-detection/requirements-headless.txt
-            fall-detection/requirements-ci.txt
-            fall-detection/pyproject.toml
-
-      - name: Install Python dependencies (fall-detection)
-        working-directory: fall-detection
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
-          python -m pip install -r requirements-headless.txt
-          python -m pip install -e .
-          python -m pip uninstall -y opencv-python 2>/dev/null || true
-          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install -r requirements-ci.txt
-
-      - name: Run unit tests
-        working-directory: fall-detection
-        run: python -m pytest -q -m "not integration" --tb=short
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 5. TEST — INTEGRATION
-  # ═══════════════════════════════════════════════════════════════════════════
-  test_integration:
-    name: Tests — integration (fake FIWARE, pytest -m integration)
-    needs: validate
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install system deps
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libglib2.0-0 libgomp1 libgl1 libsm6 libxext6
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
-            fall-detection/requirements-common.txt
-            fall-detection/requirements-headless.txt
-            fall-detection/requirements-ci.txt
-            fall-detection/pyproject.toml
-
-      - name: Install Python dependencies (fall-detection)
-        working-directory: fall-detection
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple \
-            "torch>=2.6,<2.12" "torchvision>=0.21,<0.27"
-          python -m pip install -r requirements-headless.txt
-          python -m pip install -e .
-          python -m pip uninstall -y opencv-python 2>/dev/null || true
-          python -m pip install --force-reinstall "opencv-python-headless==4.12.0.88"
-          python -m pip install -r requirements-ci.txt
-
-      - name: Run integration tests (fake FIWARE — no real hardware required)
-        working-directory: fall-detection
-        run: python -m pytest -q -m integration --tb=short
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 7. BUILD — Linux ARM64 binary
-  # ═══════════════════════════════════════════════════════════════════════════
-  build:
-    name: Build — Linux ARM64 binary (Docker buildx)
-    needs:
-      - validate
-      - security
-      - quality
-      - test_unit
-      - test_integration
+  #------------------------------------------
+  # 1. Build (Linux ARM64 nativo)
+  #------------------------------------------
+  build-release:
+    name: Build - Linux ARM64
     runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up QEMU (emulação ARM64 — fallback caso o runner ARM não esteja disponível)
-        uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Constrói a imagem ARM64 e carrega localmente para podermos extrair o artefato.
-      - name: Build imagem ARM64
-        working-directory: ${{ env.SERVICE_PATH }}
-        run: |
-          docker buildx build \
-            --platform linux/arm64 \
-            --file deploy/Dockerfile.linux-arm64-binary \
-            --tag ${{ env.SERVICE_SLUG }}:linux-arm64 \
-            --load \
-            .
-            
-      - name: Extrair artefato e empacotar tar.gz
-        working-directory: ${{ env.SERVICE_PATH }}
+      - name: Install system dependencies
         run: |
           set -euo pipefail
-          CONTAINER=$(docker create ${{ env.SERVICE_SLUG }}:linux-arm64)
-          mkdir -p dist/${{ env.ARTIFACT_NAME }}
-          docker cp "$CONTAINER:/${{ env.SERVICE_SLUG }}/." dist/${{ env.ARTIFACT_NAME }}/
-          docker rm "$CONTAINER"
-          chmod +x dist/${{ env.ARTIFACT_NAME }}/${{ env.SERVICE_SLUG }}
-          tar -czf dist/${{ env.ARTIFACT_NAME }}.tar.gz \
-            -C dist ${{ env.ARTIFACT_NAME }}
-          echo "✓ Artefato gerado: $(du -sh dist/${{ env.ARTIFACT_NAME }}.tar.gz | cut -f1)"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ffmpeg \
+            zip \
+            libglib2.0-0 \
+            libgomp1 \
+            libgl1 \
+            libsm6 \
+            libxext6
 
-      - name: Verify artifact exists before upload
-        working-directory: ${{ env.SERVICE_PATH }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip + YOLO model
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ${{ env.SERVICE_PATH }}/yolo26s-pose.pt
+          key: fall-arm64-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
+          restore-keys: |
+            fall-arm64-
+
+      - name: Install Python build dependencies
+        run: make install-build-deps
+
+      - name: Build Linux ARM64 bundle (native)
+        env:
+          VERSION: ${{ env.OTA_PACKAGE }}
         run: |
           set -euo pipefail
-          ARTIFACT_PATH="dist/${{ env.ARTIFACT_NAME }}.tar.gz"
-          if [ ! -s "$ARTIFACT_PATH" ]; then
-            echo "::error::Artefato '$ARTIFACT_PATH' ausente ou vazio. Verifique se a imagem ARM64 expõe o binário em /${{ env.SERVICE_SLUG }}/."
-            ls -la dist/ || true
-            exit 1
-          fi
-          echo "✓ Artefato pronto para upload: $ARTIFACT_PATH ($(du -h "$ARTIFACT_PATH" | cut -f1))"
+          echo "Host: $(uname -s)/$(uname -m)"
+          make build-linux-arm64
 
-      - name: Upload binary artifact
+      - name: Package OTA bundle
+        env:
+          VERSION: ${{ env.OTA_PACKAGE }}
+        run: |
+          set -euo pipefail
+          make package-ota
+
+      - name: Stage release artifacts
+        env:
+          OTA_PACKAGE: ${{ env.OTA_PACKAGE }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/release-assets"
+          cp "dist/${{ env.APP_NAME }}-deploy.zip" \
+             "dist/vigia-fall-ota-${OTA_PACKAGE}.tar.gz" \
+             "${{ github.workspace }}/release-assets/"
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
-          path: ${{ env.SERVICE_PATH }}/dist/${{ env.ARTIFACT_NAME }}.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ github.workspace }}/release-assets/*
+          retention-days: 30
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 8. PUBLISH (DEPLOY) — envia o tar.gz ARM64 para a vigia-api
-  # ═══════════════════════════════════════════════════════════════════════════
+  #------------------------------------------
+  # 2. Publish — tag/release (sempre) + OTA API (opcional)
+  #------------------------------------------
   publish:
-    name: Publish — upload artifact to vigia-api
-    needs: build
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Download binary artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}-${{ inputs.version }}
-          path: dist
-          run-id: ${{ github.run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify downloaded artifact
-        run: |
-          set -euo pipefail
-          ARTIFACT_PATH="dist/${{ env.ARTIFACT_NAME }}.tar.gz"
-          if [ ! -s "$ARTIFACT_PATH" ]; then
-            echo "::error::Artefato '$ARTIFACT_PATH' não foi baixado ou está vazio."
-            ls -la dist/ || true
-            exit 1
-          fi
-          echo "✓ Artefato baixado: $ARTIFACT_PATH ($(du -h "$ARTIFACT_PATH" | cut -f1))"
-
-      - name: Publicar versão na vigia-api
-        env:
-          VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
-          VERSION: ${{ inputs.version }}
-          ARTIFACT_PATH: dist/${{ env.ARTIFACT_NAME }}.tar.gz
-        run: |
-          set -euo pipefail
-
-          if [ -z "${VIGIA_API_BASE_URL}" ]; then
-            echo "::error::Secret VIGIA_API_BASE_URL não configurado."
-            echo "Defina em Settings → Environments → production → Environment secrets"
-            echo "(ou em Repository secrets) com a URL base da API, ex.: https://api.exemplo.com"
-            exit 1
-          fi
-
-          BASE_URL="${VIGIA_API_BASE_URL%/}"
-          if [[ ! "$BASE_URL" =~ ^https?:// ]]; then
-            echo "::error::VIGIA_API_BASE_URL inválida: deve começar com http:// ou https:// (sem barra no final)."
-            exit 1
-          fi
-
-          REGISTER_URL="${BASE_URL}/v1/devices/version/register"
-
-          if [ ! -s "${ARTIFACT_PATH}" ]; then
-            echo "::error::Artefato não encontrado ou vazio: ${ARTIFACT_PATH}"
-            exit 1
-          fi
-
-          echo "Enviando versão ${VERSION} para ${REGISTER_URL} ($(du -h "${ARTIFACT_PATH}" | cut -f1)) ..."
-
-          RESPONSE_FILE="$(mktemp)"
-          trap 'rm -f "${RESPONSE_FILE}"' EXIT
-
-          set +e
-          HTTP_CODE=$(curl -sS --max-time 600 \
-            -w '%{http_code}' \
-            -o "${RESPONSE_FILE}" \
-            -X POST \
-            -F "version=${VERSION}" \
-            -F "file=@${ARTIFACT_PATH};type=application/gzip" \
-            "${REGISTER_URL}")
-          CURL_EXIT=$?
-          set -e
-
-          if [ "${CURL_EXIT}" -ne 0 ]; then
-            case "${CURL_EXIT}" in
-              3)  MSG="URL inválida — VIGIA_API_BASE_URL ausente ou mal formatada." ;;
-              6)  MSG="Não foi possível resolver o host da vigia-api (${BASE_URL})." ;;
-              7)  MSG="Conexão recusada — vigia-api inacessível em ${BASE_URL}." ;;
-              28) MSG="Timeout (600s) ao enviar o artefato." ;;
-              *)  MSG="curl falhou com código ${CURL_EXIT}." ;;
-            esac
-            echo "::error::${MSG}"
-            if [ -s "${RESPONSE_FILE}" ]; then
-              echo "Corpo parcial da resposta:"
-              cat "${RESPONSE_FILE}"
-            fi
-            exit "${CURL_EXIT}"
-          fi
-
-          echo "HTTP ${HTTP_CODE}"
-          if [ -s "${RESPONSE_FILE}" ]; then
-            echo "Corpo da resposta:"
-            cat "${RESPONSE_FILE}"
-          fi
-
-          if [ "${HTTP_CODE}" -eq 201 ]; then
-            echo "✓ Versão ${VERSION} publicada na vigia-api."
-            exit 0
-          fi
-
-          echo "::error::Publicação falhou — esperado HTTP 201 Created, recebido HTTP ${HTTP_CODE}."
-          exit 1
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 9. RELEASE — git tag & GitHub Release
-  # ═══════════════════════════════════════════════════════════════════════════
-  release:
-    name: Release — create tag & GitHub Release
-    needs:
-      - validate
-      - publish
+    name: Publish — tag onboard
+    needs: [build-release]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create and push git tag
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./artifacts
+
+      - name: Move mutable tag to HEAD
         env:
-          TAG_NAME: ${{ needs.validate.outputs.tag_name }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG_NAME" \
-            -m "Release Vigia Fall Detection v${{ inputs.version }}"
-          git push origin "$TAG_NAME"
-          echo "✓ Tag '$TAG_NAME' criada e publicada."
+          git tag -f "$TAG" -m "Vigia Onboard (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
 
-      - name: Extract release notes from CHANGELOG
+      - name: Reset GitHub Release (remove assets antigos)
         env:
-          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           set -euo pipefail
-          CHANGELOG="./${SERVICE_PATH}/CHANGELOG.md"
-
-          awk -v version="$VERSION" '
-            $0 ~ /^#{1,2}[[:space:]]+/ && index($0, "[" version "]") > 0 { capture=1; next }
-            capture && $0 ~ /^#{1,2}[[:space:]]+\*?\*?\[[^]]+\]\*?\*?([[:space:]].*)?$/ { exit }
-            capture { print }
-          ' "$CHANGELOG" > RELEASE_NOTES.md
-
-          if [ ! -s RELEASE_NOTES.md ]; then
-            echo "::error::Não foi possível extrair release notes para v$VERSION em $CHANGELOG."
-            exit 1
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes
+            echo "✓ Release anterior '$TAG' removida (tag mantida)."
+          else
+            echo "Nenhuma release '$TAG' anterior."
           fi
-          echo "Release notes extraídas com sucesso:"
-          cat RELEASE_NOTES.md
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.validate.outputs.tag_name }}
-          name: "Vigia Fall Detection v${{ inputs.version }}"
-          body_path: ./RELEASE_NOTES.md
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Onboard
+          body: |
+            Pacote rolling do **vigia-fall** / onboard (Linux ARM64).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `onboard`.
+            Baixe **`vigia-fall-detection-deploy.zip`** para instalação manual.
+
+            ### Instalação manual na placa
+            ```bash
+            scp vigia-fall-detection-deploy.zip usuario@placa:/tmp/
+            ssh usuario@placa
+            cd /tmp
+            unzip -o vigia-fall-detection-deploy.zip -d vigia-fall-detection-deploy
+            sudo ./vigia-fall-detection-deploy/install-on-board.sh
+            ```
+
+            OTA na API é opcional (checkbox `upload_to_api` ao disparar o workflow).
+          files: |
+            ./artifacts/${{ env.APP_NAME }}-deploy.zip
+            ./artifacts/vigia-fall-ota-${{ env.OTA_PACKAGE }}.tar.gz
           draft: false
-          generate_release_notes: false
+          prerelease: false
+          make_latest: false
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 10. DEPLOYMENT AUDIT — register GitHub Deployment entry
-  # ═══════════════════════════════════════════════════════════════════════════
-  deployment_audit:
-    name: Deployment audit — register GitHub Deployment
-    needs: [publish, release]
-    if: needs.publish.result == 'success' && needs.release.result == 'success'
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Create GitHub Deployment record
-        id: create_deployment
-        shell: bash
+      - name: Upload device package to Vigia API
+        if: ${{ inputs.upload_to_api }}
+        env:
+          VIGIA_API_BASE_URL: ${{ secrets.VIGIA_API_BASE_URL }}
+          OTA_PACKAGE: ${{ env.OTA_PACKAGE }}
+          REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          PAYLOAD=$(jq -n \
-            --arg ref "${{ github.ref }}" \
-            --arg environment "production" \
-            --arg description "Deploy vigia-fall-detection v${{ inputs.version }} (ARM64 publicado na vigia-api)" \
-            '{
-              ref: $ref,
-              environment: $environment,
-              description: $description,
-              auto_merge: false,
-              required_contexts: []
-            }')
+          if [ -z "${VIGIA_API_BASE_URL:-}" ]; then
+            echo "::error::Secret VIGIA_API_BASE_URL não configurado."
+            exit 1
+          fi
 
-          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
-            --method POST \
-            "/repos/${{ github.repository }}/deployments" \
-            --input - \
-            --jq '.id')
+          BASE_URL="${VIGIA_API_BASE_URL%/}"
+          ARTIFACT="./artifacts/vigia-fall-ota-${OTA_PACKAGE}.tar.gz"
+          if [ ! -f "$ARTIFACT" ]; then
+            echo "::error::Artefato OTA não encontrado: $ARTIFACT"
+            ls -la ./artifacts || true
+            exit 1
+          fi
 
-          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
-          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+          FILE_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+          CHUNK_SIZE=5242880
+          CHUNK_DIR="$(mktemp -d)"
+          trap 'rm -rf "$CHUNK_DIR"' EXIT
 
-      - name: Mark deployment as success
-        env:
-          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
-        run: |
-          gh api \
-            --method POST \
-            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
-            -f state="success" \
-            -f description="vigia-fall-detection v${{ inputs.version }} publicado na vigia-api"
+          split -b "$CHUNK_SIZE" -d -a 5 "$ARTIFACT" "$CHUNK_DIR/chunk_"
+          mapfile -t CHUNKS < <(ls -1 "$CHUNK_DIR"/chunk_* | sort)
+          TOTAL_CHUNKS="${#CHUNKS[@]}"
+
+          if [ "$TOTAL_CHUNKS" -eq 0 ]; then
+            echo "::error::Nenhum chunk gerado a partir de $ARTIFACT"
+            exit 1
+          fi
+
+          echo "Enviando $ARTIFACT ($TOTAL_CHUNKS chunks) para ${BASE_URL}/devices/updates"
+          echo "fileId=$FILE_ID revision=$REVISION"
+
+          for i in "${!CHUNKS[@]}"; do
+            CHUNK_PATH="${CHUNKS[$i]}"
+            echo "→ Chunk $((i + 1))/$TOTAL_CHUNKS"
+            curl -fsS -X POST "${BASE_URL}/devices/updates" \
+              -F "fileChunk=@${CHUNK_PATH};type=application/octet-stream" \
+              -F "revision=${REVISION}" \
+              -F "fileId=${FILE_ID}" \
+              -F "chunkIndex=${i}" \
+              -F "totalChunks=${TOTAL_CHUNKS}"
+            echo
+          done
+
+          echo "✓ Pacote OTA rolling enviado (revision=$REVISION)."

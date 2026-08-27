@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "YOUR_PROJECT_NUMBER",
-    "project_id": "your-firebase-project-id",
-    "storage_bucket": "your-firebase-project-id.appspot.com"
+    "project_number": "000000000000",
+    "project_id": "vigia-placeholder",
+    "storage_bucket": "vigia-placeholder.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "YOUR_ANDROID_APP_ID_VARIANT_1",
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
         "android_client_info": {
           "package_name": "com.example.vigia_ui"
         }
@@ -15,26 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "PASTE_ANDROID_API_KEY_FROM_FIREBASE_CONSOLE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "YOUR_ANDROID_APP_ID_VARIANT_2",
-        "android_client_info": {
-          "package_name": "com.vigia.vigia_ui"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "PASTE_ANDROID_API_KEY_FROM_FIREBASE_CONSOLE"
+          "current_key": "AIzaSyPlaceholderAndroidKey000000000000000"
         }
       ],
       "services": {

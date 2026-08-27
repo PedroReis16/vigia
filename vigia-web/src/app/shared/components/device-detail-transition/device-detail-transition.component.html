@@ -1,0 +1,51 @@
+<div class="device-detail-transition" data-testid="device-detail-transition">
+  <ng-content />
+
+  @if (bridgeActive()) {
+    <div
+      class="device-detail-transition__bridge device-detail-transition__thumb"
+      data-testid="device-detail-bridge"
+      [style.top.px]="thumbTop()"
+      [style.left.px]="thumbLeft()"
+      [style.width.px]="thumbWidth()"
+      [style.height.px]="thumbHeight()"
+      [style.border-radius.px]="thumbRadius()"
+    >
+      <ng-container *ngTemplateOutlet="thumbContent" />
+    </div>
+  }
+
+  @if (overlayActive()) {
+    @if (scrimVisible()) {
+      <div
+        class="device-detail-transition__scrim"
+        data-testid="device-detail-scrim"
+        [class.device-detail-transition__layer--hidden]="scrimOpacity() <= 0.001"
+        [style.opacity]="scrimOpacity()"
+      ></div>
+    }
+
+    <div
+      class="device-detail-transition__thumb"
+      data-testid="device-detail-flying-thumb"
+      [class.device-detail-transition__layer--hidden]="!thumbVisible()"
+      [style.top.px]="thumbTop()"
+      [style.left.px]="thumbLeft()"
+      [style.width.px]="thumbWidth()"
+      [style.height.px]="thumbHeight()"
+      [style.border-radius.px]="thumbRadius()"
+    >
+      <ng-container *ngTemplateOutlet="thumbContent" />
+    </div>
+  }
+</div>
+
+<ng-template #thumbContent>
+  @if (thumbnailUrl() && !imageFailed()) {
+    <img [src]="thumbnailUrl()!" [alt]="displayName()" />
+  } @else {
+    <div class="device-detail-transition__thumb-fallback" aria-hidden="true">
+      <i class="pi pi-video"></i>
+    </div>
+  }
+</ng-template>

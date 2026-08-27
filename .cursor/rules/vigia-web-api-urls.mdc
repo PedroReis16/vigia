@@ -1,0 +1,54 @@
+---
+description: vigia-web — base da API nos environments; caminhos relativos nas HTTP services
+globs: vigia-web/src/environments/**/*.{ts,js},vigia-web/src/app/core/services/**/*.ts,vigia-web/src/app/core/interceptors/**/*.ts
+alwaysApply: false
+---
+
+# vigia-web: URLs da API
+
+## Camadas de URL
+
+```
+environment.apiUrl          → base da API (host + prefixo)
+service (campo privado)     → caminho relativo do recurso
+método HTTP                → segmentos específicos do endpoint
+ApiBaseUrlInterceptor       → concatena base + path relativo
+```
+
+| Onde | O quê | Exemplo |
+|------|--------|---------|
+| `environment.ts` / `environment.prod.ts` | Base da API (`apiUrl`) | URL absoluta, ex. `http://localhost:81/vigia` ou `https://services…/vigia` |
+| HTTP service (campo) | Prefixo relativo do recurso | `'/devices'`, `'/auth'` |
+| Método da service | Trecho específico do endpoint | `'/list'`, `'/login'`, `` `/${id}` `` |
+
+## Regras
+
+1. **Nunca** hardcodar host/base absoluto em service, use case, página ou interceptor de auth.
+2. Services HTTP usam só paths relativos começando com `/`. O `ApiBaseUrlInterceptor` prefixa `environment.apiUrl`.
+3. Preferir declarar o prefixo do recurso na service e completar no método:
+
+```typescript
+// ✅
+export class DevicesService {
+  private readonly basePath = '/devices';
+
+  getDevices(): Observable<DeviceDto[]> {
+    return this.http.get<DeviceDto[]>(`${this.basePath}/list`);
+  }
+}
+
+// ❌ host/base na service
+this.http.get('https://example.com/vigia/devices/list');
+
+// ❌ apiUrl montado na service (bypass do interceptor / duplicação)
+this.http.get(`${environment.apiUrl}/devices/list`);
+```
+
+4. Em **dev e prod**, `apiUrl` é sempre URL absoluta da API (host + `/vigia`). Ajuste só nos files `environment*.ts` — sem proxy do `ng serve`.
+
+## Proibido
+
+- Colocar `apiUrl` ou host em use cases / páginas.
+- Paths absolutos de API fora dos files `environment*.ts`.
+- Duplicar o prefixo do recurso em todos os métodos sem o campo da service (quando há >1 endpoint do mesmo recurso).
+- Usar `proxy.conf.json` / `proxyConfig` do Angular para a API.

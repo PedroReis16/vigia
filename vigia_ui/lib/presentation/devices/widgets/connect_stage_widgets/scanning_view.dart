@@ -1,0 +1,55 @@
+import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/step_tile.dart';
+import 'package:vigia_ui/presentation/devices/widgets/connect_stage_widgets/video_preview.dart';
+
+class ScanningView extends StatelessWidget {
+  const ScanningView({
+    required this.videoController,
+    required this.steps,
+    super.key,
+  });
+
+  final VideoPlayerController videoController;
+  final List<({String title, String description})> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(context.translations.addDevice, style: textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(
+          context.translations.scanningHint,
+          style: textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: VideoPreview(controller: videoController),
+        ),
+        Expanded(
+          child: ListView.separated(
+            itemCount: steps.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final step = steps[index];
+              return StepTile(
+                number: index + 1,
+                title: step.title,
+                description: step.description,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}

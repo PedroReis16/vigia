@@ -13,14 +13,25 @@ services:
       retries: 5
     networks:
       - vigia-network
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: vigia-redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    networks:
+      - vigia-network
+    depends_on:
+      - redis
   # ─── POSTGRES ────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:15
     container_name: vigia-postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin123
+      - POSTGRES_USER=vigia
+      - POSTGRES_PASSWORD=vigia123
       - POSTGRES_DB=vigia
     ports:
       - "5432:5432"
@@ -40,7 +51,7 @@ services:
       - "9001:9001"
     environment:
       MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password123
+      MINIO_ROOT_PASSWORD: admin123
     volumes:
       - ./minio_data:/data
     command: server --console-address ":9001" /data
@@ -53,17 +64,23 @@ services:
     networks:
       - vigia-network
 
-  # ─── VIGIA ────────────────────────────────────────────────────────────────
-  vigia:
-    container_name: vigia
-    restart: always
-    build: 
-      context: ../
-      dockerfile: dockerfiles/vigia-api.dockerfile
+  # ─── VIGIA API (.NET) ─────────────────────────────────────────────────────
+  vigia-api:
+    build:
+      context: ../..
+      dockerfile: docker-compose/dockerfiles/vigia-api.dockerfile
+      args:
+        # DEBUG habilita seed do device de teste + EnsureSeedDeviceAsync no FiwareServiceJob
+        BUILD_CONFIGURATION: Debug
+    image: vigia-api:local
+    container_name: vigia-api
+    restart: unless-stopped
     env_file:
       - default.env
     ports:
-      - "8000:8000"
+      - "8090:8080"
+    volumes:
+      - vigia-api-versions:/versions
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,14 +88,34 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vigia.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/api`)"
-      - "traefik.http.routers.vigia.entrypoints=websecure"
-      - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vigia.loadbalancer.server.port=8000"
-      - "traefik.http.routers.vigia.middlewares=strip-vigia,cors@file"
-      - "traefik.http.middlewares.strip-vigia.stripprefix.prefixes=/api"
+      - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia`)"
+      - "traefik.http.routers.vigia-api.entrypoints=web"
+      - "traefik.http.routers.vigia-api.priority=50"
+      - "traefik.http.routers.vigia-api.middlewares=cors@file"
+      - "traefik.http.services.vigia-api.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
+  # ─── VIGIA WEB (Angular SPA) ──────────────────────────────────────────────
+  vigia-web:
+    build:
+      context: ../..
+      dockerfile: docker-compose/dockerfiles/vigia-web.dockerfile
+      args:
+        NG_CONFIGURATION: development
+    image: vigia-web:local
+    container_name: vigia-web
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia-web.rule=Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)"
+      - "traefik.http.routers.vigia-web.entrypoints=web"
+      - "traefik.http.routers.vigia-web.priority=1"
+      - "traefik.http.services.vigia-web.loadbalancer.server.port=80"
     networks:
       - vigia-network
 
@@ -89,12 +126,17 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "81:80" # ApiUrls.Fiware → http://host.docker.internal:81/vigia/fiware/
       - "443:443"
+      - "1883:1883"
+      # RTMP ingest fica no MediaMTX (porta 1935), não no Traefik
+      - "8080:8080"
     command:
       - --configFile=/etc/traefik/traefik.yml
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
     networks:
       - vigia-network
 
@@ -104,7 +146,6 @@ services:
     container_name: fiware-mongo-historical
     restart: always
     hostname: mongo-db-historical
-    profiles: ["fiware"]
     ports:
       - "27077:27017"
     environment:
@@ -124,7 +165,6 @@ services:
     hostname: mongo-db-internal
     ports:
       - "27067:27017"
-    profiles: ["fiware"]
     command: ["mongod", "--nojournal"]
     volumes:
       - mongo-internal-data:/data/db
@@ -134,12 +174,13 @@ services:
   # ─── ORION ────────────────────────────────────────────────────────────────
   orion:
     image: fiware/orion:3.11.0
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-orion
     hostname: orion
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
+      - traefik
     expose:
       - "1026"
     command: >
@@ -151,25 +192,24 @@ services:
       -corsMaxAge 600
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.orion.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/orion`)"
-      - "traefik.http.routers.orion.entrypoints=websecure"
-      - "traefik.http.routers.orion.tls=true"
-      - "traefik.http.routers.orion.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.orion.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/orion`)"
+      - "traefik.http.routers.orion.entrypoints=web"
       - "traefik.http.services.orion.loadbalancer.server.port=1026"
       - "traefik.http.routers.orion.middlewares=strip-orion,cors@file"
-      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/fiware/orion"
+      - "traefik.http.middlewares.strip-orion.stripprefix.prefixes=/vigia/fiware/orion"
     networks:
       - vigia-network
 
   # ─── STH-COMET ────────────────────────────────────────────────────────────
-  fiware-sth-comet:
+  sth-comet:
     image: telefonicaiot/fiware-sth-comet
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-sth-comet
     hostname: sth-comet
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-historical
+      - traefik
     expose:
       - "8666"
     environment:
@@ -183,26 +223,25 @@ services:
       - LOGOPS_LEVEL=DEBUG
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sth.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/sth-comet`)"
-      - "traefik.http.routers.sth.entrypoints=websecure"
-      - "traefik.http.routers.sth.tls=true"
-      - "traefik.http.routers.sth.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sth.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/sth-comet`)"
+      - "traefik.http.routers.sth.entrypoints=web"
       - "traefik.http.services.sth.loadbalancer.server.port=8666"
       - "traefik.http.routers.sth.middlewares=strip-sth,cors@file"
-      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/fiware/sth-comet"
+      - "traefik.http.middlewares.strip-sth.stripprefix.prefixes=/vigia/fiware/sth-comet"
     networks:
       - vigia-network
 
   # ─── IOT AGENT ────────────────────────────────────────────────────────────
   iot-agent:
     image: fiware/iotagent-ul:latest
+    platform: linux/amd64 # imagem oficial só amd64; no Mac ARM roda via emulação
     restart: always
     container_name: fiware-iot-agent
     hostname: iot-agent
-    profiles: ["fiware"]
     depends_on:
       - mongo-db-internal
       - mosquitto
+      - traefik
     expose:
       - "4041"
     environment:
@@ -220,14 +259,12 @@ services:
       - IOTA_PROVIDER_URL=http://iot-agent:4041
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.iot.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/iot-agent`)"
-      - "traefik.http.routers.iot.entrypoints=websecure"
-      - "traefik.http.routers.iot.tls=true"
-      - "traefik.http.routers.iot.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/iot`)"
+      - "traefik.http.routers.iot.entrypoints=web"
       - "traefik.http.services.iot.loadbalancer.server.port=4041"
       - "traefik.http.routers.iot.middlewares=strip-iot,cors@file"
-      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/fiware/iot-agent"
-
+      # Strip só /fiware para preservar /iot/... esperado pelo IoT Agent (ex: /iot/about)
+      - "traefik.http.middlewares.strip-iot.stripprefix.prefixes=/vigia/fiware"
     networks:
       - vigia-network
 
@@ -237,55 +274,69 @@ services:
     restart: always
     container_name: fiware-mosquitto
     hostname: mosquitto
-    profiles: ["fiware"]
     expose:
       - "1883"
       - "9001"
+    depends_on:
+      - traefik
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/mosquitto`)"
-      - "traefik.http.routers.mqttws.entrypoints=websecure"
-      - "traefik.http.routers.mqttws.tls=true"
-      - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.mqttws.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.entrypoints=web"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
+      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/vigia/fiware/mosquitto"
       - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
     networks:
       - vigia-network
 
-#  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
+  #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
-    container_name: vigia-mediamtx
+    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    build:
+      context: ..
+      dockerfile: dockerfiles/mediamtx.dockerfile
+    image: vigia-mediamtx:local
+    container_name: mediamtx
     restart: unless-stopped
+    depends_on:
+      - vigia-api
+    environment:
+      # API in compose (vigia-api). Token = MediaMTX:WebhookToken.
+      VIGIA_API_BASE: http://vigia-api:8080
+      VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
+      UNDEMAND_GRACE_SECONDS: "3"
+    ports:
+      # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
+      - "1935:1935"
+      # WebRTC ICE/RTP — obrigatório para o vídeo não ficar preto no browser
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+      # HLS (alternativa HTTP)
+      - "8888:8888"
     labels:
       - "traefik.enable=true"
-      # Playback via HTTPS
-      - "traefik.http.routers.mediamtx-play.rule=(Host(`www.vigia-deteccoes.duckdns.org`) || Host(`vigia-deteccoes.duckdns.org`)) && PathPrefix(`/live`)"
-      - "traefik.http.routers.mediamtx-play.entrypoints=websecure"
-      - "traefik.http.routers.mediamtx-play.tls=true"
-      - "traefik.http.routers.mediamtx-play.tls.certresolver=letsencrypt"
+      # Playback WebRTC (signaling HTTP). Mídia usa :8189 no host.
+      - "traefik.http.routers.mediamtx-play.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/live`)"
+      - "traefik.http.routers.mediamtx-play.entrypoints=web"
       - "traefik.http.routers.mediamtx-play.priority=100"
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
-
-      # Ingest RTMPS em 443 (host separado recomendado)
-      - "traefik.tcp.routers.mediamtx-ingest.rule=HostSNI(`ingest-vigia-deteccoes.duckdns.org`)"
-      - "traefik.tcp.routers.mediamtx-ingest.entrypoints=websecure"
-      - "traefik.tcp.routers.mediamtx-ingest.tls=true"
-      - "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt"
-      - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - vigia-network
 
 volumes:
   mongo-historical-data:
   mongo-internal-data:
+  vigia-api-versions:
 
 networks:
   vigia-network:
+    name: vigia-network
     driver: bridge

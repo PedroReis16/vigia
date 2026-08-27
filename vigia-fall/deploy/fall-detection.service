@@ -1,0 +1,23 @@
+# Unit systemd para o bundle PyInstaller (onedir) em /opt/vigia/fall-detection/.
+#
+#   sudo ./install.sh /path/to/vigia-fall-detection-linux-arm64.tar.gz
+#
+# O arranque exige identity.json e network.json (escritos pelo vigia-bootstrap).
+
+[Unit]
+Description=Vigia Fall Detection
+After=network-online.target vigia-bootstrap.service
+Wants=network-online.target
+ConditionPathExists=/opt/vigia/identity.json
+ConditionPathExists=/opt/vigia/network.json
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vigia/fall-detection
+EnvironmentFile=-/opt/vigia/.env
+ExecStart=/opt/vigia/fall-detection/vigia-fall-detection
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

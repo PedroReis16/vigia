@@ -1,0 +1,42 @@
+<div
+  class="auth-float"
+  [class.auth-float--float]="isFloating()"
+  [class.auth-float--focused]="focused()"
+  [class.auth-float--with-icon]="!!icon"
+  [class.auth-float--password]="type === 'password'"
+  data-testid="auth-float-field"
+>
+  @if (icon) {
+    <i class="auth-float__icon {{ icon }}" aria-hidden="true"></i>
+  }
+
+  <input
+    class="auth-float__input"
+    [id]="id"
+    [type]="inputType"
+    [formControl]="control"
+    [attr.autocomplete]="autocomplete || null"
+    (change)="onDomChange($event)"
+    (focus)="onFocus()"
+    (blur)="onBlur()"
+  />
+
+  <label class="auth-float__label" [for]="id">{{ label | translate }}</label>
+
+  @if (type === 'password') {
+    <button
+      type="button"
+      class="auth-float__visibility"
+      [attr.aria-label]="passwordVisible() ? 'Hide password' : 'Show password'"
+      data-testid="auth-float-visibility"
+      (click)="togglePasswordVisibility($event)"
+    >
+      <i
+        class="pi"
+        [class.pi-eye]="!passwordVisible()"
+        [class.pi-eye-slash]="passwordVisible()"
+        aria-hidden="true"
+      ></i>
+    </button>
+  }
+</div>

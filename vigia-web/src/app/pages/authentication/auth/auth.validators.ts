@@ -1,6 +1,6 @@
 import { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
 
-export const EMAIL_PATTERN = /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+export const EMAIL_PATTERN = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
 
 export function requiredTrimmed(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {

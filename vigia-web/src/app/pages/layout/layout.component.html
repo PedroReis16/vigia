@@ -1,11 +1,20 @@
-<div class="h-full flex flex-col">
-    <app-toolbar />
-    <div class="flex flex-1 flex-col min-h-0 p-4">
-        <app-message />
-        <div class="flex flex-1 mt-4 w-full overflow-x-hidden">
-            <div class="w-full">
-                <router-outlet></router-outlet>
-            </div>
+<app-auth-to-shell-transition [mode]="shellTransitionMode()">
+  <div
+    class="layout h-full flex flex-col"
+    [class.layout--enter-morph]="enterMorphActive()"
+    [class.layout--logout-morph]="logoutMorphActive()"
+  >
+    <app-toolbar class="layout__toolbar" />
+    <div class="layout__body flex flex-1 flex-col min-h-0 p-4">
+      <app-message />
+      <div
+        class="layout__content flex flex-1 mt-4 w-full overflow-x-hidden"
+        data-testid="layout-content"
+      >
+        <div class="w-full">
+          <router-outlet></router-outlet>
         </div>
+      </div>
     </div>
-</div>
+  </div>
+</app-auth-to-shell-transition>

@@ -11,6 +11,7 @@
   },
   "AUTH": {
     "LOGOUT": "Sair",
+    "WELCOME": "Bem-vindo ao Vigia",
     "FIELDS": {
       "NAME": "Nome completo",
       "EMAIL": "E-mail",
@@ -27,7 +28,7 @@
     "REGISTER": {
       "TITLE": "Criar conta",
       "SUBTITLE": "Cadastre-se no Vigia",
-      "SUBMIT": "Cadastrar",
+      "SUBMIT": "Criar conta",
       "HAS_ACCOUNT": "Já tem uma conta?",
       "GO_LOGIN": "Entrar"
     },

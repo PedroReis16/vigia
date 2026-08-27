@@ -18,6 +18,14 @@
   text-decoration: none;
 }
 
+.toolbar__logo--placeholder {
+  visibility: hidden;
+}
+
+.toolbar--morph-hidden {
+  visibility: hidden;
+}
+
 .toolbar__logo img {
   display: block;
   height: 3.5rem;
@@ -28,8 +36,136 @@
 .toolbar__user {
   display: inline-flex;
   align-items: center;
+  gap: 0.75rem;
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.toolbar__icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.25rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 9999px;
+  color: inherit;
+}
+
+.toolbar__icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, #ffffff 80%, transparent);
+  outline-offset: 2px;
+}
+
+.toolbar__badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  border-radius: 9999px;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.125rem;
+  text-align: center;
+}
+
+.toolbar__notifications-popover {
+  min-width: 18rem;
+}
+
+.toolbar__notifications {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 20rem;
+}
+
+.toolbar__notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.toolbar__notifications-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.toolbar__notifications-mark-all {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--p-primary-color, #669cee);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar__notifications-empty {
+  margin: 0;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  font-size: 0.875rem;
+}
+
+.toolbar__notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.toolbar__notification-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toolbar__notification-item:hover {
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.toolbar__notification-item--unread {
+  background-color: color-mix(in srgb, var(--p-primary-color, #669cee) 12%, transparent);
+}
+
+.toolbar__notification-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.toolbar__notification-device {
+  font-size: 0.8125rem;
+}
+
+.toolbar__notification-time {
+  font-size: 0.75rem;
+  color: color-mix(in srgb, currentColor 65%, transparent);
 }
 
 .toolbar__avatar-btn {

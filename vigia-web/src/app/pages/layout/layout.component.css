@@ -1,0 +1,7 @@
+.layout--enter-morph .layout__body {
+  visibility: hidden;
+}
+
+.layout--logout-morph .layout__body {
+  visibility: hidden;
+}

@@ -16,6 +16,11 @@ body {
   color: var(--p-text-color);
 }
 
+html.auth-transition-bridge,
+html.auth-transition-bridge body {
+  background-color: #669cee;
+}
+
 /* Cards use Optimus content tokens (Flutter AppColors.surface) */
 .p-card {
   background: var(--p-content-background);

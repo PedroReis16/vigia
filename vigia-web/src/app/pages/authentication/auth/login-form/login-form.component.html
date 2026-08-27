@@ -1,0 +1,30 @@
+<form class="auth-form" [formGroup]="form" (ngSubmit)="onSubmit()">
+  <app-auth-float-field
+    id="login-email"
+    label="AUTH.FIELDS.EMAIL"
+    icon="pi pi-envelope"
+    autocomplete="email"
+    [control]="emailControl"
+  />
+  <app-auth-float-field
+    id="login-password"
+    type="password"
+    label="AUTH.FIELDS.PASSWORD"
+    icon="pi pi-lock"
+    autocomplete="current-password"
+    [control]="passwordControl"
+  />
+
+  <button
+    type="submit"
+    class="auth-cta"
+    [class.auth-cta--active]="ctaActive()"
+    [disabled]="ctaDisabled()"
+    data-testid="login-submit"
+  >
+    @if (submitting() && !showWelcome()) {
+      <span class="auth-cta__spinner" aria-hidden="true"></span>
+    }
+    <span class="auth-cta__label">{{ ctaLabel }}</span>
+  </button>
+</form>

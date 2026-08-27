@@ -1,5 +1,4 @@
-export * from './authentication/login/login.component';
-export * from './authentication/register/register.component';
+export * from './authentication/auth/auth.component';
 export * from './layout/layout.component';
 export * from './home/home.component';
 export * from './devices/devices.component';

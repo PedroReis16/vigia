@@ -3,13 +3,15 @@ import {
   EMAIL_PATTERN,
   passwordsMatchValidator,
   requiredTrimmed,
-} from './register.validators';
+} from './auth.validators';
 
-describe('register.validators', () => {
+describe('auth.validators', () => {
   describe('EMAIL_PATTERN', () => {
     it('accepts common emails', () => {
       expect(EMAIL_PATTERN.test('user@vigia.com')).toBe(true);
       expect(EMAIL_PATTERN.test('a.b-c@mail.co')).toBe(true);
+      expect(EMAIL_PATTERN.test('user+tag@gmail.com')).toBe(true);
+      expect(EMAIL_PATTERN.test('user@mail.museum')).toBe(true);
     });
 
     it('rejects invalid emails', () => {

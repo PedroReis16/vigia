@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 import { guestGuard } from '@core/guards';
-import { LoginComponent } from './pages/authentication/login/login.component';
-import { RegisterComponent } from './pages/authentication/register/register.component';
+import { AuthComponent } from './pages/authentication/auth/auth.component';
 import { mainRoutes } from './pages/main.routes';
 
 export const routes: Routes = [
@@ -11,13 +10,12 @@ export const routes: Routes = [
   },
   {
     path: 'login',
-    component: LoginComponent,
+    component: AuthComponent,
     canActivate: [guestGuard],
   },
   {
     path: 'register',
-    component: RegisterComponent,
-    canActivate: [guestGuard],
+    redirectTo: () => '/login?mode=register',
   },
   {
     path: '**',

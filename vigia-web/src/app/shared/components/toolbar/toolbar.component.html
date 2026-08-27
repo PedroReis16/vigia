@@ -1,7 +1,17 @@
-<header class="toolbar" data-testid="app-toolbar">
-  <a routerLink="/devices" class="toolbar__logo" data-testid="toolbar-logo" aria-label="Vigia">
-    <img src="images/vigia-logo.png" alt="Vigia" height="56" width="56" />
-  </a>
+<header
+  class="toolbar"
+  data-testid="app-toolbar"
+  [class.toolbar--morph-hidden]="logoutMorphActive()"
+>
+  @if (showToolbarLogo()) {
+    <a routerLink="/devices" class="toolbar__logo" data-testid="toolbar-logo" aria-label="Vigia">
+      <img [src]="toolbarLogoSrc()" alt="Vigia" height="56" width="56" />
+    </a>
+  } @else {
+    <span class="toolbar__logo toolbar__logo--placeholder" data-testid="toolbar-logo" aria-hidden="true">
+      <img src="images/vigia-logo-dark.png" alt="" height="56" width="56" />
+    </span>
+  }
 
   <div class="toolbar__user">
     <button

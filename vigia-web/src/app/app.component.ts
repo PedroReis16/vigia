@@ -1,6 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { ThemeService } from '@core/services';
+import { AuthExitTransitionService, ThemeService } from '@core/services';
 
 @Component({
   selector: 'app-root',
@@ -14,4 +14,17 @@ export class AppComponent {
 
   /** Eager init so light/dark tokens apply on every route (not only Home). */
   private readonly themeService = inject(ThemeService);
+  readonly authExitTransition = inject(AuthExitTransitionService);
+
+  constructor() {
+    effect(() => {
+      if (typeof document === 'undefined') {
+        return;
+      }
+      document.documentElement.classList.toggle(
+        'auth-transition-bridge',
+        this.authExitTransition.bridgeActive(),
+      );
+    });
+  }
 }

@@ -1,0 +1,68 @@
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  width: 100%;
+}
+
+.auth-form__error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #ef4444;
+}
+
+.auth-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 52px;
+  margin-top: 0.75rem;
+  padding: 0 1rem;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 250ms ease,
+    color 250ms ease;
+  background-color: #ffffff;
+  color: rgb(70 82 109 / 38%);
+}
+
+.auth-cta--active {
+  background-color: #68c19b;
+  color: #ffffff;
+}
+
+.auth-cta:disabled:not(.auth-cta--active) {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.auth-cta--active:not(:disabled) {
+  cursor: pointer;
+}
+
+.auth-cta--active:disabled {
+  cursor: default;
+}
+
+.auth-cta__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgb(255 255 255 / 35%);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: auth-cta-spin 0.7s linear infinite;
+}
+
+@keyframes auth-cta-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

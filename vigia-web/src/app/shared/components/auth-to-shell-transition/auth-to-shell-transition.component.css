@@ -1,0 +1,45 @@
+:host {
+  display: contents;
+}
+
+.auth-shell-transition {
+  display: contents;
+}
+
+.auth-shell-transition__veil,
+.auth-shell-transition__body-scrim,
+.auth-shell-transition__logo {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1100;
+}
+
+.auth-shell-transition__logo {
+  z-index: 1101;
+}
+
+.auth-shell-transition__layer--hidden {
+  visibility: hidden;
+}
+
+.auth-shell-transition__veil {
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: #669cee;
+  will-change: height;
+}
+
+.auth-shell-transition__body-scrim {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #fff9f5;
+  will-change: opacity;
+}
+
+.auth-shell-transition__logo {
+  width: auto;
+  object-fit: contain;
+  will-change: top, left, height;
+}

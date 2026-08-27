@@ -1,0 +1,407 @@
+.device-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.device-detail--enter-pending .device-detail__video-inner,
+.device-detail--exit-pending .device-detail__video-inner {
+  opacity: clamp(0, (var(--reveal-progress, 0) - 0.68) / 0.32, 1);
+}
+
+.device-detail--exit-pending .device-detail__video-inner {
+  opacity: 0;
+}
+
+.device-detail--enter-pending .device-detail__transition-reveal,
+.device-detail--exit-pending .device-detail__transition-reveal {
+  clip-path: ellipse(var(--reveal-rx, 0px) var(--reveal-ry, 0px) at var(--reveal-cx, 0px) var(--reveal-cy, 0px));
+  will-change: clip-path, opacity, transform, filter;
+}
+
+.device-detail--enter-pending .device-detail__appbar,
+.device-detail--exit-pending .device-detail__appbar {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.02) / 0.52, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * -14px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 3px));
+}
+
+.device-detail--enter-pending .device-detail__desktop-nav,
+.device-detail--exit-pending .device-detail__desktop-nav {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.06) / 0.54, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * -10px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 2.5px));
+}
+
+.device-detail--enter-pending .device-detail__clips,
+.device-detail--exit-pending .device-detail__clips {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.14) / 0.58, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * 18px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 3px));
+}
+
+.device-detail--enter-pending .device-detail__panel,
+.device-detail--exit-pending .device-detail__panel {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.18) / 0.62, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * 22px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 3.5px));
+}
+
+.device-detail__video-shell {
+  width: 100%;
+  background: #000;
+}
+
+.device-detail__video-placeholder {
+  position: relative;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.device-detail__video-placeholder-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.device-detail__video-placeholder-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--p-surface-200, #e2e8f0);
+}
+
+.device-detail__video-placeholder-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.device-detail__panel-placeholder {
+  height: 100%;
+  min-height: 12rem;
+}
+
+@keyframes device-detail-content-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.device-detail__panel-content {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  animation: device-detail-content-in 360ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.device-detail--enter-pending .device-detail__panel-content,
+.device-detail--enter-pending .device-detail__clips-content {
+  animation: none;
+}
+
+.device-detail__clips-placeholder {
+  flex: 1;
+  min-height: 5.5rem;
+}
+
+.device-detail--fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: #000;
+}
+
+.device-detail--fullscreen .device-detail__content {
+  flex: 1;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+.device-detail--fullscreen .device-detail__layout {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+.device-detail--fullscreen .device-detail__player-wrap {
+  display: block;
+  position: static;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.device-detail--fullscreen .device-detail__video {
+  display: block;
+  height: 100%;
+}
+
+.device-detail--fullscreen .device-detail__video-inner {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.device-detail--fullscreen .device-detail__fullscreen-back {
+  position: fixed;
+}
+
+.device-detail__appbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 3.5rem;
+  padding: 0 0.25rem;
+  background: var(--p-content-background, #fff);
+  border-bottom: 1px solid var(--p-content-border-color, #e2e7ee);
+}
+
+.device-detail__appbar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.device-detail__appbar-title {
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-detail__appbar-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--p-text-muted-color, #7a8499);
+}
+
+.device-detail__appbar-spacer {
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.device-detail__back {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.device-detail__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+.device-detail__layout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.device-detail__desktop-nav {
+  display: none;
+}
+
+.device-detail__player-wrap {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+.device-detail__clips {
+  display: none;
+}
+
+.device-detail__video {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.22s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.device-detail__video--collapsed {
+  grid-template-rows: 0fr;
+}
+
+.device-detail__video-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.device-detail__panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.device-detail__fullscreen-back {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 2;
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Mobile: single column, natural page scroll (Flutter parity) */
+@media (max-width: 767px) {
+  .device-detail {
+    overflow-y: auto;
+  }
+}
+
+/* Tablet+: two columns — video prominent, details sidebar */
+@media (min-width: 768px) {
+  .device-detail {
+    overflow: hidden;
+  }
+
+  .device-detail__appbar {
+    display: none;
+  }
+
+  .device-detail__content {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding-bottom: 1rem;
+  }
+
+  .device-detail__desktop-nav {
+    display: block;
+    flex-shrink: 0;
+    margin-bottom: 1rem;
+  }
+
+  .device-detail__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  .device-detail__player-wrap {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    min-height: calc(100vh - 11rem);
+    max-width: none;
+  }
+
+  .device-detail__video-inner {
+    overflow: hidden;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 24px rgb(0 0 0 / 12%);
+  }
+
+  .device-detail__clips {
+    display: block;
+    flex-shrink: 0;
+    margin-top: 1rem;
+  }
+
+  .device-detail__clips-placeholder {
+    flex: 1;
+    min-height: 5.5rem;
+  }
+
+  .device-detail__panel {
+    min-width: 0;
+    min-height: 0;
+    max-height: calc(100vh - 11rem);
+    padding-left: 1.25rem;
+    overflow: hidden;
+    border-left: 1px solid var(--p-content-border-color, #e2e7ee);
+  }
+}
+
+@media (min-width: 1024px) {
+  .device-detail__content {
+    max-width: 90rem;
+  }
+
+  .device-detail__layout {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+
+  .device-detail__panel {
+    max-height: calc(100vh - 10rem);
+    padding-left: 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .device-detail__layout {
+    grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+}
+
+/* Fullscreen overrides — must win over responsive layout rules */
+.device-detail--fullscreen .device-detail__content {
+  max-width: none;
+  padding-bottom: 0;
+}
+
+.device-detail--fullscreen .device-detail__layout {
+  display: block;
+  gap: 0;
+}
+
+.device-detail--fullscreen .device-detail__player-wrap {
+  position: static;
+  min-height: 0;
+}
+
+.device-detail--fullscreen .device-detail__video-inner {
+  border-radius: 0;
+  box-shadow: none;
+}

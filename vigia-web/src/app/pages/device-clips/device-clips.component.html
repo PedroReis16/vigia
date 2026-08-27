@@ -1,0 +1,13 @@
+<section class="device-clips" data-testid="device-clips-page">
+  <header class="device-clips__header">
+    <a [routerLink]="['/devices', deviceId]" class="device-clips__back">
+      <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    </a>
+    <h1>{{ 'DEVICES.CLIPS.TITLE' | translate }}</h1>
+  </header>
+
+  <p class="device-clips__stub">{{ 'DEVICES.CLIPS.STUB' | translate }}</p>
+  @if (device(); as device) {
+    <p class="device-clips__device">{{ device.displayName }} · {{ device.id }}</p>
+  }
+</section>

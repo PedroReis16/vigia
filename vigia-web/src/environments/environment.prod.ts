@@ -1,3 +1,5 @@
+import { FirebaseEnvironmentConfig } from '@core/interfaces/firebase-config';
+
 export const environment = {
   production: true,
   defaultLanguage: 'pt-BR',
@@ -7,11 +9,15 @@ export const environment = {
     { value: 'es-ES', label: 'Español' },
   ],
   apiUrl: 'https://services.vigiadeteccoes.com.br/vigia',
-  oauth2: {
-    issuer: '',
-    redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/callback` : '',
-    clientId: '',
-    scope: 'openid profile email',
-    refreshTokenTimeThreshold: 60_000,
-  },
+  streamBaseUrl: 'https://services.vigiadeteccoes.com.br',
+  firebase: {
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    storageBucket: "",
+    messagingSenderId: "",
+    appId: "",
+    measurementId: "",
+    vapidKey: "",
+  } satisfies FirebaseEnvironmentConfig,
 };

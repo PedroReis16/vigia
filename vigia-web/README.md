@@ -1,59 +1,71 @@
 # VigiaWeb
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.1.
+Frontend Angular do VIGIA — autenticação JWT, listagem/detalhe de devices, stream WHEP e notificações push (Firebase).
 
 ## Development server
 
-To start a local development server, run:
-
 ```bash
-ng serve
+pnpm install
+pnpm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Abra `http://localhost:4200/`.
 
-## Code scaffolding
+## Firebase Web Push (alertas de queda)
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Push web usa o **mesmo projeto Firebase** do app Android. Sem config real, o app funciona normalmente — só não registra token FCM.
 
-```bash
-ng generate component component-name
+### Setup local
+
+1. No [Firebase Console](https://console.firebase.google.com/), registre um **Web app** no projeto Vigia.
+2. Em **Cloud Messaging → Web Push certificates**, gere o par VAPID e copie a **chave pública**.
+3. Preencha:
+   - `src/environments/environment.ts` → bloco `firebase`
+   - `public/firebase-config.js` (copie de `public/firebase-config.js.example`)
+4. Em **Authentication → Settings → Authorized domains**, inclua `localhost` e `vigiadeteccoes.com.br`.
+
+Referência de placeholders: `src/environments/firebase.config.example.ts`.
+
+### CI / produção
+
+O workflow `web-release.yml` hidrata `public/firebase-config.js` e `environment.prod.ts` a partir do secret GitHub **`FIREBASE_WEB_CONFIG_JSON_BASE64`** (JSON em Base64):
+
+```json
+{
+  "apiKey": "...",
+  "authDomain": "...",
+  "projectId": "...",
+  "messagingSenderId": "...",
+  "appId": "...",
+  "vapidKey": "..."
+}
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Script: `.github/scripts/hydrate-firebase-web.sh`.
 
-```bash
-ng generate --help
-```
+### Comportamento
+
+- Após login, o app pede permissão de notificação e registra `PUT /users/push-token` com `platform: "web"`.
+- Alertas de queda (`type: "fall"`) aparecem no **sino** da toolbar (histórico local, últimos 50) e como notificação do browser.
+- Ao tocar um item (ou a notificação do sistema), navega para `/devices/:deviceId`.
+- Logout remove o token FCM via `DELETE /users/push-token`.
 
 ## Building
 
-To build the project run:
-
 ```bash
-ng build
+pnpm build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Artefatos em `dist/vigia-web/browser`.
 
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+## Tests
 
 ```bash
-ng test
+pnpm test
+pnpm exec ng lint
 ```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
 
 ## Additional Resources
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- [Angular CLI](https://angular.dev/tools/cli)
+- Estrutura do monorepo: `docs/project-structure.md`

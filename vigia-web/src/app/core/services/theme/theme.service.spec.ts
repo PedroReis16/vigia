@@ -6,21 +6,17 @@ import { ThemeService } from './theme.service';
 describe('ThemeService', () => {
   let service: ThemeService;
   let htmlElement: HTMLElement;
+  let storage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     htmlElement = document.documentElement;
-    htmlElement.classList.remove('vigia-dark');
+    htmlElement.classList.add('vigia-dark');
+    storage = {
+      getItem: vi.fn(() => 'dark'),
+      setItem: vi.fn(),
+    };
     TestBed.configureTestingModule({
-      providers: [
-        {
-          provide: StorageService,
-          useValue: {
-            getItem: vi.fn(() => 'dark'),
-            setItem: vi.fn(),
-            removeItem: vi.fn(),
-          },
-        },
-      ],
+      providers: [{ provide: StorageService, useValue: { ...storage, removeItem: vi.fn() } }],
     });
     service = TestBed.inject(ThemeService);
   });
@@ -33,31 +29,15 @@ describe('ThemeService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('should return available themes', () => {
-    const themes = service.getAvailableThemes();
-    expect(themes).toEqual([
-      { label: 'SETTINGS.THEME.LIGHT', value: 'light', isLabelTranslated: true },
-      { label: 'SETTINGS.THEME.DARK', value: 'dark', isLabelTranslated: true },
-    ]);
-  });
-
-  it('should initialize with dark theme', () => {
-    expect(service.selectedTheme()).toBe('dark');
-    expect(htmlElement.classList.contains('vigia-dark')).toBe(true);
-  });
-
-  it('should switch to light theme', () => {
-    service.setTheme('light');
+  it('should force light theme on init even if dark was stored', () => {
     expect(service.selectedTheme()).toBe('light');
     expect(htmlElement.classList.contains('vigia-dark')).toBe(false);
+    expect(storage.setItem).toHaveBeenCalledWith('theme', 'light');
   });
 
-  it('should switch to dark theme', () => {
-    service.setTheme('light');
-    expect(htmlElement.classList.contains('vigia-dark')).toBe(false);
-
+  it('should keep light when setTheme is called with dark', () => {
     service.setTheme('dark');
-    expect(service.selectedTheme()).toBe('dark');
-    expect(htmlElement.classList.contains('vigia-dark')).toBe(true);
+    expect(service.selectedTheme()).toBe('light');
+    expect(htmlElement.classList.contains('vigia-dark')).toBe(false);
   });
 });

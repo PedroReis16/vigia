@@ -1,44 +1,30 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { StorageService } from '../storage/storage.service';
 
+/**
+ * Light-only theme, matching Flutter `ThemeMode.light`.
+ * Clears any leftover dark-mode class / preference from earlier builds.
+ */
 @Injectable({
   providedIn: 'root',
 })
 export class ThemeService {
-  selectedTheme = signal('dark');
-  availableThemes = [
-    { label: 'SETTINGS.THEME.LIGHT', value: 'light', isLabelTranslated: true },
-    { label: 'SETTINGS.THEME.DARK', value: 'dark', isLabelTranslated: true },
-  ];
+  readonly selectedTheme = signal<'light'>('light');
 
-  private storage = inject(StorageService);
+  private readonly storage = inject(StorageService);
 
   constructor() {
-    const theme = this.storage.getItem('theme') || this.getBrowserTheme();
-
-    if (theme) {
-      this.setTheme(theme);
-    }
+    this.applyLightTheme();
   }
 
-  setTheme(theme: string) {
-    const element = document.querySelector('html');
-
-    if (theme === 'dark') {
-      element?.classList.add('vigia-dark');
-    } else {
-      element?.classList.remove('vigia-dark');
-    }
-    this.selectedTheme.set(theme);
-
-    this.storage.setItem('theme', theme);
+  /** Always light — kept for API compatibility with older call sites. */
+  setTheme(_theme?: string): void {
+    this.applyLightTheme();
   }
 
-  getAvailableThemes() {
-    return this.availableThemes;
-  }
-
-  getBrowserTheme() {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  private applyLightTheme(): void {
+    document.documentElement.classList.remove('vigia-dark');
+    this.selectedTheme.set('light');
+    this.storage.setItem('theme', 'light');
   }
 }

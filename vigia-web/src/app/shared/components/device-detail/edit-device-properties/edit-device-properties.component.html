@@ -1,0 +1,80 @@
+<p-confirmDialog />
+
+<div class="edit-device-properties flex min-h-full flex-col gap-4">
+  <header class="flex items-center gap-2">
+    <button
+      type="button"
+      class="edit-device-properties__back"
+      (click)="onBack()"
+      [attr.aria-label]="'DEVICES.DETAIL.BACK' | translate"
+    >
+      <i class="pi pi-chevron-left" aria-hidden="true"></i>
+    </button>
+    <h2 class="m-0 text-xl font-semibold">{{ 'DEVICES.EDIT.TITLE' | translate }}</h2>
+  </header>
+
+  <p-card styleClass="edit-device-properties__card">
+    <ng-template #content>
+      <form class="flex flex-col gap-4" [formGroup]="form" (ngSubmit)="onSave()">
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-surface-600">
+            {{ 'DEVICES.DETAIL.NICKNAME' | translate }}
+          </span>
+          <input pInputText formControlName="nickname" class="w-full" />
+        </label>
+
+        <label class="flex flex-col gap-2">
+          <span class="text-sm font-medium text-surface-600">
+            {{ 'DEVICES.DETAIL.ROOM' | translate }}
+          </span>
+          <p-select
+            formControlName="room"
+            [options]="roomOptions"
+            optionLabel="label"
+            optionValue="value"
+            [placeholder]="'DEVICES.ROOMS.NotDefined' | translate"
+            styleClass="w-full"
+          >
+            <ng-template #item let-option>
+              {{ deviceRoomKey(option.value) | translate }}
+            </ng-template>
+            <ng-template #selectedItem let-option>
+              {{ deviceRoomKey(option.value) | translate }}
+            </ng-template>
+          </p-select>
+        </label>
+
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-surface-600">
+              {{ 'DEVICES.EDIT.SAVE_CLIPS' | translate }}
+            </span>
+            <button
+              type="button"
+              class="edit-device-properties__info-btn"
+              [title]="'DEVICES.EDIT.CLIPS_INFO' | translate"
+              (click)="clipsInfoVisible = !clipsInfoVisible"
+            >
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p-toggleswitch formControlName="isClipsEnabled" />
+        </div>
+
+        @if (clipsInfoVisible) {
+          <p class="m-0 text-sm text-surface-600">
+            {{ 'DEVICES.EDIT.CLIPS_INFO' | translate }}
+          </p>
+        }
+
+        <p-button
+          type="submit"
+          [label]="'DEVICES.EDIT.SAVE' | translate"
+          [disabled]="!hasUnsavedChanges || saving()"
+          [loading]="saving()"
+          styleClass="w-full"
+        />
+      </form>
+    </ng-template>
+  </p-card>
+</div>

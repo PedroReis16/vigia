@@ -1,0 +1,45 @@
+@if (routerLink(); as link) {
+  <a
+    class="device-detail-action-row"
+    [class.device-detail-action-row--disabled]="disabled()"
+    [class.device-detail-action-row--embedded]="embedded()"
+    [routerLink]="link"
+    [attr.data-testid]="testId()"
+    [attr.aria-disabled]="disabled() || null"
+    (click)="disabled() && $event.preventDefault()"
+  >
+    <ng-container *ngTemplateOutlet="content" />
+  </a>
+} @else {
+  <button
+    type="button"
+    class="device-detail-action-row"
+    [class.device-detail-action-row--disabled]="disabled()"
+    [class.device-detail-action-row--embedded]="embedded()"
+    [disabled]="disabled()"
+    [attr.data-testid]="testId()"
+    (click)="onAction($event)"
+  >
+    <ng-container *ngTemplateOutlet="content" />
+  </button>
+}
+
+<ng-template #content>
+  <span
+    class="device-detail-action-row__icon"
+    [class.device-detail-action-row__icon--disabled]="disabled()"
+    aria-hidden="true"
+  >
+    <i [class]="icon()"></i>
+  </span>
+  <span class="device-detail-action-row__body">
+    <span class="device-detail-action-row__title">{{ title() | translate }}</span>
+    @if (description(); as desc) {
+      <span class="device-detail-action-row__description">{{ desc | translate }}</span>
+    }
+  </span>
+  @if (meta(); as metaText) {
+    <span class="device-detail-action-row__meta">{{ metaText }}</span>
+  }
+  <i class="pi pi-chevron-right device-detail-action-row__chevron" aria-hidden="true"></i>
+</ng-template>

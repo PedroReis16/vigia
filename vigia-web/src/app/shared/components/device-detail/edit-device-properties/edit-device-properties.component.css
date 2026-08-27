@@ -1,0 +1,31 @@
+.edit-device-properties__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.edit-device-properties__back:hover {
+  background: var(--p-content-hover-background, rgb(0 0 0 / 4%));
+}
+
+.edit-device-properties__info-btn {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+}
+
+:host ::ng-deep .edit-device-properties__card .p-card-body,
+:host ::ng-deep .edit-device-properties__card .p-card-content {
+  padding: 1rem;
+}

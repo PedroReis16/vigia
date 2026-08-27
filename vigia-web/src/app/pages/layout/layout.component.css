@@ -1,0 +1,17 @@
+@media (max-width: 767px) {
+  .layout--device-detail-mobile .layout__body {
+    padding: 0;
+  }
+
+  .layout--device-detail-mobile .layout__content {
+    margin-top: 0;
+  }
+}
+
+.layout--enter-morph .layout__body {
+  visibility: hidden;
+}
+
+.layout--logout-morph .layout__body {
+  visibility: hidden;
+}

@@ -2,7 +2,7 @@
 
 ## 1. Visão Geral
 
-O VIGIA é um sistema doméstico de monitoramento de quedas que combina dispositivos embarcados (Raspberry Pi 5) com serviços cloud. Na borda, o bootstrap gerencia pareamento BLE, Wi-Fi e identidade do device; o fall-detection captura vídeo, executa inferência YOLO e publica telemetria. Na cloud, a API .NET gerencia usuários, devices, alertas, OTA e integração FIWARE; a stack inclui Orion, IoT Agent, MQTT, PostgreSQL, Redis, MinIO e MediaMTX para streaming. Clientes consomem via app Flutter (Android/iOS) e, futuramente, web Angular (scaffold inicial). Domínio de produção: `services.vigiadeteccoes.com.br`.
+O VIGIA é um sistema doméstico de monitoramento de quedas que combina dispositivos embarcados (Raspberry Pi 5) com serviços cloud. Na borda, o bootstrap gerencia pareamento BLE, Wi-Fi e identidade do device; o fall-detection captura vídeo, executa inferência YOLO e publica telemetria. Na cloud, a API .NET gerencia usuários, devices, alertas, OTA e integração FIWARE; a stack inclui Orion, IoT Agent, MQTT, PostgreSQL, Redis, MinIO e MediaMTX para streaming. Clientes consomem via app Flutter (Android/iOS) e web Angular. Domínios de produção: API/serviços `services.vigiadeteccoes.com.br`; interface web `vigiadeteccoes.com.br`.
 
 ---
 
@@ -36,7 +36,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Cache:** Redis + in-memory (`Vigia.Cache`)
 - **Realtime:** SignalR
 - **Auth:** JWT Bearer, Ed25519 (NSec), tokens efêmeros, service token (dev)
-- **Push:** Firebase Admin (Android)
+- **Push:** Firebase Admin (Android + Web)
 - **Docs API:** Swagger/OpenAPI
 - **Storage:** S3-compatible via `Vigia.Cloud` (MinIO)
 
@@ -57,17 +57,19 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Framework:** Angular 22
 - **UI:** Optimus UI 2 (fork comunitário MIT do PrimeNG) + Tailwind CSS 4
 - **Tipografia:** Plus Jakarta Sans (Google Fonts, SIL OFL)
-- **Auth:** angular-oauth2-oidc (Authorization Code + PKCE)
+- **Auth:** JWT email/senha (`POST /auth/login|register|refresh|logout`), alinhado ao app Flutter
 - **i18n:** ngx-translate (pt-BR, en-US, es-ES)
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
-- **Status:** boilerplate em camadas com shell autenticado (login/callback/layout/home)
+- **Push:** Firebase Cloud Messaging (Web + Android; iOS sem push)
+- **Status:** shell autenticado com login/cadastro JWT, listagem de devices, detalhes com stream WHEP, edição, sharing, SignalR e sino de notificações FCM; prod em Cloudflare Pages (`vigiadeteccoes.com.br`)
+- **Deploy prod:** Cloudflare Pages (estático); local via Docker/nginx no Traefik `:81`
 
 ### CI/CD
 
 - **Plataforma:** GitHub Actions
-- **CI:** PRs para `develop`/`master` — quality gate por projeto (bandit, pytest, dotnet test, flutter analyze/test, gitleaks)
-- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `bootstrap`, `onboard`, `mobile`
+- **CI:** PRs para `develop`/`master` — quality gate por projeto (bandit, pytest, dotnet test, flutter analyze/test, Angular pnpm lint/test/build, gitleaks)
+- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `web`, `bootstrap`, `onboard`, `mobile`
 
 ---
 
@@ -79,13 +81,13 @@ vigia/
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
-├── vigia-web/              # Frontend web Angular (boilerplate em camadas)
+├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
 ├── seed-codes/             # Utilitário dev: publicar frame de teste com assinatura Ed25519
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
-├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
+├── .cursor/rules/          # Regras Cursor (docs + padrões vigia-web)
 └── .vscode/                # Launch configs e tasks do workspace
 ```
 
@@ -214,9 +216,9 @@ vigia/
 
 ### vigia-web
 
-**Propósito:** Frontend web Angular — autenticação OAuth2, shell autenticado (layout) e página home. Camadas `core` / `pages` / `shared` com path aliases.
+**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout), listagem e detalhes de devices (stream WHEP, edição, usuários/compartilhamento), página home. Camadas `core` / `pages` / `shared` com path aliases.
 
-**Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, angular-oauth2-oidc, Vitest, pnpm.
+**Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, Vitest, pnpm.
 
 **Ponto de entrada:** `vigia-web/src/main.ts` → `AppComponent` + `appConfig` (`src/app/app.config.ts`).
 
@@ -226,15 +228,16 @@ vigia/
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `src/app/core/` | Config OAuth, guards, interceptors, entities/DTOs, mappers, services HTTP/app, usecases |
-| `src/app/pages/` | Rotas/features: auth (login, callback), layout, home, `main.routes.ts` |
-| `src/app/shared/` | Componentes reutilizáveis (input, message, sidebar, toolbar), preset de tema Optimus UI (`vigia.theme.ts`) |
-| `src/environments/` | `environment.ts` / `environment.prod.ts` (API, OAuth, idiomas) |
+| `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
+| `src/app/pages/` | Rotas/features: auth unificada (`/login`), layout, devices, home, `main.routes.ts` |
+| `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, toolbar superior), preset de tema Optimus UI (`vigia.theme.ts`) |
+| `src/environments/` | `environment.ts` (local `localhost:81`) / `environment.prod.ts` (`services.vigiadeteccoes.com.br`) — `apiUrl`, `streamBaseUrl` absolutos + idiomas |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
+| `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login`, `/callback`, `/` → layout + `authGuard` → `/home`.
+**Rotas:** `/login` (`guestGuard`, tela unificada login/cadastro estilo Flutter); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite de compartilhamento; `inviteEntryGuard` persiste token e redireciona anônimos ao login); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web.
 
-**Status:** shell e wiring do boilerplate; UI de sidebar/toolbar/login ainda em stubs mínimos; features de domínio (devices) só esboçadas.
+**Status:** login/cadastro JWT unificado (UI alinhada ao Flutter) e sessão local; listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips stub.
 
 ---
 
@@ -252,17 +255,17 @@ vigia/
 
 | Path | Uso |
 |------|-----|
-| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, Postgres, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
+| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
-| `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — apenas `vigia-api` com Traefik TLS |
+| `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
 | `docker-compose/deploy/infrastructure-compose.yaml` | Compose alternativo com stack completa + Portainer |
 | `docker-compose/deploy/.env.example` | Template de env de produção |
-| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `mediamtx.dockerfile`) |
+| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `vigia-web.dockerfile` + nginx SPA local, `mediamtx.dockerfile`) |
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`.
+**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`.
 
 ---
 
@@ -270,8 +273,9 @@ vigia/
 
 | Workflow | Gatilho | Artefato / Ação |
 |----------|---------|-----------------|
-| `continuos-integration.yml` | PR → `develop`/`master` | Quality gate por projeto (Python, .NET, Flutter), gitleaks, AI attribution check |
+| `continuos-integration.yml` | PR → `develop`/`master` | Quality gate por projeto (Python, .NET, Flutter, Angular), gitleaks, AI attribution check |
 | `service-release.yml` | Manual | Build Docker → Docker Hub `pedroreis16/vigia-api:latest` → deploy Portainer → tag rolling `service` |
+| `web-release.yml` | Manual | Build Angular → Cloudflare Pages (`vigia-web` / `vigiadeteccoes.com.br`) → tag rolling `web` |
 | `bootstrap-pipeline.yml` | Manual | Test amd64 → build ARM64 → `vigia-bootstrap-deploy.zip` → tag rolling `bootstrap` |
 | `onboard-release.yml` | Manual | Build ARM64 → deploy zip + OTA tarball → tag rolling `onboard`; upload opcional para API |
 | `mobile-release.yml` | Manual | Preflight → security → quality → tests → APK assinado → tag rolling `mobile` |
@@ -291,13 +295,13 @@ vigia/
 
 4. **Autenticação multi-esquema** — JWT Bearer para usuários mobile/web; Ed25519 para requests de devices (frames); tokens efêmeros para acesso a frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming.
 
-5. **Tags rolling no CI** — Tags `service`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
+5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
-6. **Dois modelos de deploy cloud** — Compose mínimo (só API, usa infra externa) vs `infra.sh` / `infrastructure-compose.yaml` (stack completa). Permite escalar infra e API separadamente.
+6. **Deploy cloud separado por camada** — API/infra em compose mínimo EC2 + Traefik (`services.…`); web estático em Cloudflare Pages (`vigiadeteccoes.com.br`). Local: SPA no Traefik `:81` via container nginx.
 
 7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda device de teste via `TestDeviceSeed`.
 
-8. **Push notifications Android-only** — Firebase/FCM configurado apenas para Android; iOS sem push por enquanto.
+8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Web: service worker `firebase-messaging-sw.js`, token via `PUT /users/push-token`, inbox local no sino da toolbar.
 
 9. **Ultralight + MQTT** — Comandos entregues via MQTT, não poll. Collection `commands` vazia no MongoDB do IoT Agent é comportamento esperado.
 
@@ -307,7 +311,7 @@ vigia/
 
 12. **Compartilhamento via grupos** — Devices pertencem a grupos; owner gerencia convites; limite de membros imposto na API.
 
-13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` e `darkModeSelector: '.vigia-dark'`.
+13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` (primary `#669CEE`, light-only como Flutter `ThemeMode.light`; `darkModeSelector: false`).
 
 ---
 
@@ -332,8 +336,10 @@ vigia/
 | OTA pendente gravado em `/var/lib/vigia/ota/pending.json` | `vigia-fall` (comando `device_update`) |
 | Device de teste em DEBUG: `Vigia-a1b2c3d4` | `Vigia.Models/Seed/TestDeviceSeed.cs` |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
+| Landing web de convite: `https://vigiadeteccoes.com.br/invite/{token}` | `appsettings.json` (`Invite:WebInviteBase`); link "Continuar na web" em `InviteRedirectController` |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
 | Códigos de erro espelhados entre API e Flutter | `ErrorCodes.cs` ↔ `error_codes.dart` |
+| Token FCM: plataformas `android`, `ios`, `web` | `UserPushTokenService` |
 | Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
 
 **Referência detalhada FIWARE:** tutorial operacional de schema (adicionar comandos/atributos, env vars, verificação MongoDB) permanece em [`README.md`](../README.md) seção FIWARE.
@@ -373,10 +379,10 @@ vigia/
 
 ### Angular (vigia-web)
 
-- **Camadas:** `pages/` (features/rotas) → `core/` (services, usecases, guards) → `shared/` (UI reutilizável)
+- **Camadas:** `pages/` (features/rotas) → `core/usecases` → `core/services` → `shared/` (UI reutilizável)
 - **Imports:** path aliases `@core`, `@pages`, `@shared`, `@environments` via barrels `index.ts`
 - **Componentes:** standalone; prefixo `app`
-- **Auth:** `Oauth2Service` + `authGuard` + `AuthInterceptor` (class-based com `withInterceptorsFromDi`)
+- **Auth:** JWT via `AuthHttpService` + `AuthSessionService`; use cases `Login`/`Register`/`Logout`; `authGuard`/`guestGuard`; tela unificada `/login` (estilo Flutter); `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + refresh em 401)
 - **i18n:** arquivos em `public/i18n/*.json` carregados via `TranslateHttpLoader`
 - **Testes:** Vitest via `@angular/build:unit-test`
 
@@ -393,6 +399,8 @@ vigia/
 | vigia-fall | pytest com testes unitários reais (frame processor, uploader, identity, FIWARE OTA) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
 | vigia_ui | ~13 testes widget/domain/router |
+| vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
+| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
 | vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
@@ -449,7 +457,7 @@ flowchart LR
 2. Edge publica atributo `fall_state` via MQTT Ultralight
 3. Orion detecta `fall_state==fall` (subscription configurada)
 4. Webhook POST para `/vigia/devices/alert`
-5. API notifica membros do grupo via Firebase push + SignalR
+5. API notifica membros do grupo via Firebase push (Android + Web)
 
 ### 3. Streaming ao vivo
 
@@ -470,10 +478,12 @@ flowchart LR
 
 ### 5. Compartilhamento de device
 
-1. Owner gera convite via API → recebe link/deep link `vigia://invite/{token}`
-2. Convidado aceita → entra no grupo (validação: max 10 membros, convite não expirado)
-3. Membros do grupo recebem alertas e podem visualizar devices compartilhados
-4. SignalR notifica mudanças de grupo em tempo real via `DeviceGroupsHub`
+1. Owner gera convite via API → recebe link HTTPS (`/vigia/i/{code}`) ou deep link `vigia://invite/{token}`
+2. Landing `/vigia/i/{code}` redireciona para app mobile; se `Invite:WebInviteBase` configurado, oferece link "Continuar na web"
+3. Convidado web: `/invite/{token}` → `AcceptShareInviteService` (`POST /devices/share/accept`); anônimo persiste token em `sessionStorage` e faz login antes
+4. Convidado aceita → entra no grupo (validação: max 10 membros, convite não expirado)
+5. Membros do grupo recebem alertas e podem visualizar devices compartilhados
+6. SignalR notifica mudanças de grupo em tempo real via `DeviceGroupsHub`
 
 ### 6. Upload de frames
 
@@ -486,6 +496,23 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-26] vigia-web: aceitar convite de compartilhamento (`/invite/:token`, `AcceptShareInviteService`, `PendingInviteService`, redirect pós-login/register); `_redirects` `/invite/*`; API landing com link web (`Invite:WebInviteBase`)
+- [2026-08-26] vigia-web: logout morph no shell (toolbar expande até tela cheia, logo centraliza; navega para `/login` após animação)
+- [2026-08-26] vigia-web: transição login→shell estilo Flutter (véu primário encolhe para toolbar, logo voa 780ms; `AuthExitTransitionService`, `AuthToShellTransitionComponent`)
+- [2026-08-26] vigia-web: push FCM web (Firebase SDK, service worker, token `platform: web`, sino na toolbar, histórico local, navegação para `/devices/:id`); API aceita `web` + `WebpushConfig` no multicast (`UserPushTokenService`, `FirebasePushNotificationService`)
+- [2026-08-25] vigia-web prod: Cloudflare Pages (Wrangler) em `vigiadeteccoes.com.br`; remove container web do compose deploy; `web-release.yml` sem Docker Hub/Portainer; `_redirects` SPA
+- [2026-08-25] Deploy vigia-web: Dockerfile nginx SPA, Traefik local (`localhost:81/`) e prod (`vigiadeteccoes.com.br`), Docker Hub `pedroreis16/vigia-web`, `web-release.yml`, CI Angular no quality gate de PR
+- [2026-08-25] vigia-web: auth unificada estilo Flutter (`/login` com toggle login/cadastro, fundo `#669CEE`, logo dark, CTA verde); `/register` → `/login?mode=register`
+- [2026-08-25] vigia-web: tema claro only (como Flutter); remove toggle dark, `darkModeSelector: false`
+- [2026-08-25] vigia-web: fundo da página e cards alinhados ao Flutter (surface-50/950 + content); corrige escala dark do Aura
+- [2026-08-25] vigia-web: tema alinhado ao Flutter (`#669CEE`, default light); ThemeService inicia no AppComponent
+- [2026-08-25] vigia-web: toolbar full-bleed com logo Vigia à esquerda e avatar/logout à direita (sem links de nav)
+- [2026-08-25] vigia-web: shell com toolbar superior (cores primary do VigiaTheme, nav Dispositivos/Home, avatar + popover logout); remove sidebar; logout sai da Home
+- [2026-08-25] vigia-web: detalhes do device (`/devices/:id`, `/devices/:id/clips`), stream WHEP, edição, usuários/sharing, SignalR; `streamBaseUrl` nos environments; use cases e services de device detail
+- [2026-08-25] docker-compose local: CORS no Traefik para rota `vigia-api` (`cors@file`), permitindo o web Angular em `localhost:4200` sem alterar a API (`/devices`, cards, `GetDevicesService` → `GET /devices/list`); default pós-login `/devices`
+- [2026-08-23] vigia-web: `apiUrl` absoluto nos environments (sem `proxy.conf.json`); services usam paths relativos + `ApiBaseUrlInterceptor`
+- [2026-08-23] vigia-web: auth JWT (login/cadastro) no lugar de OAuth2; use cases, sessão, interceptors, `/login` `/register`
+- [2026-08-23] Regras Cursor: `project-documentation.mdc` no formato conciso (mapa + testes); restaurar `vigia-web-usecases.mdc` e `vigia-web-api-urls.mdc`
 - [2026-08-23] Fix upsert de push token: reativar soft-delete no re-login (`UserPushTokenDao.UpsertAsync`); testes unitários em `Vigia.Database.UnitTests`
 - [2026-08-23] Fix stream/comandos 404: reconciliar devices órfãos DB→FIWARE no startup; `RegisterSensorAsync` idempotente; falha real em registro/comando (`FIWARE_PROVISION_FAILED` / `FIWARE_COMMAND_FAILED`)
 - [2026-08-23] Fix local FIWARE: Traefik passa a aceitar Host `host.docker.internal` (API usava essa URL e recebia 404); build local da API em Debug para seed FIWARE (`docker-compose/local/docker-compose.yaml`)

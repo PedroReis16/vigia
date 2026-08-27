@@ -1,0 +1,32 @@
+<div class="auth-shell-transition" data-testid="auth-shell-transition">
+  <ng-content />
+
+  @if (overlayActive()) {
+    <div
+      class="auth-shell-transition__body-scrim"
+      data-testid="auth-shell-body-scrim"
+      [class.auth-shell-transition__layer--hidden]="bodyScrimAlpha() <= 0.001"
+      [style.top.px]="bodyScrimTop()"
+      [style.opacity]="bodyScrimAlpha()"
+    ></div>
+
+    <div
+      class="auth-shell-transition__veil"
+      data-testid="auth-shell-veil"
+      [class.auth-shell-transition__layer--hidden]="!veilVisible()"
+      [style.height.px]="veilHeight()"
+    ></div>
+
+    <img
+      class="auth-shell-transition__logo"
+      data-testid="auth-shell-flying-logo"
+      [class.auth-shell-transition__layer--hidden]="!logoVisible()"
+      src="images/vigia-logo-dark.png"
+      alt=""
+      aria-hidden="true"
+      [style.top.px]="logoTop()"
+      [style.left.px]="logoLeft()"
+      [style.height.px]="logoHeight()"
+    />
+  }
+</div>

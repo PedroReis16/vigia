@@ -1,0 +1,214 @@
+name: Vigia Web — Release Pipeline
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Web Build"
+
+permissions:
+  contents: write
+  deployments: write
+
+env:
+  SERVICE_PATH: vigia-web
+  DIST_PATH: vigia-web/dist/vigia-web/browser
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.22.0"
+  RELEASE_TAG: web
+  CLOUDFLARE_PAGES_PROJECT: vigia-web
+  PRODUCTION_URL: https://vigiadeteccoes.com.br
+
+jobs:
+  #------------------------------------------
+  # 1. Test (Angular / Vitest) + production build
+  #------------------------------------------
+  test:
+    name: Tests — unit & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: ${{ env.SERVICE_PATH }}/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Hydrate Firebase web config
+        env:
+          FIREBASE_WEB_CONFIG_JSON_BASE64: ${{ secrets.FIREBASE_WEB_CONFIG_JSON_BASE64 }}
+        run: bash ../.github/scripts/hydrate-firebase-web.sh
+
+      - name: Lint
+        run: pnpm exec ng lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Production build
+        run: pnpm exec ng build --configuration=production
+
+      - name: Upload static site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vigia-web-dist
+          path: ${{ env.DIST_PATH }}
+          retention-days: 7
+          if-no-files-found: error
+
+  #------------------------------------------
+  # 2. Security (secrets)
+  #------------------------------------------
+  security:
+    name: Security — secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Secret scan (gitleaks, working tree)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-git --source . --redact -v --exit-code=2
+
+  #------------------------------------------
+  # 3. Deploy — Cloudflare Pages
+  #------------------------------------------
+  deploy_pages:
+    name: Deploy — Cloudflare Pages
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Download static site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vigia-web-dist
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PAGES_PROJECT }} --branch=main --commit-hash=${{ github.sha }}
+
+  #------------------------------------------
+  # 4. Publish — mesma tag git (rolling)
+  #------------------------------------------
+  release:
+    name: Publish — tag web
+    needs: [deploy_pages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move mutable tag to HEAD
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" -m "Vigia Web (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Web
+          body: |
+            Release rolling do **vigia-web**.
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `web`.
+            Não há versionamento SemVer no GitHub.
+
+            ### Cloudflare Pages
+            - Projeto: `vigia-web`
+            - Produção: ${{ env.PRODUCTION_URL }}
+            - Commit: `${{ github.sha }}`
+          draft: false
+          prerelease: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  #------------------------------------------
+  # 5. Deployment audit (produção)
+  #------------------------------------------
+  deployment_audit:
+    name: Deployment audit — GitHub Deployment
+    needs: [deploy_pages, release]
+    if: |
+      always() &&
+      needs.deploy_pages.result == 'success' &&
+      needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Create GitHub Deployment record
+        id: create_deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-web → Cloudflare Pages" \
+            --arg url "${{ env.PRODUCTION_URL }}" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: [],
+              payload: { web_url: $url }
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments" \
+            --input - \
+            --jq '.id')
+
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+
+      - name: Mark deployment as success
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f description="vigia-web em Cloudflare Pages" \
+            -f environment_url="${{ env.PRODUCTION_URL }}"

@@ -1,0 +1,36 @@
+.devices-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.devices--exit-pending .devices__transition-reveal {
+  clip-path: ellipse(var(--reveal-rx, 0px) var(--reveal-ry, 0px) at var(--reveal-cx, 0px) var(--reveal-cy, 0px));
+  will-change: clip-path, opacity, transform, filter;
+}
+
+.devices--exit-pending .devices__title {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.02) / 0.52, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * -14px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 3px));
+}
+
+.devices--exit-pending .devices-grid {
+  --reveal-local-motion: clamp(0, (var(--reveal-progress, 0) - 0.12) / 0.58, 1);
+  opacity: var(--reveal-local-motion);
+  transform: translate3d(0, calc((1 - var(--reveal-local-motion)) * 18px), 0);
+  filter: blur(calc((1 - var(--reveal-local-motion)) * 3px));
+}
+
+@media (min-width: 768px) {
+  .devices-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .devices-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

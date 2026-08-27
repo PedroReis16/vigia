@@ -1,0 +1,55 @@
+<section
+  class="devices flex h-full w-full flex-col gap-4"
+  [class.devices--exit-pending]="exitPending()"
+  [style.--reveal-cx.px]="revealClip().cx"
+  [style.--reveal-cy.px]="revealClip().cy"
+  [style.--reveal-rx.px]="revealClip().rx"
+  [style.--reveal-ry.px]="revealClip().ry"
+  [style.--reveal-progress]="revealProgress()"
+  data-testid="devices-page"
+>
+  <h1 class="devices__title devices__transition-reveal m-0 text-2xl font-semibold">
+    {{ 'DEVICES.TITLE' | translate }}
+  </h1>
+
+  @switch (state()) {
+    @case ('loading') {
+      <div class="devices-grid" data-testid="devices-loading">
+        @for (slot of skeletonSlots; track slot) {
+          <app-device-card [skeleton]="true" />
+        }
+      </div>
+    }
+    @case ('empty') {
+      <div
+        class="flex min-h-60 flex-1 items-center justify-center text-center text-surface-600"
+        data-testid="devices-empty"
+      >
+        <p class="m-0 text-lg">{{ 'DEVICES.EMPTY' | translate }}</p>
+      </div>
+    }
+    @case ('error') {
+      <div
+        class="flex min-h-60 flex-1 flex-col items-center justify-center gap-4 text-center"
+        data-testid="devices-error"
+      >
+        <p class="m-0 text-lg text-surface-600">
+          {{ 'DEVICES.ERRORS.LIST' | translate }}
+        </p>
+        <p-button
+          data-testid="devices-retry"
+          [label]="'DEVICES.RETRY' | translate"
+          icon="pi pi-refresh"
+          (onClick)="loadDevices()"
+        />
+      </div>
+    }
+    @case ('ready') {
+      <div class="devices-grid devices__transition-reveal" data-testid="devices-list">
+        @for (device of devices(); track device.id) {
+          <app-device-card [device]="device" />
+        }
+      </div>
+    }
+  }
+</section>

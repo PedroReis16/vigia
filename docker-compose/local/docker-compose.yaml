@@ -95,7 +95,27 @@ services:
       - "traefik.http.routers.vigia-api.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia`)"
       - "traefik.http.routers.vigia-api.entrypoints=web"
       - "traefik.http.routers.vigia-api.priority=50"
+      - "traefik.http.routers.vigia-api.middlewares=cors@file"
       - "traefik.http.services.vigia-api.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
+  # ─── VIGIA WEB (Angular SPA) ──────────────────────────────────────────────
+  vigia-web:
+    build:
+      context: ../..
+      dockerfile: docker-compose/dockerfiles/vigia-web.dockerfile
+      args:
+        NG_CONFIGURATION: development
+    image: vigia-web:local
+    container_name: vigia-web
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vigia-web.rule=Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)"
+      - "traefik.http.routers.vigia-web.entrypoints=web"
+      - "traefik.http.routers.vigia-web.priority=1"
+      - "traefik.http.services.vigia-web.loadbalancer.server.port=80"
     networks:
       - vigia-network
 

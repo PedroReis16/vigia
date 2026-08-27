@@ -8,9 +8,8 @@ export const environment = {
     { value: 'en-US', label: 'English' },
     { value: 'es-ES', label: 'Español' },
   ],
-  apiUrl: 'http://localhost:81/vigia',
-  streamBaseUrl: 'http://localhost:81',
-
+  apiUrl: 'https://services.vigiadeteccoes.com.br/vigia',
+  streamBaseUrl: 'https://services.vigiadeteccoes.com.br',
   firebase: {
     apiKey: "",
     authDomain: "",

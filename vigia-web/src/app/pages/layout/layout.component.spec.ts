@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
-import { DeviceGroupsRealtimeService, MessageService } from '@core/services';
+import { DeviceGroupsRealtimeService, MessageService, PushNotificationCoordinatorService } from '@core/services';
 import { LogoutService } from '@core/usecases';
 import { NEVER } from 'rxjs';
 import { LayoutComponent } from '@pages';
@@ -38,6 +38,13 @@ describe('LayoutComponent', () => {
             membershipChanged$: NEVER,
             connect: vi.fn().mockResolvedValue(undefined),
             disconnect: vi.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: PushNotificationCoordinatorService,
+          useValue: {
+            initialize: vi.fn(),
+            syncPushToken: vi.fn().mockResolvedValue(true),
           },
         },
         provideOptimus({

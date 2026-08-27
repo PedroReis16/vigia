@@ -3,6 +3,9 @@ import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { AuthHttpService } from '@core/services/http/auth/auth-http.service';
 import { AuthSessionService } from '@core/services/auth/auth-session.service';
+import { FirebaseMessagingService } from '@core/services/push/firebase-messaging.service';
+import { NotificationStoreService } from '@core/services/notifications/notification-store.service';
+import { UnregisterPushTokenService } from '@core/usecases/unregister-push-token/unregister-push-token.service';
 import { LogoutService } from './logout.service';
 
 describe('LogoutService', () => {
@@ -12,6 +15,12 @@ describe('LogoutService', () => {
     getRefreshToken: ReturnType<typeof vi.fn>;
     clearSession: ReturnType<typeof vi.fn>;
   };
+  let unregisterPushToken: { execute: ReturnType<typeof vi.fn> };
+  let firebaseMessaging: {
+    getCurrentToken: ReturnType<typeof vi.fn>;
+    clearToken: ReturnType<typeof vi.fn>;
+  };
+  let notificationStore: { clearForLogout: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     authHttp = { logout: vi.fn() };
@@ -19,12 +28,21 @@ describe('LogoutService', () => {
       getRefreshToken: vi.fn(() => 'refresh'),
       clearSession: vi.fn(),
     };
+    unregisterPushToken = { execute: vi.fn().mockResolvedValue(undefined) };
+    firebaseMessaging = {
+      getCurrentToken: vi.fn(() => 'push-token'),
+      clearToken: vi.fn(),
+    };
+    notificationStore = { clearForLogout: vi.fn() };
 
     TestBed.configureTestingModule({
       providers: [
         LogoutService,
         { provide: AuthHttpService, useValue: authHttp },
         { provide: AuthSessionService, useValue: session },
+        { provide: UnregisterPushTokenService, useValue: unregisterPushToken },
+        { provide: FirebaseMessagingService, useValue: firebaseMessaging },
+        { provide: NotificationStoreService, useValue: notificationStore },
       ],
     });
     service = TestBed.inject(LogoutService);
@@ -35,6 +53,9 @@ describe('LogoutService', () => {
 
     await service.execute();
 
+    expect(unregisterPushToken.execute).toHaveBeenCalledWith('push-token');
+    expect(firebaseMessaging.clearToken).toHaveBeenCalled();
+    expect(notificationStore.clearForLogout).toHaveBeenCalled();
     expect(authHttp.logout).toHaveBeenCalledWith({ refreshToken: 'refresh' });
     expect(session.clearSession).toHaveBeenCalled();
   });

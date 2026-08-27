@@ -26,6 +26,7 @@
     "@openng/optimus-ui": "^2.0.1",
     "@openng/optimus-ui-tailwindcss": "^2.0.1",
     "@openng/optimus-ui-themes": "^2.0.1",
+    "firebase": "^12.18.0",
     "moment": "^2.30.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

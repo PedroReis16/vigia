@@ -124,5 +124,13 @@
   },
   "COMMON": {
     "CANCEL": "Cancelar"
+  },
+  "NOTIFICATIONS": {
+    "TITLE": "Notificações",
+    "EMPTY": "Nenhuma notificação",
+    "MARK_ALL_READ": "Marcar todas como lidas",
+    "FALL_ALERT": "Alerta de queda",
+    "ENABLE_HINT": "Clique no sino e permita notificações para receber alertas de queda.",
+    "BLOCKED": "Notificações bloqueadas neste browser. Libere nas configurações do site."
   }
 }

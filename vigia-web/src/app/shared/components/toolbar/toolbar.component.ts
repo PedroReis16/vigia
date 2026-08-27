@@ -3,14 +3,20 @@ import { Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { Avatar } from '@openng/optimus-ui/avatar';
 import { Popover } from '@openng/optimus-ui/popover';
+import { FallNotification } from '@core/entities';
 import { captureToolbarHeight, captureToolbarLogoBounds } from '@core/helpers';
-import { AuthExitTransitionService, MessageService } from '@core/services';
-import { LogoutService } from '@core/usecases';
+import {
+  AuthExitTransitionService,
+  MessageService,
+  NotificationStoreService,
+} from '@core/services';
+import { LogoutService, NavigateToFallAlertService, SyncPushNotificationsService } from '@core/usecases';
+import moment from 'moment';
 
 @Component({
   selector: 'app-toolbar',
-  imports: [TranslateModule, RouterLink, Avatar, Popover],
   standalone: true,
+  imports: [RouterLink, TranslateModule, Avatar, Popover],
   templateUrl: './toolbar.component.html',
   styleUrl: './toolbar.component.css',
 })
@@ -19,9 +25,15 @@ export class ToolbarComponent {
   private readonly logout = inject(LogoutService);
   private readonly router = inject(Router);
   private readonly messageService = inject(MessageService);
+  private readonly notificationStore = inject(NotificationStoreService);
+  private readonly navigateToFallAlert = inject(NavigateToFallAlertService);
+  private readonly syncPushNotifications = inject(SyncPushNotificationsService);
 
   readonly userMenu = viewChild.required<Popover>('userMenu');
+  readonly notificationsMenu = viewChild.required<Popover>('notificationsMenu');
 
+  readonly notifications = this.notificationStore.notifications;
+  readonly unreadCount = this.notificationStore.unreadCount;
   readonly showToolbarLogo = computed(
     () =>
       this.authExitTransition.settled() ||
@@ -42,22 +54,68 @@ export class ToolbarComponent {
   readonly userPictureUrl: string | null = null;
 
   toggleUserMenu(event: Event): void {
+    this.notificationsMenu().hide();
     this.userMenu().toggle(event);
   }
 
-  /** Pin the popover's right edge to the avatar (flush right). */
-  alignUserMenuToRight(): void {
-    const menu = this.userMenu();
-    const container = menu.container;
-    const target = menu.target as HTMLElement | undefined;
+  toggleNotifications(event: Event): void {
+    this.userMenu().hide();
+    void this.syncPushNotifications.execute().finally(() => {
+      this.notificationsMenu().toggle(event);
+    });
+  }
+
+  get notificationsBlocked(): boolean {
+    return typeof Notification !== 'undefined' && Notification.permission === 'denied';
+  }
+
+  get notificationsNeedPermission(): boolean {
+    return typeof Notification !== 'undefined' && Notification.permission === 'default';
+  }
+
+  /** Pin the popover's right edge to the trigger (flush right). */
+  alignPopoverToRight(popover: Popover): void {
+    const container = popover.container;
+    const target = popover.target as HTMLElement | undefined;
     if (!container || !target) {
       return;
     }
+
     const targetRect = target.getBoundingClientRect();
-    const menuWidth = container.offsetWidth;
-    container.style.left = `${targetRect.right - menuWidth}px`;
-    const arrowLeft = menuWidth - targetRect.width / 2;
+    const left = Math.max(8, targetRect.right - container.offsetWidth + window.scrollX);
+    container.style.left = `${left}px`;
+
+    const arrowLeft = targetRect.left + targetRect.width / 2 - (left - window.scrollX);
     container.style.setProperty('--p-popover-arrow-left', `${arrowLeft}px`);
+  }
+
+  alignUserMenuToRight(): void {
+    this.alignPopoverToRight(this.userMenu());
+  }
+
+  alignNotificationsMenuToRight(): void {
+    this.alignPopoverToRight(this.notificationsMenu());
+  }
+
+  formatRelativeTime(receivedAt: string): string {
+    return moment(receivedAt).fromNow();
+  }
+
+  displayDeviceName(notification: FallNotification): string {
+    return notification.nickname || notification.deviceName || notification.deviceId;
+  }
+
+  async onNotificationClick(notification: FallNotification): Promise<void> {
+    this.notificationStore.markRead(notification.id);
+    this.notificationsMenu().hide();
+    await this.navigateToFallAlert.execute({
+      type: 'fall',
+      deviceId: notification.deviceId,
+    });
+  }
+
+  onMarkAllRead(): void {
+    this.notificationStore.markAllRead();
   }
 
   async onLogout(): Promise<void> {

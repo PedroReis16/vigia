@@ -11,6 +11,7 @@ import {
 import {
   AuthExitTransitionService,
   DeviceGroupsRealtimeService,
+  PushNotificationCoordinatorService,
 } from '@core/services';
 
 const DEVICE_DETAIL_ROUTE = /^\/devices\/[^/]+(\/clips)?$/;
@@ -32,6 +33,7 @@ const MOBILE_MAX_WIDTH = '(max-width: 767px)';
 export class LayoutComponent implements OnInit, OnDestroy {
   private readonly authExitTransition = inject(AuthExitTransitionService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
+  private readonly pushCoordinator = inject(PushNotificationCoordinatorService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -58,6 +60,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.realtime.connect();
+    this.pushCoordinator.initialize();
     this.updateMobileDeviceDetailLayout();
 
     this.router.events

@@ -11,6 +11,7 @@ internal class FirebasePushNotificationService(
     IOptions<FirebaseOptions> firebaseOptions) : IPushNotificationService
 {
     private const string FallAlertType = "fall";
+    private const string WebAppBaseUrl = "https://vigiadeteccoes.com.br";
     private readonly ILogger<FirebasePushNotificationService> _logger = logger;
     private readonly FirebaseOptions _options = firebaseOptions.Value;
 
@@ -64,6 +65,18 @@ internal class FirebasePushNotificationService(
                 Aps = new Aps
                 {
                     Sound = "default",
+                },
+            },
+            Webpush = new WebpushConfig
+            {
+                Notification = new WebpushNotification
+                {
+                    Title = "Alerta de queda",
+                    Body = $"Queda detectada em {displayName}",
+                },
+                FcmOptions = new WebpushFcmOptions
+                {
+                    Link = $"{WebAppBaseUrl}/devices/{request.DeviceId}",
                 },
             },
         };

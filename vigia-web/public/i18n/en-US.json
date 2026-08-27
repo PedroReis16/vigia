@@ -124,5 +124,13 @@
   },
   "COMMON": {
     "CANCEL": "Cancel"
+  },
+  "NOTIFICATIONS": {
+    "TITLE": "Notifications",
+    "EMPTY": "No notifications",
+    "MARK_ALL_READ": "Mark all as read",
+    "FALL_ALERT": "Fall alert",
+    "ENABLE_HINT": "Click the bell and allow notifications to receive fall alerts.",
+    "BLOCKED": "Notifications are blocked in this browser. Enable them in site settings."
   }
 }

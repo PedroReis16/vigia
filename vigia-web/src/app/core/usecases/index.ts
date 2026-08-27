@@ -10,3 +10,7 @@ export * from './devices-use-case.error';
 export * from './login/login.service';
 export * from './register/register.service';
 export * from './logout/logout.service';
+export * from './register-push-token/register-push-token.service';
+export * from './unregister-push-token/unregister-push-token.service';
+export * from './sync-push-notifications/sync-push-notifications.service';
+export * from './navigate-to-fall-alert/navigate-to-fall-alert.service';

@@ -1,6 +1,7 @@
 export * from './classes/device';
 export * from './classes/device-user';
 export * from './classes/device-share-invite';
+export * from './classes/fall-notification';
 export * from './DTOs/device.dto';
 export * from './DTOs/device-user.dto';
 export * from './DTOs/update-device.dto';

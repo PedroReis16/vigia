@@ -40,12 +40,12 @@
     <div class="device-video-player__controls">
       <button
         type="button"
-        class="device-video-player__control-btn"
+        class="device-video-player__control-btn device-video-player__control-btn--play"
         (click)="onTogglePause(); $event.stopPropagation()"
         [attr.aria-label]="sessionState().isPaused ? 'Play' : 'Pause'"
       >
         <i
-          class="pi text-4xl text-white"
+          class="pi text-white"
           [class.pi-play-circle]="sessionState().isPaused"
           [class.pi-pause-circle]="!sessionState().isPaused"
           aria-hidden="true"
@@ -58,7 +58,7 @@
         aria-label="Fullscreen"
       >
         <i
-          class="pi text-xl text-white"
+          class="pi text-white"
           [class.pi-window-maximize]="!fullscreen()"
           [class.pi-window-minimize]="fullscreen()"
           aria-hidden="true"

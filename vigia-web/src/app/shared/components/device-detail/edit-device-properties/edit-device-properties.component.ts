@@ -2,6 +2,7 @@ import { Component, inject, input, OnInit, output, signal } from '@angular/core'
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
+import { CardModule } from '@openng/optimus-ui/card';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { Select } from '@openng/optimus-ui/select';
 import { ToggleSwitch } from '@openng/optimus-ui/toggleswitch';
@@ -19,6 +20,7 @@ import { UpdateDeviceService } from '@core/usecases';
     ReactiveFormsModule,
     TranslateModule,
     ButtonModule,
+    CardModule,
     InputTextModule,
     Select,
     ToggleSwitch,

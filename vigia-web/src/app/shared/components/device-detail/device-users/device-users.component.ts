@@ -1,6 +1,7 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, inject, input, OnInit, output, signal } from '@angular/core';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
+import { CardModule } from '@openng/optimus-ui/card';
 import { ConfirmationService } from '@openng/optimus-ui/api';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { MAX_GROUP_USERS } from '@core/constants/device.constants';
@@ -16,12 +17,12 @@ import { DeviceUserItemComponent } from '../device-user-item/device-user-item.co
 @Component({
   selector: 'app-device-users',
   standalone: true,
-  imports: [TranslateModule, ButtonModule, ConfirmDialog, DeviceUserItemComponent],
+  imports: [TranslateModule, ButtonModule, CardModule, ConfirmDialog, DeviceUserItemComponent],
   providers: [ConfirmationService],
   templateUrl: './device-users.component.html',
   styleUrl: './device-users.component.css',
 })
-export class DeviceUsersComponent {
+export class DeviceUsersComponent implements OnInit {
   private readonly getDeviceUsers = inject(GetDeviceUsersService);
   private readonly generateShareLink = inject(GenerateDeviceShareLinkService);
   private readonly removeDeviceUser = inject(RemoveDeviceUserService);
@@ -32,15 +33,20 @@ export class DeviceUsersComponent {
 
   readonly deviceId = input.required<string>();
   readonly isOwner = input.required<boolean>();
-  readonly users = input.required<DeviceUser[]>();
 
   readonly back = output<void>();
   readonly usersChanged = output<void>();
   readonly leftGroup = output<void>();
 
+  readonly users = signal<DeviceUser[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal(false);
   readonly sharing = signal(false);
-  readonly loading = signal(false);
   readonly maxGroupUsers = MAX_GROUP_USERS;
+
+  ngOnInit(): void {
+    void this.loadUsers(this.deviceId());
+  }
 
   get currentUserId(): string | null {
     return this.authSession.getUserId();
@@ -52,6 +58,23 @@ export class DeviceUsersComponent {
 
   onBack(): void {
     this.back.emit();
+  }
+
+  onRetry(): Promise<void> {
+    return this.loadUsers(this.deviceId());
+  }
+
+  async loadUsers(deviceId: string): Promise<void> {
+    this.loading.set(true);
+    this.error.set(false);
+
+    try {
+      this.users.set(await this.getDeviceUsers.execute(deviceId));
+    } catch {
+      this.error.set(true);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   async onShare(): Promise<void> {
@@ -123,6 +146,7 @@ export class DeviceUsersComponent {
         message: this.translate.instant('DEVICES.USERS.REMOVE_SUCCESS'),
         type: 'success',
       });
+      await this.loadUsers(this.deviceId());
       this.usersChanged.emit();
     } catch {
       this.messageService.addMessage({

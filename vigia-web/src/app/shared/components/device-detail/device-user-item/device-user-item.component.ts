@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import { TranslateModule } from '@ngx-translate/core';
 import { DeviceUser } from '@core/entities';
 
@@ -16,8 +16,14 @@ export class DeviceUserItemComponent {
 
   readonly action = output<void>();
 
+  readonly imageFailed = signal(false);
+
   onAction(event: Event): void {
     event.stopPropagation();
     this.action.emit();
+  }
+
+  onImageError(): void {
+    this.imageFailed.set(true);
   }
 }

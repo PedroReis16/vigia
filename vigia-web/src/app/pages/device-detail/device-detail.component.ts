@@ -1,5 +1,7 @@
 import {
+  AfterViewInit,
   Component,
+  computed,
   DestroyRef,
   ElementRef,
   inject,
@@ -16,9 +18,15 @@ import { Device, DeviceUser } from '@core/entities';
 import { deviceWhepUrl } from '@core/helpers';
 import {
   DeviceGroupsRealtimeService,
+  DeviceDetailTransitionService,
   WhepLiveSession,
   WhepLiveSessionState,
 } from '@core/services';
+import {
+  captureDeviceDetailVideoTarget,
+  waitForDeviceDetailVideoTarget,
+} from '@core/helpers/device-card-bounds.helper';
+import { ElementBounds } from '@core/helpers/element-bounds.helper';
 import {
   GetDeviceService,
   GetDeviceUsersService,
@@ -27,6 +35,7 @@ import {
 } from '@core/usecases';
 import { AuthSessionService } from '@core/services';
 import { DeviceDetailsPanelComponent } from '@shared/components/device-detail/device-details-panel/device-details-panel.component';
+import { DeviceDetailActionRowComponent } from '@shared/components/device-detail/device-detail-action-row/device-detail-action-row.component';
 import { DeviceVideoPlayerComponent } from '@shared/components/device-detail/device-video-player/device-video-player.component';
 
 type DetailViewState = 'loading' | 'ready' | 'error' | 'not_found';
@@ -40,11 +49,12 @@ type DetailViewState = 'loading' | 'ready' | 'error' | 'not_found';
     RouterLink,
     DeviceVideoPlayerComponent,
     DeviceDetailsPanelComponent,
+    DeviceDetailActionRowComponent,
   ],
   templateUrl: './device-detail.component.html',
   styleUrl: './device-detail.component.css',
 })
-export class DeviceDetailComponent implements OnInit, OnDestroy {
+export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly getDevice = inject(GetDeviceService);
@@ -52,9 +62,32 @@ export class DeviceDetailComponent implements OnInit, OnDestroy {
   private readonly startStreaming = inject(StartDeviceStreamingService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
   private readonly authSession = inject(AuthSessionService);
+  private readonly transition = inject(DeviceDetailTransitionService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly pageRef = viewChild<ElementRef<HTMLElement>>('pageRoot');
+
+  readonly enterPending = computed(
+    () => this.transition.kind() === 'enter' && !this.transition.settled(),
+  );
+
+  readonly exitPending = computed(
+    () => this.transition.kind() === 'exit' && !this.transition.settled(),
+  );
+
+  readonly transitionPending = computed(
+    () => this.enterPending() || this.exitPending(),
+  );
+
+  readonly transitionTitle = computed(
+    () => this.transition.snapshot()?.displayName ?? '',
+  );
+
+  readonly showLivePlayer = computed(() => !!this.device());
+
+  readonly revealClip = computed(() => this.transition.revealClip());
+
+  readonly revealProgress = computed(() => this.transition.revealProgress());
 
   readonly state = signal<DetailViewState>('loading');
   readonly device = signal<Device | null>(null);
@@ -75,22 +108,33 @@ export class DeviceDetailComponent implements OnInit, OnDestroy {
   private unsubscribeSession: (() => void) | null = null;
   private startingLive = false;
   private deviceId = '';
+  private visualViewport: VisualViewport | null = null;
 
   ngOnInit(): void {
     this.deviceId = this.route.snapshot.paramMap.get('deviceId') ?? '';
     void this.loadDevice();
     void this.loadUsers();
     this.setupRealtime();
+    this.setupKeyboardCollapse();
 
     if (typeof document !== 'undefined') {
       document.addEventListener('fullscreenchange', this.onFullscreenChange);
     }
   }
 
+  ngAfterViewInit(): void {
+    if (this.transition.kind() !== 'enter' || this.prefersReducedMotion()) {
+      return;
+    }
+
+    void this.notifyTransitionReady();
+  }
+
   ngOnDestroy(): void {
     if (typeof document !== 'undefined') {
       document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     }
+    this.teardownKeyboardCollapse();
     void this.teardownSession();
   }
 
@@ -213,7 +257,55 @@ export class DeviceDetailComponent implements OnInit, OnDestroy {
 
   private async leave(redirectTo = '/devices'): Promise<void> {
     await this.teardownSession();
+
+    let exitSnapshot = null;
+
+    if (redirectTo === '/devices') {
+      const device = this.device();
+      exitSnapshot = captureDeviceDetailVideoTarget();
+      if (device && exitSnapshot && !this.prefersReducedMotion()) {
+        this.transition.armExit({
+          deviceId: device.id,
+          displayName: device.displayName,
+          thumbnailUrl: device.thumbnailUrl,
+          imageFailed: false,
+          bounds: exitSnapshot.bounds,
+          borderRadius: exitSnapshot.borderRadius,
+        });
+
+        await this.runExitChromeCollapse(exitSnapshot.bounds);
+      }
+    }
+
     await this.router.navigateByUrl(redirectTo);
+  }
+
+  private async runExitChromeCollapse(videoBounds: ElementBounds): Promise<void> {
+    const frames = 8;
+
+    for (let frame = 1; frame <= frames; frame += 1) {
+      const progress = 1 - frame / frames;
+      this.transition.updateReveal(progress, videoBounds);
+      await nextFrame();
+    }
+  }
+
+  private async notifyTransitionReady(): Promise<void> {
+    await nextFrame();
+    await nextFrame();
+    await waitForDeviceDetailVideoTarget();
+
+    if (this.transition.kind() === 'enter') {
+      this.transition.notifyReady();
+    }
+  }
+
+  private prefersReducedMotion(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
   }
 
   private async enterFullscreen(): Promise<void> {
@@ -236,4 +328,45 @@ export class DeviceDetailComponent implements OnInit, OnDestroy {
   private onFullscreenChange = (): void => {
     this.fullscreen.set(!!document.fullscreenElement);
   };
+
+  private setupKeyboardCollapse(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    this.visualViewport = window.visualViewport;
+    if (!this.visualViewport) {
+      return;
+    }
+
+    this.visualViewport.addEventListener('resize', this.onVisualViewportChange);
+    this.visualViewport.addEventListener('scroll', this.onVisualViewportChange);
+  }
+
+  private teardownKeyboardCollapse(): void {
+    this.visualViewport?.removeEventListener('resize', this.onVisualViewportChange);
+    this.visualViewport?.removeEventListener('scroll', this.onVisualViewportChange);
+    this.visualViewport = null;
+  }
+
+  private onVisualViewportChange = (): void => {
+    if (this.fullscreen() || typeof window === 'undefined') {
+      this.videoCollapsed.set(false);
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    const keyboardOpen = window.innerHeight - viewport.height > 80;
+    this.videoCollapsed.set(keyboardOpen);
+  };
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
 }

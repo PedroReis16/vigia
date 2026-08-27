@@ -1,20 +1,25 @@
 <app-auth-to-shell-transition [mode]="shellTransitionMode()">
-  <div
-    class="layout h-full flex flex-col"
-    [class.layout--enter-morph]="enterMorphActive()"
-    [class.layout--logout-morph]="logoutMorphActive()"
-  >
-    <app-toolbar class="layout__toolbar" />
-    <div class="layout__body flex flex-1 flex-col min-h-0 p-4">
-      <app-message />
-      <div
-        class="layout__content flex flex-1 mt-4 w-full overflow-x-hidden"
-        data-testid="layout-content"
-      >
-        <div class="w-full">
-          <router-outlet></router-outlet>
+  <app-device-detail-transition>
+    <div
+      class="layout h-full flex flex-col"
+      [class.layout--device-detail-mobile]="isMobileDeviceDetail()"
+      [class.layout--enter-morph]="enterMorphActive()"
+      [class.layout--logout-morph]="logoutMorphActive()"
+    >
+      @if (!isMobileDeviceDetail()) {
+        <app-toolbar class="layout__toolbar" />
+      }
+      <div class="layout__body flex flex-1 flex-col min-h-0 p-4">
+        <app-message />
+        <div
+          class="layout__content flex flex-1 mt-4 w-full overflow-x-hidden"
+          data-testid="layout-content"
+        >
+          <div class="w-full">
+            <router-outlet></router-outlet>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </app-device-detail-transition>
 </app-auth-to-shell-transition>

@@ -1,3 +1,4 @@
+import { environment } from '@environments/environment';
 import { DeviceUserMapper } from './device-user.mapper';
 
 describe('DeviceUserMapper', () => {
@@ -13,6 +14,18 @@ describe('DeviceUserMapper', () => {
     expect(user.name).toBe('Alice');
     expect(user.userPictureUrl).toBe('https://example.com/p.png');
     expect(user.isOwner).toBe(true);
+  });
+
+  it('resolves relative picture paths against apiUrl', () => {
+    const user = DeviceUserMapper.fromDto({
+      id: 'u1',
+      name: 'Alice',
+      userPictureUrl: 'pictures/user.jpg',
+      isOwner: false,
+    });
+
+    const apiBase = environment.apiUrl.replace(/\/$/, '');
+    expect(user.userPictureUrl).toBe(`${apiBase}/pictures/user.jpg`);
   });
 
   it('maps dto list', () => {

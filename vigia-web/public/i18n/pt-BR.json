@@ -66,6 +66,8 @@
       "TRY_AGAIN": "Tentar novamente"
     },
     "EDIT": {
+      "TITLE": "Editar dispositivo",
+      "DESCRIPTION": "Nome, ambiente e gravação de clips",
       "SAVE_CLIPS": "Salvar clips",
       "CLIPS_INFO": "Quando ativado, o Vigia armazenará clips de vídeo curtos para análise posterior de possíveis situações de queda.",
       "SAVE": "Salvar alterações",
@@ -78,7 +80,10 @@
     "USERS": {
       "TITLE": "Usuários",
       "EMPTY": "Nenhum usuário encontrado",
+      "LOADING": "Carregando usuários…",
+      "DESCRIPTION": "Compartilhar acesso e gerenciar membros",
       "SEE_ALL": "Ver todos",
+      "OPEN_LIST": "Abrir lista de usuários",
       "OWNER": "Proprietário",
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Compartilhar",
@@ -89,15 +94,19 @@
       "REMOVE_TITLE": "Remover usuário",
       "REMOVE_MESSAGE": "Remover {{name}} do acesso aos dispositivos deste grupo?",
       "REMOVE_CONFIRM": "Remover",
+      "REMOVE_ACTION": "Remover usuário",
       "REMOVE_SUCCESS": "Usuário removido com sucesso",
       "REMOVE_ERROR": "Não foi possível remover o usuário",
       "LEAVE_TITLE": "Sair do grupo",
       "LEAVE_MESSAGE": "Você perderá o acesso aos dispositivos deste grupo.",
       "LEAVE_CONFIRM": "Sair",
+      "LEAVE_ACTION": "Sair do grupo",
       "LEAVE_SUCCESS": "Você saiu do grupo"
     },
     "CLIPS": {
       "TITLE": "Clips",
+      "DESCRIPTION": "Revise gravações do dispositivo",
+      "WEB_SOON": "Em breve na web",
       "VIEW": "Ver clips",
       "STUB": "A visualização de clips ainda não está disponível na web."
     },

@@ -66,6 +66,8 @@
       "TRY_AGAIN": "Try again"
     },
     "EDIT": {
+      "TITLE": "Edit device",
+      "DESCRIPTION": "Name, room, and clip recording",
       "SAVE_CLIPS": "Save clips",
       "CLIPS_INFO": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
       "SAVE": "Save changes",
@@ -78,7 +80,10 @@
     "USERS": {
       "TITLE": "Users",
       "EMPTY": "No users found",
+      "LOADING": "Loading users…",
+      "DESCRIPTION": "Share access and manage members",
       "SEE_ALL": "See all",
+      "OPEN_LIST": "Open user list",
       "OWNER": "Owner",
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Share",
@@ -89,15 +94,19 @@
       "REMOVE_TITLE": "Remove user",
       "REMOVE_MESSAGE": "Remove {{name}} from access to this group's devices?",
       "REMOVE_CONFIRM": "Remove",
+      "REMOVE_ACTION": "Remove user",
       "REMOVE_SUCCESS": "User removed successfully",
       "REMOVE_ERROR": "Could not remove the user",
       "LEAVE_TITLE": "Leave group",
       "LEAVE_MESSAGE": "You will lose access to this group's devices.",
       "LEAVE_CONFIRM": "Leave",
+      "LEAVE_ACTION": "Leave group",
       "LEAVE_SUCCESS": "You left the group"
     },
     "CLIPS": {
       "TITLE": "Clips",
+      "DESCRIPTION": "Review device recordings",
+      "WEB_SOON": "Coming soon on web",
       "VIEW": "View clips",
       "STUB": "Clips playback is not available on the web yet."
     },

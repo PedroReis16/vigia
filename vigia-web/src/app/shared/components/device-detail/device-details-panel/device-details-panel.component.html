@@ -2,61 +2,127 @@
   <div class="device-details-panel__viewport">
     <div class="device-details-panel__track" [class.device-details-panel__track--sub]="pane() !== 'details'">
       <section class="device-details-panel__page">
-        <div class="device-details-panel__header">
+        <header class="device-details-panel__header">
           <h2 class="device-details-panel__title">{{ device().displayName }}</h2>
-          @if (isOwner(device())) {
-            <button type="button" class="device-details-panel__edit" (click)="openEdit()">
-              <i class="pi pi-pencil" aria-hidden="true"></i>
-            </button>
-          }
-        </div>
+          <span
+            class="device-details-panel__status"
+            data-testid="device-status-badge"
+          >
+            {{ (device().isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
+            <span
+              class="device-details-panel__status-dot"
+              [class.device-details-panel__status-dot--online]="device().isRunning"
+              [class.device-details-panel__status-dot--offline]="!device().isRunning"
+              aria-hidden="true"
+            ></span>
+          </span>
+        </header>
 
-        <dl class="device-details-panel__info">
-          <div>
-            <dt>{{ 'DEVICES.DETAIL.NICKNAME' | translate }}</dt>
-            <dd>{{ device().nickname || '—' }}</dd>
-          </div>
-          @if (device().room) {
-            <div>
-              <dt>{{ 'DEVICES.DETAIL.ROOM' | translate }}</dt>
-              <dd>{{ roomKey(device()) | translate }}</dd>
-            </div>
-          }
-          <div>
-            <dt>{{ 'DEVICES.DETAIL.ID' | translate }}</dt>
-            <dd class="device-details-panel__mono">{{ device().id }}</dd>
-          </div>
-        </dl>
+        <p-card styleClass="device-details-panel__card">
+          <ng-template #content>
+            <dl class="device-details-panel__info">
+              <div class="device-details-panel__info-item">
+                <dt>{{ 'DEVICES.DETAIL.NICKNAME' | translate }}</dt>
+                <dd>{{ device().nickname || '—' }}</dd>
+              </div>
+              @if (device().room) {
+                <div class="device-details-panel__info-item">
+                  <dt>{{ 'DEVICES.DETAIL.ROOM' | translate }}</dt>
+                  <dd>{{ roomKey(device()) | translate }}</dd>
+                </div>
+              }
+              <div class="device-details-panel__info-item device-details-panel__info-item--full">
+                <dt>{{ 'DEVICES.DETAIL.ID' | translate }}</dt>
+                <dd class="device-details-panel__mono">{{ device().id }}</dd>
+              </div>
+            </dl>
+          </ng-template>
+        </p-card>
 
-        <h3 class="device-details-panel__section-title">{{ 'DEVICES.USERS.TITLE' | translate }}</h3>
-
-        @if (usersLoading()) {
-          <p-skeleton height="3rem" />
-        } @else if (usersError()) {
-          <p class="device-details-panel__error">{{ 'DEVICES.ERRORS.USERS' | translate }}</p>
-        } @else if (users().length === 0) {
-          <p class="device-details-panel__empty">{{ 'DEVICES.USERS.EMPTY' | translate }}</p>
-        } @else {
-          <button type="button" class="device-details-panel__users-preview" (click)="openUsers()">
-            @for (user of users().slice(0, 3); track user.id; let last = $last) {
-              <app-device-user-item
-                [user]="user"
-                [showAction]="users().length > 3 && last"
-                [actionIcon]="users().length > 3 && last ? 'arrow' : null"
+        @if (isOwner(device())) {
+          <p-card styleClass="device-details-panel__card">
+            <ng-template #content>
+              <app-device-detail-action-row
+                icon="pi pi-pencil"
+                title="DEVICES.EDIT.TITLE"
+                description="DEVICES.EDIT.DESCRIPTION"
+                testId="device-detail-edit-action"
+                [embedded]="true"
+                (action)="openEdit()"
               />
-            }
-            @if (users().length > 3) {
-              <span class="device-details-panel__see-all">
-                {{ 'DEVICES.USERS.SEE_ALL' | translate }}
-              </span>
-            }
-          </button>
+            </ng-template>
+          </p-card>
         }
 
-        <h3 class="device-details-panel__section-title">{{ 'DEVICES.CLIPS.TITLE' | translate }}</h3>
-        <a [routerLink]="['/devices', device().id, 'clips']" pButton class="p-button-text">
-          {{ 'DEVICES.CLIPS.VIEW' | translate }}
-        </a>
+        <p-card styleClass="device-details-panel__card">
+          <ng-template #content>
+            <div class="device-details-panel__users">
+              <div class="device-details-panel__users-heading">
+                <h3 class="device-details-panel__section-title">{{ 'DEVICES.USERS.TITLE' | translate }}</h3>
+                @if (!usersLoading() && !usersError() && users().length > 0) {
+                  <span class="device-details-panel__users-count">
+                    {{
+                      'DEVICES.USERS.COUNT'
+                        | translate: { current: users().length, max: maxGroupUsers }
+                    }}
+                  </span>
+                }
+              </div>
+
+              @if (usersLoading()) {
+                <div class="device-details-panel__users-skeleton" data-testid="device-users-preview-loading">
+                  @for (_ of [1, 2, 3]; track $index) {
+                    <div class="device-details-panel__users-skeleton-row">
+                      <p-skeleton shape="circle" size="2.5rem" />
+                      <div class="device-details-panel__users-skeleton-text">
+                        <p-skeleton width="60%" height="0.875rem" />
+                        <p-skeleton width="35%" height="0.75rem" />
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else if (usersError()) {
+                <p class="device-details-panel__empty">{{ 'DEVICES.ERRORS.USERS' | translate }}</p>
+              } @else if (users().length === 0) {
+                <p class="device-details-panel__empty">{{ 'DEVICES.USERS.EMPTY' | translate }}</p>
+              } @else {
+                <div class="device-details-panel__users-preview" data-testid="device-users-preview">
+                  @for (user of previewUsers(users()); track user.id) {
+                    <app-device-user-item [user]="user" />
+                  }
+                </div>
+              }
+
+              @if (!usersLoading() && !usersError() && users().length > 0) {
+                <div class="device-details-panel__users-footer">
+                  <app-device-detail-action-row
+                    icon="pi pi-users"
+                    title="DEVICES.USERS.SEE_ALL"
+                    description="DEVICES.USERS.DESCRIPTION"
+                    [meta]="
+                      'DEVICES.USERS.COUNT'
+                        | translate: { current: users().length, max: maxGroupUsers }
+                    "
+                    testId="device-users-open-action"
+                    [embedded]="true"
+                    (action)="openUsers()"
+                  />
+                </div>
+              }
+            </div>
+          </ng-template>
+        </p-card>
+
+        <div class="device-details-panel__clips-mobile">
+          <app-device-detail-action-row
+            icon="pi pi-video"
+            title="DEVICES.CLIPS.VIEW"
+            description="DEVICES.CLIPS.DESCRIPTION"
+            [meta]="'DEVICES.CLIPS.WEB_SOON' | translate"
+            [routerLink]="['/devices', device().id, 'clips']"
+            testId="device-clips-mobile-action"
+          />
+        </div>
       </section>
 
       <section class="device-details-panel__page device-details-panel__sub">
@@ -72,7 +138,6 @@
             <app-device-users
               [deviceId]="device().id"
               [isOwner]="isOwner(device())"
-              [users]="users()"
               (back)="backToDetails()"
               (usersChanged)="usersChanged.emit()"
               (leftGroup)="leftGroup.emit()"

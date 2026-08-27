@@ -1,5 +1,16 @@
-<section class="flex h-full w-full flex-col gap-4" data-testid="devices-page">
-  <h1 class="m-0 text-2xl font-semibold">{{ 'DEVICES.TITLE' | translate }}</h1>
+<section
+  class="devices flex h-full w-full flex-col gap-4"
+  [class.devices--exit-pending]="exitPending()"
+  [style.--reveal-cx.px]="revealClip().cx"
+  [style.--reveal-cy.px]="revealClip().cy"
+  [style.--reveal-rx.px]="revealClip().rx"
+  [style.--reveal-ry.px]="revealClip().ry"
+  [style.--reveal-progress]="revealProgress()"
+  data-testid="devices-page"
+>
+  <h1 class="devices__title devices__transition-reveal m-0 text-2xl font-semibold">
+    {{ 'DEVICES.TITLE' | translate }}
+  </h1>
 
   @switch (state()) {
     @case ('loading') {
@@ -34,7 +45,7 @@
       </div>
     }
     @case ('ready') {
-      <div class="devices-grid" data-testid="devices-list">
+      <div class="devices-grid devices__transition-reveal" data-testid="devices-list">
         @for (device of devices(); track device.id) {
           <app-device-card [device]="device" />
         }

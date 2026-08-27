@@ -1,13 +1,13 @@
-import { Component, input, output, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { TranslateModule } from '@ngx-translate/core';
-import { ButtonModule } from '@openng/optimus-ui/button';
+import { CardModule } from '@openng/optimus-ui/card';
 import { Skeleton } from '@openng/optimus-ui/skeleton';
+import { MAX_GROUP_USERS } from '@core/constants/device.constants';
 import { Device, DeviceUser } from '@core/entities';
 import { deviceRoomI18nKey } from '@core/enums';
 import { isDeviceOwner } from '@core/helpers';
 import { AuthSessionService } from '@core/services';
-import { inject } from '@angular/core';
+import { DeviceDetailActionRowComponent } from '../device-detail-action-row/device-detail-action-row.component';
 import { DeviceUserItemComponent } from '../device-user-item/device-user-item.component';
 import { EditDevicePropertiesComponent } from '../edit-device-properties/edit-device-properties.component';
 import { DeviceUsersComponent } from '../device-users/device-users.component';
@@ -19,9 +19,9 @@ export type DeviceDetailsPane = 'details' | 'edit' | 'users';
   standalone: true,
   imports: [
     TranslateModule,
-    ButtonModule,
-    RouterLink,
+    CardModule,
     Skeleton,
+    DeviceDetailActionRowComponent,
     DeviceUserItemComponent,
     EditDevicePropertiesComponent,
     DeviceUsersComponent,
@@ -42,6 +42,11 @@ export class DeviceDetailsPanelComponent {
   readonly leftGroup = output<void>();
 
   readonly pane = signal<DeviceDetailsPane>('details');
+  readonly maxGroupUsers = MAX_GROUP_USERS;
+
+  previewUsers(users: DeviceUser[]): DeviceUser[] {
+    return users.slice(0, 3);
+  }
 
   isOwner(device: Device): boolean {
     return isDeviceOwner(device, this.authSession.getUserId());

@@ -7,7 +7,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
 import { Device } from '@core/entities/classes/device';
 import { DeviceRooms } from '@core/enums';
-import { DeviceGroupsRealtimeService } from '@core/services';
+import { DeviceGroupsRealtimeService, DeviceDetailTransitionService } from '@core/services';
 import { GetDevicesService } from '@core/usecases';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
 import { NEVER } from 'rxjs';
@@ -112,5 +112,39 @@ describe('DevicesComponent', () => {
 
     expect(getDevices.execute).toHaveBeenCalledTimes(2);
     expect(fixture.debugElement.query(By.css('[data-testid="devices-list"]'))).toBeTruthy();
+  });
+
+  it('notifies exit transition ready after view init when exit is armed', async () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { pathname: '/devices' },
+    });
+
+    await createWithResult(Promise.resolve([sampleDevice]));
+
+    const list = fixture.nativeElement.querySelector('[data-testid="devices-list"]');
+    const frame = list.querySelector('[data-device-id="1"]');
+    const thumb = frame?.querySelector('.device-card__thumb');
+    expect(thumb).toBeTruthy();
+
+    const transition = TestBed.inject(DeviceDetailTransitionService);
+    const notifySpy = vi.spyOn(transition, 'notifyReady');
+
+    transition.armExit({
+      deviceId: '1',
+      displayName: 'Sala',
+      thumbnailUrl: null,
+      imageFailed: false,
+      bounds: { top: 80, left: 0, width: 400, height: 225 },
+      borderRadius: 12,
+    });
+
+    const exitFixture = TestBed.createComponent(DevicesComponent);
+    exitFixture.detectChanges();
+    await exitFixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await exitFixture.whenStable();
+
+    expect(notifySpy).toHaveBeenCalled();
   });
 });

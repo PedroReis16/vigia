@@ -1,7 +1,7 @@
 <div class="device-user-item">
   <div class="device-user-item__avatar" aria-hidden="true">
-    @if (user().userPictureUrl) {
-      <img [src]="user().userPictureUrl" [alt]="user().name" />
+    @if (user().userPictureUrl && !imageFailed()) {
+      <img [src]="user().userPictureUrl" [alt]="user().name" (error)="onImageError()" />
     } @else {
       <i class="pi pi-user"></i>
     }
@@ -13,7 +13,16 @@
     }
   </div>
   @if (showAction() && actionIcon()) {
-    <button type="button" class="device-user-item__action" (click)="onAction($event)">
+    <button
+      type="button"
+      class="device-user-item__action"
+      (click)="onAction($event)"
+      [attr.aria-label]="
+        actionIcon() === 'leave'
+          ? ('DEVICES.USERS.LEAVE_ACTION' | translate)
+          : ('DEVICES.USERS.REMOVE_ACTION' | translate)
+      "
+    >
       @switch (actionIcon()) {
         @case ('remove') {
           <i class="pi pi-user-minus" aria-hidden="true"></i>

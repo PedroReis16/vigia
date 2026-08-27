@@ -15,6 +15,16 @@ describe('LayoutComponent', () => {
   let fixture: ComponentFixture<LayoutComponent>;
 
   beforeEach(async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+
     await TestBed.configureTestingModule({
       imports: [LayoutComponent, TranslateModule.forRoot()],
       providers: [
@@ -52,5 +62,15 @@ describe('LayoutComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('[data-testid="app-toolbar"]')).toBeTruthy();
     expect(compiled.querySelector('[data-testid="app-sidebar"]')).toBeNull();
+  });
+
+  it('hides toolbar when mobile device detail layout is active', () => {
+    component.isMobileDeviceDetail.set(true);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const layoutRoot = compiled.querySelector('.layout') as HTMLElement;
+    expect(layoutRoot.classList.contains('layout--device-detail-mobile')).toBe(true);
+    expect(compiled.querySelector('[data-testid="app-toolbar"]')).toBeNull();
   });
 });

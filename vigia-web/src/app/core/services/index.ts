@@ -1,5 +1,6 @@
 export * from './auth/auth-session.service';
 export * from './auth/auth-exit-transition.service';
+export * from './navigation/device-detail-transition.service';
 export * from './theme/theme.service';
 export * from './language/language.service';
 export * from './storage/storage.service';

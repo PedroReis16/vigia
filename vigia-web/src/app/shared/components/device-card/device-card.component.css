@@ -21,6 +21,10 @@
   overflow: hidden;
 }
 
+.device-card__thumb--hidden {
+  opacity: 0;
+}
+
 :host ::ng-deep .device-card .p-card-body,
 :host ::ng-deep .device-card .p-card-content {
   padding: 0;

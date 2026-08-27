@@ -48,7 +48,7 @@ block = f'''  firebase: {{
     messagingSenderId: '${messaging_sender_id}',
     appId: '${app_id}',
     vapidKey: '${vapid_key}',
-  } satisfies FirebaseEnvironmentConfig,'''
+  }} satisfies FirebaseEnvironmentConfig,'''
 
 content, count = re.subn(
     r"  firebase: \{[\s\S]*?\} satisfies FirebaseEnvironmentConfig,",

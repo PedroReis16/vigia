@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
@@ -10,6 +11,9 @@ import 'package:vigia_ui/domain/constants.dart';
 /// BLE client for the Vigia register beacon (GATT peripheral on the device).
 class BlePairingService {
   BlePairingService();
+
+  /// Android 11 and below require location for BLE scanning.
+  static bool requiresLocationForBle(int sdkInt) => sdkInt <= 30;
 
   Future<void> ensureReady() async {
     await _requestPermissions();
@@ -278,8 +282,8 @@ class BlePairingService {
     ];
 
     // Location is still required for BLE scan on Android 11 and below.
-    if (await Permission.locationWhenInUse.isDenied ||
-        await Permission.locationWhenInUse.isRestricted) {
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+    if (requiresLocationForBle(androidInfo.version.sdkInt)) {
       permissions.add(Permission.locationWhenInUse);
     }
 

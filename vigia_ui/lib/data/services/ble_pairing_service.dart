@@ -109,6 +109,11 @@ class BlePairingService {
       autoConnect: false,
     );
     await device.discoverServices();
+    if (Platform.isAndroid) {
+      try {
+        await device.requestMtu(512);
+      } catch (_) {}
+    }
   }
 
   Future<DeviceIdentity> readIdentity(BluetoothDevice device) async {
@@ -136,16 +141,21 @@ class BlePairingService {
     final nonceBytes = _hexToBytes(nonceHex);
     final signatureHex = await signNonce(nonceBytes);
 
+    // Base64 keeps the auth packet under iOS ATT MTU (~182 B); hex JSON (~207 B)
+    // needs long-write, which BlueZ/bless often mishandles from iPhone centrals.
     final payload = jsonEncode({
-      'app_sign_pub': appSignPubHex,
-      'signature': signatureHex,
+      'app_sign_pub': base64Encode(_hexToBytes(appSignPubHex)),
+      'signature': base64Encode(_hexToBytes(signatureHex)),
     });
 
     await characteristic.write(
       utf8.encode(payload),
       withoutResponse: false,
-      allowLongWrite: true,
     );
+
+    if (Platform.isIOS) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
 
     final status = utf8.decode(await characteristic.read()).trim();
     if (status != 'VALIDATED') {
@@ -168,15 +178,16 @@ class BlePairingService {
 
     final payload = jsonEncode({
       'ssid': ssid,
-      'password': password,
-      'api_base_url': apiBaseUrl,
-      'fiware_api_key': fiwareApiKey,
+      'pass': password,
+      'api': apiBaseUrl,
+      'fiware': fiwareApiKey,
     });
 
+    final payloadBytes = utf8.encode(payload);
     await characteristic.write(
-      utf8.encode(payload),
+      payloadBytes,
       withoutResponse: false,
-      allowLongWrite: true,
+      allowLongWrite: payloadBytes.length > 180,
     );
   }
 

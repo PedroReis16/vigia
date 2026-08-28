@@ -10,6 +10,7 @@ import logging
 import os
 import threading
 from typing import Any, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from bless import BlessServer
@@ -39,6 +40,26 @@ _STATUS_VALIDATED = b"VALIDATED"
 _STATUS_INVALID = b"INVALID"
 
 device_context: dict = {}
+
+
+def _legacy_stream_ingest_url(api_base_url: str) -> str:
+    """Calcula o ingest para payloads enviados por apps antigos."""
+    parsed = urlparse((api_base_url or "").strip())
+    if not parsed.hostname:
+        raise ValueError("api_base_url inválida")
+
+    if parsed.scheme == "http":
+        return f"rtmp://{parsed.hostname}:1935"
+
+    if parsed.scheme == "https":
+        hostname = parsed.hostname
+        if hostname.startswith("services."):
+            hostname = f"ingest.{hostname.removeprefix('services.')}"
+        else:
+            hostname = f"ingest.{hostname}"
+        return f"rtmps://{hostname}:8443"
+
+    raise ValueError("api_base_url deve usar http ou https")
 
 
 def __uuid_eq(left: Any, right: str) -> bool:
@@ -99,10 +120,17 @@ async def __provision_wifi_async(
     password: str,
     api_base_url: str,
     fiware_api_key: str,
+    stream_ingest_url: str,
     characteristic: Optional[BlessGATTCharacteristic],
 ) -> None:
     try:
-        await connect_and_persist(ssid, password, api_base_url, fiware_api_key)
+        await connect_and_persist(
+            ssid,
+            password,
+            api_base_url,
+            fiware_api_key,
+            stream_ingest_url=stream_ingest_url,
+        )
         __set_provision_status(b"SUCCESS", characteristic)
         state.set_pairing_stage(state.WIFI_OK)
         device_context["stop_beacon"] = True
@@ -174,8 +202,20 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
                 or payload.get("api")
             )
             fiware_api_key = payload.get("fiware_api_key") or payload.get("fiware")
+            stream_ingest_url = str(payload.get("stream_ingest_url") or "").strip()
+            if not stream_ingest_url:
+                stream_ingest_url = _legacy_stream_ingest_url(api_base_url)
+                log.warning(
+                    "Payload sem stream_ingest_url; usando fallback de compatibilidade: %s",
+                    stream_ingest_url,
+                )
 
-            if not wifi_ssid or wifi_password is None or not api_base_url:
+            if (
+                not wifi_ssid
+                or wifi_password is None
+                or not api_base_url
+                or not stream_ingest_url
+            ):
                 raise ValueError("payload incompleto")
 
             device_context["provision_characteristic"] = characteristic
@@ -195,6 +235,7 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
                     wifi_password,
                     api_base_url,
                     fiware_api_key,
+                    stream_ingest_url,
                     characteristic,
                 )
             )

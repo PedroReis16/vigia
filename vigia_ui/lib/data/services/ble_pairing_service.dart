@@ -148,10 +148,7 @@ class BlePairingService {
       'signature': base64Encode(_hexToBytes(signatureHex)),
     });
 
-    await characteristic.write(
-      utf8.encode(payload),
-      withoutResponse: false,
-    );
+    await characteristic.write(utf8.encode(payload), withoutResponse: false);
 
     if (Platform.isIOS) {
       await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -170,6 +167,7 @@ class BlePairingService {
     required String password,
     required String apiBaseUrl,
     required String fiwareApiKey,
+    required String streamIngestUrl,
   }) async {
     final characteristic = await _requireCharacteristic(
       device,
@@ -181,6 +179,7 @@ class BlePairingService {
       'pass': password,
       'api': apiBaseUrl,
       'fiware': fiwareApiKey,
+      'stream_ingest_url': streamIngestUrl,
     });
 
     final payloadBytes = utf8.encode(payload);

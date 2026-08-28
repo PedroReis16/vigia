@@ -222,6 +222,7 @@ class NetworkSettings:
     password: str
     api_base_url: str
     fiware_api_key: str
+    stream_ingest_url: str
 
     @classmethod
     def from_json(cls) -> "NetworkSettings":
@@ -240,6 +241,7 @@ class NetworkSettings:
             password=network["password"],
             api_base_url=network["api_base_url"],
             fiware_api_key=network["fiware_api_key"],
+            stream_ingest_url=str(network.get("stream_ingest_url") or "").strip(),
         )
         
 @lru_cache(maxsize=1)

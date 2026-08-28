@@ -185,12 +185,17 @@ async def switch_network(
         password,
         str(current.get("api_base_url") or ""),
         str(current.get("fiware_api_key") or ""),
+        str(current.get("stream_ingest_url") or ""),
     )
     return True
 
 
 def persist_network_credentials(
-    ssid: str, password: str, api_base_url: str, fiware_api_key: str
+    ssid: str,
+    password: str,
+    api_base_url: str,
+    fiware_api_key: str,
+    stream_ingest_url: str = "",
 ) -> None:
     network_path = get_network_path()
     network_path.parent.mkdir(parents=True, exist_ok=True)
@@ -201,6 +206,7 @@ def persist_network_credentials(
                 "password": password,
                 "api_base_url": api_base_url,
                 "fiware_api_key": fiware_api_key,
+                "stream_ingest_url": stream_ingest_url,
             }
         )
     )
@@ -219,6 +225,7 @@ async def connect_and_persist(
     api_base_url: str,
     fiware_api_key: str,
     service: WifiService | None = None,
+    stream_ingest_url: str = "",
 ) -> None:
     """Liga à rede e só então grava network.json. Em falha não deixa ficheiro."""
     wifi = service or get_wifi_service()
@@ -227,7 +234,13 @@ async def connect_and_persist(
     except Exception:
         discard_network_credentials()
         raise
-    persist_network_credentials(ssid, password, api_base_url, fiware_api_key)
+    persist_network_credentials(
+        ssid,
+        password,
+        api_base_url,
+        fiware_api_key,
+        stream_ingest_url,
+    )
 
 
 def get_wifi_service() -> WifiService:

@@ -3,7 +3,11 @@ import base64
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from provision.ble import _decode_ed25519_field, _parse_auth_payload
+from provision.ble import (
+    _decode_ed25519_field,
+    _legacy_stream_ingest_url,
+    _parse_auth_payload,
+)
 
 
 def test_decode_ed25519_field_hex_and_base64() -> None:
@@ -44,3 +48,17 @@ def test_parse_auth_payload_accepts_hex_legacy() -> None:
     parsed_pub, parsed_sig = _parse_auth_payload(payload)
     assert parsed_pub == pub_bytes
     public_key.verify(parsed_sig, nonce)
+
+
+def test_legacy_stream_ingest_url_production() -> None:
+    assert (
+        _legacy_stream_ingest_url("https://services.vigiadeteccoes.com.br/vigia")
+        == "rtmps://ingest.vigiadeteccoes.com.br:8443"
+    )
+
+
+def test_legacy_stream_ingest_url_local() -> None:
+    assert (
+        _legacy_stream_ingest_url("http://host.docker.internal:81/vigia")
+        == "rtmp://host.docker.internal:1935"
+    )

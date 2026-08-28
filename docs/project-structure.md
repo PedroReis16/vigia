@@ -132,7 +132,7 @@ vigia/
 
 **Hub SignalR:** `DeviceGroupsHub` em `/vigia/hubs/device-groups`
 
-**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator). Nunca commitar segredos.
+**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento. Nunca commitar segredos.
 
 **Testes:** `vigia-api/Tests/` — Unit (API, Models, Database, Fiware, Cache) + Integration (scaffold, majoritariamente placeholders).
 
@@ -192,7 +192,7 @@ vigia/
 
 **Deploy:** `/opt/vigia/fall-detection/`, systemd `fall-detection.service`
 
-**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`); `classifier.json` opcional (default `math`)
+**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`, incluindo `stream_ingest_url`); `classifier.json` opcional (default `math`)
 
 **Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui `model/gru_2classes.onnx`)
 
@@ -219,7 +219,7 @@ vigia/
 | `packages/firebase_*_android/` | Overrides path de `firebase_core` / `firebase_messaging` sem plataforma iOS (evita firebase-ios-sdk no SPM) |
 | `packages/wifi_scan/` | Fork local com Swift Package Manager |
 
-**Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`
+**Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`; a URL de publicação RTMP é recebida da API durante o pareamento BLE
 
 **iOS (device físico / LAN):** `Info.plist` declara `NSLocalNetworkUsageDescription` + `NSAllowsLocalNetworking` para HTTP ao IP local do Mac (ex.: `10.x`). Sem “Rede Local” permitido em Ajustes, o app não alcança a API e nenhum request aparece nos logs.
 
@@ -493,7 +493,7 @@ flowchart LR
 1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
 2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
 3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate**, arquiva/classifica no ritmo de `FRAME_RATE` (com backpressure) e escreve frames flipados na **shared memory** (`frame_shm`, latest-only) quando `stream_on`
-4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → RTMP/MediaMTX
+4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → endpoint `stream_ingest_url` (`rtmp://` local ou `rtmps://` produção) → MediaMTX
 5. App consome stream via WebRTC/WHEP
 6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
 7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e reseta sequence (zero FFmpeg/encode idle)
@@ -526,6 +526,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-28] Streaming: URL de publicação separada da API e entregue no provisionamento BLE, com fallback para payloads antigos (`Streaming:IngestUrl`, `stream_ingest_url`, FFmpeg)
 - [2026-08-27] Deploy prod: Mosquitto WebSocket em subdomínio dedicado `mosquitto.vigiadeteccoes.com.br` (WSS :443); edge deriva host/porta/path em `fiware_runner.py` (`docker-compose/deploy/infra.sh`, `infrastructure-compose.yaml`)
 - [2026-08-26] vigia-api Swagger: correção geração OpenAPI (upload OTA `IFormFile`), metadados `Vigia API v1`, remoção de `TagDescriptionsDocumentFilter` (`Program.cs`, `DeviceUpdatesController.cs`)
 - [2026-08-25] Seed local do edge: `seed-codes/seed_local_edge.py` + `edge-data/` (TestDeviceSeed); bootstrap/fall `.env.example` com `DATA_DIR=../edge-data`

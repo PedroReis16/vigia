@@ -37,6 +37,7 @@ _SIGN_PASSPHRASE = b"vigia-debug-test-device-v1"
 _ECDH_PASSPHRASE = b"vigia-debug-test-device-ecdh-v1"
 DEFAULT_API_BASE_URL = "http://localhost:8090/vigia"
 DEFAULT_FIWARE_API_KEY = "VIGIA"
+DEFAULT_STREAM_INGEST_URL = "rtmp://localhost:1935"
 EXPECTED_SIGN_PUBLIC_KEY = (
     "10ef4349806050a8e17a82781f188165b70cd19d176c70ec5154c6d9ede4b59d"
 )
@@ -80,12 +81,14 @@ def build_identity() -> dict[str, str]:
 def build_network(
     api_base_url: str = DEFAULT_API_BASE_URL,
     fiware_api_key: str = DEFAULT_FIWARE_API_KEY,
+    stream_ingest_url: str = DEFAULT_STREAM_INGEST_URL,
 ) -> dict[str, str]:
     return {
         "ssid": "local-mock",
         "password": "unused",
         "api_base_url": api_base_url.rstrip("/"),
         "fiware_api_key": fiware_api_key,
+        "stream_ingest_url": stream_ingest_url.rstrip("/"),
     }
 
 
@@ -106,10 +109,15 @@ def seed_data_dir(
     *,
     api_base_url: str = DEFAULT_API_BASE_URL,
     fiware_api_key: str = DEFAULT_FIWARE_API_KEY,
+    stream_ingest_url: str = DEFAULT_STREAM_INGEST_URL,
     classifier: str = "math",
 ) -> dict[str, Path]:
     identity = build_identity()
-    network = build_network(api_base_url=api_base_url, fiware_api_key=fiware_api_key)
+    network = build_network(
+        api_base_url=api_base_url,
+        fiware_api_key=fiware_api_key,
+        stream_ingest_url=stream_ingest_url,
+    )
     classifier_doc = build_classifier(classifier)
 
     paths = {
@@ -145,6 +153,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="fiware_api_key (default: VIGIA)",
     )
     parser.add_argument(
+        "--stream-ingest-url",
+        default=os.environ.get(
+            "VIGIA_STREAM_INGEST_URL", DEFAULT_STREAM_INGEST_URL
+        ),
+        help="URL base de publicação RTMP (default: rtmp://localhost:1935)",
+    )
+    parser.add_argument(
         "--classifier",
         choices=("math", "gru"),
         default="math",
@@ -178,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
             target,
             api_base_url=args.api_base_url,
             fiware_api_key=args.fiware_api_key,
+            stream_ingest_url=args.stream_ingest_url,
             classifier=args.classifier,
         )
         print(f"Seeded {target}")

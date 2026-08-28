@@ -31,6 +31,7 @@ class SeedLocalEdgeTests(unittest.TestCase):
         network = seed.build_network(api_base_url="http://localhost:8090/vigia/")
         self.assertEqual(network["api_base_url"], "http://localhost:8090/vigia")
         self.assertEqual(network["fiware_api_key"], "VIGIA")
+        self.assertEqual(network["stream_ingest_url"], "rtmp://localhost:1935")
 
     def test_seed_data_dir_writes_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

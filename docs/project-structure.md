@@ -526,6 +526,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-27] Deploy prod: Mosquitto WebSocket em subdomínio dedicado `mosquitto.vigiadeteccoes.com.br` (WSS :443); edge deriva host/porta/path em `fiware_runner.py` (`docker-compose/deploy/infra.sh`, `infrastructure-compose.yaml`)
 - [2026-08-26] vigia-api Swagger: correção geração OpenAPI (upload OTA `IFormFile`), metadados `Vigia API v1`, remoção de `TagDescriptionsDocumentFilter` (`Program.cs`, `DeviceUpdatesController.cs`)
 - [2026-08-25] Seed local do edge: `seed-codes/seed_local_edge.py` + `edge-data/` (TestDeviceSeed); bootstrap/fall `.env.example` com `DATA_DIR=../edge-data`
 - [2026-08-25] vigia_ui iOS: `NSLocalNetworkUsageDescription` no `Info.plist` para HTTP à API na LAN; probe debug `debug_api_connectivity_probe.dart`; parsing seguro de erros Dio no login

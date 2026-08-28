@@ -100,22 +100,52 @@ def _on_message(_: mqtt.Client, __: Any, message: mqtt.MQTTMessage) -> None:
         return
 
 
-def _mqtt_endpoint(api_base_url: str) -> tuple[str, int]:
+_LOCAL_MQTT_WS_PATH = "/vigia/fiware/mosquitto"
+_PROD_MQTT_WS_PATH = "/"
+
+
+def _mqtt_host(parsed) -> str:
+    hostname = parsed.hostname or ""
+    if parsed.scheme == "http":
+        return hostname
+    labels = hostname.split(".")
+    if len(labels) >= 3:
+        labels[0] = "mosquitto"
+        return ".".join(labels)
+    return f"mosquitto.{hostname}"
+
+
+def _mqtt_port(parsed) -> int:
+    if parsed.port is not None:
+        return parsed.port
+    return 81 if parsed.scheme == "http" else 443
+
+
+def _mqtt_ws_path(parsed) -> str:
+    return _LOCAL_MQTT_WS_PATH if parsed.scheme == "http" else _PROD_MQTT_WS_PATH
+
+
+def _mqtt_endpoint(api_base_url: str) -> tuple[str, int, str, bool]:
     parsed = urlparse(api_base_url)
     if not parsed.hostname:
         raise ValueError(f"URL inválida: {api_base_url}")
-    host = parsed.hostname
-    port = 443 if parsed.scheme == "https" else 81
-    return host, port
+    host = _mqtt_host(parsed)
+    port = _mqtt_port(parsed)
+    path = _mqtt_ws_path(parsed)
+    use_tls = parsed.scheme == "https"
+    logger.info("MQTT endpoint: %s:%s%s", host, port, path)
+    return host, port, path, use_tls
 
 
-def _create_mqtt_client() -> mqtt.Client:
+def _create_mqtt_client(ws_path: str, use_tls: bool) -> mqtt.Client:
     client = mqtt.Client(
         callback_api_version=CallbackAPIVersion.VERSION2,
         client_id="vigia-consumer",
         transport="websockets",
     )
-    client.ws_set_options(path="/vigia/fiware/mosquitto")
+    client.ws_set_options(path=ws_path)
+    if use_tls:
+        client.tls_set()
     client.on_connect = _on_connect
     client.on_message = _on_message
     return client
@@ -181,12 +211,14 @@ def run_fiware(
     network_settings = get_network_settings()
 
     device_id = identity.device_id
-    broker_host, broker_port = _mqtt_endpoint(network_settings.api_base_url)
+    broker_host, broker_port, broker_path, use_tls = _mqtt_endpoint(
+        network_settings.api_base_url
+    )
 
     fiware_topic = f"/{network_settings.fiware_api_key}/{device_id}/cmd"
     topic_attrs = f"/{network_settings.fiware_api_key}/{device_id}/attrs"
 
-    fiware_client = _create_mqtt_client()
+    fiware_client = _create_mqtt_client(broker_path, use_tls)
     fiware_client.connect(host=broker_host, port=broker_port, keepalive=60)
     fiware_client.loop_start()
 

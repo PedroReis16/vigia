@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import os
@@ -53,6 +55,36 @@ def __as_bytes(value: Any) -> bytes:
     return bytes(value)
 
 
+def _decode_ed25519_field(value: str, expected_len: int) -> bytes:
+    """Decode hex (legacy) or base64 (compact BLE write) Ed25519 material."""
+    normalized = value.strip()
+    if len(normalized) == expected_len * 2 and all(
+        ch in "0123456789abcdefABCDEF" for ch in normalized
+    ):
+        return bytes.fromhex(normalized)
+    try:
+        decoded = base64.b64decode(normalized, validate=True)
+    except binascii.Error as exc:
+        raise ValueError("campo Ed25519 inválido") from exc
+    if len(decoded) != expected_len:
+        raise ValueError("campo Ed25519 inválido")
+    return decoded
+
+
+def _parse_auth_payload(payload: dict[str, Any]) -> tuple[bytes, bytes]:
+    signature_raw = payload.get("signature")
+    if not signature_raw:
+        raise ValueError("signature ausente")
+
+    incoming_pub = payload.get("app_sign_pub")
+    if not incoming_pub:
+        raise ValueError("app_sign_pub ausente no primeiro vínculo")
+
+    pub_bytes = _decode_ed25519_field(str(incoming_pub), 32)
+    sig_bytes = _decode_ed25519_field(str(signature_raw), 64)
+    return pub_bytes, sig_bytes
+
+
 def __set_provision_status(
     status: bytes, characteristic: Optional[BlessGATTCharacteristic] = None
 ) -> None:
@@ -88,29 +120,22 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
         log.info("Escrevendo resposta do desafio de sincronia...")
         try:
             payload = json.loads(__as_bytes(value).decode("utf-8"))
-            signature_hex = payload.get("signature")
-            if not signature_hex:
-                raise ValueError("signature ausente")
+            pub_bytes, sig_bytes = _parse_auth_payload(payload)
 
             nonce = device_context.get("current_nonce")
             if not nonce:
                 raise ValueError("nenhum desafio ativo")
 
+            pub_hex = pub_bytes.hex()
             stored_pub = device_context.get("app_sign_pub")
-            incoming_pub = payload.get("app_sign_pub")
-
             if stored_pub:
-                pub_hex = stored_pub
-            elif incoming_pub:
-                pub_hex = incoming_pub
-                device_context["app_sign_pub"] = incoming_pub
+                if stored_pub != pub_hex:
+                    raise ValueError("app_sign_pub divergente")
             else:
-                raise ValueError("app_sign_pub ausente no primeiro vínculo")
+                device_context["app_sign_pub"] = pub_hex
 
-            public_key = ed25519.Ed25519PublicKey.from_public_bytes(
-                bytes.fromhex(pub_hex)
-            )
-            public_key.verify(bytes.fromhex(signature_hex), nonce)
+            public_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
+            public_key.verify(sig_bytes, nonce)
 
             device_context["authenticated_session"] = True
             device_context["last_challenge_status"] = _STATUS_VALIDATED
@@ -142,9 +167,13 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             payload = json.loads(__as_bytes(value).decode("utf-8"))
 
             wifi_ssid = payload.get("ssid")
-            wifi_password = payload.get("password")
-            api_base_url = payload.get("api_base_url") or payload.get("api_token")
-            fiware_api_key = payload.get("fiware_api_key")
+            wifi_password = payload.get("password") or payload.get("pass")
+            api_base_url = (
+                payload.get("api_base_url")
+                or payload.get("api_token")
+                or payload.get("api")
+            )
+            fiware_api_key = payload.get("fiware_api_key") or payload.get("fiware")
 
             if not wifi_ssid or wifi_password is None or not api_base_url:
                 raise ValueError("payload incompleto")

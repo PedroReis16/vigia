@@ -279,6 +279,7 @@ docker-compose/local/firebase-service-account.json
 
 vigia-bootstrap/data/
 vigia-fall/data/
+vigia-fall/test-videos/
 
 # Angular / Node (vigia-web)
 # See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
@@ -327,3 +328,5 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+edge-data/

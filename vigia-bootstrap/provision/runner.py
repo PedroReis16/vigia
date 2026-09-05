@@ -7,6 +7,7 @@ import logging
 import subprocess
 import threading
 
+from .classifier import ensure_classifier_config
 from .identity import is_provisioned, load_or_create_identity
 from .state import clear_force_pairing, is_force_pairing, set_phase
 from .sysenv import system_subprocess_env
@@ -48,6 +49,7 @@ async def provision_supervisor(cancel: threading.Event) -> None:
 
         if is_provisioned() and not is_force_pairing():
             set_phase("ready")
+            ensure_classifier_config()
             start_fall_detection()
             log.info("Dispositivo já provisionado — a aguardar reset")
             while is_provisioned() and not cancel.is_set() and not is_force_pairing():
@@ -74,6 +76,7 @@ async def provision_supervisor(cancel: threading.Event) -> None:
         if is_provisioned() and not cancel.is_set():
             clear_force_pairing()
             set_phase("ready")
+            ensure_classifier_config()
             start_fall_detection()
         else:
             set_phase("idle")

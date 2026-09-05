@@ -5,7 +5,10 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
-datas = [("yolo26s-pose.pt", ".")]
+datas = [
+    ("yolo26s-pose.pt", "."),
+    ("model/gru_2classes.onnx", "model"),
+]
 binaries = []
 hiddenimports = []
 
@@ -26,6 +29,11 @@ hiddenimports += [
     "integration",
     "shared",
     "shared.bundle_paths",
+    "streaming",
+    "streaming.frame_shm",
+    "streaming.mp_compat",
+    "streaming.rtmp",
+    "streaming.stream_runner",
     *collect_submodules("ultralytics"),
     "pkg_resources",
     "cv2",
@@ -37,6 +45,9 @@ hiddenimports += [
     "getmac",
     "cryptography",
     "paho.mqtt.client",
+    "onnxruntime",
+    "capture.classifiers",
+    "capture.models.gru_classifier",
 ]
 
 a = Analysis(

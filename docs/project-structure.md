@@ -12,10 +12,10 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 
 - **Hardware:** Raspberry Pi 5 (8 GB RAM), Raspberry Pi OS Lite 64-bit
 - **Runtime:** Python 3.12, asyncio (bootstrap), multiprocessing (fall-detection)
-- **ML / Visão:** Ultralytics YOLO (pose), OpenCV
+- **ML / Visão:** Ultralytics YOLO (pose), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
-- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`)
+- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`)
 - **Deploy:** PyInstaller ARM64, systemd
 
 ### Cloud / Infra
@@ -84,11 +84,12 @@ vigia/
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
-├── seed-codes/             # Utilitário dev: publicar frame de teste com assinatura Ed25519
+├── seed-codes/             # Utilitários dev: frame assinado + seed do edge local
+├── edge-data/              # Mock local identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
-├── .cursor/rules/          # Regras Cursor (docs + padrões vigia-web)
-└── .vscode/                # Launch configs e tasks do workspace
+├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
+└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall) e tasks do workspace
 ```
 
 ---
@@ -131,7 +132,7 @@ vigia/
 
 **Hub SignalR:** `DeviceGroupsHub` em `/vigia/hubs/device-groups`
 
-**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator). Nunca commitar segredos.
+**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento. Nunca commitar segredos.
 
 **Testes:** `vigia-api/Tests/` — Unit (API, Models, Database, Fiware, Cache) + Integration (scaffold, majoritariamente placeholders).
 
@@ -149,13 +150,15 @@ vigia/
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `provision/` | `vigia-bootstrap/provision/` | BLE, Wi-Fi, identidade, OTA, estado |
+| `provision/` | `vigia-bootstrap/provision/` | BLE, Wi-Fi, identidade, classificador, OTA, estado |
 | `ui/` | `vigia-bootstrap/ui/` | LCD 16x2, menu, GPIO buttons |
 | `deploy/` | `vigia-bootstrap/deploy/` | Scripts install/uninstall, systemd unit |
 
 **Deploy:** `/opt/vigia/bootstrap/`, systemd `vigia-bootstrap.service`
 
-**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection)
+**Outputs:** `/opt/vigia/identity.json`, `/opt/vigia/network.json` (obrigatórios para fall-detection); `/opt/vigia/classifier.json` (preferência de modelo; default `math`). Em debug local: `{DATA_DIR}/` (ex.: `./data`).
+
+**Paths de instalação vs debug:** `DATA_DIR` define identity/network; OTA usa `VIGIA_OTA_DIR` ou, se `DATA_DIR≠/opt/vigia`, `{DATA_DIR}/ota` (na placa: `/var/lib/vigia/ota`); install root = `VIGIA_INSTALL_ROOT` ou `DATA_DIR`.
 
 **Build:** `make build-linux-arm64` → `dist/vigia-bootstrap-deploy.zip`
 
@@ -167,25 +170,31 @@ vigia/
 
 **Propósito:** Serviço de detecção de quedas — captura de câmera, inferência YOLO pose, detecção de queda, telemetria FIWARE via MQTT, upload de frames assinados, streaming RTMP.
 
-**Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, paho-mqtt, SQLite, PyInstaller.
+**Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, onnxruntime, paho-mqtt, SQLite, PyInstaller.
 
-**Ponto de entrada:** `vigia-fall/main.py` — multiprocess (capture worker + FIWARE runner)
+**Ponto de entrada:** `vigia-fall/main.py` — multiprocess (capture + FIWARE + streaming sob demanda)
 
 **Módulos principais:**
 
 | Módulo | Path | Função |
 |--------|------|--------|
-| `capture/` | `vigia-fall/capture/` | Câmera, YOLO, fall detector, frame upload |
-| `integration/` | `vigia-fall/integration/` | FIWARE runner (MQTT command listener) |
+| `capture/` | `vigia-fall/capture/` | Câmera full-rate, YOLO subsampled (`FRAME_RATE`) com backpressure, `CaptureFrameArchive` no ritmo de classificação, upload; SHM streaming + `EventShmRing` fall_state/logs |
+| `capture/classifiers/` | `vigia-fall/capture/classifiers/` | Miolo pluggável `math` \| `gru` (`FallClassifier`) |
+| `streaming/` | `vigia-fall/streaming/` | Processo RTMP sob demanda (`run_stream`); `frame_shm` + publish direto FFmpeg; `mp_compat` spawn |
+| `integration/` | `vigia-fall/integration/` | Processo FIWARE com MQTT persistente (cmds + attrs); `fall_shm` (`EventShmRing`) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
-| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config |
+| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json`, `log_config`, `event_shm`, `log_bridge` |
+
+**IPC fall_state e logs:** `EventShmRing` (shared memory, multi-slot, drop-oldest) — captura escreve fall_state e logs de decisão sem I/O; FIWARE faz poll (50 ms) e publica MQTT; supervisor drena logs via `LogDrainThread` (~1 ms) para stdout único (`log_shm` 128 slots).
+
+**Logging:** `shared/log_config.configure_logging` com flush imediato; decisões via `log_bridge.emit_log` → SHM → drain no `main`; logger `vigia.decision`. **`STATE_LOG_MODE`:** `verbose` (prototipação — toda decisão, warm-up, no_person), `changes` (só transições), `heartbeat` (+ ping a cada `STATE_LOG_INTERVAL_S`). Defaults dev: `LOG_LEVEL=DEBUG`, `STATE_LOG_MODE=verbose`. Fallback standalone (`python -m capture`) escreve direto em `vigia.decision`. Filtro: `journalctl -u fall-detection -f | grep vigia.decision`.
 
 **Deploy:** `/opt/vigia/fall-detection/`, systemd `fall-detection.service`
 
-**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`)
+**Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`, incluindo `stream_ingest_url`); `classifier.json` opcional (default `math`)
 
-**Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA
+**Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui `model/gru_2classes.onnx`)
 
 **Docs operacionais:** `vigia-fall/docs/DEPLOY.md`
 
@@ -195,7 +204,7 @@ vigia/
 
 **Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push notifications.
 
-**Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, flutter_webrtc, signalr_netcore, Firebase.
+**Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, permission_handler, device_info_plus, flutter_webrtc, signalr_netcore, Firebase (Android only).
 
 **Ponto de entrada:** `vigia_ui/lib/main.dart`
 
@@ -207,10 +216,14 @@ vigia/
 | `lib/domain/` | DTOs, enums, models de UI |
 | `lib/data/` | Services, repositories, API client |
 | `lib/presentation/` | Pages, widgets, providers de UI |
+| `packages/firebase_*_android/` | Overrides path de `firebase_core` / `firebase_messaging` sem plataforma iOS (evita firebase-ios-sdk no SPM) |
+| `packages/wifi_scan/` | Fork local com Swift Package Manager |
 
-**Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`
+**Env:** `homolog.env` (debug), `production.env` (release) — `API_URL`, `STREAM_BASE_URL`; a URL de publicação RTMP é recebida da API durante o pareamento BLE
 
-**Plataformas:** Android + iOS (push apenas Android)
+**iOS (device físico / LAN):** `Info.plist` declara `NSLocalNetworkUsageDescription` + `NSAllowsLocalNetworking` para HTTP ao IP local do Mac (ex.: `10.x`). Sem “Rede Local” permitido em Ajustes, o app não alcança a API e nenhum request aparece nos logs.
+
+**Plataformas:** Android + iOS (push/FCM apenas Android; plugins Firebase não entram no build iOS)
 
 ---
 
@@ -243,9 +256,14 @@ vigia/
 
 ### seed-codes
 
-**Propósito:** Utilitário de desenvolvimento para publicar frame JPEG de teste na API usando assinatura Ed25519.
+**Propósito:** Utilitários de desenvolvimento — frame assinado e mock do edge local (sem Pi/BLE).
 
-**Ponto de entrada:** `seed-codes/publish_frame.py`
+| Script | Função |
+|--------|--------|
+| `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` (Ed25519 / TestDeviceSeed) |
+| `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
+
+**Edge mock local:** `edge-data/` (gitignored exceto README). Bootstrap/fall usam `DATA_DIR=../edge-data`. Device: `Vigia-a1b2c3d4` / admin group. Login app: `admin` / `admin123`.
 
 ---
 
@@ -301,6 +319,7 @@ vigia/
 
 7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda device de teste via `TestDeviceSeed`.
 
+8. **Push notifications Android-only** — Firebase/FCM só no Android: `dependency_overrides` apontam para `packages/firebase_*_android` (sem plataforma iOS), bootstrap/coordenador com guard `Platform.isAndroid`; iOS não liga firebase-ios-sdk.
 8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Web: service worker `firebase-messaging-sw.js`, token via `PUT /users/push-token`, inbox local no sino da toolbar.
 
 9. **Ultralight + MQTT** — Comandos entregues via MQTT, não poll. Collection `commands` vazia no MongoDB do IoT Agent é comportamento esperado.
@@ -320,6 +339,7 @@ vigia/
 | Regra | Onde é aplicada |
 |-------|-----------------|
 | Nome do device deve seguir `^Vigia-[0-9a-f]{8}$` (ex.: `Vigia-a1b2c3d4`) | `DevicesService`, `vigia-bootstrap/provision/identity.py`, `vigia_ui/lib/domain/constants.dart` |
+| Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); fall lê no start e instancia `FallClassifier`; unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py`; `vigia-fall/capture/classifiers/` |
 | Chave pública Ed25519 (hex 64 chars) obrigatória no registro | `DevicesService` + `DeviceSignatureAuthenticationHandler` |
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
@@ -333,7 +353,7 @@ vigia/
 | Atributos FIWARE: `system_status`, `network_status`, `stream_status`, `detected_person`, `fall_state` | `appsettings.json` (`Fiware:Devices:Attributes`) |
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
-| OTA pendente gravado em `/var/lib/vigia/ota/pending.json` | `vigia-fall` (comando `device_update`) |
+| OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
 | Device de teste em DEBUG: `Vigia-a1b2c3d4` | `Vigia.Models/Seed/TestDeviceSeed.cs` |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Landing web de convite: `https://vigiadeteccoes.com.br/invite/{token}` | `appsettings.json` (`Invite:WebInviteBase`); link "Continuar na web" em `InviteRedirectController` |
@@ -357,16 +377,16 @@ vigia/
 - **EF Core:** snake_case (tabelas/colunas), UUID como PK, soft-delete (`DeletedAt`), enums mapeados para PostgreSQL
 - **JSON:** enums serializados como string (`JsonStringEnumConverter`)
 - **Scopes:** services usam `IServiceScopeFactory` para acesso scoped a DAOs
-- **Swagger:** tags via `TagTransformerDocument`; Bearer auth documentado
+- **Swagger:** OpenAPI v1 (`Vigia API`); Bearer auth documentado; uploads `multipart/form-data` sem `[FromForm]` em `IFormFile`
 
 ### Python (edge)
 
 - Docstrings em português
 - **bootstrap:** asyncio (loop UI + supervisor de provisionamento)
-- **fall-detection:** multiprocessing (capture worker + FIWARE runner isolados)
+- **fall-detection:** multiprocessing (capture + FIWARE sempre; streaming sob demanda via shared memory); classificação ~`FRAME_RATE`; stream full-rate com `stream_on`; fall_state via fila leve de strings; logging centralizado; compatível com `spawn`/`fork` (`mp_compat`, ffmpeg cross-platform)
 - **Testes:** pytest; naming `*_tests.py` (fall) e `test_*.py` (bootstrap)
 - **Build:** Makefile → PyInstaller ARM64 → zip de deploy + systemd unit
-- **Config:** `.env.example` por serviço; paths de dados em `/opt/vigia/`
+- **Config:** `.env.example` por serviço; placa: `DATA_DIR=/opt/vigia`, OTA em `/var/lib/vigia/ota`; debug local: `DATA_DIR=./data` (OTA → `{DATA_DIR}/ota`)
 
 ### Flutter (vigia_ui)
 
@@ -376,6 +396,7 @@ vigia/
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
+- **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
 
@@ -396,8 +417,9 @@ vigia/
 
 | Projeto | Cobertura |
 |---------|-----------|
-| vigia-fall | pytest com testes unitários reais (frame processor, uploader, identity, FIWARE OTA) |
+| vigia-fall | pytest com testes unitários (classifiers math/gru, frame worker/processor, uploader, frame_shm/stream_runner, event_shm/fall_shm/log_bridge/state_log, FIWARE loop/OTA, identity) |
 | vigia-bootstrap | pytest (provision, menu, OTA, sysenv) |
+| vigia_ui | ~14 testes widget/domain/router/push Android-only |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
 | vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
@@ -453,6 +475,13 @@ flowchart LR
 
 ### 2. Detecção de queda
 
+1. Câmera/vídeo: leitura **full-rate** (`cap.read()` sem throttle)
+2. Subsample ~`FRAME_RATE` com **backpressure**: só enfileira quando `FrameWorker` está livre (`try_insert_raw_frame`, fila max 2, skip sem drop-oldest); um `frame.copy()` por tick de classificação alimenta archive + YOLO
+3. YOLO pose (`extract_poses`): `YOLO_IMGSZ` (default 320), tracker `bytetrack.yaml` → `FallClassifier` (`math` ou `gru`); warmup loga `p{id}=k/N` (preenchimento real da janela); métricas periódicas `yolo_ms`, `enqueue_fps`, `window_fps`, `queue_skips`
+4. Em cada transição de estado, o FrameWorker escreve o label em `EventShmRing` (fall); o processo FIWARE publica UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms, dedupe no capture e no FIWARE); logs de decisão vão para SHM separado e são drenados pelo supervisor
+5. Orion detecta `fall_state` (subscription configurada)
+6. Webhook POST para `/vigia/devices/alert`
+7. API notifica membros do grupo via Firebase push + SignalR
 1. Câmera captura frames → YOLO pose inference → fall detector avalia postura
 2. Edge publica atributo `fall_state` via MQTT Ultralight
 3. Orion detecta `fall_state==fall` (subscription configurada)
@@ -462,11 +491,12 @@ flowchart LR
 ### 3. Streaming ao vivo
 
 1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
-2. IoT Agent publica comando no MQTT → fall-detection recebe
-3. Fall inicia captura RTMP para MediaMTX
-4. App consome stream via WebRTC/WHEP
-5. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
-6. Comando `stream_off` encerra streaming
+2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
+3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate**, arquiva/classifica no ritmo de `FRAME_RATE` (com backpressure) e escreve frames flipados na **shared memory** (`frame_shm`, latest-only) quando `stream_on`
+4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → endpoint `stream_ingest_url` (`rtmp://` local ou `rtmps://` produção) → MediaMTX
+5. App consome stream via WebRTC/WHEP
+6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
+7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e reseta sequence (zero FFmpeg/encode idle)
 
 ### 4. OTA (atualização de firmware)
 
@@ -496,6 +526,25 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-08-28] vigia_ui: não exige localização para scan BLE no Android 12+; localização permanece apenas no Android 11 e anteriores (`ble_pairing_service.dart`, `device_info_plus`)
+- [2026-08-28] Streaming: URL de publicação separada da API e entregue no provisionamento BLE, com fallback para payloads antigos (`Streaming:IngestUrl`, `stream_ingest_url`, FFmpeg)
+- [2026-08-27] Deploy prod: Mosquitto WebSocket em subdomínio dedicado `mosquitto.vigiadeteccoes.com.br` (WSS :443); edge deriva host/porta/path em `fiware_runner.py` (`docker-compose/deploy/infra.sh`, `infrastructure-compose.yaml`)
+- [2026-08-26] vigia-api Swagger: correção geração OpenAPI (upload OTA `IFormFile`), metadados `Vigia API v1`, remoção de `TagDescriptionsDocumentFilter` (`Program.cs`, `DeviceUpdatesController.cs`)
+- [2026-08-25] Seed local do edge: `seed-codes/seed_local_edge.py` + `edge-data/` (TestDeviceSeed); bootstrap/fall `.env.example` com `DATA_DIR=../edge-data`
+- [2026-08-25] vigia_ui iOS: `NSLocalNetworkUsageDescription` no `Info.plist` para HTTP à API na LAN; probe debug `debug_api_connectivity_probe.dart`; parsing seguro de erros Dio no login
+- [2026-08-24] vigia_ui: Firebase/FCM fora do build iOS — overrides path `packages/firebase_*_android` (só plataforma Android); teste `push_notification_android_only_test.dart`
+- [2026-08-24] Edge debug local: OTA/install derivados de `DATA_DIR` (placa mantém `/var/lib/vigia/ota`); launch configs Python; `.env` local sem paths de instalação (`provision/settings.py`, `shared/settings.py`, `ota.py`, `fiware_runner.py`, `.vscode/launch.json`)
+- [2026-08-24] Fall: pipeline captura→YOLO com backpressure (skip vs drop-oldest), archive no ritmo de classificação, YOLO `YOLO_IMGSZ`/`YOLO_TRACKER`, warmup `p{id}=k/N` e métricas `capture metrics` (`capture_runner`, `frame_worker`, `frame_processor`, `settings`, classifiers)
+- [2026-08-24] Fall: captura full-rate desacoplada — todos os frames arquivados (`CaptureFrameArchive`); classificação subsampled em `FRAME_RATE`; sem throttle no loop (`capture_runner`, `frame_archive`, `settings`)
+- [2026-08-23] vigia-fall: STATE_LOG_MODE verbose + fallback standalone + fix perda SHM (`log_bridge`, `frame_worker`, `settings`, `main.py`)
+- [2026-08-23] vigia-fall: fall_state e logs via EventShmRing (padrão streaming); LogDrain no supervisor; Queue removida (`shared/event_shm.py`, `integration/fall_shm.py`, `shared/log_bridge.py`, `frame_worker`, `main.py`)
+- [2026-08-23] Fall: streaming low-latency — shared memory (`frame_shm`), captura full-rate com `stream_on`, YOLO em `FRAME_RATE`, publish direto FFmpeg low-delay (`capture_runner`, `streaming/rtmp.py`, `main.py`)
+- [2026-08-23] vigia-fall: logging centralizado + fall state IPC leve + MQTT persistente no processo FIWARE (`shared/log_config.py`, `integration/fall_ipc.py`, `fiware_runner`, `frame_worker`)
+- [2026-08-23] Fall: IPC/streaming cross-platform (Windows/macOS spawn) — `freeze_support`, stop graceful da Queue, ffmpeg PATH/Homebrew, `close_fds` só em Unix (`streaming/mp_compat.py`, `rtmp.py`, `main.py`)
+- [2026-08-23] Fall: streaming RTMP isolado em processo sob demanda (`streaming/`); frames via Queue IPC só com `stream_on`; captura sem FFmpeg (`main.py`, `capture_runner`, `streaming/`)
+- [2026-08-23] Fall: publicar todos os `fall_state` (normal/suspect/fall/…) com dedupe; payload UltraLight canónico para Orion (`notify_fall` + `normalize_fall_state`)
+- [2026-08-23] Fall: miolo pluggável `math`/`gru` (`capture/classifiers/`), leitura de `classifier.json`, port ONNX GRU, `notify_fall`, YOLO partilhado via `extract_poses`
+- [2026-08-23] Bootstrap: seleção de classificador no LCD (`MODELO`/`MODELO_PICK`), persistência `classifier.json` (default `math`), `ensure_classifier_config` antes do auto-start do fall (`provision/classifier.py`, `ui/menu.py`, `ui/status.py`)
 - [2026-08-26] vigia-web: aceitar convite de compartilhamento (`/invite/:token`, `AcceptShareInviteService`, `PendingInviteService`, redirect pós-login/register); `_redirects` `/invite/*`; API landing com link web (`Invite:WebInviteBase`)
 - [2026-08-26] vigia-web: logout morph no shell (toolbar expande até tela cheia, logo centraliza; navega para `/login` após animação)
 - [2026-08-26] vigia-web: transição login→shell estilo Flutter (véu primário encolhe para toolbar, logo voa 780ms; `AuthExitTransitionService`, `AuthToShellTransitionComponent`)

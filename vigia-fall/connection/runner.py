@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any, Optional
 from bless import BlessServer
 from bless.backends.attribute import GATTAttributePermissions
@@ -6,6 +7,8 @@ from bless.backends.characteristic import (
     BlessGATTCharacteristic,
     GATTCharacteristicProperties,
 )
+
+logger = logging.getLogger(__name__)
 
 
 SERVICE_UID = "87fa2616-1953-4d5a-80d6-40201b9347eb"
@@ -28,11 +31,11 @@ async def send_response(texto: str):
 
 
 def receive_command(command: str):
-    print(f"Comando recebido: {command}")
+    logger.info("Comando recebido: %s", command)
 
 
 def read_request(characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
-    print(f"Lendo {characteristic.value}")
+    logger.debug("Lendo %s", characteristic.value)
     return characteristic.value
 
 

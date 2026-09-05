@@ -37,6 +37,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 # ── Camada de código + modelo ────────────────────────────────────────────────
 COPY main.py vigia-fall-detection.spec yolo26s-pose.pt ./
+COPY model ./model
 COPY capture ./capture
 COPY connection ./connection
 COPY database ./database

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:vigia_ui/data/services/wifi_scan_service.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
@@ -76,9 +77,22 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
       if (!mounted) return;
       setState(() {
         _loadingNetworks = false;
-        _scanError = error.toString();
+        _scanError = _formatScanError(error);
       });
     }
+  }
+
+  String _formatScanError(Object error) {
+    if (error is StateError) return error.message;
+    final text = error.toString();
+    const prefix = 'Bad state: ';
+    return text.startsWith(prefix) ? text.substring(prefix.length) : text;
+  }
+
+  bool get _scanErrorNeedsSettings {
+    final error = _scanError;
+    if (error == null) return false;
+    return error.contains('localização') || error.contains('permissão');
   }
 
   void _selectNetwork(WifiNetwork network) {
@@ -94,6 +108,7 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
     setState(() {
       _manualEntry = true;
       _selectedNetwork = null;
+      _scanError = null;
       _passwordController.clear();
     });
   }
@@ -187,6 +202,26 @@ class _WifiProvisionFormState extends State<WifiProvisionForm> {
               _scanError!,
               style: textTheme.bodySmall?.copyWith(color: colorScheme.error),
             ),
+            if (_scanErrorNeedsSettings) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: busy ? null : openAppSettings,
+                  child: const Text('Abrir configurações do app'),
+                ),
+              ),
+            ],
+            if (!_manualEntry) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: busy ? null : _enableManualEntry,
+                  child: Text(context.translations.enterNetworkManually),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
           ],
           // List mode expands to fill; manual entry stacks fields naturally.

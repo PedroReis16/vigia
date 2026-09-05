@@ -6,4 +6,8 @@
     <!-- required for: `WifiManager.getScanResult`, `WifiManager.startScan` -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- API 33+: Wi‑Fi scan without location when neverForLocation is set in the app manifest. -->
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"/>
 </manifest>

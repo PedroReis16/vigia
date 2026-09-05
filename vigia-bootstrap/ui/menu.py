@@ -10,6 +10,14 @@ import time
 from provision import actions
 from provision import ota as ota_svc
 from provision import state as pairing_state
+from provision.classifier import (
+    ClassifierId,
+    classifier_label,
+    get_classifier,
+    next_classifier,
+    set_classifier,
+)
+from provision.identity import is_provisioned
 from provision.wifi import switch_network
 from .display import Display, fit
 from .pins import get_pin_config
@@ -47,18 +55,20 @@ class Screen(enum.Enum):
     CPU = 0
     WIFI = 1
     SERVICO = 2
-    ATUALIZ = 3
-    NOVA_REDE = 4
-    UNLINK = 5
-    EDIT_SSID = 6
-    EDIT_PWD = 7
-    WIFI_CONNECTING = 8
-    OTA_CONFIRM = 9
-    OTA_PROGRESS = 10
-    OTA_CHECK = 11
+    MODELO = 3
+    ATUALIZ = 4
+    NOVA_REDE = 5
+    UNLINK = 6
+    EDIT_SSID = 7
+    EDIT_PWD = 8
+    WIFI_CONNECTING = 9
+    OTA_CONFIRM = 10
+    OTA_PROGRESS = 11
+    OTA_CHECK = 12
+    MODELO_PICK = 13
 
 
-CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.ATUALIZ)
+CYCLE = (Screen.CPU, Screen.WIFI, Screen.SERVICO, Screen.MODELO, Screen.ATUALIZ)
 
 
 def _clamp3(value: int) -> int:
@@ -115,6 +125,7 @@ class Menu:
         self._ota_progress = 0
         self._ota_timeout_task: asyncio.Task | None = None
         self._ota_busy = False
+        self._modelo_pick: ClassifierId = "math"
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
@@ -147,6 +158,7 @@ class Menu:
             Screen.OTA_CONFIRM,
             Screen.OTA_PROGRESS,
             Screen.OTA_CHECK,
+            Screen.MODELO_PICK,
         )
 
     def note_input(self) -> None:
@@ -249,6 +261,10 @@ class Menu:
         if screen in (Screen.NOVA_REDE, Screen.UNLINK, Screen.OTA_CONFIRM):
             self._toggle_choice()
             return
+        if screen is Screen.MODELO_PICK:
+            self._modelo_pick = next_classifier(self._modelo_pick)
+            self._request_redraw()
+            return
         if screen in (Screen.EDIT_SSID, Screen.EDIT_PWD):
             self._edit_wheel = (self._edit_wheel - 1) % len(CHARSET)
             self._request_redraw()
@@ -264,6 +280,10 @@ class Menu:
         screen = self.screen
         if screen in (Screen.NOVA_REDE, Screen.UNLINK, Screen.OTA_CONFIRM):
             self._toggle_choice()
+            return
+        if screen is Screen.MODELO_PICK:
+            self._modelo_pick = next_classifier(self._modelo_pick)
+            self._request_redraw()
             return
         if screen in (Screen.EDIT_SSID, Screen.EDIT_PWD):
             self._edit_wheel = (self._edit_wheel + 1) % len(CHARSET)
@@ -307,6 +327,12 @@ class Menu:
                 self._ota_revision = None
                 self._cancel_overlay()
                 return
+        elif screen is Screen.MODELO:
+            self._modelo_pick = get_classifier()
+            self._overlay = Screen.MODELO_PICK
+        elif screen is Screen.MODELO_PICK:
+            self._apply_modelo_pick()
+            return
         elif screen is Screen.ATUALIZ:
             self._begin_ota_check()
             return
@@ -452,6 +478,21 @@ class Menu:
         self._flash = (line1, line2)
         self._flash_until = time.monotonic() + FLASH_SECONDS
 
+    def _apply_modelo_pick(self) -> None:
+        chosen = self._modelo_pick
+        current = get_classifier()
+        self._overlay = None
+        self.index = CYCLE.index(Screen.MODELO)
+        if chosen == current:
+            self._request_redraw()
+            return
+        set_classifier(chosen)
+        if actions.fall_is_active() or is_provisioned():
+            actions.restart_fall_detection()
+        self._set_flash("Modelo", "OK")
+        self.note_input()
+        self._request_redraw()
+
     def _editor_lines(self, title: str) -> tuple[str, str]:
         pending = self._editor_char()
         extra = "<-" if pending == BACKSPACE else pending
@@ -497,6 +538,10 @@ class Menu:
             return "Servico", "parado"
         if screen is Screen.UNLINK:
             return self._choice_lines("Desvincular?")
+        if screen is Screen.MODELO:
+            return "Modelo", classifier_label(snap.classifier)
+        if screen is Screen.MODELO_PICK:
+            return "Modelo", f">{classifier_label(self._modelo_pick)}"
         if screen is Screen.ATUALIZ:
             return "Buscar atualiz.", "OK = procurar"
         if screen is Screen.OTA_CONFIRM:

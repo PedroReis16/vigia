@@ -14,6 +14,7 @@ deve usar shared.test_device_seed.SIGN_PRIVATE_KEY (derivada; ver get_device_ide
 from __future__ import annotations
 
 import hashlib
+import logging
 import threading
 import time
 import uuid
@@ -25,7 +26,14 @@ import cv2  # pyright: ignore[reportMissingImports]
 import numpy as np
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from shared import get_device_identity, get_network_settings
+from shared import (
+    get_device_identity,
+    get_identity_path,
+    get_network_path,
+    get_network_settings,
+)
+
+logger = logging.getLogger(__name__)
 
 # Frame cache TTL na API é 120s — renovar antes de expirar.
 _UPLOAD_INTERVAL_S = 60.0
@@ -109,7 +117,7 @@ def _upload_worker(frame: np.ndarray) -> None:
     try:
         jpeg = _encode_jpeg(frame)
         if not jpeg:
-            print("Frame uploader: falha ao codificar JPEG")
+            logger.warning("Frame uploader: falha ao codificar JPEG")
             return
 
         identity = get_device_identity()
@@ -123,9 +131,9 @@ def _upload_worker(frame: np.ndarray) -> None:
         with _lock:
             _last_upload_monotonic = time.monotonic()
     except (HTTPError, URLError, TimeoutError, ValueError, OSError) as error:
-        print(f"Frame uploader: erro ao enviar thumbnail: {error}")
+        logger.warning("Frame uploader: erro ao enviar thumbnail: %s", error)
     except Exception as error:  # pylint: disable=broad-exception-caught
-        print(f"Frame uploader: erro inesperado: {error}")
+        logger.warning("Frame uploader: erro inesperado: %s", error)
     finally:
         with _lock:
             _upload_in_flight = False
@@ -140,6 +148,9 @@ def maybe_upload_thumbnail(frame: np.ndarray) -> None:
     global _upload_in_flight
 
     if frame is None or frame.size == 0:
+        return
+
+    if not get_identity_path().exists() or not get_network_path().exists():
         return
 
     now = time.monotonic()

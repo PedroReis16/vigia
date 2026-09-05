@@ -35,9 +35,20 @@ dependencies:
   share_plus: ^10.1.4
   signalr_netcore: ^1.4.4
   flutter_webrtc: ^1.5.2
-  firebase_core: ^4.1.0
-  firebase_messaging: ^16.0.1
+  # Resolved via path overrides below — Android plugin platforms only (no iOS Firebase SDK).
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
   flutter_local_notifications: ^22.3.0
+  device_info_plus: ^12.4.0
+
+# Keep FCM out of iPhone/SPM: published FlutterFire packages declare iOS and pull
+# firebase-ios-sdk. These path packages keep the Dart API + Android natives only.
+dependency_overrides:
+  firebase_core:
+    path: packages/firebase_core_android
+  firebase_messaging:
+    path: packages/firebase_messaging_android
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

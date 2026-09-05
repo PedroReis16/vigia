@@ -6,7 +6,10 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30"/>
-    <!-- Wi‑Fi scan (API 31–32) and BLE scan (API ≤ 30) still need location. -->
+    <!-- Wi‑Fi scan on API 29–32 and BLE scan on API ≤ 30 need location. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="32"/>
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="32"/>

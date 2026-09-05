@@ -65,6 +65,13 @@ class SlidingWindowManager:
         pw = self._windows.get(person_id)
         return pw.window if pw else None
 
+    def get_fill_status(self) -> dict[int, tuple[int, int]]:
+        """Retorna person_id → (preenchimento atual, capacidade)."""
+        return {
+            person_id: (len(pw.window), self.window_size)
+            for person_id, pw in self._windows.items()
+        }
+
     def _cleanup_stale(self) -> None:
         """
         Remove as janelas ociosas

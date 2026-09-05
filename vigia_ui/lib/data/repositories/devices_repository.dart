@@ -105,6 +105,9 @@ class DevicesRepository {
       if (config.fiwareApiKey.isEmpty) {
         throw Exception('Fiware API key missing from provision config');
       }
+      if (config.streamIngestUrl.isEmpty) {
+        throw Exception('Stream ingest URL missing from provision config');
+      }
       return config;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {

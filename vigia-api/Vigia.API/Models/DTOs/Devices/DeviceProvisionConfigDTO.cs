@@ -7,4 +7,5 @@ namespace Vigia.API.Models.DTOs.Devices;
 public class DeviceProvisionConfigDTO
 {
     public string FiwareApiKey { get; set; } = string.Empty;
+    public string StreamIngestUrl { get; set; } = string.Empty;
 }

@@ -28,6 +28,40 @@
             "program": "lib/main.dart",
             "flutterMode": "debug"
         },
+        {
+            "name": "Vigia.Bootstrap",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/vigia-bootstrap/main.py",
+            "cwd": "${workspaceFolder}/vigia-bootstrap",
+            "python": "${workspaceFolder}/vigia-bootstrap/.venv/bin/python",
+            "envFile": "${workspaceFolder}/vigia-bootstrap/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Vigia.Fall",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/vigia-fall/main.py",
+            "cwd": "${workspaceFolder}/vigia-fall",
+            "python": "${workspaceFolder}/vigia-fall/.venv/bin/python",
+            "envFile": "${workspaceFolder}/vigia-fall/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "subProcess": true
+        },
+        {
+            "name": "Vigia.Fall (capture only)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "capture",
+            "cwd": "${workspaceFolder}/vigia-fall",
+            "python": "${workspaceFolder}/vigia-fall/.venv/bin/python",
+            "envFile": "${workspaceFolder}/vigia-fall/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
     ],
     "compounds": [
         {
@@ -35,6 +69,13 @@
             "configurations": [
                 "Vigia.API",
                 "Vigia.UI"
+            ]
+        },
+        {
+            "name": "Debug Edge",
+            "configurations": [
+                "Vigia.Bootstrap",
+                "Vigia.Fall"
             ]
         }
     ]

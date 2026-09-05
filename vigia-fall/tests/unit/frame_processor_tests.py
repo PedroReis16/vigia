@@ -1,88 +1,87 @@
-"""Testes unitários para capture.frame_processor.process_frame."""
+"""Testes unitários para capture.frame_processor.extract_poses."""
 
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-from capture.frame_processor import process_frame
-from capture.frame_worker import FrameWorker
+from capture.frame_processor import extract_poses
+from shared.settings import Settings
 
 
-def test_process_frame_ComDeteccoesVazias_NaoInsereJanelaDeslizante(
+def test_extract_poses_sem_deteccoes_retorna_lista_vazia(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Arrange
-    worker = FrameWorker(frame_rate=2, slider_window_size=2)
-    insercoes: list[np.ndarray] = []
-
-    def fake_insert(window: np.ndarray) -> None:
-        insercoes.append(window)
-
     modelo = MagicMock()
-    modelo.predict.return_value = []
-
+    modelo.track.return_value = []
     monkeypatch.setattr("capture.frame_processor.get_yolo_model", lambda: modelo)
-    monkeypatch.setattr("capture.frame_processor.get_worker", lambda: worker)
-    monkeypatch.setattr(worker, "insert_slider_window", fake_insert)
-    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    monkeypatch.setattr(
+        "capture.frame_processor.get_settings",
+        lambda: Settings(yolo_imgsz=320, yolo_tracker="bytetrack.yaml"),
+    )
+    monkeypatch.setattr(
+        "capture.frame_processor.get_person_runtime_store",
+        lambda: MagicMock(cleanup=MagicMock()),
+    )
 
-    # Act
-    process_frame(frame)
+    result = extract_poses(np.zeros((8, 8, 3), dtype=np.uint8), 1.0)
 
-    # Assert
-    modelo.predict.assert_called_once_with(frame, device="cpu", conf=0.75)
-    assert insercoes == []
+    assert result == []
+    call_kwargs = modelo.track.call_args.kwargs
+    assert call_kwargs["device"] == "cpu"
+    assert call_kwargs["conf"] == 0.25
+    assert call_kwargs["verbose"] is False
+    assert call_kwargs["persist"] is True
+    assert call_kwargs["tracker"] == "bytetrack.yaml"
+    assert call_kwargs["imgsz"] == 320
+    assert call_kwargs["classes"] == [0]
 
 
-def test_process_frame_ComDeteccoesValidas_InsereJanelaDeslizante(
+def test_extract_poses_com_pessoa_retorna_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Arrange
-    worker = FrameWorker(frame_rate=2, slider_window_size=2)
-    insercoes: list[np.ndarray] = []
+    kpts_data = MagicMock()
+    person = MagicMock()
+    person.numpy.return_value = np.ones((17, 3), dtype=np.float32)
+    kpts_data.data = [person]
+    kpts_data.__len__ = lambda self: 1
 
-    def fake_insert(window: np.ndarray) -> None:
-        insercoes.append(window)
+    boxes = MagicMock()
+    boxes.id = None
+
+    result = MagicMock()
+    result.keypoints = kpts_data
+    result.boxes = boxes
 
     modelo = MagicMock()
-    modelo.predict.return_value = [MagicMock()]
-
+    modelo.track.return_value = [result]
+    cleanup = MagicMock()
     monkeypatch.setattr("capture.frame_processor.get_yolo_model", lambda: modelo)
-    monkeypatch.setattr("capture.frame_processor.get_worker", lambda: worker)
-    monkeypatch.setattr(worker, "insert_slider_window", fake_insert)
-    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    monkeypatch.setattr(
+        "capture.frame_processor.get_settings",
+        lambda: Settings(yolo_imgsz=416, yolo_tracker="bytetrack.yaml"),
+    )
+    monkeypatch.setattr(
+        "capture.frame_processor.get_person_runtime_store",
+        lambda: MagicMock(cleanup=cleanup),
+    )
 
-    # Act
-    process_frame(frame)
+    observations = extract_poses(np.zeros((8, 8, 3), dtype=np.uint8), 2.5)
 
-    # Assert
-    assert len(insercoes) == 1
-    assert np.array_equal(insercoes[0], frame)
+    assert len(observations) == 1
+    assert observations[0].person_id == 0
+    assert observations[0].keypoints.shape == (17, 3)
+    assert observations[0].timestamp == 2.5
+    cleanup.assert_called_once()
+    assert modelo.track.call_args.kwargs["imgsz"] == 416
 
 
-def test_process_frame_ComExcecaoNoModelo_NaoPropagaErro(
+def test_extract_poses_com_excecao_propaga_runtime_error(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    # Arrange
-    worker = FrameWorker(frame_rate=2, slider_window_size=2)
-    insercoes: list[np.ndarray] = []
-
-    def fake_insert(window: np.ndarray) -> None:
-        insercoes.append(window)
-
     modelo = MagicMock()
-    modelo.predict.side_effect = RuntimeError("falha no yolo")
-
+    modelo.track.side_effect = RuntimeError("falha no yolo")
     monkeypatch.setattr("capture.frame_processor.get_yolo_model", lambda: modelo)
-    monkeypatch.setattr("capture.frame_processor.get_worker", lambda: worker)
-    monkeypatch.setattr(worker, "insert_slider_window", fake_insert)
 
-    # Act
-    process_frame(np.zeros((8, 8, 3), dtype=np.uint8))
-
-    # Assert
-    assert insercoes == []
-    captured = capsys.readouterr()
-    assert "Erro ao processar o frame: falha no yolo" in captured.out
+    with pytest.raises(RuntimeError, match="Erro ao processar o frame"):
+        extract_poses(np.zeros((8, 8, 3), dtype=np.uint8), 1.0)

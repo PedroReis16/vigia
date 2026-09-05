@@ -6,6 +6,7 @@ from .settings import (
     get_settings,
     get_identity_path,
     get_network_path,
+    get_classifier_path,
     get_network_settings,
     get_device_identity,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "helpers_get_mac_address",
     "get_identity_path",
     "get_network_path",
+    "get_classifier_path",
     "get_network_settings",
     "init_stream_event",
     "set_stream_status",

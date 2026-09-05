@@ -2,7 +2,7 @@
 
 Guia curto para gerar o pacote PyInstaller onedir e instalar na placa como serviço systemd.
 
-O bootstrap é o **control plane** da placa: identidade, pareamento BLE, Wi‑Fi (`nmcli`), LCD 16x2 e GPIO. Grava `/opt/vigia/identity.json` e `/opt/vigia/network.json`. Só depois arranca `fall-detection.service`.
+O bootstrap é o **control plane** da placa: identidade, pareamento BLE, Wi‑Fi (`nmcli`), LCD 16x2 e GPIO. Grava `/opt/vigia/identity.json`, `/opt/vigia/network.json` e `/opt/vigia/classifier.json` (modelo de classificação; default `math`). Só depois arranca `fall-detection.service`.
 
 Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado e o fall é iniciado de imediato.
 
@@ -17,12 +17,13 @@ Se `identity.json` e `network.json` já existirem, o pareamento BLE é ignorado 
 
 O feedback de estado (pareamento, Wi‑Fi, fall) é só no LCD. Durante o vínculo o ecrã de eficiência mostra o estágio BLE (app ligada, utilizador encontrado, a esperar internet, a conectar, rede inválida).
 
-Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M  55C`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
+Ecrãs (cima/baixo em ciclo): **Eficiência** (`F  12%  48M` / `S  34% 412M  55C`) → **WiFi** (SSID; hold 2 s = Alterar rede?) → **Servico** (ativo/parado; hold 5 s = Desvincular?) → **Modelo** (Matematico/GRU; OK = escolher; aplica e reinicia o fall se provisionado) → **Buscar atualiz.** (OK = procurar OTA). Nos overlays, cima/baixo escolhem `>Cancelar` / `>Confirmar` (ou `>Matematico` / `>GRU` no pick de modelo) e OK aplica (não mudam de ecrã). Sem actividade o LCD entra em standby (`LCD_STANDBY_SECONDS`, predefinição 20); o primeiro clique só acende a backlight.
 
 No Pi 5 o bootstrap abre `lgpio` em `/dev/gpiochip0` ou `gpiochip4` (conforme o kernel) e faz poll dos botões a 50 ms.
 
 - **Alterar rede** tenta `nmcli` com o SSID/senha digitados. Só grava `network.json` se a ligação for válida; se falhar, mantém a rede atual.
-- **Desvincular** corre `vigia_reset_config.sh`: pára o fall e limpa dados locais do fall; **mantém** `identity.json`, `network.json`, `.env` e perfis Wi‑Fi. O bootstrap reabre o beacon BLE para um novo utilizador na mesma rede.
+- **Modelo** grava `classifier.json` (`math` / `gru`) e reinicia `fall-detection` quando o valor muda e o device está provisionado (ou o serviço ativo). Unlink / limpar Wi‑Fi **não** apagam `classifier.json`.
+- **Desvincular** corre `vigia_reset_config.sh`: pára o fall e limpa dados locais do fall; **mantém** `identity.json`, `network.json`, `classifier.json`, `.env` e perfis Wi‑Fi. O bootstrap reabre o beacon BLE para um novo utilizador na mesma rede.
 
 Na **Raspberry Pi 5** o gpiozero precisa de **liblgpio** em runtime (chip 0 nos kernels recentes, chip 4 nos mais antigos). O `install.sh` instala `liblgpio1` e `i2c-tools` via apt e activa o I2C (`raspi-config nonint do_i2c 0`). Não é preciso `apt-get` manual na placa.
 
@@ -95,6 +96,8 @@ O unit usa `EnvironmentFile=-/opt/vigia/.env` (opcional, partilhado com o fall-d
 - `LCD_I2C_ADDR=0x27`
 - `BUTTON_OK=17` `BUTTON_UP=22` `BUTTON_DOWN=23`
 - `LCD_STANDBY_SECONDS=20`
+
+Com `DATA_DIR=/opt/vigia`, OTA fica em `/var/lib/vigia/ota` (override: `VIGIA_OTA_DIR`). Em debug local (`DATA_DIR=./data`), OTA vai para `{DATA_DIR}/ota` sem precisar de paths de instalação.
 
 O LCD mostra o estágio de vínculo (`Aguardando app`, `Usuario encontrado`, `Esperando internet`, `A conectar...`, `Rede invalida`, …). Credenciais Wi‑Fi só são gravadas em `network.json` depois do `nmcli` ligar com sucesso.
 

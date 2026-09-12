@@ -218,13 +218,12 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=Host(`mosquitto.vigiadeteccoes.com.br`)"
       - "traefik.http.routers.mqttws.entrypoints=websecure"
       - "traefik.http.routers.mqttws.tls=true"
       - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
-      - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
+      - "traefik.http.routers.mqttws.middlewares=cors@file"
     networks:
       - vigia-network
 

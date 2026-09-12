@@ -125,6 +125,7 @@ class DevicePairing extends _$DevicePairing {
         password: password,
         apiBaseUrl: Environments.apiUrl,
         fiwareApiKey: provisionConfig.fiwareApiKey,
+        streamIngestUrl: provisionConfig.streamIngestUrl,
       );
 
       final status = await _ble.pollProvisionStatus(device);

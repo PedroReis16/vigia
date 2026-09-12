@@ -1,17 +1,6 @@
 <p-card header="{{ 'WELCOME' | translate }}">
     <p>{{ "WELCOME_MESSAGE" | translate }}</p>
     <p-divider />
-    <p class="mt-2 text-lg">{{ "ALTERNATE_THEME" | translate }}</p>
-    <div class="mt-2">
-        @if (themeService.selectedTheme() === "light") {
-        <p-button data-testid="theme-toggle" label="{{ 'SETTINGS.THEME.DARK' | translate }}" icon="pi pi-moon"
-            (click)="themeService.setTheme('dark')" variant="outlined" class="mr-2" />
-        } @else {
-        <p-button data-testid="theme-toggle" label="{{ 'SETTINGS.THEME.LIGHT' | translate }}" icon="pi pi-sun"
-            (click)="themeService.setTheme('light')" variant="outlined" class="mr-2" />
-        }
-    </div>
-    <p-divider />
     <p class="mt-2 text-lg">{{ "ALTERNATE_LANGUAGE" | translate }}</p>
     <app-input [options]="availableLanguages" type="dropdown" (valueModelChange)="changeLanguage($event)"
         [value]="languageService.getLanguage()()" />

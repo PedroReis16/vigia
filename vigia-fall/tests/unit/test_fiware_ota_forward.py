@@ -56,3 +56,24 @@ def test_on_message_stream_on_nao_escreve_pending(
     fiware_runner._on_message(None, None, msg)
     assert called["v"] is True
     assert not (tmp_path / "pending.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("api_base_url", "expected"),
+    [
+        (
+            "https://services.vigiadeteccoes.com.br/vigia",
+            ("mosquitto.vigiadeteccoes.com.br", 443, "/", True),
+        ),
+        (
+            "http://host.docker.internal:81/vigia",
+            ("host.docker.internal", 81, "/vigia/fiware/mosquitto", False),
+        ),
+        (
+            "http://localhost/vigia",
+            ("localhost", 81, "/vigia/fiware/mosquitto", False),
+        ),
+    ],
+)
+def test_mqtt_endpoint(api_base_url: str, expected: tuple) -> None:
+    assert fiware_runner._mqtt_endpoint(api_base_url) == expected

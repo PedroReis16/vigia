@@ -15,9 +15,8 @@ BASE_DIR=$(pwd)
 # ─── DOMÍNIOS (Cloudflare) ────────────────────────────────────────────────────
 SERVICES_DOMAIN="services.vigiadeteccoes.com.br"
 INGEST_DOMAIN="ingest.vigiadeteccoes.com.br"
-MQTT_DOMAIN="mqtt.vigiadeteccoes.com.br"   # CONFIRME: assumido seguindo o padrão do ingest, DNS-only na Cloudflare
-# CONFIRME: não foi especificado no domínio base — assumi o mesmo padrão de "services".
-# Se for outro, troque aqui (ex: se preferir path-based sob SERVICES_DOMAIN).
+MOSQUITTO_WS_DOMAIN="mosquitto.vigiadeteccoes.com.br"  # WSS edge (Traefik websecure :443)
+MQTT_DOMAIN="mqtt.vigiadeteccoes.com.br"   # MQTTS nativo (Traefik mqtts :8883); DNS-only na Cloudflare
 PORTAINER_DOMAIN="portainer.vigiadeteccoes.com.br"
 
 # ─── SEGREDOS (.env, NÃO versionado no Git) ───────────────────────────────────
@@ -311,13 +310,12 @@ docker run -d \
   --restart always \
   --network vigia-network \
   --label "traefik.enable=true" \
-  --label "traefik.http.routers.mqttws.rule=Host(\`${SERVICES_DOMAIN}\`) && PathPrefix(\`/vigia/fiware/mosquitto\`)" \
+  --label "traefik.http.routers.mqttws.rule=Host(\`${MOSQUITTO_WS_DOMAIN}\`)" \
   --label "traefik.http.routers.mqttws.entrypoints=websecure" \
   --label "traefik.http.routers.mqttws.tls=true" \
   --label "traefik.http.routers.mqttws.tls.certresolver=letsencrypt" \
   --label "traefik.http.services.mqttws.loadbalancer.server.port=9001" \
-  --label "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/vigia/fiware/mosquitto" \
-  --label "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file" \
+  --label "traefik.http.routers.mqttws.middlewares=cors@file" \
   --label "traefik.tcp.routers.mosquitto-mqtts.rule=HostSNI(\`${MQTT_DOMAIN}\`)" \
   --label "traefik.tcp.routers.mosquitto-mqtts.entrypoints=mqtts" \
   --label "traefik.tcp.routers.mosquitto-mqtts.tls=true" \

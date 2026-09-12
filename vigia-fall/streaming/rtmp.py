@@ -114,24 +114,23 @@ def _ffmpeg_executable() -> str:
             return found
     return "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
 
-def _rtmp_publish_url(api_base_url: str, device_id: str) -> str:
+def _rtmp_publish_url(stream_ingest_url: str, device_id: str) -> str:
     """
-    Monta a URL RTMP de publicação.
+    Monta a URL RTMP de publicação a partir do endpoint de ingestão.
 
-    MediaMTX local escuta RTMP plain em :1935 (não RTMPS).
+    A URL da API não deve ser usada para inferir o destino do streaming:
+    publicação e consumo podem usar hosts e portas diferentes.
     """
-    _ = urlparse(api_base_url)
-    if api_base_url.startswith("https"):
-        protocol = "rtmps"
-    else:
-        protocol = "rtmp"
+    base_url = (stream_ingest_url or "").strip()
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"rtmp", "rtmps"} or not parsed.hostname:
+        raise ValueError(f"URL de ingestão RTMP inválida: {stream_ingest_url}")
+    if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
+        raise ValueError(
+            "URL de ingestão RTMP deve conter somente esquema, host e porta"
+        )
 
-    if api_base_url.startswith("https"):
-        host = api_base_url.split("://")[1].split(":")[0]
-    else:
-        host = f"{api_base_url.split('://')[1].split(':')[0]}:1935" or "localhost:1935"
-
-    return f"{protocol}://{host}/live/{device_id}"
+    return f"{base_url.rstrip('/')}/live/{device_id}"
 
 
 class RtmpPublisher:
@@ -300,8 +299,14 @@ _next_attempt_at = 0.0
 
 
 def _resolve_target(stream_fps: int) -> tuple[int, str]:
+    network = get_network_settings()
+    if not network.stream_ingest_url:
+        raise ValueError(
+            "stream_ingest_url não configurada em network.json; "
+            "reprovisione o dispositivo"
+        )
     url = _rtmp_publish_url(
-        get_network_settings().api_base_url,
+        network.stream_ingest_url,
         get_device_identity().device_id,
     )
     fps = stream_fps if stream_fps > 0 else 30

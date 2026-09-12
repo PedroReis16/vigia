@@ -6,6 +6,7 @@ import multiprocessing as mp
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from integration.fall_shm import enqueue_fall_state, init_fall_shm
 from shared.event_shm import EventShmRing
@@ -127,6 +128,24 @@ def test_ffmpeg_executable_Mac_HomebrewPath() -> None:
         result = rtmp_mod._ffmpeg_executable()
 
     assert result == "/opt/homebrew/bin/ffmpeg"
+
+
+def test_rtmp_publish_url_UsaEndpointDeIngestao() -> None:
+    result = rtmp_mod._rtmp_publish_url(
+        "rtmps://ingest.vigiadeteccoes.com.br:8443",
+        "94f61ebc-08d6-4032-bc86-18e5839df2c8",
+    )
+
+    assert (
+        result
+        == "rtmps://ingest.vigiadeteccoes.com.br:8443/"
+        "live/94f61ebc-08d6-4032-bc86-18e5839df2c8"
+    )
+
+
+def test_rtmp_publish_url_RejeitaCaminhoNaBase() -> None:
+    with pytest.raises(ValueError, match="somente esquema"):
+        rtmp_mod._rtmp_publish_url("rtmps://ingest.example/live", "device")
 
 
 def test_rtmp_publisher_start_Windows_SemCloseFds() -> None:

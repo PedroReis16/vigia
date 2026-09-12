@@ -35,6 +35,27 @@ public class UserPushTokenDaoTests
     }
 
     [Fact]
+    public async Task UpsertAsync_WebPlatform_PersistsToken()
+    {
+        await using VigiaDbContext context = CreateContext();
+        UserPushTokenDao dao = new(context);
+
+        Guid userId = Guid.NewGuid();
+        const string token = "fcm-web-token-1";
+        const string platform = "web";
+
+        await dao.UpsertAsync(userId, token, platform);
+
+        List<UserPushToken> rows = await context.UserPushTokens.Where(t => t.Token == token).ToListAsync();
+        Assert.Single(rows);
+        Assert.Equal(platform, rows[0].Platform);
+        Assert.Equal(userId, rows[0].UserId);
+
+        List<string> activeTokens = await dao.GetTokensByUserIdsAsync([userId]);
+        Assert.Contains(token, activeTokens);
+    }
+
+    [Fact]
     public async Task UpsertAsync_ExistingActiveToken_UpdatesWithoutDuplicating()
     {
         await using VigiaDbContext context = CreateContext();

@@ -227,12 +227,20 @@ def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
     from provision.wifi import connect_and_persist
 
     async def run() -> None:
-        await connect_and_persist("casa", "segredo", "http://api", "k", service=OkWifi())
+        await connect_and_persist(
+            "casa",
+            "segredo",
+            "http://api",
+            "k",
+            service=OkWifi(),
+            stream_ingest_url="rtmps://ingest.example:8443",
+        )
 
     asyncio.run(run())
     data = json.loads((tmp_path / "network.json").read_text())
     assert data["ssid"] == "casa"
     assert data["password"] == "segredo"
+    assert data["stream_ingest_url"] == "rtmps://ingest.example:8443"
     settings.get_settings.cache_clear()
 
 
@@ -246,6 +254,7 @@ def test_switch_network_falha_nao_persiste(tmp_path, monkeypatch) -> None:
                 "password": "old",
                 "api_base_url": "http://api",
                 "fiware_api_key": "k",
+                "stream_ingest_url": "rtmps://ingest.example:8443",
             }
         )
     )
@@ -280,6 +289,7 @@ def test_switch_network_ok_persiste(tmp_path, monkeypatch) -> None:
                 "password": "old",
                 "api_base_url": "http://api",
                 "fiware_api_key": "k",
+                "stream_ingest_url": "rtmps://ingest.example:8443",
             }
         )
     )
@@ -299,6 +309,7 @@ def test_switch_network_ok_persiste(tmp_path, monkeypatch) -> None:
     assert data["ssid"] == "nova"
     assert data["password"] == "segredo"
     assert data["api_base_url"] == "http://api"
+    assert data["stream_ingest_url"] == "rtmps://ingest.example:8443"
     settings.get_settings.cache_clear()
 
 

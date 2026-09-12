@@ -1,3 +1,5 @@
+import { FirebaseEnvironmentConfig } from '@core/interfaces/firebase-config';
+
 export const environment = {
   production: false,
   defaultLanguage: 'pt-BR',
@@ -6,12 +8,17 @@ export const environment = {
     { value: 'en-US', label: 'English' },
     { value: 'es-ES', label: 'Español' },
   ],
-  apiUrl: 'http://localhost:8080',
-  oauth2: {
-    issuer: '',
-    redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/callback` : '',
-    clientId: '',
-    scope: 'openid profile email',
-    refreshTokenTimeThreshold: 60_000,
-  },
+  apiUrl: 'http://localhost:81/vigia',
+  streamBaseUrl: 'http://localhost:81',
+  firebase: {
+    apiKey: "",
+    authDomain: "",
+    projectId: "",
+    storageBucket: "",
+    messagingSenderId: "",
+    appId: "",
+    measurementId: "",
+    // Firebase Console → Cloud Messaging → Web Push certificates → Key pair (pública)
+    vapidKey: "",
+  } satisfies FirebaseEnvironmentConfig,
 };

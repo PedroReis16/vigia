@@ -11,6 +11,7 @@ internal class UserPushTokenService(IUserPushTokenDao pushTokenDao) : IUserPushT
     {
         "android",
         "ios",
+        "web",
     };
 
     private readonly IUserPushTokenDao _pushTokenDao = pushTokenDao;
@@ -35,6 +36,6 @@ internal class UserPushTokenService(IUserPushTokenDao pushTokenDao) : IUserPushT
             throw new EntityValidationException(nameof(platform), "A plataforma é obrigatória", ErrorCodes.PUSH_PLATFORM_REQUIRED);
 
         if (!AllowedPlatforms.Contains(platform.Trim()))
-            throw new EntityValidationException(nameof(platform), "Plataforma inválida. Use android ou ios.", ErrorCodes.PUSH_PLATFORM_INVALID);
+            throw new EntityValidationException(nameof(platform), "Plataforma inválida. Use android, ios ou web.", ErrorCodes.PUSH_PLATFORM_INVALID);
     }
 }

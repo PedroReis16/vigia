@@ -8,5 +8,134 @@
       "DARK": "Oscuro",
       "LIGHT": "Claro"
     }
+  },
+  "AUTH": {
+    "LOGOUT": "Salir",
+    "WELCOME": "Bienvenido a Vigia",
+    "FIELDS": {
+      "NAME": "Nombre completo",
+      "EMAIL": "Correo electrónico",
+      "PASSWORD": "Contraseña",
+      "CONFIRM_PASSWORD": "Confirmar contraseña"
+    },
+    "LOGIN": {
+      "TITLE": "Iniciar sesión",
+      "SUBTITLE": "Accede a tu cuenta Vigia",
+      "SUBMIT": "Entrar",
+      "NO_ACCOUNT": "¿No tienes una cuenta?",
+      "GO_REGISTER": "Regístrate"
+    },
+    "REGISTER": {
+      "TITLE": "Crear cuenta",
+      "SUBTITLE": "Regístrate en Vigia",
+      "SUBMIT": "Crear cuenta",
+      "HAS_ACCOUNT": "¿Ya tienes una cuenta?",
+      "GO_LOGIN": "Iniciar sesión"
+    },
+    "ERRORS": {
+      "LOGIN": "No se pudo iniciar sesión. Inténtalo de nuevo.",
+      "REGISTER": "No se pudo registrar. Inténtalo de nuevo.",
+      "INVALID_CREDENTIALS": "Correo o contraseña inválidos.",
+      "EMAIL_IN_USE": "Este correo ya está en uso.",
+      "PASSWORD_MISMATCH": "Las contraseñas no coinciden."
+    }
+  },
+  "INVITE": {
+    "ACCEPTING": "Aceptando invitación…",
+    "SUCCESS": "Invitación aceptada. Los dispositivos compartidos ya están disponibles.",
+    "ERROR": "No se pudo aceptar la invitación."
+  },
+  "DEVICES": {
+    "TITLE": "Dispositivos",
+    "EMPTY": "No se encontraron dispositivos",
+    "RETRY": "Intentar de nuevo",
+    "ONLINE": "Activo",
+    "OFFLINE": "Inactivo",
+    "ERRORS": {
+      "LIST": "No se pudieron cargar los dispositivos. Inténtalo de nuevo.",
+      "DETAIL": "No se pudo cargar el dispositivo. Inténtalo de nuevo.",
+      "NOT_FOUND": "Dispositivo no encontrado.",
+      "UPDATE": "No se pudo actualizar el dispositivo.",
+      "USERS": "No se pudieron cargar los usuarios.",
+      "SHARE": "No se pudo generar el enlace de compartición.",
+      "REMOVE_USER": "No se pudo eliminar el usuario.",
+      "STREAM_COMMAND": "No se pudo iniciar la transmisión."
+    },
+    "DETAIL": {
+      "NICKNAME": "Nombre",
+      "ROOM": "Habitación",
+      "ID": "Identificador",
+      "BACK": "Volver a dispositivos",
+      "CONNECTING": "Conectando",
+      "CONNECTION_ERROR": "Ocurrió un error al conectar con la transmisión.",
+      "TRY_AGAIN": "Intentar de nuevo"
+    },
+    "EDIT": {
+      "TITLE": "Editar dispositivo",
+      "DESCRIPTION": "Nombre, habitación y grabación de clips",
+      "SAVE_CLIPS": "Guardar clips",
+      "CLIPS_INFO": "Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.",
+      "SAVE": "Guardar cambios",
+      "SUCCESS": "Dispositivo actualizado con éxito",
+      "ERROR": "No se pudo actualizar el dispositivo",
+      "DISCARD_TITLE": "¿Descartar cambios?",
+      "DISCARD_MESSAGE": "Tienes cambios sin guardar. ¿Deseas descartarlos?",
+      "DISCARD": "Descartar"
+    },
+    "USERS": {
+      "TITLE": "Usuarios",
+      "EMPTY": "No se encontraron usuarios",
+      "LOADING": "Cargando usuarios…",
+      "DESCRIPTION": "Compartir acceso y gestionar miembros",
+      "SEE_ALL": "Ver todos",
+      "OPEN_LIST": "Abrir lista de usuarios",
+      "OWNER": "Propietario",
+      "COUNT": "{{current}}/{{max}}",
+      "SHARE": "Compartir",
+      "SHARE_LIMIT": "Límite de usuarios alcanzado",
+      "SHARE_SUBJECT": "Invitación a Vigia",
+      "SHARE_COPIED": "Enlace copiado. Compártelo con quien quieras invitar.",
+      "SHARE_ERROR": "No se pudo generar el enlace de compartición",
+      "REMOVE_TITLE": "Eliminar usuario",
+      "REMOVE_MESSAGE": "¿Eliminar a {{name}} del acceso a los dispositivos de este grupo?",
+      "REMOVE_CONFIRM": "Eliminar",
+      "REMOVE_ACTION": "Eliminar usuario",
+      "REMOVE_SUCCESS": "Usuario eliminado con éxito",
+      "REMOVE_ERROR": "No se pudo eliminar el usuario",
+      "LEAVE_TITLE": "Salir del grupo",
+      "LEAVE_MESSAGE": "Perderás el acceso a los dispositivos de este grupo.",
+      "LEAVE_CONFIRM": "Salir",
+      "LEAVE_ACTION": "Salir del grupo",
+      "LEAVE_SUCCESS": "Saliste del grupo"
+    },
+    "CLIPS": {
+      "TITLE": "Clips",
+      "DESCRIPTION": "Revisa las grabaciones del dispositivo",
+      "WEB_SOON": "Próximamente en la web",
+      "VIEW": "Ver clips",
+      "STUB": "La reproducción de clips aún no está disponible en la web."
+    },
+    "ROOMS": {
+      "Bedroom": "Dormitorio",
+      "LivingRoom": "Sala de estar",
+      "Kitchen": "Cocina",
+      "Bathroom": "Baño",
+      "Office": "Oficina",
+      "Garage": "Garaje",
+      "Backyard": "Patio trasero",
+      "Frontyard": "Patio delantero",
+      "NotDefined": "Habitación no definida"
+    }
+  },
+  "COMMON": {
+    "CANCEL": "Cancelar"
+  },
+  "NOTIFICATIONS": {
+    "TITLE": "Notificaciones",
+    "EMPTY": "Sin notificaciones",
+    "MARK_ALL_READ": "Marcar todas como leídas",
+    "FALL_ALERT": "Alerta de caída",
+    "ENABLE_HINT": "Haz clic en la campana y permite notificaciones para recibir alertas de caída.",
+    "BLOCKED": "Notificaciones bloqueadas en este navegador. Actívalas en la configuración del sitio."
   }
 }

@@ -23,18 +23,18 @@ from typing import Callable
 from urllib.request import Request, urlopen
 
 from .actions import fall_is_active, restart_fall_detection, stop_fall_detection
-from .settings import get_network_path
+from .settings import get_network_path, resolve_install_root, resolve_ota_dir
 from .sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
 
-OTA_DIR = Path(os.getenv("VIGIA_OTA_DIR", "/var/lib/vigia/ota"))
+OTA_DIR = resolve_ota_dir()
 PENDING_PATH = OTA_DIR / "pending.json"
 INSTALLED_REVISION_PATH = OTA_DIR / "installed_revision"
 # Compat: builds antigas gravavam installed_version
 _LEGACY_INSTALLED_VERSION_PATH = OTA_DIR / "installed_version"
 
-INSTALL_ROOT = Path(os.getenv("VIGIA_INSTALL_ROOT", "/opt/vigia"))
+INSTALL_ROOT = resolve_install_root()
 BUNDLE_DIR = INSTALL_ROOT / "fall-detection"
 BUNDLE_PREV = INSTALL_ROOT / "fall-detection.prev"
 

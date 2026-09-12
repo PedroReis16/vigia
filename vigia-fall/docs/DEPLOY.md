@@ -77,6 +77,10 @@ Copie um `.env` para `/opt/vigia/.env` (o unit usa `EnvironmentFile=-/opt/vigia/
 - `DATA_DIR=/opt/vigia` (mesmo valor que o bootstrap)
 
 `YOLO_POSE_MODEL` é o stem Ultralytics (default `yolo26s-pose`). No bundle resolve para o NCNN empacotado; em dev exporta ONNX/CoreML/NCNN conforme a plataforma.
+Com `DATA_DIR=/opt/vigia`, pending OTA em `/var/lib/vigia/ota`. Em debug local (`DATA_DIR=./data`), OTA → `{DATA_DIR}/ota`.
+
+`YOLO_POSE_MODEL` pode continuar `yolo26s-pose` (resolve para o `.pt` empacotado) ou um caminho absoluto.
+
 ## Verificar
 
 ```bash

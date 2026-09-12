@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
@@ -10,6 +11,9 @@ import 'package:vigia_ui/domain/constants.dart';
 /// BLE client for the Vigia register beacon (GATT peripheral on the device).
 class BlePairingService {
   BlePairingService();
+
+  /// Android 11 and below require location for BLE scanning.
+  static bool requiresLocationForBle(int sdkInt) => sdkInt <= 30;
 
   Future<void> ensureReady() async {
     await _requestPermissions();
@@ -109,6 +113,11 @@ class BlePairingService {
       autoConnect: false,
     );
     await device.discoverServices();
+    if (Platform.isAndroid) {
+      try {
+        await device.requestMtu(512);
+      } catch (_) {}
+    }
   }
 
   Future<DeviceIdentity> readIdentity(BluetoothDevice device) async {
@@ -136,16 +145,18 @@ class BlePairingService {
     final nonceBytes = _hexToBytes(nonceHex);
     final signatureHex = await signNonce(nonceBytes);
 
+    // Base64 keeps the auth packet under iOS ATT MTU (~182 B); hex JSON (~207 B)
+    // needs long-write, which BlueZ/bless often mishandles from iPhone centrals.
     final payload = jsonEncode({
-      'app_sign_pub': appSignPubHex,
-      'signature': signatureHex,
+      'app_sign_pub': base64Encode(_hexToBytes(appSignPubHex)),
+      'signature': base64Encode(_hexToBytes(signatureHex)),
     });
 
-    await characteristic.write(
-      utf8.encode(payload),
-      withoutResponse: false,
-      allowLongWrite: true,
-    );
+    await characteristic.write(utf8.encode(payload), withoutResponse: false);
+
+    if (Platform.isIOS) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
 
     final status = utf8.decode(await characteristic.read()).trim();
     if (status != 'VALIDATED') {
@@ -160,6 +171,7 @@ class BlePairingService {
     required String password,
     required String apiBaseUrl,
     required String fiwareApiKey,
+    required String streamIngestUrl,
   }) async {
     final characteristic = await _requireCharacteristic(
       device,
@@ -168,15 +180,17 @@ class BlePairingService {
 
     final payload = jsonEncode({
       'ssid': ssid,
-      'password': password,
-      'api_base_url': apiBaseUrl,
-      'fiware_api_key': fiwareApiKey,
+      'pass': password,
+      'api': apiBaseUrl,
+      'fiware': fiwareApiKey,
+      'stream_ingest_url': streamIngestUrl,
     });
 
+    final payloadBytes = utf8.encode(payload);
     await characteristic.write(
-      utf8.encode(payload),
+      payloadBytes,
       withoutResponse: false,
-      allowLongWrite: true,
+      allowLongWrite: payloadBytes.length > 180,
     );
   }
 
@@ -268,8 +282,8 @@ class BlePairingService {
     ];
 
     // Location is still required for BLE scan on Android 11 and below.
-    if (await Permission.locationWhenInUse.isDenied ||
-        await Permission.locationWhenInUse.isRestricted) {
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+    if (requiresLocationForBle(androidInfo.version.sdkInt)) {
       permissions.add(Permission.locationWhenInUse);
     }
 

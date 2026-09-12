@@ -138,6 +138,7 @@ internal class DevicesService(
     public DeviceProvisionConfigDTO GetProvisionConfig()
     {
         string? fiwareApiKey = _configuration.GetValue<string>("Fiware:Services:ApiKey");
+        string? streamIngestUrl = _configuration.GetValue<string>("Streaming:IngestUrl");
 
         if (string.IsNullOrWhiteSpace(fiwareApiKey))
         {
@@ -145,9 +146,16 @@ internal class DevicesService(
                 "Fiware:Services:ApiKey não está configurada no servidor.");
         }
 
+        if (string.IsNullOrWhiteSpace(streamIngestUrl))
+        {
+            throw new InvalidOperationException(
+                "Streaming:IngestUrl não está configurada no servidor.");
+        }
+
         return new DeviceProvisionConfigDTO
         {
             FiwareApiKey = fiwareApiKey,
+            StreamIngestUrl = streamIngestUrl.Trim().TrimEnd('/'),
         };
     }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:permission_handler/permission_handler.dart';
 import 'package:vigia_ui/domain/DTOs/wifi_network.dart';
 import 'package:wifi_scan/wifi_scan.dart';
 
@@ -15,7 +16,10 @@ class WifiScanService {
       return const [];
     }
 
-    final canScan = await WiFiScan.instance.canStartScan(askPermissions: true);
+    await _ensureScanPermissions();
+
+    // Permissions are requested above; avoid a second native dialog.
+    final canScan = await WiFiScan.instance.canStartScan(askPermissions: false);
     if (canScan != CanStartScan.yes) {
       throw StateError(_scanBlockedMessage(canScan));
     }
@@ -28,7 +32,7 @@ class WifiScanService {
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
     final canRead = await WiFiScan.instance.canGetScannedResults(
-      askPermissions: true,
+      askPermissions: false,
     );
     if (canRead != CanGetScannedResults.yes) {
       throw StateError(_readBlockedMessage(canRead));
@@ -36,6 +40,38 @@ class WifiScanService {
 
     final accessPoints = await WiFiScan.instance.getScannedResults();
     return _dedupeAndSort(accessPoints);
+  }
+
+  /// Requests the runtime permissions required for Wi‑Fi scan on this Android
+  /// version. Android 13+ uses [Permission.nearbyWifiDevices]; older versions
+  /// need precise location while in use.
+  Future<void> _ensureScanPermissions() async {
+    if (!Platform.isAndroid) return;
+
+    final nearby = await Permission.nearbyWifiDevices.status;
+    if (nearby != PermissionStatus.denied &&
+        nearby != PermissionStatus.permanentlyDenied) {
+      if (nearby.isGranted) return;
+
+      final requested = await Permission.nearbyWifiDevices.request();
+      if (requested.isGranted) return;
+    }
+
+    var location = await Permission.locationWhenInUse.status;
+    if (!location.isGranted) {
+      location = await Permission.locationWhenInUse.request();
+    }
+    if (!location.isGranted) {
+      throw StateError(
+        'Ative a permissão de localização para buscar redes Wi‑Fi.',
+      );
+    }
+
+    if (!await Permission.location.serviceStatus.isEnabled) {
+      throw StateError(
+        'Ative os serviços de localização para buscar redes Wi‑Fi.',
+      );
+    }
   }
 
   List<WifiNetwork> _dedupeAndSort(List<WiFiAccessPoint> accessPoints) {
@@ -75,6 +111,8 @@ class WifiScanService {
       CanStartScan.noLocationPermissionRequired ||
       CanStartScan.noLocationPermissionDenied =>
         'Ative a permissão de localização para buscar redes Wi‑Fi.',
+      CanStartScan.noLocationPermissionUpgradeAccuracy =>
+        'Ative a localização precisa nas configurações do app para buscar redes Wi‑Fi.',
       CanStartScan.noLocationServiceDisabled =>
         'Ative os serviços de localização para buscar redes Wi‑Fi.',
       CanStartScan.notSupported =>
@@ -88,6 +126,8 @@ class WifiScanService {
       CanGetScannedResults.noLocationPermissionRequired ||
       CanGetScannedResults.noLocationPermissionDenied =>
         'Ative a permissão de localização para listar redes Wi‑Fi.',
+      CanGetScannedResults.noLocationPermissionUpgradeAccuracy =>
+        'Ative a localização precisa nas configurações do app para listar redes Wi‑Fi.',
       CanGetScannedResults.noLocationServiceDisabled =>
         'Ative os serviços de localização para listar redes Wi‑Fi.',
       CanGetScannedResults.notSupported =>

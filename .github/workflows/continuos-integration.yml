@@ -58,6 +58,11 @@ jobs:
             vigia_ui_src:
               - 'vigia_ui/**'
               - '!vigia_ui/**/*.md'
+            vigia_web_src:
+              - 'vigia-web/**'
+              - '!vigia-web/**/*.md'
+            vigia_web_docker:
+              - 'docker-compose/dockerfiles/vigia-web.dockerfile'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -72,6 +77,16 @@ jobs:
               "type":       "flutter",
               "path":       "vigia_ui",
               "has_docker": "false"
+            }]' <<< "$PROJECTS")
+          fi
+
+          if [[ "${{ steps.filter.outputs.vigia_web_src }}" == "true" || "${{ steps.filter.outputs.vigia_web_docker }}" == "true" ]]; then
+            PROJECTS=$(jq -c '. + [{
+              "name":       "vigia-web",
+              "type":       "angular",
+              "path":       "vigia-web",
+              "dockerfile": "docker-compose/dockerfiles/vigia-web.dockerfile",
+              "has_docker": "true"
             }]' <<< "$PROJECTS")
           fi
 
@@ -280,6 +295,20 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up pnpm
+        if: matrix.project.type == 'angular'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Set up Node.js
+        if: matrix.project.type == 'angular'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.project.path }}/pnpm-lock.yaml
+
       # ── Python ──────────────────────────────────────────────
 
       - name: Cache liblgpio
@@ -382,6 +411,28 @@ jobs:
           path: ${{ matrix.project.path }}/TestResults
           retention-days: 7
           if-no-files-found: ignore
+
+      # ── Angular (vigia-web) ───────────────────────────────────
+
+      - name: Angular - install dependencies
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Angular - lint
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm exec ng lint
+
+      - name: Angular - test
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm test
+
+      - name: Angular - production build
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm exec ng build --configuration=production
 
       # ── Dockerfile (qualquer linguagem que tenha imagem) ────
 

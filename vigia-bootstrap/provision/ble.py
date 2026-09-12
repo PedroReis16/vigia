@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import os
 import threading
 from typing import Any, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from bless import BlessServer
@@ -39,6 +42,26 @@ _STATUS_INVALID = b"INVALID"
 device_context: dict = {}
 
 
+def _legacy_stream_ingest_url(api_base_url: str) -> str:
+    """Calcula o ingest para payloads enviados por apps antigos."""
+    parsed = urlparse((api_base_url or "").strip())
+    if not parsed.hostname:
+        raise ValueError("api_base_url inválida")
+
+    if parsed.scheme == "http":
+        return f"rtmp://{parsed.hostname}:1935"
+
+    if parsed.scheme == "https":
+        hostname = parsed.hostname
+        if hostname.startswith("services."):
+            hostname = f"ingest.{hostname.removeprefix('services.')}"
+        else:
+            hostname = f"ingest.{hostname}"
+        return f"rtmps://{hostname}:8443"
+
+    raise ValueError("api_base_url deve usar http ou https")
+
+
 def __uuid_eq(left: Any, right: str) -> bool:
     return str(left).lower() == right.lower()
 
@@ -51,6 +74,36 @@ def __as_bytes(value: Any) -> bytes:
     if isinstance(value, bytes):
         return value
     return bytes(value)
+
+
+def _decode_ed25519_field(value: str, expected_len: int) -> bytes:
+    """Decode hex (legacy) or base64 (compact BLE write) Ed25519 material."""
+    normalized = value.strip()
+    if len(normalized) == expected_len * 2 and all(
+        ch in "0123456789abcdefABCDEF" for ch in normalized
+    ):
+        return bytes.fromhex(normalized)
+    try:
+        decoded = base64.b64decode(normalized, validate=True)
+    except binascii.Error as exc:
+        raise ValueError("campo Ed25519 inválido") from exc
+    if len(decoded) != expected_len:
+        raise ValueError("campo Ed25519 inválido")
+    return decoded
+
+
+def _parse_auth_payload(payload: dict[str, Any]) -> tuple[bytes, bytes]:
+    signature_raw = payload.get("signature")
+    if not signature_raw:
+        raise ValueError("signature ausente")
+
+    incoming_pub = payload.get("app_sign_pub")
+    if not incoming_pub:
+        raise ValueError("app_sign_pub ausente no primeiro vínculo")
+
+    pub_bytes = _decode_ed25519_field(str(incoming_pub), 32)
+    sig_bytes = _decode_ed25519_field(str(signature_raw), 64)
+    return pub_bytes, sig_bytes
 
 
 def __set_provision_status(
@@ -67,10 +120,17 @@ async def __provision_wifi_async(
     password: str,
     api_base_url: str,
     fiware_api_key: str,
+    stream_ingest_url: str,
     characteristic: Optional[BlessGATTCharacteristic],
 ) -> None:
     try:
-        await connect_and_persist(ssid, password, api_base_url, fiware_api_key)
+        await connect_and_persist(
+            ssid,
+            password,
+            api_base_url,
+            fiware_api_key,
+            stream_ingest_url=stream_ingest_url,
+        )
         __set_provision_status(b"SUCCESS", characteristic)
         state.set_pairing_stage(state.WIFI_OK)
         device_context["stop_beacon"] = True
@@ -88,29 +148,22 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
         log.info("Escrevendo resposta do desafio de sincronia...")
         try:
             payload = json.loads(__as_bytes(value).decode("utf-8"))
-            signature_hex = payload.get("signature")
-            if not signature_hex:
-                raise ValueError("signature ausente")
+            pub_bytes, sig_bytes = _parse_auth_payload(payload)
 
             nonce = device_context.get("current_nonce")
             if not nonce:
                 raise ValueError("nenhum desafio ativo")
 
+            pub_hex = pub_bytes.hex()
             stored_pub = device_context.get("app_sign_pub")
-            incoming_pub = payload.get("app_sign_pub")
-
             if stored_pub:
-                pub_hex = stored_pub
-            elif incoming_pub:
-                pub_hex = incoming_pub
-                device_context["app_sign_pub"] = incoming_pub
+                if stored_pub != pub_hex:
+                    raise ValueError("app_sign_pub divergente")
             else:
-                raise ValueError("app_sign_pub ausente no primeiro vínculo")
+                device_context["app_sign_pub"] = pub_hex
 
-            public_key = ed25519.Ed25519PublicKey.from_public_bytes(
-                bytes.fromhex(pub_hex)
-            )
-            public_key.verify(bytes.fromhex(signature_hex), nonce)
+            public_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
+            public_key.verify(sig_bytes, nonce)
 
             device_context["authenticated_session"] = True
             device_context["last_challenge_status"] = _STATUS_VALIDATED
@@ -142,11 +195,27 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
             payload = json.loads(__as_bytes(value).decode("utf-8"))
 
             wifi_ssid = payload.get("ssid")
-            wifi_password = payload.get("password")
-            api_base_url = payload.get("api_base_url") or payload.get("api_token")
-            fiware_api_key = payload.get("fiware_api_key")
+            wifi_password = payload.get("password") or payload.get("pass")
+            api_base_url = (
+                payload.get("api_base_url")
+                or payload.get("api_token")
+                or payload.get("api")
+            )
+            fiware_api_key = payload.get("fiware_api_key") or payload.get("fiware")
+            stream_ingest_url = str(payload.get("stream_ingest_url") or "").strip()
+            if not stream_ingest_url:
+                stream_ingest_url = _legacy_stream_ingest_url(api_base_url)
+                log.warning(
+                    "Payload sem stream_ingest_url; usando fallback de compatibilidade: %s",
+                    stream_ingest_url,
+                )
 
-            if not wifi_ssid or wifi_password is None or not api_base_url:
+            if (
+                not wifi_ssid
+                or wifi_password is None
+                or not api_base_url
+                or not stream_ingest_url
+            ):
                 raise ValueError("payload incompleto")
 
             device_context["provision_characteristic"] = characteristic
@@ -166,6 +235,7 @@ def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
                     wifi_password,
                     api_base_url,
                     fiware_api_key,
+                    stream_ingest_url,
                     characteristic,
                 )
             )

@@ -160,3 +160,48 @@ def test_apply_update_rollback_on_install_fail(
 
     assert (bundle / "marker").read_text(encoding="utf-8") == "old"
     assert ota_svc.read_installed_revision() is None
+
+
+def test_resolve_ota_dir_usa_data_dir_em_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from provision import settings as settings_mod
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("VIGIA_OTA_DIR", raising=False)
+    settings_mod.get_settings.cache_clear()
+    assert settings_mod.resolve_ota_dir() == tmp_path / "ota"
+
+
+def test_resolve_ota_dir_placa_usa_var_lib(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from provision import settings as settings_mod
+
+    monkeypatch.setenv("DATA_DIR", "/opt/vigia")
+    monkeypatch.delenv("VIGIA_OTA_DIR", raising=False)
+    settings_mod.get_settings.cache_clear()
+    assert settings_mod.resolve_ota_dir() == Path("/var/lib/vigia/ota")
+
+
+def test_resolve_ota_dir_explicito(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from provision import settings as settings_mod
+
+    explicit = tmp_path / "custom-ota"
+    monkeypatch.setenv("DATA_DIR", "/opt/vigia")
+    monkeypatch.setenv("VIGIA_OTA_DIR", str(explicit))
+    settings_mod.get_settings.cache_clear()
+    assert settings_mod.resolve_ota_dir() == explicit
+
+
+def test_resolve_install_root_segue_data_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from provision import settings as settings_mod
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("VIGIA_INSTALL_ROOT", raising=False)
+    settings_mod.get_settings.cache_clear()
+    assert settings_mod.resolve_install_root() == tmp_path

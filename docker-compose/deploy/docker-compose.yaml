@@ -1,5 +1,5 @@
 services:
-  # ─── VIGIA ────────────────────────────────────────────────────────────────
+  # ─── VIGIA API ────────────────────────────────────────────────────────────
   vigia:
     image: pedroreis16/vigia-api:latest
     container_name: vigia-api
@@ -16,6 +16,7 @@ services:
       - "traefik.http.routers.vigia.tls.certresolver=letsencrypt"
       - "traefik.http.services.vigia.loadbalancer.server.port=8080"
       - "traefik.http.routers.vigia.priority=50"
+      - "traefik.http.routers.vigia.middlewares=cors@file"
     networks:
       - vigia-network
 

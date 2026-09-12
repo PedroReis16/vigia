@@ -6,10 +6,11 @@
 **/.vs/
 **/.idea/
 **/node_modules/
+**/dist/
 **/__pycache__/
 docker-compose/local/minio_data/
 
-# Not needed for vigia-api image builds (fall-detection CI uses its own path filters)
+# Not needed for vigia-api / vigia-web image builds (fall-detection CI uses its own path filters)
 vigia-fall/
 vigia_ui/
 seed-codes/

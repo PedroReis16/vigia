@@ -1,1 +1,20 @@
 <router-outlet />
+
+@if (authExitTransition.bridgeActive()) {
+  <div class="auth-entry-bridge" data-testid="auth-entry-bridge" aria-hidden="true"></div>
+}
+
+@if (authExitTransition.handoffLogo(); as logo) {
+  @if (authExitTransition.showAppHandoffLogo()) {
+    <img
+      class="auth-handoff-logo"
+      data-testid="auth-handoff-logo"
+      src="images/vigia-logo-dark.png"
+      alt=""
+      aria-hidden="true"
+      [style.top.px]="logo.top"
+      [style.left.px]="logo.left"
+      [style.height.px]="logo.height"
+    />
+  }
+}

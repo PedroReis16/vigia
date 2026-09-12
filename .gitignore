@@ -212,6 +212,10 @@ __marimo__/
 
 *.pt
 
+# YOLO pose exports (gerados on-demand; não commitados)
+vigia-fall/models/yolo/**
+!vigia-fall/models/yolo/.gitkeep
+
 backend/vigia-bootstrap
 
 fall-detection/data/

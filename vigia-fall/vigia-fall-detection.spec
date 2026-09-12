@@ -6,8 +6,8 @@ from PyInstaller.utils.hooks import collect_all, collect_submodules
 block_cipher = None
 
 datas = [
-    ("yolo26s-pose.pt", "."),
-    ("model/gru_2classes.onnx", "model"),
+    ("models/yolo/yolo26s-pose_ncnn_model", "models/yolo/yolo26s-pose_ncnn_model"),
+    ("models/gru_2classes.onnx", "models"),
 ]
 binaries = []
 hiddenimports = []

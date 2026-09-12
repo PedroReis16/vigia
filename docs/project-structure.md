@@ -12,7 +12,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 
 - **Hardware:** Raspberry Pi 5 (8 GB RAM), Raspberry Pi OS Lite 64-bit
 - **Runtime:** Python 3.12, asyncio (bootstrap), multiprocessing (fall-detection)
-- **ML / Visão:** Ultralytics YOLO (pose), OpenCV, ONNX Runtime (classificador GRU)
+- **ML / Visão:** Ultralytics YOLO pose (ONNX Windows / CoreML macOS / NCNN Linux+bundle), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
 - **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`)
@@ -184,7 +184,8 @@ vigia/
 | `integration/` | `vigia-fall/integration/` | Processo FIWARE com MQTT persistente (cmds + attrs); `fall_shm` (`EventShmRing`) |
 | `connection/` | `vigia-fall/connection/` | Conectividade e runners auxiliares |
 | `database/` | `vigia-fall/database/` | SQLite local |
-| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json`, `log_config`, `event_shm`, `log_bridge` |
+| `shared/` | `vigia-fall/shared/` | Comandos FIWARE, helpers, config, `classifier.json`, `log_config`, `event_shm`, `log_bridge`, `yolo_export` (ONNX/CoreML/NCNN) |
+| `models/` | `vigia-fall/models/` | GRU ONNX; exports YOLO em `models/yolo/` (gitignored, gerados on-demand) |
 
 **IPC fall_state e logs:** `EventShmRing` (shared memory, multi-slot, drop-oldest) — captura escreve fall_state e logs de decisão sem I/O; FIWARE faz poll (50 ms) e publica MQTT; supervisor drena logs via `LogDrainThread` (~1 ms) para stdout único (`log_shm` 128 slots).
 
@@ -194,7 +195,7 @@ vigia/
 
 **Pré-requisito:** bootstrap concluído (`identity.json` + `network.json`, incluindo `stream_ingest_url`); `classifier.json` opcional (default `math`)
 
-**Build:** `make build-linux-arm64` → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui `model/gru_2classes.onnx`)
+**Build:** `make build-linux-arm64` → `ensure-model` (NCNN) → PyInstaller → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui NCNN + `models/gru_2classes.onnx`)
 
 **Docs operacionais:** `vigia-fall/docs/DEPLOY.md`
 
@@ -262,6 +263,7 @@ vigia/
 |--------|--------|
 | `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` (Ed25519 / TestDeviceSeed) |
 | `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
+| `seed-codes/video_converter.py` | Converte AVI → MP4 via ffmpeg (reencode H.264/AAC ou `--copy`) |
 
 **Edge mock local:** `edge-data/` (gitignored exceto README). Bootstrap/fall usam `DATA_DIR=../edge-data`. Device: `Vigia-a1b2c3d4` / admin group. Login app: `admin` / `admin123`.
 
@@ -331,6 +333,8 @@ vigia/
 12. **Compartilhamento via grupos** — Devices pertencem a grupos; owner gerencia convites; limite de membros imposto na API.
 
 13. **UI web com PrimeNG Community (MIT)** — `primeng` 22+ é comercial (PrimeUI) e exige chave de licença. O vigia-web usa `@openng/optimus-ui` v2, fork comunitário MIT do último PrimeNG open-source, com tema Aura customizado em `src/app/shared/theme/vigia.theme.ts` (primary `#669CEE`, light-only como Flutter `ThemeMode.light`; `darkModeSelector: false`).
+
+14. **YOLO pose por formato de plataforma (sem `.pt` no produto)** — `YOLO_POSE_MODEL` é o stem Ultralytics; em dev exporta on-demand para `models/yolo/` (Windows ONNX, macOS CoreML, Linux NCNN). O instalador PyInstaller empacota só NCNN; exports não vão no git (`shared/yolo_export.py`).
 
 ---
 
@@ -526,6 +530,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-12] seed-codes: conversor AVI → MP4 via ffmpeg (`video_converter.py`)
+- [2026-09-12] Fall: export YOLO alinhado a `YOLO_IMGSZ` (input fixo ONNX/NCNN); `track` usa imgsz do artefato; reexport automático se divergir (`yolo_export`, `frame_processor`)
+- [2026-09-12] Fall: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand; bundle só NCNN; GRU em `models/`; sem `.pt` no produto (`shared/yolo_export.py`, `ensure_yolo_model.py`, `.spec`, Dockerfile)
 - [2026-08-28] vigia_ui: não exige localização para scan BLE no Android 12+; localização permanece apenas no Android 11 e anteriores (`ble_pairing_service.dart`, `device_info_plus`)
 - [2026-08-28] Streaming: URL de publicação separada da API e entregue no provisionamento BLE, com fallback para payloads antigos (`Streaming:IngestUrl`, `stream_ingest_url`, FFmpeg)
 - [2026-08-27] Deploy prod: Mosquitto WebSocket em subdomínio dedicado `mosquitto.vigiadeteccoes.com.br` (WSS :443); edge deriva host/porta/path em `fiware_runner.py` (`docker-compose/deploy/infra.sh`, `infrastructure-compose.yaml`)

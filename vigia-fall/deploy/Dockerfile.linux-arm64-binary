@@ -2,7 +2,7 @@
 # Dockerfile.linux-arm64-binary
 # Gera dist/vigia-fall-detection (onedir) para Linux ARM64.
 # Uso: a partir da raiz de vigia-fall — ver `make build-linux-arm64`.
-# Pré-requisito: yolo26s-pose.pt na raiz (Makefile chama ensure-model antes).
+# Pré-requisito: models/yolo/yolo26s-pose_ncnn_model/ (Makefile chama ensure-model).
 # =============================================================================
 
 # ── Stage 1: build ────────────────────────────────────────────────────────────
@@ -35,9 +35,10 @@ RUN pip install --no-cache-dir --upgrade pip \
  && pip uninstall -y opencv-python 2>/dev/null || true \
  && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.12.0.88"
 
-# ── Camada de código + modelo ────────────────────────────────────────────────
-COPY main.py vigia-fall-detection.spec yolo26s-pose.pt ./
-COPY model ./model
+# ── Camada de código + modelos empacotados ───────────────────────────────────
+COPY main.py vigia-fall-detection.spec ./
+COPY models/yolo/yolo26s-pose_ncnn_model ./models/yolo/yolo26s-pose_ncnn_model
+COPY models/gru_2classes.onnx ./models/gru_2classes.onnx
 COPY capture ./capture
 COPY connection ./connection
 COPY database ./database

@@ -16,31 +16,12 @@ def repo_or_bundle_root() -> Path:
 
 def resolve_yolo_pose_weights(model_setting: str) -> str:
     """
-    Resolve o caminho dos pesos YOLO.
+    Resolve o path do modelo YOLO pose exportado (ONNX / CoreML / NCNN).
 
-    Se `YOLO_POSE_MODEL` for só o nome (ex.: yolo26s-pose), preferir o ficheiro
-    local/bundled `yolo26s-pose.pt` para a placa não depender de download em runtime.
-    Caminhos absolutos ou ficheiros existentes passam direto.
+    Delega para ``shared.yolo_export.ensure_yolo_pose_export`` (export on-demand em
+    dev; só resolução no bundle congelado).
     """
-    raw = (model_setting or "").strip()
-    if not raw:
-        raw = "yolo26s-pose"
+    # Import local evita ciclo: yolo_export importa repo_or_bundle_root daqui.
+    from shared.yolo_export import ensure_yolo_pose_export
 
-    candidate = Path(raw)
-    if candidate.is_file():
-        return str(candidate.resolve())
-
-    root = repo_or_bundle_root()
-
-    if candidate.suffix.lower() == ".pt":
-        bundled = root / candidate.name
-        if bundled.is_file():
-            return str(bundled.resolve())
-        return raw
-
-    bundled = root / f"{raw}.pt"
-    if bundled.is_file():
-        return str(bundled.resolve())
-
-    # Fallback: deixa o Ultralytics resolver/baixar pelo nome (dev local).
-    return raw
+    return str(ensure_yolo_pose_export(model_setting))

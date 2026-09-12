@@ -5,8 +5,10 @@ Guia curto para gerar o pacote PyInstaller onedir e instalar na placa.
 ## Pré-requisitos (máquina de build)
 
 - **`make`** e **Python 3.12** com dependências do projeto.
-- O ficheiro `yolo26s-pose.pt` é gitignored: o Makefile baixa-o automaticamente se faltar.
-- O modelo GRU `model/gru_2classes.onnx` entra no bundle PyInstaller (classificador `gru`).
+- O export NCNN em `models/yolo/{stem}_ncnn_model/` é gerado por `make ensure-model` (Ultralytics) se faltar; **não** se commitam exports YOLO no git.
+- Exports usam `YOLO_IMGSZ` (default 320). ONNX/NCNN têm input fixo — se o artefato foi gerado com outro tamanho, o ensure reexporta em dev.
+- O modelo GRU `models/gru_2classes.onnx` entra no bundle PyInstaller (classificador `gru`).
+- Só o **NCNN** do YOLO é empacotado no instalador (ONNX/CoreML ficam só para dev local).
 - **Caminho do build** (escolhido automaticamente por `make build-linux-arm64`):
   - **Linux aarch64/arm64** — compilação nativa (CI com `ubuntu-24.04-arm`, VM ARM, placa).
   - **Outros hosts** (macOS, Linux amd64, etc.) — Docker + buildx (`deploy/Dockerfile.linux-arm64-binary`).
@@ -77,7 +79,7 @@ Copie um `.env` para `/opt/vigia/.env` (o unit usa `EnvironmentFile=-/opt/vigia/
 
 Com `DATA_DIR=/opt/vigia`, pending OTA em `/var/lib/vigia/ota`. Em debug local (`DATA_DIR=./data`), OTA → `{DATA_DIR}/ota`.
 
-`YOLO_POSE_MODEL` pode continuar `yolo26s-pose` (resolve para o `.pt` empacotado) ou um caminho absoluto.
+`YOLO_POSE_MODEL` é o stem Ultralytics (default `yolo26s-pose`). No bundle resolve para o NCNN empacotado; em dev exporta ONNX/CoreML/NCNN conforme a plataforma.
 
 ## Verificar
 

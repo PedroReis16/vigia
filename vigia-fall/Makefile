@@ -1,7 +1,7 @@
 # =============================================================================
 # Makefile — vigia-fall-detection
 # Targets:
-#   make ensure-model       Baixa yolo26s-pose.pt se ausente
+#   make ensure-model       Garante export NCNN em models/yolo/
 #   make build-linux-arm64  Linux ARM64: nativo se host for linux/arm64,
 #                           senão Docker (buildx / emulação)
 #   make package-ota        Empacota OTA (manifest + scripts + tarball)
@@ -42,7 +42,7 @@ NATIVE_LINUX_ARM64 := $(shell \
 
 help:
 	@echo "Targets:"
-	@echo "  ensure-model       Garante yolo26s-pose.pt na raiz do projeto"
+	@echo "  ensure-model       Garante NCNN em models/yolo/ (export via Ultralytics se faltar)"
 	@echo "  install-local-deps Venv local: runtime + OpenCV GUI (SHOW_VIDEO)"
 	@echo "  install-build-deps Build nativo Linux: torch CPU + OpenCV headless"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"

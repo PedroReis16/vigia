@@ -243,6 +243,36 @@ async def connect_and_persist(
     )
 
 
+async def ensure_mock_network() -> bool:
+    """
+    Em dev (WIFI_MOCK=true), grava network.json quando identity existe mas network não.
+    Usa credenciais/API mock — equivalente ao fluxo BLE sem radio.
+    """
+    settings = get_settings()
+    if not settings.wifi_mock or settings.wifi_mock_result != "success":
+        return False
+    if get_network_path().exists():
+        return False
+
+    try:
+        await connect_and_persist(
+            settings.mock_wifi_ssid,
+            settings.mock_wifi_password,
+            settings.mock_api_base_url,
+            settings.mock_fiware_api_key,
+            stream_ingest_url=settings.mock_stream_ingest_url,
+        )
+    except Exception as exc:
+        logger.warning("Mock network falhou: %s", exc)
+        return False
+
+    logger.info(
+        "network.json criado (WIFI_MOCK) — api_base_url=%s",
+        settings.mock_api_base_url,
+    )
+    return True
+
+
 def get_wifi_service() -> WifiService:
     settings = get_settings()
     if settings.wifi_mock:

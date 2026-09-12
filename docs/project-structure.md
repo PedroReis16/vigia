@@ -530,6 +530,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)
+- [2026-09-12] Bootstrap: BLE opcional em debug (`BLE_ENABLED=false`); `bless` só em Linux/deploy; lazy import (`provision/ble.py`, `runner.py`, `requirements.txt`)
 - [2026-09-12] seed-codes: conversor AVI → MP4 via ffmpeg (`video_converter.py`)
 - [2026-09-12] Fall: export YOLO alinhado a `YOLO_IMGSZ` (input fixo ONNX/NCNN); `track` usa imgsz do artefato; reexport automático se divergir (`yolo_export`, `frame_processor`)
 - [2026-09-12] Fall: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand; bundle só NCNN; GRU em `models/`; sem `.pt` no produto (`shared/yolo_export.py`, `ensure_yolo_model.py`, `.spec`, Dockerfile)

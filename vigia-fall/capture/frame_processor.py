@@ -7,6 +7,7 @@ import numpy as np
 from capture.classifiers.types import PoseObservation
 from capture.models import get_person_runtime_store, get_yolo_model
 from shared import get_settings
+from shared.yolo_export import resolve_inference_imgsz
 
 
 def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservation]:
@@ -16,6 +17,8 @@ def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservatio
     try:
         settings = get_settings()
         model = get_yolo_model()
+        # Modelos ONNX/NCNN têm input fixo — não usar YOLO_IMGSZ se divergir do export.
+        imgsz = resolve_inference_imgsz(model, settings.yolo_imgsz)
 
         track_result = model.track(
             frame,
@@ -24,7 +27,7 @@ def extract_poses(frame: np.ndarray, capture_date: float) -> list[PoseObservatio
             verbose=False,
             persist=True,
             tracker=settings.yolo_tracker,
-            imgsz=settings.yolo_imgsz,
+            imgsz=imgsz,
             classes=[0],
         )
 

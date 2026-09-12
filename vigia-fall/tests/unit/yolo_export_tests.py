@@ -70,9 +70,11 @@ def test_ensure_ComArtefatoOnnxPresente_NaoExporta(tmp_path: Path):
     onnx.parent.mkdir(parents=True)
     onnx.write_bytes(b"fake-onnx")
 
-    with patch.object(ye, "_run_ultralytics_export") as export_mock:
+    with patch.object(ye, "_run_ultralytics_export") as export_mock, patch.object(
+        ye, "artifact_matches_imgsz", return_value=True
+    ):
         result = ye.ensure_yolo_pose_export(
-            "yolo26s-pose", backend="onnx", root=tmp_path
+            "yolo26s-pose", backend="onnx", root=tmp_path, imgsz=320
         )
 
     assert result == onnx.resolve()
@@ -85,8 +87,12 @@ def test_ensure_ComArtefatoNcnnPresente_NaoExporta(tmp_path: Path):
     (ncnn / "model.ncnn.param").write_text("p")
     (ncnn / "model.ncnn.bin").write_bytes(b"b")
 
-    with patch.object(ye, "_run_ultralytics_export") as export_mock:
-        result = ye.ensure_yolo_pose_export("demo", backend="ncnn", root=tmp_path)
+    with patch.object(ye, "_run_ultralytics_export") as export_mock, patch.object(
+        ye, "artifact_matches_imgsz", return_value=True
+    ):
+        result = ye.ensure_yolo_pose_export(
+            "demo", backend="ncnn", root=tmp_path, imgsz=320
+        )
 
     assert result == ncnn.resolve()
     export_mock.assert_not_called()
@@ -106,26 +112,48 @@ def test_ensure_FrozenSemArtefato_Levanta(tmp_path: Path):
 
 
 def test_ensure_SemArtefato_ExportaEMove(tmp_path: Path):
-    produced_dir = tmp_path / "work"
-    produced_dir.mkdir()
-    produced = produced_dir / "yolo26s-pose.onnx"
-    produced.write_bytes(b"exported")
-
-    def fake_export(stem, backend, work_dir):
+    def fake_export(stem, backend, work_dir, imgsz):
         dest = work_dir / f"{stem}.onnx"
         dest.write_bytes(b"exported")
+        assert imgsz == 320
         return dest
 
     with patch.object(ye, "is_frozen", return_value=False), patch.object(
         ye, "_run_ultralytics_export", side_effect=fake_export
     ):
         result = ye.ensure_yolo_pose_export(
-            "yolo26s-pose", backend="onnx", root=tmp_path
+            "yolo26s-pose", backend="onnx", root=tmp_path, imgsz=320
         )
 
     expected = tmp_path / "models" / "yolo" / "yolo26s-pose.onnx"
     assert result == expected.resolve()
     assert expected.is_file()
+
+
+def test_ensure_ImgszIncompativel_Reexporta(tmp_path: Path):
+    onnx = tmp_path / "models" / "yolo" / "yolo26s-pose.onnx"
+    onnx.parent.mkdir(parents=True)
+    onnx.write_bytes(b"old-640")
+
+    def fake_export(stem, backend, work_dir, imgsz):
+        dest = work_dir / f"{stem}.onnx"
+        dest.write_bytes(b"new-320")
+        assert imgsz == 320
+        return dest
+
+    with patch.object(ye, "is_frozen", return_value=False), patch.object(
+        ye, "artifact_matches_imgsz", return_value=False
+    ), patch.object(ye, "_run_ultralytics_export", side_effect=fake_export):
+        result = ye.ensure_yolo_pose_export(
+            "yolo26s-pose", backend="onnx", root=tmp_path, imgsz=320
+        )
+
+    assert result == onnx.resolve()
+    assert onnx.read_bytes() == b"new-320"
+
+
+def test_resolve_inference_imgsz_UsaFallbackSemPath():
+    assert ye.resolve_inference_imgsz(object(), fallback=416) == 416
 
 
 def test_resolve_yolo_pose_weights_Delega(tmp_path: Path):
@@ -135,7 +163,7 @@ def test_resolve_yolo_pose_weights_Delega(tmp_path: Path):
 
     with patch.object(ye, "repo_or_bundle_root", return_value=tmp_path), patch.object(
         ye, "detect_yolo_export_backend", return_value="onnx"
-    ):
+    ), patch.object(ye, "artifact_matches_imgsz", return_value=True):
         path = ye.resolve_yolo_pose_weights("yolo26s-pose")
 
     assert path == str(onnx.resolve())

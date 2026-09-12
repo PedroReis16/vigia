@@ -19,6 +19,7 @@ from shared.yolo_export import (  # noqa: E402
     DEFAULT_YOLO_POSE_STEM,
     YoloExportBackend,
     ensure_yolo_pose_export,
+    resolve_export_imgsz,
 )
 
 # Documentação de referência: https://docs.ultralytics.com/pt/modes/export
@@ -26,6 +27,7 @@ from shared.yolo_export import (  # noqa: E402
 
 def main() -> int:
     stem = (os.getenv("YOLO_POSE_MODEL") or DEFAULT_YOLO_POSE_STEM).strip()
+    imgsz = resolve_export_imgsz()
     backends: list[YoloExportBackend] = ["onnx", "ncnn"]
     if sys.platform == "darwin":
         backends.append("coreml")
@@ -33,8 +35,10 @@ def main() -> int:
         print("Aviso: CoreML só é exportado em macOS; a saltar neste host.")
 
     for backend in backends:
-        path = ensure_yolo_pose_export(stem, backend=backend, root=_FALL_ROOT)
-        print(f"OK [{backend}]: {path}")
+        path = ensure_yolo_pose_export(
+            stem, backend=backend, root=_FALL_ROOT, imgsz=imgsz
+        )
+        print(f"OK [{backend} imgsz={imgsz}]: {path}")
     return 0
 
 

@@ -531,6 +531,7 @@ flowchart LR
 ## 9. Changelog Técnico
 
 - [2026-09-12] seed-codes: conversor AVI → MP4 via ffmpeg (`video_converter.py`)
+- [2026-09-12] Fall: export YOLO alinhado a `YOLO_IMGSZ` (input fixo ONNX/NCNN); `track` usa imgsz do artefato; reexport automático se divergir (`yolo_export`, `frame_processor`)
 - [2026-09-12] Fall: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand; bundle só NCNN; GRU em `models/`; sem `.pt` no produto (`shared/yolo_export.py`, `ensure_yolo_model.py`, `.spec`, Dockerfile)
 - [2026-08-28] vigia_ui: não exige localização para scan BLE no Android 12+; localização permanece apenas no Android 11 e anteriores (`ble_pairing_service.dart`, `device_info_plus`)
 - [2026-08-28] Streaming: URL de publicação separada da API e entregue no provisionamento BLE, com fallback para payloads antigos (`Streaming:IngestUrl`, `stream_ingest_url`, FFmpeg)

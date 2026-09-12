@@ -6,6 +6,7 @@ Guia curto para gerar o pacote PyInstaller onedir e instalar na placa.
 
 - **`make`** e **Python 3.12** com dependências do projeto.
 - O export NCNN em `models/yolo/{stem}_ncnn_model/` é gerado por `make ensure-model` (Ultralytics) se faltar; **não** se commitam exports YOLO no git.
+- Exports usam `YOLO_IMGSZ` (default 320). ONNX/NCNN têm input fixo — se o artefato foi gerado com outro tamanho, o ensure reexporta em dev.
 - O modelo GRU `models/gru_2classes.onnx` entra no bundle PyInstaller (classificador `gru`).
 - Só o **NCNN** do YOLO é empacotado no instalador (ONNX/CoreML ficam só para dev local).
 - **Caminho do build** (escolhido automaticamente por `make build-linux-arm64`):

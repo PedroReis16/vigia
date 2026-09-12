@@ -16,15 +16,22 @@ from shared.yolo_export import (  # noqa: E402
     DEFAULT_YOLO_POSE_STEM,
     ensure_yolo_pose_export,
     is_valid_yolo_export_artifact,
+    resolve_export_imgsz,
 )
 
 
 def main() -> int:
     stem = (os.getenv("YOLO_POSE_MODEL") or DEFAULT_YOLO_POSE_STEM).strip()
+    imgsz = resolve_export_imgsz()
     try:
-        path = ensure_yolo_pose_export(stem, backend="ncnn", root=_ROOT)
+        path = ensure_yolo_pose_export(
+            stem, backend="ncnn", root=_ROOT, imgsz=imgsz
+        )
     except Exception as exc:  # noqa: BLE001 — CLI: reportar qualquer falha de export
-        print(f"ERRO: falha ao garantir export NCNN de {stem!r}: {exc}", file=sys.stderr)
+        print(
+            f"ERRO: falha ao garantir export NCNN de {stem!r} (imgsz={imgsz}): {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     if not is_valid_yolo_export_artifact(path, "ncnn"):

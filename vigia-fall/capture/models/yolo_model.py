@@ -1,4 +1,4 @@
-""""
+"""
 Processa os frames capturados para inclusão na fila de processamento
 """
 
@@ -8,7 +8,7 @@ from functools import lru_cache
 from ultralytics import YOLO  # pyright: ignore[reportMissingImports]
 
 from shared import get_settings
-from shared.bundle_paths import resolve_yolo_pose_weights
+from shared.yolo_export import ensure_yolo_pose_export
 
 
 @dataclass(frozen=True)
@@ -21,12 +21,12 @@ class YoloModel:
     @classmethod
     def load(cls) -> "YoloModel":
         """
-        Carrega o modelo YOLO (preferindo .pt local/bundled quando aplicável)
+        Carrega o modelo YOLO pose exportado para a plataforma atual
+        (ONNX / CoreML / NCNN), exportando on-demand em desenvolvimento.
         """
-        weights = resolve_yolo_pose_weights(get_settings().yolo_pose_model)
-        return cls(model=YOLO(weights))
+        weights = ensure_yolo_pose_export(get_settings().yolo_pose_model)
+        return cls(model=YOLO(str(weights)))
 
-    
 
 @lru_cache
 def get_yolo_model() -> YOLO:

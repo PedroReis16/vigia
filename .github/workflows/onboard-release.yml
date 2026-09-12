@@ -62,14 +62,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache pip + YOLO model
+      - name: Cache pip + YOLO NCNN export
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pip
-            ${{ env.SERVICE_PATH }}/yolo26s-pose.pt
-          key: fall-arm64-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
+            ~/.cache/ultralytics
+            ${{ env.SERVICE_PATH }}/models/yolo/yolo26s-pose_ncnn_model
+          key: fall-arm64-ncnn-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
           restore-keys: |
+            fall-arm64-ncnn-
             fall-arm64-
 
       - name: Install Python build dependencies

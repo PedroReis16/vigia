@@ -21,7 +21,7 @@ class GRUFallClassifier:
     """
 
     def __init__(self) -> None:
-        path = repo_or_bundle_root() / "model" / "gru_2classes.onnx"
+        path = repo_or_bundle_root() / "models" / "gru_2classes.onnx"
         self._session = ort.InferenceSession(
             str(path), providers=["CPUExecutionProvider"]
         )

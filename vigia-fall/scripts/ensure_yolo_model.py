@@ -1,67 +1,37 @@
 #!/usr/bin/env python3
-"""Garante yolo26s-pose.pt na raiz de vigia-fall (download via Ultralytics se ausente)."""
+"""Garante o export NCNN do YOLO pose em models/yolo/ (pré-requisito do PyInstaller)."""
 
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 from pathlib import Path
 
-MODEL_STEM = "yolo26s-pose"
-MODEL_FILE = f"{MODEL_STEM}.pt"
+# Permite `python scripts/ensure_yolo_model.py` a partir de vigia-fall/
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[1]
-
-
-def _find_downloaded_weight(root: Path) -> Path | None:
-    candidates = [
-        root / MODEL_FILE,
-        Path.cwd() / MODEL_FILE,
-        Path.home() / ".cache" / "ultralytics" / MODEL_FILE,
-    ]
-    for path in candidates:
-        if path.is_file() and path.stat().st_size > 0:
-            return path
-    return None
+from shared.yolo_export import (  # noqa: E402
+    DEFAULT_YOLO_POSE_STEM,
+    ensure_yolo_pose_export,
+    is_valid_yolo_export_artifact,
+)
 
 
 def main() -> int:
-    root = _project_root()
-    target = root / MODEL_FILE
-
-    if target.is_file() and target.stat().st_size > 0:
-        print(f"OK: {target} já existe ({target.stat().st_size} bytes)")
-        return 0
-
-    print(f"Baixando {MODEL_STEM} via Ultralytics para {target}...")
-    prev = Path.cwd()
+    stem = (os.getenv("YOLO_POSE_MODEL") or DEFAULT_YOLO_POSE_STEM).strip()
     try:
-        os.chdir(root)
-        from ultralytics import YOLO  # pyright: ignore[reportMissingImports]
-
-        YOLO(MODEL_STEM)
-    finally:
-        os.chdir(prev)
-
-    found = _find_downloaded_weight(root)
-    if found is None:
-        print(
-            f"ERRO: download concluído mas {MODEL_FILE} não foi encontrado.",
-            file=sys.stderr,
-        )
+        path = ensure_yolo_pose_export(stem, backend="ncnn", root=_ROOT)
+    except Exception as exc:  # noqa: BLE001 — CLI: reportar qualquer falha de export
+        print(f"ERRO: falha ao garantir export NCNN de {stem!r}: {exc}", file=sys.stderr)
         return 1
 
-    if found.resolve() != target.resolve():
-        shutil.copy2(found, target)
-
-    if not target.is_file() or target.stat().st_size == 0:
-        print(f"ERRO: falha ao gravar {target}", file=sys.stderr)
+    if not is_valid_yolo_export_artifact(path, "ncnn"):
+        print(f"ERRO: artefato NCNN inválido: {path}", file=sys.stderr)
         return 1
 
-    print(f"OK: {target} ({target.stat().st_size} bytes)")
+    print(f"OK: {path}")
     return 0
 
 

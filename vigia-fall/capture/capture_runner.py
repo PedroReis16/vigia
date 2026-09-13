@@ -144,7 +144,7 @@ def run_capture(
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
-            maybe_upload_thumbnail(frame)
+            # maybe_upload_thumbnail(frame)
 
             streaming = frame_shm is not None and get_stream_status()
             if streaming:

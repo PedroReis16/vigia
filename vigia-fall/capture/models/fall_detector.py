@@ -29,6 +29,7 @@ class FallDetectorConfig:
     threshold_low: float = 0.35
     persistence_frames: int = 5
     score_history_size: int = 30
+    suspect_max_frames: int = 30
     cooldown_frames: int = 30
 
 
@@ -78,9 +79,23 @@ class FallDetector:
                 s.consecutive_high = 0
 
         elif s.state == FallState.SUSPECT:
-            # Etapa 9 (confirmação por imobilidade) assume o controle via
-            # resolve_suspicion().
-            pass
+            if score < self.config.threshold_low:
+                s.state = FallState.NORMAL
+                s.consecutive_high = 0
+                s.frames_in_current_state = 0
+                s.suspect_started_at = None
+            else:
+                self._update_persistence_counter(score)
+                if s.consecutive_high >= self.config.persistence_frames:
+                    s.state = FallState.FALL
+                    s.frames_in_current_state = 0
+                    s.consecutive_high = 0
+                    s.suspect_started_at = None
+                elif s.frames_in_current_state >= self.config.suspect_max_frames:
+                    s.state = FallState.FALSE_POSITIVE
+                    s.frames_in_current_state = 0
+                    s.consecutive_high = 0
+                    s.suspect_started_at = None
 
         elif s.state in (FallState.FALL, FallState.FALSE_POSITIVE):
             if s.frames_in_current_state >= self.config.cooldown_frames:

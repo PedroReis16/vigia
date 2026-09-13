@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -98,7 +99,7 @@ def test_FrameWorker_run_ComSentinelNaFilaInicial_EncerraSemProcessar(
     assert processados == []
 
 
-def test_FrameWorker_enfileira_estados_com_dedupe(
+def test_FrameWorker_enfileira_percurso_escalada(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     enqueued: list[tuple[str, float]] = []
@@ -125,7 +126,71 @@ def test_FrameWorker_enfileira_estados_com_dedupe(
     worker.raw_frame_queue.put_nowait(None)
     worker.run()
 
-    assert enqueued == [("NORMAL", 1.0), ("SUSPECT", 1.0), ("FALL", 1.0)]
+    assert enqueued == [
+        ("NORMAL", 1.0),
+        ("SUSPECT", 1.0),
+        ("FALL", 1.0),
+        ("FALL", 1.0),
+    ]
+
+
+def test_FrameWorker_enfileira_todo_frame_suspect_e_fall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enqueued: list[tuple[str, float]] = []
+
+    def fake_extract(frame, capture_date):
+        return [MagicMock()]
+
+    decisions_per_frame = [
+        [FallDecision(person_id=1, label="NORMAL", alert=False)],
+        [
+            FallDecision(person_id=1, label="SUSPECT", alert=False),
+            FallDecision(person_id=1, label="SUSPECT", alert=False),
+        ],
+        [
+            FallDecision(person_id=1, label="FALL", alert=False),
+            FallDecision(person_id=1, label="FALL", alert=True),
+        ],
+        [FallDecision(person_id=1, label="NORMAL", alert=False)],
+        [FallDecision(person_id=1, label="NORMAL", alert=False)],
+    ]
+    frame_idx = {"i": 0}
+
+    def process_side_effect(_observations):
+        idx = frame_idx["i"]
+        frame_idx["i"] += 1
+        return decisions_per_frame[idx]
+
+    clf = MagicMock()
+    clf.process.side_effect = process_side_effect
+    monkeypatch.setattr("capture.frame_worker.extract_poses", fake_extract)
+    monkeypatch.setattr(
+        "capture.frame_worker.enqueue_fall_state",
+        lambda label, capture_ts=0.0: enqueued.append((label, capture_ts)),
+    )
+    monkeypatch.setattr("capture.frame_worker.emit_log", lambda *a, **k: None)
+
+    worker = FrameWorker(frame_rate=2, classifier=clf, state_log_mode="changes")
+    thread = threading.Thread(target=worker.run, daemon=True)
+    thread.start()
+
+    for ts in (1.0, 2.0, 3.0, 4.0, 5.0):
+        while not worker.try_insert_raw_frame(_frame(), ts):
+            time.sleep(0.001)
+
+    worker.stop()
+    thread.join(timeout=2)
+
+    assert thread.is_alive() is False
+    assert enqueued == [
+        ("NORMAL", 1.0),
+        ("SUSPECT", 2.0),
+        ("SUSPECT", 2.0),
+        ("FALL", 3.0),
+        ("FALL", 3.0),
+        ("NORMAL", 4.0),
+    ]
 
 
 def test_FrameWorker_loga_so_em_mudanca_de_label(

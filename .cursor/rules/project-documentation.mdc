@@ -1,0 +1,86 @@
+---
+description: Lê e atualiza docs/project-structure.md em vez de remapear o repositório; testes acompanham mudanças relevantes
+alwaysApply: true
+---
+
+# Documentação da estrutura do Vigia
+
+A fonte de verdade é `docs/project-structure.md` (já preenchida). Ela descreve
+módulos, stack, rotas e decisões. Esta regra existe para **não** remapear o
+monorepo a cada conversa.
+
+## Antes de qualquer tarefa
+
+1. Leia `docs/project-structure.md` primeiro.
+2. Use-o como contexto de estrutura, stack, serviços, regras de negócio e padrões.
+3. Só abra o código quando a tarefa exigir implementação interna, a área não
+   estiver documentada, ou houver suspeita de divergência (nesse caso, confirme
+   e corrija o doc).
+4. Nunca refaça um mapeamento completo só porque é uma conversa nova. Confie
+   na área já documentada até ela ficar obsoleta.
+
+## Mapa já documentado (não redescobrir)
+
+| Pasta | Papel |
+|-------|--------|
+| `vigia-api/` | API atual (.NET) + libs Fiware/Database/Cache/Cloud/Models |
+| `vigia-bootstrap/` | Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade |
+| `vigia-fall/` | Detecção no Raspberry Pi (Python, YOLO, MQTT, BLE) |
+| `vigia_ui/` | App Flutter do cuidador |
+| `vigia-web/` | Frontend web Angular (camadas `pages` → `usecases` → `services`) |
+| `vigia-services/` | API Go legado + CLI `vigia-bootstrap` (histórico) |
+| `docker-compose/` | Local (API .NET + FIWARE + MediaMTX) e deploy |
+
+Detalhes (endpoints, schema FIWARE, compose, CI, decisões) estão no doc — não
+duplique aqui. Atenção: **duas APIs coexistindo** (local = .NET; deploy/release
+de serviço ainda pode referenciar Go). Ao mudar contrato HTTP, confira o runtime.
+
+### vigia-web (padrão de desenvolvimento)
+
+Regras dedicadas em `.cursor/rules/vigia-web-*.mdc` (ativam com globs do web):
+
+- **UI → use cases → services** — páginas/componentes não injetam HTTP/auth direto
+  (`vigia-web-usecases.mdc`).
+- **URLs** — `environment.apiUrl` na base; paths relativos nas HTTP services;
+  `ApiBaseUrlInterceptor` concatena (`vigia-web-api-urls.mdc`).
+
+## Depois de alteração estrutural
+
+Na **mesma tarefa**, edite só a seção afetada de `docs/project-structure.md` se
+a mudança for:
+
+- arquivo/módulo/serviço criado, removido ou renomeado
+- dependência relevante (lib, serviço externo, container, imagem)
+- infra (compose, Traefik, CI/CD, env, redes, volumes)
+- nova rota, tópico MQTT, entidade FIWARE, evento/fila
+- decisão arquitetural (auth, biblioteca, deploy)
+- regra de negócio, padrão de código ou fluxo de dados documentado
+
+Refatoração interna, bugfix ou lint **não** atualizam o doc, salvo se mudarem
+pastas, decisão, regra de negócio ou fluxo documentado.
+
+Como atualizar:
+
+- 1 a 3 linhas por item; não reexplicar código
+- Atualize lista/árvore existente; não duplique a mesma info
+- Changelog no topo: `- [YYYY-MM-DD] Descrição (arquivos/módulos afetados)`
+- Sem segredos, chaves, tokens ou senhas — nem como exemplo
+
+Se o arquivo sumir, recrie-o com: visão geral; stack por camada; árvore;
+módulos (propósito, tech, entrada); decisões (o "porquê"); regras de negócio;
+padrões; fluxos; changelog. Não invente seções para o que ainda não existe.
+
+## Testes acompanham o código
+
+Na **mesma tarefa**, atualize/crie/remova testes quando o comportamento, contrato
+ou superfície pública mudar (novo módulo, use case, guard, interceptor, endpoint,
+validação, etc.). Cosmético/lint sem mudança de comportamento: não mexa nos
+testes, salvo se quebrarem.
+
+## Regra de ouro
+
+Documentação: "isso muda como alguém entenderia a estrutura ao ler o doc?"
+- Sim → documente. Não → não documente.
+
+Testes: "o comportamento/contrato/superfície pública mudou de forma relevante?"
+- Sim → alinhe os testes na mesma tarefa. Não → não mexa só por formalidade.

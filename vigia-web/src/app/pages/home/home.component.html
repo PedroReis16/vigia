@@ -1,0 +1,7 @@
+<p-card header="{{ 'WELCOME' | translate }}">
+    <p>{{ "WELCOME_MESSAGE" | translate }}</p>
+    <p-divider />
+    <p class="mt-2 text-lg">{{ "ALTERNATE_LANGUAGE" | translate }}</p>
+    <app-input [options]="availableLanguages" type="dropdown" (valueModelChange)="changeLanguage($event)"
+        [value]="languageService.getLanguage()()" />
+</p-card>

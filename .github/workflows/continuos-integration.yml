@@ -16,9 +16,8 @@ permissions:
   pull-requests: read
 
 env:
-  GOSEC_VERSION: v2.22.0
-  GOVULNCHECK_VERSION: v1.1.4
-  GOLANGCI_LINT_VERSION: v1.64.5
+  DOTNET_VERSION: "10.0.x"
+  LG_VERSION: "0.2.2"
 
 jobs:
   # ─────────────────────────────────────────────
@@ -43,31 +42,27 @@ jobs:
           token: ${{ github.token }}
           predicate-quantifier: every
           filters: |
-            fall_detection_src:
-              - 'fall-detection/**'
-              - '!fall-detection/**/*.md'
-            fall_detection_docker:
+            vigia_fall_src:
+              - 'vigia-fall/**'
+              - '!vigia-fall/**/*.md'
+            vigia_fall_docker:
               - 'docker-compose/dockerfiles/fall-detection.dockerfile'
             vigia_api_src:
-              - 'vigia-services/apps/vigia-api/**'
-              - '!vigia-services/apps/vigia-api/**/*.md'
+              - 'vigia-api/**'
+              - '!vigia-api/**/*.md'
             vigia_api_docker:
               - 'docker-compose/dockerfiles/vigia-api.dockerfile'
-            vigia_bootstrap_non_md:
-              - 'vigia-services/apps/vigia-bootstrap/**'
-              - '!vigia-services/apps/vigia-bootstrap/**/*.md'
-            vigia_shared_non_md:
-              - 'vigia-services/pkg/shared/**'
-              - '!vigia-services/pkg/shared/**/*.md'
-            vigia_go_work:
-              - 'vigia-services/go.work'
-            vigia_go_sum:
-              - 'vigia-services/go.work.sum'
-            vigia_makefile:
-              - 'vigia-services/Makefile'
+            vigia_bootstrap_src:
+              - 'vigia-bootstrap/**'
+              - '!vigia-bootstrap/**/*.md'
             vigia_ui_src:
               - 'vigia_ui/**'
               - '!vigia_ui/**/*.md'
+            vigia_web_src:
+              - 'vigia-web/**'
+              - '!vigia-web/**/*.md'
+            vigia_web_docker:
+              - 'docker-compose/dockerfiles/vigia-web.dockerfile'
 
       - name: Build projects matrix
         id: compute_matrix
@@ -85,47 +80,49 @@ jobs:
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "${{ steps.filter.outputs.fall_detection_src }}" == "true" || "${{ steps.filter.outputs.fall_detection_docker }}" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.vigia_web_src }}" == "true" || "${{ steps.filter.outputs.vigia_web_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
-              "name":       "fall-detection",
-              "type":       "python",
-              "path":       "fall-detection",
-              "dockerfile": "docker-compose/dockerfiles/fall-detection.dockerfile",
+              "name":       "vigia-web",
+              "type":       "angular",
+              "path":       "vigia-web",
+              "dockerfile": "docker-compose/dockerfiles/vigia-web.dockerfile",
               "has_docker": "true"
             }]' <<< "$PROJECTS")
           fi
 
-          # Variáveis auxiliares para deixar as condições legíveis
-          VIGIA_API_SRC="${{ steps.filter.outputs.vigia_api_src }}"
-          VIGIA_API_DOCKER="${{ steps.filter.outputs.vigia_api_docker }}"
-          VIGIA_BOOTSTRAP_CHANGED="${{ steps.filter.outputs.vigia_bootstrap_non_md }}"
-          SHARED_CHANGED="${{ steps.filter.outputs.vigia_shared_non_md }}"
-          GO_WORK_CHANGED="${{ steps.filter.outputs.vigia_go_work }}"
-          GO_SUM_CHANGED="${{ steps.filter.outputs.vigia_go_sum }}"
-          MAKEFILE_CHANGED="${{ steps.filter.outputs.vigia_makefile }}"
+          if [[ "${{ steps.filter.outputs.vigia_fall_src }}" == "true" || "${{ steps.filter.outputs.vigia_fall_docker }}" == "true" ]]; then
+            PROJECTS=$(jq -c '. + [{
+              "name":         "vigia-fall",
+              "type":         "python",
+              "path":         "vigia-fall",
+              "deps_file":    "requirements-debug.txt",
+              "bandit_paths": "capture connection database shared integration main.py",
+              "needs_lgpio":  "false",
+              "dockerfile":   "docker-compose/dockerfiles/fall-detection.dockerfile",
+              "has_docker":   "true"
+            }]' <<< "$PROJECTS")
+          fi
 
-          # vigia-api entra se o próprio app, o pacote shared ou os arquivos
-          # comuns do workspace Go foram alterados.
-          if [[ "$VIGIA_API_SRC" == "true" || "$VIGIA_API_DOCKER" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.vigia_api_src }}" == "true" || "${{ steps.filter.outputs.vigia_api_docker }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
               "name":       "vigia-api",
-              "type":       "go",
-              "path":       "vigia-services/apps/vigia-api",
-              "go_mod":     "vigia-services/apps/vigia-api/go.mod",
-              "go_sum":     "vigia-services/apps/vigia-api/go.sum",
+              "type":       "dotnet",
+              "path":       "vigia-api",
+              "solution":   "Vigia.slnx",
               "dockerfile": "docker-compose/dockerfiles/vigia-api.dockerfile",
               "has_docker": "true"
             }]' <<< "$PROJECTS")
           fi
 
-          if [[ "$VIGIA_BOOTSTRAP_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$GO_WORK_CHANGED" == "true" || "$GO_SUM_CHANGED" == "true" || "$MAKEFILE_CHANGED" == "true" ]]; then
+          if [[ "${{ steps.filter.outputs.vigia_bootstrap_src }}" == "true" ]]; then
             PROJECTS=$(jq -c '. + [{
-              "name":       "vigia-bootstrap",
-              "type":       "go",
-              "path":       "vigia-services/apps/vigia-bootstrap",
-              "go_mod":     "vigia-services/apps/vigia-bootstrap/go.mod",
-              "go_sum":     "vigia-services/apps/vigia-bootstrap/go.sum",
-              "has_docker": "false"
+              "name":         "vigia-bootstrap",
+              "type":         "python",
+              "path":         "vigia-bootstrap",
+              "deps_file":    "requirements.txt",
+              "bandit_paths": "provision ui main.py",
+              "needs_lgpio":  "true",
+              "has_docker":   "false"
             }]' <<< "$PROJECTS")
           fi
 
@@ -143,19 +140,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Gitleaks (working tree)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-git --source . --redact -v --exit-code=2
 
   # ─────────────────────────────────────────────
   # 3. VALIDAÇÃO DE AUTORIA DE COMMITS
   # Bloqueia PRs cujos commits possuam qualquer
   # referência a agentes de IA (Cursor, Claude,
-  # Copilot, Codex, ChatGPT, Gemini, etc.) 
+  # Copilot, Codex, ChatGPT, Gemini, etc.)
   # ─────────────────────────────────────────────
   commit_authors_check:
     name: Commit authors validation
@@ -276,31 +275,18 @@ jobs:
         if: matrix.project.type == 'python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: '3.12'
           cache: pip
           cache-dependency-path: |
             ${{ matrix.project.path }}/requirements.txt
             ${{ matrix.project.path }}/requirements-debug.txt
-            ${{ matrix.project.path }}/requirements-ci.txt
+            ${{ matrix.project.path }}/requirements-build.txt
 
-      - name: Set up Go
-        if: matrix.project.type == 'go'
-        id: setup_go
-        uses: actions/setup-go@v5
+      - name: Set up .NET
+        if: matrix.project.type == 'dotnet'
+        uses: actions/setup-dotnet@v4
         with:
-          go-version-file: ${{ matrix.project.go_mod }}
-          cache-dependency-path: ${{ matrix.project.go_sum }}
-
-      # actions/setup-go só cacheia módulos; binários instalados via
-      # `go install` (gosec/govulncheck/golangci-lint) ficam em ~/go/bin
-      # e precisam de cache próprio.
-      - name: Cache Go security tools (~/go/bin)
-        if: matrix.project.type == 'go'
-        id: cache_go_tools
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin
-          key: go-sec-tools-${{ runner.os }}-go${{ steps.setup_go.outputs.go-version }}-gosec${{ env.GOSEC_VERSION }}-govulncheck${{ env.GOVULNCHECK_VERSION }}-golangci${{ env.GOLANGCI_LINT_VERSION }}
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Set up Flutter
         if: matrix.project.type == 'flutter'
@@ -309,36 +295,62 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Set up pnpm
+        if: matrix.project.type == 'angular'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Set up Node.js
+        if: matrix.project.type == 'angular'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.project.path }}/pnpm-lock.yaml
+
       # ── Python ──────────────────────────────────────────────
+
+      - name: Cache liblgpio
+        if: matrix.project.type == 'python' && matrix.project.needs_lgpio == 'true'
+        id: cache_liblgpio
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vigia-liblgpio-${{ env.LG_VERSION }}
+          key: liblgpio-${{ runner.os }}-${{ runner.arch }}-${{ env.LG_VERSION }}
+
+      - name: Install system deps + liblgpio
+        if: matrix.project.type == 'python' && matrix.project.needs_lgpio == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            swig \
+            wget
+          bash "${{ github.workspace }}/.github/scripts/install-liblgpio.sh"
 
       - name: Python - install dependencies
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          # Mantemos compatibilidade com o workflow de deploy:
-          # não instalamos requirements-debug.txt aqui para evitar
-          # conflito pytest==9.x vs pytest-asyncio<9.
-          # As ferramentas de CI (pylint/bandit/pip-audit/pytest) vêm
-          # de requirements-ci.txt para que fiquem cobertas pelo cache.
-          python -m pip install -r requirements-ci.txt
-
-      - name: Python - lint
-        if: matrix.project.type == 'python'
-        working-directory: ${{ matrix.project.path }}
-        run: python -m pylint src/app
+          python -m pip install -r "${{ matrix.project.deps_file }}"
+          # Ferramentas de CI (não versionadas nos requirements de runtime).
+          python -m pip install pytest bandit pip-audit
 
       - name: Python - SAST
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
         # -ll = reporta apenas issues de severidade MEDIUM ou acima
-        run: python -m bandit -r src/app -ll
+        run: python -m bandit -r ${{ matrix.project.bandit_paths }} -ll
 
       - name: Python - dependency vulnerabilities
         if: matrix.project.type == 'python'
         working-directory: ${{ matrix.project.path }}
-        run: python -m pip_audit --strict --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2025-71176
+        run: python -m pip_audit --strict
 
       - name: Python - tests
         if: matrix.project.type == 'python'
@@ -367,54 +379,60 @@ jobs:
         working-directory: ${{ matrix.project.path }}
         run: flutter test
 
-      # ── Go ──────────────────────────────────────────────────
+      # ── .NET (vigia-api) ──────────────────────────────────────
 
-      - name: Go - install security tools (only on cache miss)
-        if: matrix.project.type == 'go' && steps.cache_go_tools.outputs.cache-hit != 'true'
+      - name: .NET - restore
+        if: matrix.project.type == 'dotnet'
+        working-directory: ${{ matrix.project.path }}
+        run: dotnet restore ${{ matrix.project.solution }}
+
+      - name: .NET - build
+        if: matrix.project.type == 'dotnet'
+        working-directory: ${{ matrix.project.path }}
+        run: dotnet build ${{ matrix.project.solution }} -c Release --no-restore
+
+      - name: .NET - tests with coverage
+        if: matrix.project.type == 'dotnet'
+        working-directory: ${{ matrix.project.path }}
         run: |
           set -euo pipefail
-          go install github.com/securego/gosec/v2/cmd/gosec@${{ env.GOSEC_VERSION }}
-          go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+          dotnet test ${{ matrix.project.solution }} \
+            -c Release \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
 
-      # ~/go/bin precisa estar no PATH para que os binários cacheados
-      # sejam encontrados nos próximos steps.
-      - name: Go - ensure ~/go/bin is on PATH
-        if: matrix.project.type == 'go'
-        run: echo "$HOME/go/bin" >> "$GITHUB_PATH"
-
-      - name: Go - lint
-        if: matrix.project.type == 'go'
-        working-directory: ${{ matrix.project.path }}
-        run: golangci-lint run --timeout=5m
-
-      - name: Go - SAST
-        if: matrix.project.type == 'go'
-        working-directory: ${{ matrix.project.path }}
-        run: gosec ./...
-
-      - name: Go - dependency vulnerabilities
-        if: matrix.project.type == 'go'
-        working-directory: ${{ matrix.project.path }}
-        run: govulncheck ./...
-
-      - name: Go - tests with coverage
-        if: matrix.project.type == 'go'
-        working-directory: ${{ matrix.project.path }}
-        run: |
-          go test ./... \
-            -race \
-            -coverprofile=coverage.out \
-            -covermode=atomic \
-            -timeout=120s
-
-      - name: Go - export coverage report
-        if: matrix.project.type == 'go'
+      - name: .NET - export coverage report
+        if: matrix.project.type == 'dotnet'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.project.name }}
-          path: ${{ matrix.project.path }}/coverage.out
+          path: ${{ matrix.project.path }}/TestResults
           retention-days: 7
+          if-no-files-found: ignore
+
+      # ── Angular (vigia-web) ───────────────────────────────────
+
+      - name: Angular - install dependencies
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Angular - lint
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm exec ng lint
+
+      - name: Angular - test
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm test
+
+      - name: Angular - production build
+        if: matrix.project.type == 'angular'
+        working-directory: ${{ matrix.project.path }}
+        run: pnpm exec ng build --configuration=production
 
       # ── Dockerfile (qualquer linguagem que tenha imagem) ────
 

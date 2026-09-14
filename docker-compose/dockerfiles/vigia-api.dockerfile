@@ -1,23 +1,38 @@
-# Build vigia-api from modular workspace (vigia-services/apps/vigia-api)
-FROM golang:1.26.3-alpine AS builder
+# Build Vigia.API (.NET) — context = monorepo root
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
 
-WORKDIR /src/vigia-services
+ARG BUILD_CONFIGURATION=Release
 
-# 1) Copia arquivos do modulo da API para aproveitar cache
-COPY vigia-services/apps/vigia-api/go.mod vigia-services/apps/vigia-api/go.sum ./apps/vigia-api/
+# Project files first (restore cache)
+COPY vigia-api/Vigia.API/Vigia.API.csproj Vigia.API/
+COPY vigia-api/Libraries/Vigia.Models/Vigia.Models.csproj Libraries/Vigia.Models/
+COPY vigia-api/Libraries/Vigia.Database/Vigia.Database.csproj Libraries/Vigia.Database/
+COPY vigia-api/Libraries/Vigia.Cache/Vigia.Cache.csproj Libraries/Vigia.Cache/
+COPY vigia-api/Libraries/Vigia.Fiware/Vigia.Fiware.csproj Libraries/Vigia.Fiware/
+COPY vigia-api/Libraries/Vigia.Cloud/Vigia.Cloud.csproj Libraries/Vigia.Cloud/
 
-# 2) Copia o código-fonte do serviço
-COPY vigia-services/apps/vigia-api/ ./apps/vigia-api/
+RUN dotnet restore Vigia.API/Vigia.API.csproj
 
-# 3) Build do binário da API
-WORKDIR /src/vigia-services/apps/vigia-api
-RUN GOWORK=off CGO_ENABLED=0 go build -p=1 -trimpath -ldflags="-s -w" -o /bin/vigia-api ./cmd
+COPY vigia-api/Vigia.API/ Vigia.API/
+COPY vigia-api/Libraries/ Libraries/
 
-# Etapa de execução (imagem final)
-FROM alpine:3.22
-RUN apk update && apk upgrade --no-cache
+RUN dotnet publish Vigia.API/Vigia.API.csproj \
+    -c "$BUILD_CONFIGURATION" \
+    -o /app/publish \
+    /p:UseAppHost=false
 
+# Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-COPY --from=builder /bin/vigia-api .
-EXPOSE 8000
-ENTRYPOINT ["./vigia-api"]
+
+RUN mkdir -p /versions
+
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_URLS=http://+:8080 \
+    versionPath=/versions/
+
+COPY --from=build /app/publish .
+
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "Vigia.API.dll"]

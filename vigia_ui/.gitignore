@@ -39,11 +39,11 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Firebase — real options hydrated from CI secret / local flutterfire configure
+# (commit only firebase_options.dart.example)
+/lib/firebase_options.dart
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-# Firebase — contém chaves de API; gerar localmente (Firebase Console ou `flutterfire configure`)
-/android/app/google-services.json
-/ios/Runner/GoogleService-Info.plist

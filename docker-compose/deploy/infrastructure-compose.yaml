@@ -218,22 +218,30 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mqttws.rule=(Host(`vigia-deteccoes.duckdns.org`) || Host(`www.vigia-deteccoes.duckdns.org`)) && PathPrefix(`/fiware/mosquitto`)"
+      - "traefik.http.routers.mqttws.rule=Host(`mosquitto.vigiadeteccoes.com.br`)"
       - "traefik.http.routers.mqttws.entrypoints=websecure"
       - "traefik.http.routers.mqttws.tls=true"
       - "traefik.http.routers.mqttws.tls.certresolver=letsencrypt"
       - "traefik.http.services.mqttws.loadbalancer.server.port=9001"
-      - "traefik.http.middlewares.strip-notifications.stripprefix.prefixes=/fiware/mosquitto"
-      - "traefik.http.routers.mqttws.middlewares=strip-notifications,cors@file"
+      - "traefik.http.routers.mqttws.middlewares=cors@file"
     networks:
       - vigia-network
 
   #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    build:
+      context: ..
+      dockerfile: dockerfiles/mediamtx.dockerfile
+    image: vigia-mediamtx:deploy
     container_name: vigia-mediamtx
     restart: unless-stopped
+    environment:
+      # Token must match MediaMTX:WebhookToken on the API.
+      VIGIA_API_BASE: http://vigia-api:8000
+      VIGIA_MEDIAMTX_TOKEN: CHANGE_ME_MEDIAMTX_WEBHOOK_TOKEN
+      UNDEMAND_GRACE_SECONDS: "3"
     labels:
       - "traefik.enable=true"
       # Playback via HTTPS
@@ -252,6 +260,7 @@ services:
       - "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
     networks:
       - vigia-network
 

@@ -1,0 +1,16 @@
+.auth-entry-bridge {
+  position: fixed;
+  inset: 0;
+  /* Below auth morph overlay (1100) so handoff stays same-color without popping. */
+  z-index: 1099;
+  background-color: #669cee;
+  pointer-events: none;
+}
+
+.auth-handoff-logo {
+  position: fixed;
+  z-index: 1101;
+  width: auto;
+  object-fit: contain;
+  pointer-events: none;
+}

@@ -1,0 +1,51 @@
+<form class="auth-form" [formGroup]="form" (ngSubmit)="onSubmit()">
+  <app-auth-float-field
+    id="register-name"
+    label="AUTH.FIELDS.NAME"
+    icon="pi pi-user"
+    autocomplete="name"
+    [control]="nameControl"
+  />
+  <app-auth-float-field
+    id="register-email"
+    label="AUTH.FIELDS.EMAIL"
+    icon="pi pi-envelope"
+    autocomplete="email"
+    [control]="emailControl"
+  />
+  <app-auth-float-field
+    id="register-password"
+    type="password"
+    label="AUTH.FIELDS.PASSWORD"
+    icon="pi pi-lock"
+    autocomplete="new-password"
+    [control]="passwordControl"
+  />
+  <app-auth-float-field
+    id="register-confirm-password"
+    type="password"
+    label="AUTH.FIELDS.CONFIRM_PASSWORD"
+    icon="pi pi-lock"
+    autocomplete="new-password"
+    [control]="confirmPasswordControl"
+  />
+
+  @if (form.hasError('passwordsMismatch') && confirmPasswordControl.touched) {
+    <p class="auth-form__error" data-testid="password-mismatch">
+      {{ 'AUTH.ERRORS.PASSWORD_MISMATCH' | translate }}
+    </p>
+  }
+
+  <button
+    type="submit"
+    class="auth-cta"
+    [class.auth-cta--active]="ctaActive()"
+    [disabled]="ctaDisabled()"
+    data-testid="register-submit"
+  >
+    @if (submitting() && !showWelcome()) {
+      <span class="auth-cta__spinner" aria-hidden="true"></span>
+    }
+    <span class="auth-cta__label">{{ ctaLabel }}</span>
+  </button>
+</form>

@@ -1,0 +1,125 @@
+using Microsoft.EntityFrameworkCore;
+using Vigia.Database.CacheContracts;
+using Vigia.Database.Contracts;
+using Vigia.Models.Entities;
+using Vigia.Models.Enums;
+using Vigia.Models.Exceptions;
+
+namespace Vigia.Database.EFDao;
+
+internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : BaseDao<User>(context, cache), IUserDao
+{
+    protected override IUserDaoCache? GetCache() => Cache as IUserDaoCache;
+
+    protected override Task ValidateEntityForInsert(params User[] obj)
+    {
+        return Task.CompletedTask;
+    }
+
+    protected override Task ValidateEntityForUpdate(params User[] obj)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override async Task<User?> FindAsync(object key, bool track = false)
+    {
+        User? result = null;
+
+        if (!track && Cache != null)
+        {
+            result = Cache.GetEntity(key.ToString()!);
+
+            // Ignore stale login stubs cached without Name/LinkedGroups.
+            if (result != null &&
+                !string.IsNullOrEmpty(result.Name) &&
+                result.LinkedGroups != null)
+            {
+                return result;
+            }
+
+            if (result != null)
+                Cache.RemoveEntity(result);
+        }
+
+        IQueryable<User> query = Context.Set<User>()
+            .Where(u => u.Id.Equals(key) && u.DeletedAt == null)
+            .Include(u => u.Roles)
+            .Include(u => u.LinkedGroups);
+
+        if (!track)
+            query = query.AsNoTracking();
+
+        result = await query.FirstOrDefaultAsync();
+
+        if (result != null && !track)
+            Cache?.AddEntity(result);
+
+        return result;
+    }
+
+    public async Task<User?> FindUserByEmailAsync(string email)
+    {
+        User? result = null;
+
+        // Não consulta no cache pois essa consulta é feita apenas para a autenticação do usuário, demais consultas são feitas através do id do usuário
+        IQueryable<User> query = Context.Set<User>()
+            .Where(u => u.Email.Equals(email) && u.DeletedAt == null)
+            .Include(u => u.Roles)
+            .Select(u => new User
+            {
+                Id = u.Id,
+                Salt = u.Salt,
+                Password = u.Password,
+                Roles = u.Roles.Select(r => new UserRole(r.Id)
+                ).ToList(),
+            });
+
+        result = await query.FirstOrDefaultAsync();
+
+        // Never cache this projection: it omits Name/Email/LinkedGroups and would
+        // poison FindAsync(userId) used by track/claim and other flows.
+        return result;
+    }
+
+    public override async Task<int> AddAsync(params User[] obj)
+    {
+        DbSet<User> users = Context.Set<User>();
+
+        User newUser = obj[0];
+
+        User? trackedUser = await users.Where(u => u.Email.Equals(newUser.Email)).FirstOrDefaultAsync();
+
+        List<UserRole> roles = await Context.Set<UserRole>().Where(r => r.Id.Equals("USER")).ToListAsync();
+
+        if (trackedUser == null)
+        {
+            newUser.Roles = roles;
+            users.Add(newUser);
+        }
+        else
+        {
+            if (trackedUser.DeletedAt == null)
+                throw new EntityValidationException(nameof(User), "O email já está em uso para um outro usuário", ErrorCodes.USER_EMAIL_ALREADY_IN_USE);
+
+            trackedUser.Name = newUser.Name;
+            trackedUser.Email = newUser.Email;
+            trackedUser.Password = newUser.Password;
+            trackedUser.Salt = newUser.Salt;
+            trackedUser.UpdatedAt = DateTime.UtcNow;
+            trackedUser.DeletedAt = null;
+
+            Cache?.RemoveEntity(trackedUser);
+            users.Update(trackedUser);
+        }
+
+        return await Context.SaveChangesAsync();
+    }
+    
+    public async Task<List<User>> GetUsersByGroupAsync(Guid groupId)
+    {
+        return await Context.Set<User>()
+            .Where(u => u.LinkedGroups.Any(g => g.Id == groupId) && u.DeletedAt == null)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+}

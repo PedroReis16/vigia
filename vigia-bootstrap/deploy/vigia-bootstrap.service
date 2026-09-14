@@ -1,0 +1,25 @@
+# Unit systemd para o bundle PyInstaller (onedir) em /opt/vigia/bootstrap/.
+#
+#   sudo ./install.sh /path/to/vigia-bootstrap-linux-arm64.tar.gz
+#
+# Ou instalação manual:
+#   sudo install -d -m 755 /opt/vigia
+#   sudo install -m 644 deploy/vigia-bootstrap.service /etc/systemd/system/vigia-bootstrap.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vigia-bootstrap.service
+
+[Unit]
+Description=Vigia Bootstrap (provisionamento e botão físico)
+After=local-fs.target bluetooth.target
+Wants=NetworkManager.service bluetooth.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vigia/bootstrap
+EnvironmentFile=-/opt/vigia/.env
+ExecStart=/opt/vigia/bootstrap/vigia-bootstrap
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

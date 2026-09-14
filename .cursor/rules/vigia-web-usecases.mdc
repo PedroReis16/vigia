@@ -1,0 +1,45 @@
+---
+description: vigia-web — páginas e componentes devem usar use cases, não services HTTP/auth diretamente
+globs: vigia-web/src/**/*.{ts,html}
+alwaysApply: false
+---
+
+# vigia-web: Use Cases na UI
+
+## Camadas
+
+```
+pages/shared (UI) → core/usecases (*Service.execute) → core/services (HTTP/auth/storage)
+```
+
+- **UI** (`pages/`, `shared/components/`): só injeta **use cases** (`@core/usecases`) para ações de negócio e carregamento de dados.
+- **Use cases** (`core/usecases/<nome>/<nome>.service.ts`): orquestram mappers + services; expõem `execute(...)`.
+- **Services** (`core/services/`): HTTP, sessão, storage — infraestrutura.
+
+## Permitido chamar AuthService / HTTP services direto
+
+- Interceptors, guards, e o próprio corpo da use case.
+- Services de UI transversal sem API de domínio (ex.: `ThemeService`, `LanguageService`, `MessageService`).
+
+## Proibido
+
+```typescript
+// ❌ página/componente de feature
+private readonly devicesService = inject(DevicesService);
+private readonly authService = inject(AuthService);
+await this.authService.login(email, password);
+this.devicesService.getDevices().subscribe(...);
+
+// ✅
+private readonly login = inject(LoginService);
+private readonly getDevices = inject(GetDevicesService);
+await this.login.execute(email, password);
+firstValueFrom(this.getDevices.execute());
+```
+
+## Ao adicionar feature
+
+1. Criar/estender use case em `core/usecases/<feature>/` com `execute`.
+2. Exportar em `core/usecases/index.ts`.
+3. Página/componente injeta só a use case.
+4. Testes da UI mockam a use case; testes da use case mockam os services.

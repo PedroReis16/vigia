@@ -1,0 +1,10 @@
+<p-message
+  *ngIf="message()"
+  [severity]="message()!.type ?? 'info'"
+  variant="outlined"
+  [closable]="true"
+  (onClose)="removeMessage()"
+  class="mt-4"
+>
+  {{ message()?.message }}
+</p-message>

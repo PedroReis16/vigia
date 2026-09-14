@@ -1,0 +1,158 @@
+{
+  "@@locale": "en",
+  "appTitle": "Vigia",
+  "email": "Email",
+  "password": "Password",
+  "login": "Sign in",
+  "register": "Sign up",
+  "logout": "Log out",
+  "noAccount": "Don't have an account?",
+  "hasAccount": "Already have an account?",
+  "invalidCredentials": "Invalid username or password",
+  "loginError": "Login failed",
+  "devices": "Devices",
+  "settings": "Settings",
+  "home": "Home",
+  "stage": "Stage",
+  "sheetRecord": "Record #{id}",
+  "@sheetRecord": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "noDevicesFound": "No devices found",
+  "errorWithMessage": "Error: {message}",
+  "@errorWithMessage": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addDevice": "Add device",
+  "scanningHint": "Follow the tutorial and bring your phone close to Vigia. Scanning is already in progress.",
+  "stepPowerOnTitle": "Turn on the device",
+  "stepPowerOnDescription": "Plug Vigia into a power outlet and wait until the light indicates it is ready for setup.",
+  "stepPairTitle": "Link to the app",
+  "stepPairDescription": "Bring your phone close to Vigia to start pairing with the app.",
+  "stepWaitTitle": "Wait for confirmation",
+  "stepWaitDescription": "Wait a few seconds until setup completes successfully.",
+  "connectingTitle": "Connecting",
+  "connectingDescription": "Device found. Establishing a connection with Vigia…",
+  "authenticatingTitle": "Validating device",
+  "authenticatingDescription": "Confirming Vigia's identity and authenticating the app…",
+  "registeringTitle": "Registering device",
+  "registeringDescription": "Creating the device record on the Vigia servers…",
+  "fetchingConfigTitle": "Preparing configuration",
+  "fetchingConfigDescription": "Fetching the information needed to connect Vigia…",
+  "testingNetworkTitle": "Testing network",
+  "testingNetworkDescription": "Waiting for Vigia to connect to Wi‑Fi…",
+  "connectionEstablished": "Connection established",
+  "deviceLinkedSuccess": "{deviceName} was linked successfully.",
+  "@deviceLinkedSuccess": {
+    "placeholders": {
+      "deviceName": {
+        "type": "String"
+      }
+    }
+  },
+  "confirm": "Confirm",
+  "connectionFailed": "Could not connect",
+  "connectionErrorFallback": "An error occurred while searching for or connecting to the device.",
+  "tryAgain": "Try again",
+  "devicesLoadError": "It looks like we're experiencing technical issues.",
+  "wifiNetwork": "Wi‑Fi network",
+  "refreshNetworks": "Refresh networks",
+  "selectWifiHint": "Select the network Vigia should use.",
+  "manualWifiHintIos": "On iOS, enter the network name manually.",
+  "noNetworksFound": "No networks found. Try refreshing the list.",
+  "selectOrEnterWifi": "Select or enter a Wi‑Fi network.",
+  "networkPassword": "Network password",
+  "networkPasswordRequired": "Enter the network password",
+  "openNetworkNoPassword": "Open network — password not required.",
+  "sendCredentials": "Send credentials",
+  "networkSsid": "Network name (SSID)",
+  "backToFoundNetworks": "Back to found networks",
+  "noNetworksAvailable": "No networks available",
+  "enterNetworkManually": "Enter network manually",
+  "enterAnotherNetwork": "Enter another network",
+  "signalExcellent": "Excellent signal",
+  "signalGood": "Good signal",
+  "signalFair": "Fair signal",
+  "signalWeak": "Weak signal",
+  "usernameForm": "Full name",
+  "passwordConfirm": "Confirm password",
+  "emailInvalid": "The entered email address is not a valid address",
+  "passwordInvalid": "The password must be at least 8 characters long",
+  "passwordConfirmationInvalid": "The entered passwords do not match",
+  "userEmailAlreadyInUse": "The email is already in use for another user",
+  "registerUnknownError": "An error occurred while attempting to create the account",
+  "welcomeToVigia": "Welcome to Vigia",
+  "createAccount": "Sign up",
+  "deviceNickname": "Name",
+  "deviceName": "Device name",
+  "deviceRoom": "Room",
+  "deviceIdLabel": "Identifier",
+  "bedroom": "Bedroom",
+  "livingRoom": "Living room",
+  "kitchen": "Kitchen",
+  "bathroom": "Bathroom",
+  "office": "Office",
+  "garage": "Garage",
+  "backyard": "Backyard",
+  "frontyard": "Front yard",
+  "online": "Online",
+  "offline": "Offline",
+  "roomNotDefined": "Room not defined",
+  "saveClips": "Save clips",
+  "whatAreClips": "What are clips?",
+  "whenEnabledClipsWillStoreClipsForAnalysis": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+  "saveChanges": "Save changes",
+  "deviceUpdatedSuccess": "Device updated successfully",
+  "deviceUpdateError": "Could not update the device",
+  "discardChangesTitle": "Discard changes?",
+  "discardChangesMessage": "There are unsaved changes.",
+  "discard": "Discard",
+  "cancel": "Cancel",
+  "deviceUsers": "Users",
+  "noUsersFound": "No users found",
+  "back": "Back",
+  "seeAllUsers": "See all",
+  "deviceUsersCount": "{current}/{max}",
+  "@deviceUsersCount": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "shareDevice": "Share",
+  "shareLimitReached": "User limit reached",
+  "shareDeviceInviteSubject": "Vigia invite",
+  "shareLinkCopied": "Link copied. Share it with who you want to invite.",
+  "shareLinkError": "Could not generate the share link",
+  "deviceOwner": "Owner",
+  "removeUserTitle": "Remove user?",
+  "removeUserMessage": "Remove {name} from access to this group's devices?",
+  "@removeUserMessage": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "removeUserConfirm": "Remove",
+  "leaveGroupTitle": "Leave group?",
+  "leaveGroupMessage": "You will lose access to the shared devices in this group.",
+  "leaveGroupConfirm": "Leave",
+  "userRemovedSuccess": "User removed successfully",
+  "leftGroupSuccess": "You left the group",
+  "userRemoveError": "Could not remove the user",
+  "acceptingInvite": "Accepting invite…",
+  "inviteAcceptedSuccess": "Invite accepted. Shared devices are now available.",
+  "inviteAcceptedError": "Could not accept the invite",
+  "clips": "Clips",
+  "viewClips": "View clips",
+  "account": "Account",
+  "session": "Session"
+}
+

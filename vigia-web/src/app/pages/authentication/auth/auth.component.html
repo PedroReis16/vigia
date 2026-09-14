@@ -1,0 +1,81 @@
+<div
+  class="auth-page"
+  [class.auth-page--ready]="introReady()"
+  [class.auth-page--handoff]="logoutHandoff()"
+  [class.auth-page--handoff-released]="authHandoffReleased()"
+  data-testid="auth-page"
+>
+  <div class="auth-page__inner">
+    <div class="auth-page__top">
+      <img
+        class="auth-page__logo"
+        src="images/vigia-logo-dark.png"
+        alt="Vigia"
+        width="240"
+        height="240"
+        data-testid="auth-logo"
+      />
+
+      <div class="auth-page__message">
+        <app-message />
+      </div>
+
+      <div
+        class="auth-page__panel"
+        [attr.data-mode]="mode()"
+        [style.height.px]="panelHeight()"
+        data-testid="auth-panel"
+      >
+        <div
+          class="auth-page__slider"
+          [class.auth-page__slider--register]="mode() === 'register'"
+        >
+          <div
+            #loginPanel
+            class="auth-page__form"
+            data-testid="login-panel"
+            [attr.aria-hidden]="mode() !== 'login'"
+          >
+            <app-login-form />
+          </div>
+          <div
+            #registerPanel
+            class="auth-page__form"
+            data-testid="register-panel"
+            [attr.aria-hidden]="mode() !== 'register'"
+          >
+            <app-register-form />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-page__toggle" data-testid="auth-toggle">
+      @if (mode() === 'login') {
+        <div class="auth-page__toggle-copy" data-testid="toggle-login-copy">
+          <span>{{ 'AUTH.LOGIN.NO_ACCOUNT' | translate }}</span>
+          <button
+            type="button"
+            class="auth-page__toggle-link"
+            data-testid="go-register"
+            (click)="setMode('register')"
+          >
+            {{ 'AUTH.LOGIN.GO_REGISTER' | translate }}
+          </button>
+        </div>
+      } @else {
+        <div class="auth-page__toggle-copy" data-testid="toggle-register-copy">
+          <span>{{ 'AUTH.REGISTER.HAS_ACCOUNT' | translate }}</span>
+          <button
+            type="button"
+            class="auth-page__toggle-link"
+            data-testid="go-login"
+            (click)="setMode('login')"
+          >
+            {{ 'AUTH.REGISTER.GO_LOGIN' | translate }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

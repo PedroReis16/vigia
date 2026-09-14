@@ -1,0 +1,3 @@
+requests
+cryptography
+ultralytics==8.4.33

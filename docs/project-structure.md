@@ -482,7 +482,7 @@ flowchart LR
 1. Câmera/vídeo: leitura **full-rate** (`cap.read()` sem throttle)
 2. Subsample ~`FRAME_RATE` com **backpressure**: só enfileira quando `FrameWorker` está livre (`try_insert_raw_frame`, fila max 2, skip sem drop-oldest); um `frame.copy()` por tick de classificação alimenta archive + YOLO
 3. YOLO pose (`extract_poses`): `YOLO_IMGSZ` (default 320), tracker `bytetrack.yaml` → `FallClassifier` (`math` ou `gru`); warmup loga `p{id}=k/N` (preenchimento real da janela); métricas periódicas `yolo_ms`, `enqueue_fps`, `window_fps`, `queue_skips`
-4. Em cada transição de estado, o FrameWorker escreve o label em `EventShmRing` (fall); o processo FIWARE publica UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms, dedupe no capture e no FIWARE); logs de decisão vão para SHM separado e são drenados pelo supervisor
+4. No percurso de escalada (`suspect`/`fall`), o FrameWorker escreve o label em `EventShmRing` (fall) a cada frame; `normal` e outros estados só na transição; o processo FIWARE publica cada evento da SHM como UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms); logs de decisão vão para SHM separado e são drenados pelo supervisor
 5. Orion detecta `fall_state` (subscription configurada)
 6. Webhook POST para `/vigia/devices/alert`
 7. API notifica membros do grupo via Firebase push + SignalR
@@ -530,6 +530,10 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)
+- [2026-09-12] Fall: publicação FIWARE contínua em `suspect`/`fall` (todo frame do percurso NORMAL→SUSPECT→FALL); dedupe no capture só para `normal`/outros; FIWARE publica cada evento da SHM (`frame_worker`, `fiware_runner`)
+- [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)
+- [2026-09-12] Bootstrap: BLE opcional em debug (`BLE_ENABLED=false`); `bless` só em Linux/deploy; lazy import (`provision/ble.py`, `runner.py`, `requirements.txt`)
 - [2026-09-12] seed-codes: conversor AVI → MP4 via ffmpeg (`video_converter.py`)
 - [2026-09-12] Fall: export YOLO alinhado a `YOLO_IMGSZ` (input fixo ONNX/NCNN); `track` usa imgsz do artefato; reexport automático se divergir (`yolo_export`, `frame_processor`)
 - [2026-09-12] Fall: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand; bundle só NCNN; GRU em `models/`; sem `.pt` no produto (`shared/yolo_export.py`, `ensure_yolo_model.py`, `.spec`, Dockerfile)

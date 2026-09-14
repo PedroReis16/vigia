@@ -40,7 +40,7 @@ NATIVE_LINUX_ARM64 := $(shell \
 
 help:
 	@echo "Targets:"
-	@echo "  install-local-deps Venv local (macOS/desktop): sem lgpio"
+	@echo "  install-local-deps Venv local (macOS/desktop): sem lgpio/bless"
 	@echo "  install-build-deps Instala deps de runtime + PyInstaller (build nativo Linux)"
 	@echo "  build              PyInstaller no SO atual -> $(DIST_BUNDLE)"
 	@echo "  build-linux-arm64  Linux ARM64 -> $(OUT_DIR)/ e $(OUT_TAR)"

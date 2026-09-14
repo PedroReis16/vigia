@@ -118,10 +118,9 @@ def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:
 
 def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("BLE_ENABLED", "true")
     settings.get_settings.cache_clear()
     from provision import state as pairing_state
-    from types import ModuleType
-    import sys
 
     pairing_state.clear_force_pairing()
     (tmp_path / "identity.json").write_text(
@@ -143,10 +142,8 @@ def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
         called["ble"] += 1
         pairing_state.clear_force_pairing()
 
-    fake_ble = ModuleType("provision.ble")
-    fake_ble.init_register_beacon = fake_beacon  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "provision.ble", fake_ble)
-
+    monkeypatch.setattr("provision.runner.is_ble_available", lambda: True)
+    monkeypatch.setattr("provision.runner.init_register_beacon", fake_beacon)
     monkeypatch.setattr(
         "provision.runner.start_fall_detection",
         lambda: called.__setitem__("start", called["start"] + 1),
@@ -173,6 +170,98 @@ def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
     assert called["ble"] >= 1
     pairing_state.clear_force_pairing()
     pairing_state.bind_cancel(threading.Event())
+    settings.get_settings.cache_clear()
+
+
+def test_supervisor_idle_sem_ble_quando_desactivado(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("BLE_ENABLED", "false")
+    settings.get_settings.cache_clear()
+    from provision import state as pairing_state
+
+    pairing_state.clear_force_pairing()
+    identity.load_or_create_identity()
+
+    called = {"ble": 0}
+
+    async def fake_beacon(*_args, **_kwargs) -> None:
+        called["ble"] += 1
+
+    monkeypatch.setattr("provision.runner.init_register_beacon", fake_beacon)
+
+    async def run() -> None:
+        task = asyncio.create_task(provision_supervisor(threading.Event()))
+        await asyncio.sleep(0.3)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert called["ble"] == 0
+    settings.get_settings.cache_clear()
+
+
+def test_is_ble_available_respeita_ble_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("BLE_ENABLED", "false")
+    settings.get_settings.cache_clear()
+    from provision.ble import is_ble_available
+
+    assert is_ble_available() is False
+    settings.get_settings.cache_clear()
+
+
+def test_ensure_mock_network_cria_network_json(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("WIFI_MOCK", "true")
+    monkeypatch.setenv("MOCK_API_BASE_URL", "http://api.test/vigia")
+    monkeypatch.setenv("MOCK_STREAM_INGEST_URL", "rtmp://ingest.test:1935")
+    settings.get_settings.cache_clear()
+    (tmp_path / "identity.json").write_text("{}")
+
+    async def run() -> None:
+        from provision.wifi import ensure_mock_network
+
+        assert await ensure_mock_network() is True
+
+    asyncio.run(run())
+    data = json.loads((tmp_path / "network.json").read_text())
+    assert data["ssid"] == "local-mock"
+    assert data["api_base_url"] == "http://api.test/vigia"
+    assert data["stream_ingest_url"] == "rtmp://ingest.test:1935"
+    settings.get_settings.cache_clear()
+
+
+def test_supervisor_provisiona_via_mock_sem_ble(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("BLE_ENABLED", "false")
+    monkeypatch.setenv("WIFI_MOCK", "true")
+    settings.get_settings.cache_clear()
+    from provision import state as pairing_state
+
+    pairing_state.clear_force_pairing()
+    monkeypatch.setattr(identity, "_mac_address", lambda: "aa:bb:cc:dd:ee:ff")
+
+    called = {"start": 0}
+    monkeypatch.setattr(
+        "provision.runner.start_fall_detection",
+        lambda: called.__setitem__("start", called["start"] + 1),
+    )
+
+    async def run() -> None:
+        task = asyncio.create_task(provision_supervisor(threading.Event()))
+        await asyncio.sleep(1.5)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert (tmp_path / "network.json").exists()
+    assert called["start"] >= 1
+    settings.get_settings.cache_clear()
 
 
 def test_get_wifi_service_nmcli_por_omissao(monkeypatch) -> None:

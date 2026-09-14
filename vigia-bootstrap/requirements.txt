@@ -1,7 +1,8 @@
 gpiozero==2.0.1
 # Pi 5 / Linux only — no macOS (precisa de liblgpio + swig). Docker/build instala.
 lgpio==0.2.2.0; sys_platform == "linux"
-bless==0.3.0
+# Linux/deploy only — dev local (Windows/macOS) não precisa de bless
+bless==0.3.0; sys_platform == "linux"
 getmac==0.8.2
 cryptography==46.0.2
 RPLCD==1.4.0

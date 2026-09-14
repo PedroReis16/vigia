@@ -19,6 +19,7 @@ from shared.log_bridge import emit_log
 
 _PERIODIC_THROTTLE_S = 5.0
 _QUEUE_MAXSIZE = 2
+_ESCALATION_STATES = frozenset({"suspect", "fall"})
 
 
 def _format_decision_message(decision: FallDecision) -> str:
@@ -109,7 +110,7 @@ class FrameWorker:
 
         for decision in decisions:
             self._log_decision(decision, capture_date)
-            self._publish_fall_state(decision.label, capture_date)
+            self._publish_fall_state(decision, capture_date)
 
         return True
 
@@ -205,13 +206,19 @@ class FrameWorker:
                 self._last_logged[person_id] = label
             self._last_state_log_ts[person_id] = capture_ts
 
-    def _publish_fall_state(self, label: str, capture_ts: float) -> None:
-        """Enfileira fall_state para o processo FIWARE só quando o valor canónico muda."""
-        state = normalize_fall_state(label)
-        if state == self._last_published_fall_state:
+    def _should_publish_fall_state(self, decision: FallDecision) -> bool:
+        state = normalize_fall_state(decision.label)
+        if state in _ESCALATION_STATES:
+            return True
+        return state != self._last_published_fall_state
+
+    def _publish_fall_state(self, decision: FallDecision, capture_ts: float) -> None:
+        """Enfileira fall_state para o processo FIWARE no percurso suspect/fall ou em transição."""
+        if not self._should_publish_fall_state(decision):
             return
+        state = normalize_fall_state(decision.label)
         try:
-            enqueue_fall_state(label, capture_ts=capture_ts)
+            enqueue_fall_state(decision.label, capture_ts=capture_ts)
             self._last_published_fall_state = state
         except Exception as error:
             emit_log(

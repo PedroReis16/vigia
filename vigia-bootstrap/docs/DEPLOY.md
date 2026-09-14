@@ -92,6 +92,7 @@ O unit usa `EnvironmentFile=-/opt/vigia/.env` (opcional, partilhado com o fall-d
 - `DATA_DIR=/opt/vigia`
 - `WIFI_MOCK=false` na placa (`true` só em testes: aceita qualquer SSID)
 - `WIFI_MOCK_RESULT=success` (quando `WIFI_MOCK=true`)
+- `BLE_ENABLED=true` na placa (`false` em debug local sem Bluetooth; `bless` só em Linux/deploy)
 - `LCD_ENABLED=true`
 - `LCD_I2C_ADDR=0x27`
 - `BUTTON_OK=17` `BUTTON_UP=22` `BUTTON_DOWN=23`

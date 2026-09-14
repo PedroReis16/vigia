@@ -9,26 +9,25 @@ import json
 import logging
 import os
 import threading
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 from uuid import UUID
 
-from bless import BlessServer
-from bless.backends.attribute import GATTAttributePermissions
-from bless.backends.characteristic import (
-    BlessGATTCharacteristic,
-    GATTCharacteristicProperties,
-)
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from . import state
+from .settings import get_settings
 from .wifi import connect_and_persist
+
+if TYPE_CHECKING:
+    from bless import BlessServer
+    from bless.backends.characteristic import BlessGATTCharacteristic
 
 log = logging.getLogger(__name__)
 
-server: Optional[BlessServer] = None
+server: Optional["BlessServer"] = None
 loop: Optional[asyncio.AbstractEventLoop] = None
 
 SERVICE_UUID = "adbb2064-403f-490f-8e0b-d2df7a3e8976"
@@ -40,6 +39,43 @@ _STATUS_VALIDATED = b"VALIDATED"
 _STATUS_INVALID = b"INVALID"
 
 device_context: dict = {}
+
+
+def _bless_import_ok() -> bool:
+    try:
+        import bless  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def is_ble_available() -> bool:
+    """True quando BLE está activo e a stack bless pode ser carregada."""
+    if not get_settings().ble_enabled:
+        return False
+    return _bless_import_ok()
+
+
+def ble_unavailable_reason() -> str:
+    if not get_settings().ble_enabled:
+        return "BLE desativado (BLE_ENABLED=false)"
+    return "BLE indisponível (dependência bless em falta — necessária só no deploy)"
+
+
+def _load_bless():
+    from bless import BlessServer
+    from bless.backends.attribute import GATTAttributePermissions
+    from bless.backends.characteristic import (
+        BlessGATTCharacteristic,
+        GATTCharacteristicProperties,
+    )
+
+    return (
+        BlessServer,
+        GATTAttributePermissions,
+        BlessGATTCharacteristic,
+        GATTCharacteristicProperties,
+    )
 
 
 def _legacy_stream_ingest_url(api_base_url: str) -> str:
@@ -107,7 +143,7 @@ def _parse_auth_payload(payload: dict[str, Any]) -> tuple[bytes, bytes]:
 
 
 def __set_provision_status(
-    status: bytes, characteristic: Optional[BlessGATTCharacteristic] = None
+    status: bytes, characteristic: Optional["BlessGATTCharacteristic"] = None
 ) -> None:
     device_context["last_provision_status"] = status
     target = characteristic or device_context.get("provision_characteristic")
@@ -121,7 +157,7 @@ async def __provision_wifi_async(
     api_base_url: str,
     fiware_api_key: str,
     stream_ingest_url: str,
-    characteristic: Optional[BlessGATTCharacteristic],
+    characteristic: Optional["BlessGATTCharacteristic"],
 ) -> None:
     try:
         await connect_and_persist(
@@ -141,7 +177,7 @@ async def __provision_wifi_async(
         state.set_pairing_stage(state.WIFI_FAIL)
 
 
-def __write_request(characteristic: BlessGATTCharacteristic, value: Any):
+def __write_request(characteristic: "BlessGATTCharacteristic", value: Any):
     global device_context
 
     if __uuid_eq(characteristic.uuid, CHAR_CHALLENGE_UUID):
@@ -281,7 +317,7 @@ def __read_challenge() -> bytearray:
     return bytearray(device_context["current_nonce"].hex().encode("utf-8"))
 
 
-def __read_request(characteristic: BlessGATTCharacteristic) -> bytearray:
+def __read_request(characteristic: "BlessGATTCharacteristic") -> bytearray:
     if __uuid_eq(characteristic.uuid, CHAR_IDENTITY_UUID):
         data = __read_identity()
         characteristic.value = data
@@ -319,6 +355,16 @@ async def init_register_beacon(
     cancel: Optional[threading.Event] = None,
 ) -> None:
     global server, loop, device_context
+
+    if not is_ble_available():
+        raise RuntimeError(ble_unavailable_reason())
+
+    (
+        BlessServer,
+        GATTAttributePermissions,
+        _BlessGATTCharacteristic,
+        GATTCharacteristicProperties,
+    ) = _load_bless()
     loop = asyncio.get_event_loop()
     server = BlessServer(device_name, loop=loop)
 

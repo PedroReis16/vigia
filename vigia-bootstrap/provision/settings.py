@@ -30,8 +30,14 @@ def _as_bool(value: str) -> bool:
 class Settings:
     data_dir: str = PROD_DATA_DIR
     debug: bool = True
+    ble_enabled: bool = True
     wifi_mock: bool = False
     wifi_mock_result: str = "success"
+    mock_wifi_ssid: str = "local-mock"
+    mock_wifi_password: str = "unused"
+    mock_api_base_url: str = "http://localhost:8090/vigia"
+    mock_fiware_api_key: str = "VIGIA"
+    mock_stream_ingest_url: str = "rtmp://localhost:1935"
 
 
 @lru_cache(maxsize=1)
@@ -39,8 +45,27 @@ def get_settings() -> Settings:
     return Settings(
         data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
         debug=_as_bool(os.getenv("DEBUG", "true")),
+        ble_enabled=_as_bool(os.getenv("BLE_ENABLED", "true")),
         wifi_mock=_as_bool(os.getenv("WIFI_MOCK", "false")),
         wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower(),
+        mock_wifi_ssid=os.getenv("MOCK_WIFI_SSID", "local-mock").strip() or "local-mock",
+        mock_wifi_password=os.getenv("MOCK_WIFI_PASSWORD", "unused"),
+        mock_api_base_url=(
+            os.getenv("MOCK_API_BASE_URL")
+            or os.getenv("VIGIA_API_BASE_URL")
+            or "http://localhost:8090/vigia"
+        ).rstrip("/"),
+        mock_fiware_api_key=(
+            os.getenv("MOCK_FIWARE_API_KEY")
+            or os.getenv("VIGIA_FIWARE_API_KEY")
+            or "VIGIA"
+        ).strip()
+        or "VIGIA",
+        mock_stream_ingest_url=(
+            os.getenv("MOCK_STREAM_INGEST_URL")
+            or os.getenv("VIGIA_STREAM_INGEST_URL")
+            or "rtmp://localhost:1935"
+        ).rstrip("/"),
     )
 
 

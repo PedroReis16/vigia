@@ -551,10 +551,10 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
-- [2026-09-14] Onboard capture: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand, alinhado ao fall (`vigia-capture/src/yolo_export.py`, `yolo_model.py`, `capture_runner.py`)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
 - [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)
+- [2026-09-14] Onboard capture: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand, alinhado ao fall (`vigia-capture/src/yolo_export.py`, `yolo_model.py`, `capture_runner.py`)
 - [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)
 - [2026-09-12] Fall: publicação FIWARE contínua em `suspect`/`fall` (todo frame do percurso NORMAL→SUSPECT→FALL); dedupe no capture só para `normal`/outros; FIWARE publica cada evento da SHM (`frame_worker`, `fiware_runner`)
 - [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)

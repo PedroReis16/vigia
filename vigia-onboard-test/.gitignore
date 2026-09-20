@@ -1,0 +1,12 @@
+build/
+.vs/
+out/
+.env
+*.user
+CMakeUserPresets.json
+# Presets/scripts gerados pelo Conan na raiz (não o scripts/conan.ps1 do repo)
+/CMakePresets.json
+/conan*.sh
+/conan*.bat
+/conanrun*
+/deactivate_conanrun*

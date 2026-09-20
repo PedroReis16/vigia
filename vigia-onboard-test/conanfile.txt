@@ -1,0 +1,28 @@
+[requires]
+opencv/4.11.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+VirtualRunEnv
+
+[options]
+# Sem FFmpeg/codecs extras: captura DirectShow + JPEG/PNG bastam para o protótipo.
+# (Opções custom → raramente há binário no Center; 1ª vez compila e fica em ~/.conan2)
+opencv/*:shared=True
+opencv/*:with_ffmpeg=False
+opencv/*:with_tiff=False
+opencv/*:with_webp=False
+opencv/*:with_openexr=False
+opencv/*:with_quirc=False
+opencv/*:dnn=False
+opencv/*:tests=False
+opencv/*:calib3d=False
+opencv/*:features2d=False
+opencv/*:flann=False
+opencv/*:ml=False
+opencv/*:objdetect=False
+opencv/*:photo=False
+opencv/*:stitching=False
+opencv/*:video=False
+opencv/*:gapi=False

@@ -81,6 +81,7 @@ vigia/
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
 ├── vigia-onboard/          # Onboard edge: captura (YOLO export on-demand) e artefatos de release
+├── vigia-onboard-test/     # Protótipo C++ captura+YOLO pose (OpenCV + ONNX Runtime)
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
@@ -218,6 +219,25 @@ vigia/
 | `src/yolo_model.py` | Singleton `get_yolo_model()` via artefato exportado |
 | `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
 | `src/settings.py` | `CAPTURE_*`, `SHOW_VIDEO`, `SHOW_YOLO_PLOT`, `YOLO_MODEL`, `YOLO_IMGSZ` |
+
+---
+
+### vigia-onboard-test
+
+**Propósito:** Protótipo C++ de captura + YOLO pose para comparar eficiência (CPU/threads) face ao `vigia-capture` Python; sem MQTT/classificador.
+
+**Tecnologias:** C++17, OpenCV (Conan 2), ONNX Runtime CPU (zip oficial); reutiliza o `.onnx` do onboard.
+
+**Ponto de entrada:** `vigia-onboard-test/main.cpp` → `vigia::run_capture()`
+
+**Dev local:** `Makefile` (`make run` / `make build` / `make clean`; `CONFIG=Debug|Release`)
+
+| Módulo | Função |
+|--------|--------|
+| `src/capture_runner.cpp` | Loop OpenCV + preview (espelho do Python) |
+| `src/yolo_session.cpp` | Sessão ORT sobre o ONNX exportado |
+| `src/yolo_pose.cpp` | Letterbox, decode end2end `[1,300,57]`, desenho skeleton |
+| `src/settings.cpp` | `CAPTURE_*`, `SHOW_*`, `YOLO_*` via `.env` |
 
 ---
 
@@ -551,6 +571,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-20] Onboard-test: Makefile local (`make run`/`build`/`clean`) (`vigia-onboard-test/Makefile`)
+- [2026-09-19] Onboard-test C++: Conan 2 para OpenCV + ORT zip oficial; perfis VS 18 / tasks (`conanfile.txt`, `profiles/`, `scripts/conan.ps1`)
+- [2026-09-19] Protótipo C++ captura+YOLO pose (`vigia-onboard-test/`: OpenCV + ONNX Runtime, reutiliza ONNX do onboard)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
 - [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)

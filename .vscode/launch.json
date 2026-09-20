@@ -61,6 +61,18 @@
             "envFile": "${workspaceFolder}/vigia-fall/.env",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Vigia.OnboardTest (C++)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build: vigia-onboard-test",
+            "program": "${workspaceFolder}/vigia-onboard-test/build/Debug/vigia-capture-cpp.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/vigia-onboard-test",
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/vigia-onboard-test/.env"
         }
     ],
     "compounds": [

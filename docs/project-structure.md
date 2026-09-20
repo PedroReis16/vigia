@@ -80,6 +80,7 @@ vigia/
 ├── vigia-api/              # API cloud .NET + bibliotecas compartilhadas
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
+├── vigia-onboard/          # Onboard edge: captura (YOLO export on-demand) e artefatos de release
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
@@ -198,6 +199,25 @@ vigia/
 **Build:** `make build-linux-arm64` → `ensure-model` (NCNN) → PyInstaller → `dist/vigia-fall-detection-deploy.zip` + tarball OTA (inclui NCNN + `models/gru_2classes.onnx`)
 
 **Docs operacionais:** `vigia-fall/docs/DEPLOY.md`
+
+---
+
+### vigia-onboard
+
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), base para o release `onboard`.
+
+**Tecnologias:** Python, Ultralytics YOLO, OpenCV, python-dotenv.
+
+**Ponto de entrada:** `vigia-onboard/vigia-capture/main.py`
+
+**Módulos principais (`vigia-capture/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `src/capture_runner.py` | Loop OpenCV; carrega YOLO exportado no arranque |
+| `src/yolo_model.py` | Singleton `get_yolo_model()` via artefato exportado |
+| `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
+| `src/settings.py` | `CAPTURE_*`, `SHOW_VIDEO`, `SHOW_YOLO_PLOT`, `YOLO_MODEL`, `YOLO_IMGSZ` |
 
 ---
 
@@ -530,6 +550,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-14] Onboard capture: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand, alinhado ao fall (`vigia-capture/src/yolo_export.py`, `yolo_model.py`, `capture_runner.py`)
 - [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)
 - [2026-09-12] Fall: publicação FIWARE contínua em `suspect`/`fall` (todo frame do percurso NORMAL→SUSPECT→FALL); dedupe no capture só para `normal`/outros; FIWARE publica cada evento da SHM (`frame_worker`, `fiware_runner`)
 - [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)

@@ -134,7 +134,7 @@ def test_FrameWorker_enfileira_percurso_escalada(
     ]
 
 
-def test_FrameWorker_enfileira_todo_frame_suspect_e_fall(
+def test_FrameWorker_enfileira_todas_as_classificacoes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     enqueued: list[tuple[str, float]] = []
@@ -190,6 +190,7 @@ def test_FrameWorker_enfileira_todo_frame_suspect_e_fall(
         ("FALL", 3.0),
         ("FALL", 3.0),
         ("NORMAL", 4.0),
+        ("NORMAL", 5.0),
     ]
 
 

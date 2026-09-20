@@ -79,13 +79,15 @@ class FallDetector:
                 s.consecutive_high = 0
 
         elif s.state == FallState.SUSPECT:
+            # Pós-impacto o score costuma cair da zona alta para a morna; isso
+            # ainda é "não recuperou". Só score < low aborta para NORMAL.
             if score < self.config.threshold_low:
                 s.state = FallState.NORMAL
                 s.consecutive_high = 0
                 s.frames_in_current_state = 0
                 s.suspect_started_at = None
             else:
-                self._update_persistence_counter(score)
+                s.consecutive_high += 1
                 if s.consecutive_high >= self.config.persistence_frames:
                     s.state = FallState.FALL
                     s.frames_in_current_state = 0

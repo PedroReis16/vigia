@@ -38,6 +38,22 @@ def test_fall_detector_suspect_para_fall_com_score_persistente() -> None:
     assert state == FallState.FALL
 
 
+def test_fall_detector_suspect_para_fall_com_score_morno_persistente() -> None:
+    """Após SUSPECT, zona morna (não recuperou) confirma FALL — típico pós-impacto."""
+    detector = FallDetector(_config())
+    cfg = detector.config
+
+    for ts in range(1, cfg.persistence_frames + 1):
+        detector.update(cfg.threshold_high, float(ts))
+    assert detector.state == FallState.SUSPECT
+
+    warm_score = (cfg.threshold_low + cfg.threshold_high) / 2
+    for ts in range(cfg.persistence_frames + 1, 2 * cfg.persistence_frames):
+        assert detector.update(warm_score, float(ts)) == FallState.SUSPECT
+
+    assert detector.update(warm_score, 100.0) == FallState.FALL
+
+
 def test_fall_detector_suspect_para_normal_quando_score_cai() -> None:
     detector = FallDetector(_config())
     cfg = detector.config
@@ -47,21 +63,6 @@ def test_fall_detector_suspect_para_normal_quando_score_cai() -> None:
     assert detector.state == FallState.SUSPECT
 
     assert detector.update(cfg.threshold_low - 0.1, 10.0) == FallState.NORMAL
-
-
-def test_fall_detector_suspect_para_false_positive_apos_timeout() -> None:
-    detector = FallDetector(_config())
-    cfg = detector.config
-
-    for ts in range(1, cfg.persistence_frames + 1):
-        detector.update(cfg.threshold_high, float(ts))
-    assert detector.state == FallState.SUSPECT
-
-    warm_score = (cfg.threshold_low + cfg.threshold_high) / 2
-    for ts in range(cfg.persistence_frames + 1, cfg.persistence_frames + cfg.suspect_max_frames):
-        detector.update(warm_score, float(ts))
-
-    assert detector.update(warm_score, 100.0) == FallState.FALSE_POSITIVE
 
 
 def test_fall_detector_fall_retorna_normal_apos_cooldown() -> None:

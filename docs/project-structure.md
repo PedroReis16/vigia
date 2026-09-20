@@ -353,7 +353,8 @@ vigia/
 | Comandos FIWARE: `stream_on`, `stream_off`, `device_on`, `device_off`, `device_update` | `appsettings.json` + enum `DeviceCommands` |
 | Comando FIWARE falhou (ex.: entidade ausente no Orion) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` |
 | Provisionamento FIWARE falhou no registro → HTTP 502 `FIWARE_PROVISION_FAILED` (não persiste no Postgres) | `DevicesService.RegisterDeviceAsync` |
-| Startup reconcilia devices do Postgres ausentes no IoT Agent | `FiwareServiceJob.EnsureDevicesProvisionedAsync` |
+| Startup reconcilia devices do Postgres ausentes no FIWARE; remove clones MQTT `Sensor:{id}` e garante apikey no device canónico | `FiwareServiceJob` + `RegisterSensorAsync` |
+| Device IoT Agent sem apikey → MQTT Ultralight auto-cria clone e atualiza `fall` na entidade errada (webhook não dispara) | `Fiware:Services:ApiKey` no POST `/iot/devices` |
 | Atributos FIWARE: `system_status`, `network_status`, `stream_status`, `detected_person`, `fall_state` | `appsettings.json` (`Fiware:Devices:Attributes`) |
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
@@ -530,6 +531,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
 - [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)
 - [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)

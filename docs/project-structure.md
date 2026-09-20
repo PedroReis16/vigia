@@ -531,6 +531,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-20] AlertService: resolve entity Orion `Sensor:{deviceId}` (clone IoT Agent) além de `urn:ngsi-ld:{name}`; Firebase local via `firebase-service-account.json` montado (`CredentialPath`)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
 - [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)

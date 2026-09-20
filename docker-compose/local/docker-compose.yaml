@@ -81,6 +81,7 @@ services:
       - "8090:8080"
     volumes:
       - vigia-api-versions:/versions
+      - ./firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
     depends_on:
       postgres:
         condition: service_healthy

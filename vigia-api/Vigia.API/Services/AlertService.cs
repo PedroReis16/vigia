@@ -67,19 +67,10 @@ internal class AlertService(
 
     private async Task DeliverFallAlertAsync(string entityId)
     {
-        if (!TryResolveDeviceName(entityId, out string deviceName))
-        {
-            _logger.LogWarning("Webhook Orion com entity id inválido: {EntityId}", entityId);
-            return;
-        }
-
-        Device? device = await _devicesDao.FindByNameAsync(deviceName);
+        Device? device = await ResolveDeviceAsync(entityId);
         if (device is null)
         {
-            _logger.LogWarning(
-                "Alerta de queda ignorado: dispositivo não encontrado. Entity={EntityId} DeviceName={DeviceName}",
-                entityId,
-                deviceName);
+            _logger.LogWarning("Webhook Orion com entity id inválido ou dispositivo não encontrado: {EntityId}", entityId);
             return;
         }
 
@@ -104,7 +95,7 @@ internal class AlertService(
         if (tokens.Count == 0)
         {
             _logger.LogWarning(
-                "Alerta de queda reconhecido, porém nenhum token FCM encontrado. Device={DeviceId} Group={GroupId}",
+                "Alerta de queda reconhecido, porém nenhum token FCM ativo encontrado (linhas soft-deleted no banco não contam). Device={DeviceId} Group={GroupId}",
                 device.Id,
                 device.Group.Id);
             return;
@@ -115,6 +106,35 @@ internal class AlertService(
 
         if (result.InvalidTokens.Count > 0)
             await _pushTokenDao.DeleteTokensAsync(result.InvalidTokens);
+    }
+
+    private async Task<Device?> ResolveDeviceAsync(string entityId)
+    {
+        if (string.IsNullOrWhiteSpace(entityId))
+            return null;
+
+        string id = entityId.Trim();
+
+        // Clone IoT Agent: Sensor:{deviceId}
+        const string sensorPrefix = "Sensor:";
+        if (id.StartsWith(sensorPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            string maybeGuid = id[sensorPrefix.Length..];
+            if (Guid.TryParse(maybeGuid, out Guid shadowDeviceId))
+                return await _devicesDao.FindAsync(shadowDeviceId);
+        }
+
+        if (!TryResolveDeviceName(id, out string deviceName))
+            return null;
+
+        Device? byName = await _devicesDao.FindByNameAsync(deviceName);
+        if (byName is not null)
+            return byName;
+
+        if (Guid.TryParse(deviceName, out Guid asGuid))
+            return await _devicesDao.FindAsync(asGuid);
+
+        return null;
     }
 
     private static bool TryResolveDeviceName(string entityId, out string deviceName)

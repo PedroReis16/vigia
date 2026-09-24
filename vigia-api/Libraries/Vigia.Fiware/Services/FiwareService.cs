@@ -57,7 +57,8 @@ internal class FiwareService : IFiwareService
         _subscriptions = subscriptionOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
-        _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
+        _iotAgentProviderUrl = OrionRegistrationSync.ResolveProviderUrl(
+            configuration.GetValue<string>(OrionRegistrationSync.ProviderUrlConfigKey));
     }
 
     #region Métodos de controle do serviço do FIWARE
@@ -427,7 +428,7 @@ internal class FiwareService : IFiwareService
 
         List<OrionRegistrationDTO> registrations = registrationsCache ?? await ListRegistrationsAsync();
         List<OrionRegistrationDTO> entityRegistrations = registrations
-            .Where(r => IsCommandRegistrationForEntity(r, entityName, entityType))
+            .Where(r => OrionRegistrationSync.IsForEntity(r, entityName, entityType))
             .ToList();
 
         if (expectedAttrs.Count == 0)
@@ -447,8 +448,12 @@ internal class FiwareService : IFiwareService
             return deletedAll;
         }
 
-        OrionRegistrationDTO? matchingRegistration = entityRegistrations.FirstOrDefault(r =>
-            AttrsMatch(r.DataProvided.Attrs, expectedAttrs));
+        OrionRegistrationDTO? matchingRegistration = OrionRegistrationSync.FindCanonical(
+            entityRegistrations,
+            entityName,
+            entityType,
+            _iotAgentProviderUrl,
+            expectedAttrs);
 
         if (matchingRegistration is not null)
         {
@@ -474,31 +479,6 @@ internal class FiwareService : IFiwareService
             registrations.Add(createdRegistration);
 
         return created;
-    }
-
-    private bool IsCommandRegistrationForEntity(
-        OrionRegistrationDTO registration,
-        string entityName,
-        string entityType)
-    {
-        bool providerMatches = string.Equals(
-            registration.Provider.Http.Url.TrimEnd('/'),
-            _iotAgentProviderUrl.TrimEnd('/'),
-            StringComparison.OrdinalIgnoreCase);
-
-        if (!providerMatches)
-            return false;
-
-        return registration.DataProvided.Entities.Any(entity =>
-            string.Equals(entity.Id, entityName, StringComparison.Ordinal)
-            && string.Equals(entity.Type, entityType, StringComparison.Ordinal));
-    }
-
-    private static bool AttrsMatch(IEnumerable<string> current, IEnumerable<string> expected)
-    {
-        HashSet<string> currentAttrs = current.ToHashSet(StringComparer.Ordinal);
-        HashSet<string> expectedAttrs = expected.ToHashSet(StringComparer.Ordinal);
-        return currentAttrs.SetEquals(expectedAttrs);
     }
 
     private async Task<List<OrionRegistrationDTO>> ListRegistrationsAsync()
@@ -705,8 +685,12 @@ internal class FiwareService : IFiwareService
         SubscriptionDefinitionOptions definition)
     {
         bool urlMatches = UrlsMatch(subscription.Notification.Http.Url, definition.Notification.Url);
-        bool conditionAttrsMatch = AttrsMatch(subscription.Subject.Condition.Attrs, definition.GetConditionAttrs());
-        bool notificationAttrsMatch = AttrsMatch(subscription.Notification.Attrs, definition.GetNotificationAttrs());
+        bool conditionAttrsMatch = OrionRegistrationSync.AttrsMatch(
+            subscription.Subject.Condition.Attrs,
+            definition.GetConditionAttrs());
+        bool notificationAttrsMatch = OrionRegistrationSync.AttrsMatch(
+            subscription.Notification.Attrs,
+            definition.GetNotificationAttrs());
         bool queryMatches = string.Equals(
             subscription.Subject.Condition.Expression?.Q?.Trim(),
             definition.GetExpression(),

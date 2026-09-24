@@ -29,9 +29,10 @@ public interface IFiwareService
     /// Provisiona um device no IoT Agent com o schema canônico de
     /// <c>Fiware:Devices</c> e a apikey do serviço (obrigatória para MQTT
     /// Ultralight não criar clone <c>Sensor:{deviceId}</c>), sincroniza a
-    /// registration de comandos no Orion e as subscrições de
-    /// <c>Fiware:Subscriptions</c>. Idempotente: remove shadows, reprovisiona
-    /// se faltar apikey, e reforça registration/subscrições.
+    /// registration de comandos no Orion (<c>Fiware:ProviderUrl</c>, norte NGSI
+    /// do IoT Agent) e as subscrições de <c>Fiware:Subscriptions</c>.
+    /// Idempotente: remove shadows e registrations órfãs (path Traefik /iot),
+    /// reprovisiona se faltar apikey, e reforça registration/subscrições.
     /// </summary>
     Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName);
 

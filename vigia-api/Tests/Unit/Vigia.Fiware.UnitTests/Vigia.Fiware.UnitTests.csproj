@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Libraries\Vigia.Fiware\Vigia.Fiware.csproj" />
+  </ItemGroup>
+
 </Project>

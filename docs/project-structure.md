@@ -110,7 +110,7 @@ vigia/
 |---------|------------------|
 | `Vigia.Models` | Entidades, enums, DTOs, middlewares de auth, helpers, exceções |
 | `Vigia.Database` | EF Core, DAOs, migrations, configurações de entidade |
-| `Vigia.Fiware` | Cliente HTTP Orion/IoT Agent, sync de schema, subscriptions |
+| `Vigia.Fiware` | Cliente HTTP Orion/IoT Agent, sync de schema, subscriptions; `Fiware:ProviderUrl` = norte NGSI (`http://iot-agent:4041`) |
 | `Vigia.Cache` | Abstrações Redis + in-memory |
 | `Vigia.Cloud` | Storage S3-compatible (versões OTA + pictures) |
 
@@ -132,7 +132,7 @@ vigia/
 
 **Hub SignalR:** `DeviceGroupsHub` em `/vigia/hubs/device-groups`
 
-**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento. Nunca commitar segredos.
+**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento; `Fiware:ProviderUrl` é o norte NGSI do IoT Agent usado nas registrations de comando. Nunca commitar segredos.
 
 **Testes:** `vigia-api/Tests/` — Unit (API, Models, Database, Fiware, Cache) + Integration (scaffold, majoritariamente placeholders).
 
@@ -351,7 +351,7 @@ vigia/
 | JWT access token: **10 min**; refresh token: **7 dias** com rotação e revogação | `appsettings.json` (JWT) + `AuthService` |
 | Alerta de queda: subscription Orion `fall_state==fall` → webhook API → push Firebase ao grupo | `appsettings.json` (`Fiware:Subscriptions`) + `AlertService` |
 | Comandos FIWARE: `stream_on`, `stream_off`, `device_on`, `device_off`, `device_update` | `appsettings.json` + enum `DeviceCommands` |
-| Comando FIWARE falhou (ex.: entidade ausente no Orion) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` |
+| Comando FIWARE falhou (entidade ausente ou registration apontando para o path Traefik `/iot` em vez de `:4041`) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` + `Fiware:ProviderUrl` |
 | Provisionamento FIWARE falhou no registro → HTTP 502 `FIWARE_PROVISION_FAILED` (não persiste no Postgres) | `DevicesService.RegisterDeviceAsync` |
 | Startup reconcilia devices do Postgres ausentes no FIWARE; remove clones MQTT `Sensor:{id}` e garante apikey no device canónico | `FiwareServiceJob` + `RegisterSensorAsync` |
 | Device IoT Agent sem apikey → MQTT Ultralight auto-cria clone e atualiza `fall` na entidade errada (webhook não dispara) | `Fiware:Services:ApiKey` no POST `/iot/devices` |
@@ -428,7 +428,7 @@ vigia/
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
 | vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
-| vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
+| vigia-api | unitários em Database (`UserPushTokenDao`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
@@ -531,6 +531,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-23] API FIWARE: registration de comandos usa `Fiware:ProviderUrl` (`http://iot-agent:4041`); remove registrations órfãs no path Traefik `/iot` que faziam `START_STREAMING` retornar 502 (`FiwareService`, `OrionRegistrationSync`)
 - [2026-09-20] AlertService: resolve entity Orion `Sensor:{deviceId}` (clone IoT Agent) além de `urn:ngsi-ld:{name}`; Firebase local via `firebase-service-account.json` montado (`CredentialPath`)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)

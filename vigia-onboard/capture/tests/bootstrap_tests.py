@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -138,6 +139,39 @@ def test_ensure_dependencies_StampVelho_Instala(tmp_path: Path):
     assert (venv / bootstrap._STAMP_NAME).is_file()
 
 
+def test_ensure_venv_scripts_on_path_PrependeScripts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    bootstrap.ensure_venv_scripts_on_path(python)
+
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(python.parent)
+
+
+def test_disable_ultralytics_autoinstall_DefineDefault(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("YOLO_AUTOINSTALL", raising=False)
+    bootstrap.disable_ultralytics_autoinstall()
+    assert os.environ["YOLO_AUTOINSTALL"] == "false"
+
+
+def test_disable_ultralytics_autoinstall_RespeitaOverride(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("YOLO_AUTOINSTALL", "true")
+    bootstrap.disable_ultralytics_autoinstall()
+    assert os.environ["YOLO_AUTOINSTALL"] == "true"
+
+
+def test_ensure_venv_scripts_on_path_NaoDuplica(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    scripts = str(python.parent)
+    monkeypatch.setenv("PATH", f"{scripts}{os.pathsep}/usr/bin")
+
+    bootstrap.ensure_venv_scripts_on_path(python)
+
+    assert os.environ["PATH"].split(os.pathsep).count(scripts) == 1
+
+
 def test_ensure_env_file_CopiaExample(tmp_path: Path):
     (tmp_path / ".env.example").write_text("YOLO_MODEL=yolo26s-pose\n", encoding="utf-8")
     capture = tmp_path / "capture"
@@ -181,6 +215,26 @@ def test_prepare_runtime_ForaDoVenv_Reexecuta():
     reexec.assert_called_once_with(python, "src.bootstrap")
     deps.assert_not_called()
     model.assert_not_called()
+
+
+def test_main_SetupOnly_NaoExecutaCaptura():
+    with patch.object(bootstrap, "prepare_runtime"), patch(
+        "src.capture_runner.run_capture"
+    ) as run:
+        with patch.object(bootstrap.sys, "argv", ["src.bootstrap", "--setup-only"]):
+            assert bootstrap.main() == 0
+
+    run.assert_not_called()
+
+
+def test_main_SemFlags_ExecutaCaptura():
+    with patch.object(bootstrap, "prepare_runtime"), patch(
+        "src.capture_runner.run_capture"
+    ) as run:
+        with patch.object(bootstrap.sys, "argv", ["src.bootstrap"]):
+            assert bootstrap.main() == 0
+
+    run.assert_called_once()
 
 
 def test_prepare_runtime_NoVenv_InstalaEExporta(tmp_path: Path):

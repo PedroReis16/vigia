@@ -136,6 +136,32 @@ def ensure_supported_interpreter() -> None:
     os.execv(str(host), [str(host), "-m", _BOOTSTRAP_MODULE, *sys.argv[1:]])
 
 
+def disable_ultralytics_autoinstall() -> None:
+    """
+    Impede o Ultralytics de correr `pip install` no meio do export.
+
+    As deps de export (onnx, onnxslim) vêm do requirements.txt. O AutoUpdate
+    no macOS tenta coremltools e pode rebaixar o numpy do venv.
+    """
+    os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+
+
+def ensure_venv_scripts_on_path(python: Path | None = None) -> None:
+    """
+    Coloca o `bin/` (ou `Scripts/`) do venv no PATH.
+
+    O Ultralytics AutoUpdate invoca `pip` direto; sem isto, o export ONNX/CoreML
+    falha com "pip: command not found" mesmo usando o Python do .venv.
+    """
+    interpreter = python if python is not None else venv_python()
+    scripts = str(interpreter.parent)
+    current = os.environ.get("PATH", "")
+    parts = current.split(os.pathsep) if current else []
+    if scripts in parts:
+        return
+    os.environ["PATH"] = scripts + (os.pathsep + current if current else "")
+
+
 def ensure_venv(target: Path | None = None) -> Path:
     """Cria o venv do capture se faltar (ou se o Python for < 3.12)."""
     root = target if target is not None else venv_dir()
@@ -261,8 +287,11 @@ def prepare_runtime(
     ensure_supported_interpreter()
     ensure_env_file()
     python = ensure_venv()
+    ensure_venv_scripts_on_path(python)
     if not is_running_in_venv():
         _reexec_in_venv(python, reexec_module)
+    ensure_venv_scripts_on_path(python)
+    disable_ultralytics_autoinstall()
     ensure_dependencies(python)
     if not skip_model:
         ensure_model()
@@ -270,10 +299,18 @@ def prepare_runtime(
 
 
 def main() -> int:
-    """CLI: `make capture` → `python -m src.bootstrap` dentro de capture/."""
-    skip_model = "--skip-model" in sys.argv[1:]
+    """CLI: `make capture` → prepara o runtime e executa a captura."""
+    args = sys.argv[1:]
+    skip_model = "--skip-model" in args
+    setup_only = "--setup-only" in args
     prepare_runtime(skip_model=skip_model)
-    logger.info("Runtime do capture inicializado em %s", capture_root())
+    if setup_only:
+        logger.info("Runtime do capture inicializado em %s", capture_root())
+        return 0
+    from .capture_runner import run_capture
+
+    logger.info("A executar a captura em %s", capture_root())
+    run_capture()
     return 0
 
 

@@ -209,16 +209,16 @@ vigia/
 
 **Tecnologias:** Python, Ultralytics YOLO, OpenCV, python-dotenv.
 
-**Ponto de entrada:** `vigia-onboard/vigia-capture/main.py`
+**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` corre `capture/src/bootstrap.py` (venv em `capture/.venv`, deps, export YOLO). Python >= 3.12 (evita o `python3` 3.9 do Xcode no macOS). Configuração partilhada no `.env` da raiz.
 
-**Módulos principais (`vigia-capture/`):**
+**Módulos principais (`capture/`):**
 
 | Módulo | Função |
 |--------|--------|
-| `src/capture_runner.py` | Loop OpenCV; carrega YOLO exportado no arranque |
-| `src/yolo_model.py` | Singleton `get_yolo_model()` via artefato exportado |
+| `src/bootstrap.py` | Inicialização do capture: `.env` da raiz, venv, deps, export YOLO |
+| `src/paths.py` | Raiz do serviço e interpretador do `.venv` |
 | `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
-| `src/settings.py` | `CAPTURE_*`, `SHOW_VIDEO`, `SHOW_YOLO_PLOT`, `YOLO_MODEL`, `YOLO_IMGSZ` |
+| `src/capture_runner.py` | Loop de captura (ainda stub) |
 
 ---
 
@@ -571,6 +571,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-24] Onboard: raiz só Makefile + `.env`; `make capture` inicializa o venv/deps/YOLO de `capture/` (`src/bootstrap.py`)
 - [2026-09-20] Onboard-test: Makefile local (`make run`/`build`/`clean`) (`vigia-onboard-test/Makefile`)
 - [2026-09-19] Onboard-test C++: Conan 2 para OpenCV + ORT zip oficial; perfis VS 18 / tasks (`conanfile.txt`, `profiles/`, `scripts/conan.ps1`)
 - [2026-09-19] Protótipo C++ captura+YOLO pose (`vigia-onboard-test/`: OpenCV + ONNX Runtime, reutiliza ONNX do onboard)

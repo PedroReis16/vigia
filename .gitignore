@@ -215,6 +215,8 @@ __marimo__/
 # YOLO pose exports (gerados on-demand; não commitados)
 vigia-fall/models/yolo/**
 !vigia-fall/models/yolo/.gitkeep
+vigia-onboard/capture/models/yolo/**
+!vigia-onboard/capture/models/yolo/.gitkeep
 vigia-onboard/vigia-capture/models/yolo/**
 !vigia-onboard/vigia-capture/models/yolo/.gitkeep
 

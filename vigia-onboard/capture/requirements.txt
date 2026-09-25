@@ -1,0 +1,4 @@
+python-dotenv==1.2.2
+ultralytics==8.4.33
+onnxruntime>=1.16.0
+loguru==0.7.3

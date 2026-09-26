@@ -7,6 +7,7 @@ from typing import Any
 
 from .settings import get_settings
 from .yolo_model import get_yolo_model
+import cv2 # type: ignore	
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +24,8 @@ def _source_label(source: int | str) -> str:
     return f"câmera {source}"
 
 
-def _opencv() -> Any:
-    import cv2
 
-    return cv2
-
-
-def _opencv_has_gui(cv2: Any) -> bool:
+def _opencv_has_gui() -> bool:
     """False em builds headless (placa / PyInstaller) — imshow/waitKey não existem."""
     try:
         info = cv2.getBuildInformation()
@@ -39,7 +35,7 @@ def _opencv_has_gui(cv2: Any) -> bool:
     return any(marker in info for marker in markers)
 
 
-def _blur_boxes(cv2: Any, image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
+def _blur_boxes(image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
     """Aplica blur nas boxes detectadas (classe pessoa) e devolve uma cópia."""
     preview = image.copy()
     boxes = getattr(results[0], "boxes", None) if results else None
@@ -62,7 +58,6 @@ def _blur_boxes(cv2: Any, image: Any, results: Any, ksize: int = _BLUR_KSIZE) ->
 
 def run_capture() -> None:
     """Loop principal: lê a fonte, corre YOLO pose e mostra preview se pedido."""
-    cv2 = _opencv()
     show_video = False
     cap = None
 
@@ -77,7 +72,7 @@ def run_capture() -> None:
             getattr(yolo_model, "ckpt_path", settings.yolo_model),
         )
 
-        if show_video and not _opencv_has_gui(cv2):
+        if show_video and not _opencv_has_gui():
             logger.warning(
                 "SHOW_VIDEO=true, mas o OpenCV é headless; preview desativado."
             )

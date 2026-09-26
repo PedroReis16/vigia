@@ -46,6 +46,6 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
 
     assert cfg.capture_source == 1
     assert cfg.show_video is True
-    assert cfg.show_yolo_plot is False
+    assert cfg.show_plot is False
     assert cfg.capture_loop is True
     assert cfg.yolo_model == "yolo26n-pose"

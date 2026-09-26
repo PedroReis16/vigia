@@ -10,6 +10,8 @@ from .yolo_model import get_yolo_model
 
 logger = logging.getLogger(__name__)
 
+_BLUR_KSIZE = 51
+
 
 def _is_file_source(source: int | str) -> bool:
     return isinstance(source, str)
@@ -37,6 +39,27 @@ def _opencv_has_gui(cv2: Any) -> bool:
     return any(marker in info for marker in markers)
 
 
+def _blur_boxes(cv2: Any, image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
+    """Aplica blur nas boxes detectadas (classe pessoa) e devolve uma cópia."""
+    preview = image.copy()
+    boxes = getattr(results[0], "boxes", None) if results else None
+    xyxy = getattr(boxes, "xyxy", None) if boxes is not None else None
+    if xyxy is None:
+        return preview
+
+    height, width = preview.shape[:2]
+    for box in xyxy:
+        x1, y1, x2, y2 = (int(v) for v in box[:4])
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(width, x2), min(height, y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        roi = preview[y1:y2, x1:x2]
+        if roi.size:
+            preview[y1:y2, x1:x2] = cv2.blur(roi, (ksize, ksize))
+    return preview
+
+
 def run_capture() -> None:
     """Loop principal: lê a fonte, corre YOLO pose e mostra preview se pedido."""
     cv2 = _opencv()
@@ -47,7 +70,6 @@ def run_capture() -> None:
         settings = get_settings()
         source = settings.capture_source
         show_video = settings.show_video
-        show_yolo_plot = settings.show_yolo_plot
         capture_loop = settings.capture_loop
         yolo_model = get_yolo_model()
         logger.info(
@@ -79,9 +101,14 @@ def run_capture() -> None:
                     continue
                 break
 
-            results = yolo_model.predict(frame, verbose=False)
+            # Predição do YOLO
+            results = yolo_model.predict(frame, verbose=False, classes=[0])
+
+            preview = _blur_boxes(cv2, frame, results) if settings.blur_video else frame
+
+            preview = results[0].plot(img=preview) if settings.show_plot else preview
+
             if show_video:
-                preview = results[0].plot() if show_yolo_plot else frame
                 cv2.imshow("Preview movimentos", preview)
 
     except Exception as exc:

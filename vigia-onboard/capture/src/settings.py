@@ -34,9 +34,10 @@ class Settings:
 
     capture_source: int | str = 0
     show_video: bool = False
-    show_yolo_plot: bool = False
     capture_loop: bool = False
     yolo_model: str = "yolo26s-pose"
+    show_plot: bool = False
+    blur_video: bool = False
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -45,9 +46,14 @@ class Settings:
         return cls(
             capture_source=_parse_capture_source(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=_parse_bool(os.getenv("SHOW_VIDEO", "false")),
-            show_yolo_plot=_parse_bool(os.getenv("SHOW_YOLO_PLOT", "false")),
             capture_loop=_parse_bool(os.getenv("CAPTURE_LOOP", "false")),
             yolo_model=os.getenv("YOLO_MODEL", "yolo26s-pose"),
+            show_plot=_parse_bool(
+                os.getenv("SHOW_PLOT", "false")
+            ),  # TODO: Adicionar essa propriedade como um valor dinâmico
+            blur_video=_parse_bool(
+                os.getenv("BLUR_VIDEO", "false")
+            ),  # TODO: Adicionar essa propriedade como um valor dinâmico
         )
 
 

@@ -57,7 +57,8 @@ internal class FiwareService : IFiwareService
         _subscriptions = subscriptionOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
-        _iotAgentProviderUrl = $"{httpClient.BaseAddress}{_iotAgentPath}";
+        _iotAgentProviderUrl = OrionRegistrationSync.ResolveProviderUrl(
+            configuration.GetValue<string>(OrionRegistrationSync.ProviderUrlConfigKey));
     }
 
     #region Métodos de controle do serviço do FIWARE
@@ -191,6 +192,11 @@ internal class FiwareService : IFiwareService
 
             foreach (IotAgentDeviceDTO device in devices)
             {
+                // Clones auto-criados pelo MQTT (entity Sensor:{deviceId}, sem schema)
+                // não devem receber PUT — são removidos em RegisterSensorAsync/EnsureDevices.
+                if (IsAutocreatedShadowDevice(device))
+                    continue;
+
                 bool schemaMatches = SchemasMatch(device.Attributes, expectedAttributes)
                     && SchemasMatch(device.Commands, expectedCommands)
                     && string.Equals(device.Protocol ?? expectedProtocol, expectedProtocol, StringComparison.Ordinal)
@@ -422,7 +428,7 @@ internal class FiwareService : IFiwareService
 
         List<OrionRegistrationDTO> registrations = registrationsCache ?? await ListRegistrationsAsync();
         List<OrionRegistrationDTO> entityRegistrations = registrations
-            .Where(r => IsCommandRegistrationForEntity(r, entityName, entityType))
+            .Where(r => OrionRegistrationSync.IsForEntity(r, entityName, entityType))
             .ToList();
 
         if (expectedAttrs.Count == 0)
@@ -442,8 +448,12 @@ internal class FiwareService : IFiwareService
             return deletedAll;
         }
 
-        OrionRegistrationDTO? matchingRegistration = entityRegistrations.FirstOrDefault(r =>
-            AttrsMatch(r.DataProvided.Attrs, expectedAttrs));
+        OrionRegistrationDTO? matchingRegistration = OrionRegistrationSync.FindCanonical(
+            entityRegistrations,
+            entityName,
+            entityType,
+            _iotAgentProviderUrl,
+            expectedAttrs);
 
         if (matchingRegistration is not null)
         {
@@ -469,31 +479,6 @@ internal class FiwareService : IFiwareService
             registrations.Add(createdRegistration);
 
         return created;
-    }
-
-    private bool IsCommandRegistrationForEntity(
-        OrionRegistrationDTO registration,
-        string entityName,
-        string entityType)
-    {
-        bool providerMatches = string.Equals(
-            registration.Provider.Http.Url.TrimEnd('/'),
-            _iotAgentProviderUrl.TrimEnd('/'),
-            StringComparison.OrdinalIgnoreCase);
-
-        if (!providerMatches)
-            return false;
-
-        return registration.DataProvided.Entities.Any(entity =>
-            string.Equals(entity.Id, entityName, StringComparison.Ordinal)
-            && string.Equals(entity.Type, entityType, StringComparison.Ordinal));
-    }
-
-    private static bool AttrsMatch(IEnumerable<string> current, IEnumerable<string> expected)
-    {
-        HashSet<string> currentAttrs = current.ToHashSet(StringComparer.Ordinal);
-        HashSet<string> expectedAttrs = expected.ToHashSet(StringComparer.Ordinal);
-        return currentAttrs.SetEquals(expectedAttrs);
     }
 
     private async Task<List<OrionRegistrationDTO>> ListRegistrationsAsync()
@@ -700,8 +685,12 @@ internal class FiwareService : IFiwareService
         SubscriptionDefinitionOptions definition)
     {
         bool urlMatches = UrlsMatch(subscription.Notification.Http.Url, definition.Notification.Url);
-        bool conditionAttrsMatch = AttrsMatch(subscription.Subject.Condition.Attrs, definition.GetConditionAttrs());
-        bool notificationAttrsMatch = AttrsMatch(subscription.Notification.Attrs, definition.GetNotificationAttrs());
+        bool conditionAttrsMatch = OrionRegistrationSync.AttrsMatch(
+            subscription.Subject.Condition.Attrs,
+            definition.GetConditionAttrs());
+        bool notificationAttrsMatch = OrionRegistrationSync.AttrsMatch(
+            subscription.Notification.Attrs,
+            definition.GetNotificationAttrs());
         bool queryMatches = string.Equals(
             subscription.Subject.Condition.Expression?.Q?.Trim(),
             definition.GetExpression(),
@@ -905,19 +894,11 @@ internal class FiwareService : IFiwareService
         if (devices.Count == 0)
             return true;
 
-        HashSet<string> provisionedIds = await ListAllProvisionedDeviceIdsAsync();
+        // Sempre reconcilia (apikey + shadows): só checar presença do device_id
+        // deixava clones MQTT vivos e o device canónico sem apikey.
         bool allSucceeded = true;
-
         foreach ((Guid deviceId, string deviceName) in devices)
         {
-            if (provisionedIds.Contains(deviceId.ToString()))
-                continue;
-
-            _logger.LogWarning(
-                "Device {DeviceId} ({DeviceName}) presente no banco e ausente no FIWARE. Provisionando...",
-                deviceId,
-                deviceName);
-
             if (!await RegisterSensorAsync(deviceId, deviceName))
                 allSucceeded = false;
         }
@@ -925,9 +906,9 @@ internal class FiwareService : IFiwareService
         return allSucceeded;
     }
 
-    private async Task<HashSet<string>> ListAllProvisionedDeviceIdsAsync()
+    private async Task<List<IotAgentDeviceDTO>> ListAllDevicesAsync()
     {
-        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+        List<IotAgentDeviceDTO> all = [];
         int offset = 0;
 
         while (true)
@@ -935,19 +916,27 @@ internal class FiwareService : IFiwareService
             (List<IotAgentDeviceDTO> page, int totalCount) =
                 await ListDevicesPageAsync(offset, DevicesPageSize);
 
-            foreach (IotAgentDeviceDTO device in page)
-            {
-                if (!string.IsNullOrWhiteSpace(device.DeviceId))
-                    ids.Add(device.DeviceId);
-            }
-
+            all.AddRange(page);
             offset += page.Count;
 
             if (page.Count == 0 || page.Count < DevicesPageSize || offset >= totalCount)
                 break;
         }
 
-        return ids;
+        return all;
+    }
+
+    /// <summary>
+    /// Clone criado pelo IoT Agent quando a medida MQTT chega com apikey e o
+    /// device canónico ainda não tem esse apikey no documento.
+    /// </summary>
+    private static bool IsAutocreatedShadowDevice(IotAgentDeviceDTO device)
+    {
+        if (string.IsNullOrWhiteSpace(device.DeviceId) || string.IsNullOrWhiteSpace(device.EntityName))
+            return false;
+
+        string defaultEntity = $"Sensor:{device.DeviceId}";
+        return string.Equals(device.EntityName, defaultEntity, StringComparison.OrdinalIgnoreCase);
     }
 
 #if DEBUG
@@ -958,17 +947,53 @@ internal class FiwareService : IFiwareService
     public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)
     {
         string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
+        string apiKey = _configuration.GetValue<string>("Fiware:Services:ApiKey")!;
         string entityName = $"urn:ngsi-ld:{deviceName}";
         List<DeviceAttributeDTO> attributes = _deviceSchema.GetAttributes();
         List<DeviceCommandDTO> commands = _deviceSchema.GetCommands();
+        string deviceIdStr = deviceId.ToString();
 
-        HttpResponseMessage existing = await _httpClient.GetAsync(
-            $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId.ToString())}");
+        List<IotAgentDeviceDTO> bindings = (await ListAllDevicesAsync())
+            .Where(d => string.Equals(d.DeviceId, deviceIdStr, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        if (existing.IsSuccessStatusCode)
+        foreach (IotAgentDeviceDTO shadow in bindings.Where(IsAutocreatedShadowDevice))
+        {
+            _logger.LogWarning(
+                "Removendo device shadow MQTT {DeviceId} → {EntityName} (apikey presente={HasApiKey})",
+                shadow.DeviceId,
+                shadow.EntityName,
+                !string.IsNullOrEmpty(shadow.ApiKey));
+
+            await DeleteDeviceFromIotAgentAsync(deviceId, shadow.ApiKey);
+            await TryDeleteOrionEntityAsync(shadow.EntityName);
+        }
+
+        bindings = (await ListAllDevicesAsync())
+            .Where(d => string.Equals(d.DeviceId, deviceIdStr, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        IotAgentDeviceDTO? canonical = bindings.FirstOrDefault(d =>
+            string.Equals(d.EntityName, entityName, StringComparison.OrdinalIgnoreCase));
+
+        bool needsRepprovision =
+            canonical is null
+            || string.IsNullOrEmpty(canonical.ApiKey)
+            || !string.Equals(canonical.ApiKey, apiKey, StringComparison.Ordinal);
+
+        if (canonical is not null && needsRepprovision)
+        {
+            _logger.LogWarning(
+                "Device {DeviceId} sem apikey MQTT alinhada. Reprovisionando com apikey do serviço...",
+                deviceId);
+            await DeleteDeviceFromIotAgentAsync(deviceId, canonical.ApiKey);
+            canonical = null;
+        }
+
+        if (canonical is not null)
         {
             _logger.LogInformation(
-                "Device {DeviceId} ({DeviceName}) já provisionado no FIWARE. Sincronizando registration/subscrições...",
+                "Device {DeviceId} ({DeviceName}) já provisionado no FIWARE com apikey. Sincronizando registration/subscrições...",
                 deviceId,
                 deviceName);
 
@@ -976,19 +1001,8 @@ internal class FiwareService : IFiwareService
                 && await SyncDeviceSubscriptionsAsync(entityName, entityType);
         }
 
-        if (existing.StatusCode != HttpStatusCode.NotFound)
-        {
-            string errorBody = await existing.Content.ReadAsStringAsync();
-            _logger.LogError(
-                "Falha ao consultar device {DeviceId}. Status={StatusCode}. Body={Body}",
-                deviceId,
-                (int)existing.StatusCode,
-                errorBody);
-            return false;
-        }
-
         _logger.LogInformation(
-            "Provisionando device {DeviceId} no IoT Agent com Attributes=[{Attributes}] Commands=[{Commands}]",
+            "Provisionando device {DeviceId} no IoT Agent com apikey + Attributes=[{Attributes}] Commands=[{Commands}]",
             deviceId,
             string.Join(", ", attributes.Select(a => a.Name)),
             string.Join(", ", commands.Select(c => c.Name)));
@@ -999,7 +1013,8 @@ internal class FiwareService : IFiwareService
             [
                 new NewDeviceDTO
                 {
-                    DeviceId = deviceId.ToString(),
+                    DeviceId = deviceIdStr,
+                    ApiKey = apiKey,
                     EntityName = entityName,
                     EntityType = entityType,
                     Protocol = _deviceSchema.Protocol,
@@ -1037,16 +1052,29 @@ internal class FiwareService : IFiwareService
         string entityType = _configuration.GetValue<string>("Fiware:Services:EntityType")!;
         await DeleteManagedSubscriptionsAsync(entityName, entityType);
 
-        Task deleteIotAgentTask = DeleteDeviceFromIotAgentAsync(deviceId);
-        Task deleteOrionTask = DeleteDeviceFromOrionAsync(deviceName);
+        List<IotAgentDeviceDTO> bindings = (await ListAllDevicesAsync())
+            .Where(d => string.Equals(d.DeviceId, deviceId.ToString(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        await Task.WhenAll(deleteIotAgentTask, deleteOrionTask);
+        foreach (IotAgentDeviceDTO binding in bindings)
+        {
+            await DeleteDeviceFromIotAgentAsync(deviceId, binding.ApiKey);
+            if (!string.Equals(binding.EntityName, entityName, StringComparison.OrdinalIgnoreCase))
+                await TryDeleteOrionEntityAsync(binding.EntityName);
+        }
+
+        await DeleteDeviceFromOrionAsync(deviceName);
     }
 
-    private async Task DeleteDeviceFromIotAgentAsync(Guid deviceId)
+    private async Task DeleteDeviceFromIotAgentAsync(Guid deviceId, string? apiKey = null)
     {
-        HttpResponseMessage response = await _httpClient.DeleteAsync(
-            $"{_iotAgentPath}/devices/{deviceId}");
+        string url = $"{_iotAgentPath}/devices/{Uri.EscapeDataString(deviceId.ToString())}";
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            url += $"?apikey={Uri.EscapeDataString(apiKey)}";
+
+        HttpResponseMessage response = await _httpClient.DeleteAsync(url);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return;
 
         response.EnsureSuccessStatusCode();
     }
@@ -1054,11 +1082,26 @@ internal class FiwareService : IFiwareService
     private async Task DeleteDeviceFromOrionAsync(string deviceName)
     {
         string entityName = $"urn:ngsi-ld:{deviceName}";
+        await TryDeleteOrionEntityAsync(entityName);
+    }
 
+    private async Task TryDeleteOrionEntityAsync(string entityName)
+    {
         HttpResponseMessage response = await _httpClient.DeleteAsync(
-            $"{_orionPath}/v2/entities/{entityName}");
+            $"{_orionPath}/v2/entities/{Uri.EscapeDataString(entityName)}");
 
-        response.EnsureSuccessStatusCode();
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning(
+                "Falha ao remover entidade Orion {EntityName}. Status={StatusCode}. Body={Body}",
+                entityName,
+                (int)response.StatusCode,
+                body);
+        }
     }
 
     public async Task<bool> SendCommandAsync(string deviceName, DeviceCommands command, string? commandValue = null)

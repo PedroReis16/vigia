@@ -110,7 +110,7 @@ vigia/
 |---------|------------------|
 | `Vigia.Models` | Entidades, enums, DTOs, middlewares de auth, helpers, exceções |
 | `Vigia.Database` | EF Core, DAOs, migrations, configurações de entidade |
-| `Vigia.Fiware` | Cliente HTTP Orion/IoT Agent, sync de schema, subscriptions |
+| `Vigia.Fiware` | Cliente HTTP Orion/IoT Agent, sync de schema, subscriptions; `Fiware:ProviderUrl` = norte NGSI (`http://iot-agent:4041`) |
 | `Vigia.Cache` | Abstrações Redis + in-memory |
 | `Vigia.Cloud` | Storage S3-compatible (versões OTA + pictures) |
 
@@ -132,7 +132,7 @@ vigia/
 
 **Hub SignalR:** `DeviceGroupsHub` em `/vigia/hubs/device-groups`
 
-**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento. Nunca commitar segredos.
+**Configuração:** `vigia-api/Vigia.API/appsettings.json`, `appsettings.Development.json` — sobrescritas por env vars (`__` separator); `Streaming:IngestUrl` é enviado ao edge durante o pareamento; `Fiware:ProviderUrl` é o norte NGSI do IoT Agent usado nas registrations de comando. Nunca commitar segredos.
 
 **Testes:** `vigia-api/Tests/` — Unit (API, Models, Database, Fiware, Cache) + Integration (scaffold, majoritariamente placeholders).
 
@@ -351,9 +351,10 @@ vigia/
 | JWT access token: **10 min**; refresh token: **7 dias** com rotação e revogação | `appsettings.json` (JWT) + `AuthService` |
 | Alerta de queda: subscription Orion `fall_state==fall` → webhook API → push Firebase ao grupo | `appsettings.json` (`Fiware:Subscriptions`) + `AlertService` |
 | Comandos FIWARE: `stream_on`, `stream_off`, `device_on`, `device_off`, `device_update` | `appsettings.json` + enum `DeviceCommands` |
-| Comando FIWARE falhou (ex.: entidade ausente no Orion) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` |
+| Comando FIWARE falhou (entidade ausente ou registration apontando para o path Traefik `/iot` em vez de `:4041`) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` + `Fiware:ProviderUrl` |
 | Provisionamento FIWARE falhou no registro → HTTP 502 `FIWARE_PROVISION_FAILED` (não persiste no Postgres) | `DevicesService.RegisterDeviceAsync` |
-| Startup reconcilia devices do Postgres ausentes no IoT Agent | `FiwareServiceJob.EnsureDevicesProvisionedAsync` |
+| Startup reconcilia devices do Postgres ausentes no FIWARE; remove clones MQTT `Sensor:{id}` e garante apikey no device canónico | `FiwareServiceJob` + `RegisterSensorAsync` |
+| Device IoT Agent sem apikey → MQTT Ultralight auto-cria clone e atualiza `fall` na entidade errada (webhook não dispara) | `Fiware:Services:ApiKey` no POST `/iot/devices` |
 | Atributos FIWARE: `system_status`, `network_status`, `stream_status`, `detected_person`, `fall_state` | `appsettings.json` (`Fiware:Devices:Attributes`) |
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
@@ -427,7 +428,7 @@ vigia/
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
 | vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
-| vigia-api | unitários iniciais em Database (`UserPushTokenDao`); demais projetos ainda scaffold |
+| vigia-api | unitários em Database (`UserPushTokenDao`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
@@ -482,7 +483,7 @@ flowchart LR
 1. Câmera/vídeo: leitura **full-rate** (`cap.read()` sem throttle)
 2. Subsample ~`FRAME_RATE` com **backpressure**: só enfileira quando `FrameWorker` está livre (`try_insert_raw_frame`, fila max 2, skip sem drop-oldest); um `frame.copy()` por tick de classificação alimenta archive + YOLO
 3. YOLO pose (`extract_poses`): `YOLO_IMGSZ` (default 320), tracker `bytetrack.yaml` → `FallClassifier` (`math` ou `gru`); warmup loga `p{id}=k/N` (preenchimento real da janela); métricas periódicas `yolo_ms`, `enqueue_fps`, `window_fps`, `queue_skips`
-4. No percurso de escalada (`suspect`/`fall`), o FrameWorker escreve o label em `EventShmRing` (fall) a cada frame; `normal` e outros estados só na transição; o processo FIWARE publica cada evento da SHM como UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms); logs de decisão vão para SHM separado e são drenados pelo supervisor
+4. O FrameWorker escreve **toda** classificação em `EventShmRing` (fall) a cada decisão; o processo FIWARE publica cada evento da SHM como UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms); logs de decisão vão para SHM separado e são drenados pelo supervisor
 5. Orion detecta `fall_state` (subscription configurada)
 6. Webhook POST para `/vigia/devices/alert`
 7. API notifica membros do grupo via Firebase push + SignalR
@@ -530,6 +531,11 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-23] API FIWARE: registration de comandos usa `Fiware:ProviderUrl` (`http://iot-agent:4041`); remove registrations órfãs no path Traefik `/iot` que faziam `START_STREAMING` retornar 502 (`FiwareService`, `OrionRegistrationSync`)
+- [2026-09-20] AlertService: resolve entity Orion `Sensor:{deviceId}` (clone IoT Agent) além de `urn:ngsi-ld:{name}`; Firebase local via `firebase-service-account.json` montado (`CredentialPath`)
+- [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
+- [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
+- [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)
 - [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)
 - [2026-09-12] Fall: publicação FIWARE contínua em `suspect`/`fall` (todo frame do percurso NORMAL→SUSPECT→FALL); dedupe no capture só para `normal`/outros; FIWARE publica cada evento da SHM (`frame_worker`, `fiware_runner`)
 - [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)

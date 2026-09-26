@@ -7,6 +7,9 @@ public class NewDeviceDTO
     [JsonPropertyName("device_id")]
     public string DeviceId { get; set; } = string.Empty;
 
+    [JsonPropertyName("apikey")]
+    public string? ApiKey { get; set; }
+
     [JsonPropertyName("entity_name")]
     public string EntityName { get; set; } = string.Empty;
 

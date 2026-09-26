@@ -13,13 +13,11 @@ from capture.classifiers import FallClassifier, create_classifier, get_classifie
 from capture.classifiers.types import FallDecision
 from capture.frame_processor import extract_poses
 from integration.fall_shm import enqueue_fall_state
-from integration.fiware_runner import normalize_fall_state
 from shared import get_settings
 from shared.log_bridge import emit_log
 
 _PERIODIC_THROTTLE_S = 5.0
 _QUEUE_MAXSIZE = 2
-_ESCALATION_STATES = frozenset({"suspect", "fall"})
 
 
 def _format_decision_message(decision: FallDecision) -> str:
@@ -64,7 +62,6 @@ class FrameWorker:
         settings = get_settings()
         self.raw_frame_queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._classifier = classifier if classifier is not None else create_classifier()
-        self._last_published_fall_state: str | None = None
         self._last_logged: dict[int, str] = {}
         self._last_state_log_ts: dict[int, float] = {}
         self._last_periodic_log: dict[str, float] = {}
@@ -206,20 +203,10 @@ class FrameWorker:
                 self._last_logged[person_id] = label
             self._last_state_log_ts[person_id] = capture_ts
 
-    def _should_publish_fall_state(self, decision: FallDecision) -> bool:
-        state = normalize_fall_state(decision.label)
-        if state in _ESCALATION_STATES:
-            return True
-        return state != self._last_published_fall_state
-
     def _publish_fall_state(self, decision: FallDecision, capture_ts: float) -> None:
-        """Enfileira fall_state para o processo FIWARE no percurso suspect/fall ou em transição."""
-        if not self._should_publish_fall_state(decision):
-            return
-        state = normalize_fall_state(decision.label)
+        """Enfileira toda classificação para o processo FIWARE publicar no attrs."""
         try:
             enqueue_fall_state(decision.label, capture_ts=capture_ts)
-            self._last_published_fall_state = state
         except Exception as error:
             emit_log(
                 logging.WARNING,

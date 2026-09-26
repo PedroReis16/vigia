@@ -80,7 +80,7 @@ vigia/
 ├── vigia-api/              # API cloud .NET + bibliotecas compartilhadas
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
-├── vigia-onboard/          # Onboard edge: captura (YOLO export on-demand) e artefatos de release
+├── vigia-onboard/          # Onboard edge: captura (YOLO export on-demand), integração Go e artefatos de release
 ├── vigia-onboard-test/     # Protótipo C++ captura+YOLO pose (OpenCV + ONNX Runtime)
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
@@ -205,11 +205,11 @@ vigia/
 
 ### vigia-onboard
 
-**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), base para o release `onboard`.
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), serviço de integração Go, base para o release `onboard`.
 
-**Tecnologias:** Python, Ultralytics YOLO, OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência).
+**Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO, OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência).
 
-**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. Só setup: `make capture SETUP_ONLY=1`. Python >= 3.12 (evita o `python3` 3.9 do Xcode no macOS). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` faz `go mod tidy` e executa `integration/cmd`. Só setup: `SETUP_ONLY=1` em qualquer um. Python >= 3.12 (evita o `python3` 3.9 do Xcode no macOS); Go via `HOST_GO` (default: `go` no PATH). Configuração partilhada no `.env` da raiz.
 
 **Módulos principais (`capture/`):**
 
@@ -221,6 +221,13 @@ vigia/
 | `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
 | `src/yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 | `src/capture_runner.py` | Loop OpenCV + YOLO pose + preview |
+
+**Módulos principais (`integration/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `cmd/main.go` | Ponto de entrada Go do serviço de integração |
+| `go.mod` | Módulo `vigia-integration` |
 
 ---
 
@@ -573,6 +580,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-25] Onboard: `make integration` faz `go mod tidy` e executa `integration/cmd` (`Makefile`)
 - [2026-09-25] Onboard: `make capture` prepara o runtime e executa o loop OpenCV+YOLO (`src/bootstrap.py`, `src/capture_runner.py`, `src/settings.py`, `src/yolo_model.py`)
 - [2026-09-25] Onboard: export YOLO instala `onnx`/`onnxslim`, coloca o venv no PATH e desliga o AutoUpdate do Ultralytics (`Makefile`, `capture/requirements.txt`, `src/bootstrap.py`)
 - [2026-09-24] Onboard: raiz só Makefile + `.env`; `make capture` inicializa o venv/deps/YOLO de `capture/` (`src/bootstrap.py`)

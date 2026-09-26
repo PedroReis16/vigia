@@ -73,6 +73,56 @@
             "stopAtEntry": false,
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/vigia-onboard-test/.env"
+        },
+        {
+            "name": "Vigia.Onboard.Capture",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.bootstrap",
+            "cwd": "${workspaceFolder}/vigia-onboard/capture",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "onboard: setup capture",
+            "windows": {
+                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/Scripts/python.exe"
+            },
+            "osx": {
+                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/bin/python"
+            },
+            "linux": {
+                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/bin/python"
+            }
+        },
+        {
+            "name": "Vigia.Onboard.Integration",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/vigia-onboard/integration",
+            "cwd": "${workspaceFolder}/vigia-onboard/integration",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Vigia.Onboard.Bootstrap",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/vigia-onboard/bootstrap",
+            "cwd": "${workspaceFolder}/vigia-onboard/bootstrap",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Vigia.Onboard.Core",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/vigia-onboard/core",
+            "cwd": "${workspaceFolder}/vigia-onboard/core",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal"
         }
     ],
     "compounds": [
@@ -89,6 +139,16 @@
                 "Vigia.Bootstrap",
                 "Vigia.Fall"
             ]
+        },
+        {
+            "name": "Debug Onboard",
+            "configurations": [
+                "Vigia.Onboard.Capture",
+                "Vigia.Onboard.Integration",
+                "Vigia.Onboard.Bootstrap",
+                "Vigia.Onboard.Core"
+            ],
+            "stopAll": true
         }
     ]
 }

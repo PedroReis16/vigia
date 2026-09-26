@@ -13,6 +13,7 @@
 #   make integration SETUP_ONLY=1 # só go mod tidy
 #   make bootstrap                # setup + serviço Go
 #   make bootstrap SETUP_ONLY=1   # só go mod tidy
+#   make run                      # todos os projetos em paralelo
 # =============================================================================
 
 # python3 no macOS é muitas vezes o 3.9 do Xcode; o capture precisa de >= 3.12.
@@ -27,17 +28,21 @@ endif
 
 PROJECTS := capture integration bootstrap core
 
-# `.env` em KEY=VALUE (veja .env.example). include+export funciona nos dois SO.
+# `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
+# das receitas — `export` sozinho exporta também require_* e o $(error) dispara
+# com mensagem vazia (`Makefile:38: *** .  Stop.`) assim que o .env existe.
+ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO
 ifneq ($(wildcard $(CURDIR)/.env),)
 include $(CURDIR)/.env
-export
+export $(ONBOARD_ENV_KEYS)
 endif
 
 # Checagens sem `test` POSIX (Make avalia $(wildcard) nos dois SO).
 require_dir  = $(if $(wildcard $(1)/.),,$(error Projeto '$(1)' não encontrado.))
 require_file = $(if $(wildcard $(1)),,$(error $(2)))
+unexport require_dir require_file
 
-.PHONY: help $(PROJECTS)
+.PHONY: help run $(PROJECTS)
 
 help:
 	@echo Uso: make projeto
@@ -46,9 +51,13 @@ help:
 	@echo   make capture SETUP_ONLY=1     só venv/deps/modelo
 	@echo   make integration              setup + serviço Go
 	@echo   make integration SETUP_ONLY=1 só go mod tidy
+	@echo   make run                      todos os projetos em paralelo
 	@echo Configuração: .env nesta pasta (veja .env.example).
 	@echo Windows: HOST_PYTHON=py (ou python). macOS: python3.12+.
 	@echo Projetos: $(PROJECTS)
+
+run:
+	$(MAKE) -j$(words $(PROJECTS)) $(PROJECTS)
 
 # O Ultralytics AutoUpdate chama `pip` ao exportar ONNX/CoreML. O bootstrap
 # coloca bin/ (Unix) ou Scripts/ (Windows) do venv no PATH.
@@ -63,6 +72,11 @@ integration:
 	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)
 
 bootstrap:
+	$(call require_dir,$@)
+	$(call require_file,$@/main.go,'$@' ainda não tem main.go.)
+	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)
+
+core:
 	$(call require_dir,$@)
 	$(call require_file,$@/main.go,'$@' ainda não tem main.go.)
 	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)

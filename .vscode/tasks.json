@@ -77,6 +77,109 @@
       "group": "build",
       "problemMatcher": "$msCompile",
       "dependsOn": "cmake: configure vigia-onboard-test"
+    },
+    {
+      "label": "onboard: setup capture",
+      "type": "shell",
+      "command": "make",
+      "args": ["capture", "SETUP_ONLY=1"],
+      "options": {
+        "cwd": "${workspaceFolder}/vigia-onboard"
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "onboard: capture",
+      "type": "shell",
+      "command": "make",
+      "args": ["capture"],
+      "options": {
+        "cwd": "${workspaceFolder}/vigia-onboard"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "group": "vigia-onboard",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "onboard: integration",
+      "type": "shell",
+      "command": "make",
+      "args": ["integration"],
+      "options": {
+        "cwd": "${workspaceFolder}/vigia-onboard"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "group": "vigia-onboard",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "onboard: bootstrap",
+      "type": "shell",
+      "command": "make",
+      "args": ["bootstrap"],
+      "options": {
+        "cwd": "${workspaceFolder}/vigia-onboard"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "group": "vigia-onboard",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "onboard: core",
+      "type": "shell",
+      "command": "make",
+      "args": ["core"],
+      "options": {
+        "cwd": "${workspaceFolder}/vigia-onboard"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "dedicated",
+        "clear": true,
+        "group": "vigia-onboard",
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "onboard: run",
+      "detail": "4 terminais internos do Cursor: capture, integration, bootstrap, core",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "onboard: capture",
+        "onboard: integration",
+        "onboard: bootstrap",
+        "onboard: core"
+      ],
+      "problemMatcher": []
     }
   ]
 }

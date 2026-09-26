@@ -14,7 +14,7 @@
 # python3 no macOS é muitas vezes o 3.9 do Xcode; o capture precisa de >= 3.12.
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
 HOST_GO     ?= $(shell command -v go)
-PROJECTS    := capture integration bootstrap
+PROJECTS    := capture integration bootstrap core
 
 .PHONY: help $(PROJECTS)
 

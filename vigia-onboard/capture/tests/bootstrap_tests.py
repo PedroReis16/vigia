@@ -65,6 +65,18 @@ def test_resolve_host_python_AtualSuficiente():
         assert bootstrap.resolve_host_python() == Path(bootstrap.sys.executable)
 
 
+def test_host_python_candidates_WindowsIncluiPyEPython():
+    names = bootstrap.host_python_candidates("win32")
+    assert names[0] == "py"
+    assert "python" in names
+    assert "python3.12" in names
+
+
+def test_host_python_candidates_UnixPreferePython3():
+    assert bootstrap.host_python_candidates("darwin") == ("python3.13", "python3.12")
+    assert bootstrap.host_python_candidates("linux") == ("python3.13", "python3.12")
+
+
 def test_ensure_venv_Ausente_Cria(tmp_path: Path):
     venv = tmp_path / ".venv"
 

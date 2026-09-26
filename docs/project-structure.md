@@ -209,7 +209,7 @@ vigia/
 
 **Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO, OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência).
 
-**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` faz `go mod tidy` e executa `integration/cmd`. Só setup: `SETUP_ONLY=1` em qualquer um. Python >= 3.12 (evita o `python3` 3.9 do Xcode no macOS); Go via `HOST_GO` (default: `go` no PATH). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` / `make bootstrap` fazem `go mod tidy` e executam `main.go`. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). Go via `HOST_GO` (default: `go` no PATH). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
 
 **Módulos principais (`capture/`):**
 
@@ -580,7 +580,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
-- [2026-09-25] Onboard: `make integration` faz `go mod tidy` e executa `integration/cmd` (`Makefile`)
+- [2026-09-26] Onboard: Makefile portátil Windows (`cmd`) e macOS/Linux (`sh`); bootstrap também procura `py`/`python` (`Makefile`, `capture/src/bootstrap.py`)
+- [2026-09-25] Onboard: `make integration` faz `go mod tidy` e executa `integration/main.go` (`Makefile`)
 - [2026-09-25] Onboard: `make capture` prepara o runtime e executa o loop OpenCV+YOLO (`src/bootstrap.py`, `src/capture_runner.py`, `src/settings.py`, `src/yolo_model.py`)
 - [2026-09-25] Onboard: export YOLO instala `onnx`/`onnxslim`, coloca o venv no PATH e desliga o AutoUpdate do Ultralytics (`Makefile`, `capture/requirements.txt`, `src/bootstrap.py`)
 - [2026-09-24] Onboard: raiz só Makefile + `.env`; `make capture` inicializa o venv/deps/YOLO de `capture/` (`src/bootstrap.py`)

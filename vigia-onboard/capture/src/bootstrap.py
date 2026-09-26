@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 _STAMP_NAME = ".vigia-requirements.sha256"
 _BOOTSTRAP_MODULE = "src.bootstrap"
 MIN_PYTHON = (3, 12)
-_HOST_PYTHON_CANDIDATES = ("python3.13", "python3.12")
+_UNIX_HOST_PYTHON_CANDIDATES = ("python3.13", "python3.12")
+_WINDOWS_HOST_PYTHON_CANDIDATES = ("py", "python", "python3.13", "python3.12")
 
 
 def _configure_logging() -> None:
@@ -86,6 +87,14 @@ def _python_meets_min(version: tuple[int, int] | None) -> bool:
     return version is not None and version >= MIN_PYTHON
 
 
+def host_python_candidates(platform: str | None = None) -> tuple[str, ...]:
+    """Nomes a procurar quando o interpretador atual é < 3.12."""
+    plat = sys.platform if platform is None else platform
+    if plat == "win32":
+        return _WINDOWS_HOST_PYTHON_CANDIDATES
+    return _UNIX_HOST_PYTHON_CANDIDATES
+
+
 def resolve_host_python() -> Path:
     """
     Interpretador >= 3.12 para criar o venv.
@@ -99,7 +108,7 @@ def resolve_host_python() -> Path:
     env = (os.environ.get("HOST_PYTHON") or "").strip()
     if env:
         names.append(env)
-    names.extend(_HOST_PYTHON_CANDIDATES)
+    names.extend(host_python_candidates())
 
     seen: set[str] = set()
     for name in names:

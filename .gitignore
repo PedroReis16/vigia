@@ -338,3 +338,7 @@ __screenshots__/
 Thumbs.db
 
 edge-data/
+
+# Binários locais do onboard (go build no Makefile)
+vigia-onboard/core/vigia-core
+vigia-onboard/core/vigia-core.exe

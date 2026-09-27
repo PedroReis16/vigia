@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from dotenv import load_dotenv # type: ignore
 
 from .paths import onboard_root
 
@@ -21,10 +22,6 @@ def _parse_bool(raw: str) -> bool:
 
 
 def _load_onboard_env() -> None:
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        return
     load_dotenv(onboard_root() / ".env")
 
 

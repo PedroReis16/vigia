@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from multiprocessing import context
+import time
 from typing import Any
 
 from .settings import get_settings
 from .yolo_model import get_yolo_model
 import cv2 # type: ignore	
+import zmq
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,27 @@ def _blur_boxes(image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
             preview[y1:y2, x1:x2] = cv2.blur(roi, (ksize, ksize))
     return preview
 
+def _create_metadata(results: Any) -> Any:
+    """Cria os metadados para o envio para o serviço de Core."""
+    result = results[0]
+    people = []
+    if result.keypoints.data is not None:
+        boxes = result.boxes
+        for i, kpts in enumerate(result.keypoints.data):
+            xyxy = boxes.xyxy[i].tolist() if boxes is not None else []
+            conf = float(boxes.conf[i]) if boxes is not None else 0.0
+            people.append({
+                "id": i,
+                "box": [float(v) for v in xyxy],
+                "conf": conf,
+                "keypoints": kpts.cpu().numpy()[:, :3].tolist(),  # 17 x [x, y, c]
+            })
+
+    payload = {
+      "ts": time.time(),
+      "people": people,
+    }
+    return payload
 
 def run_capture() -> None:
     """Loop principal: lê a fonte, corre YOLO pose e mostra preview se pedido."""
@@ -71,6 +95,11 @@ def run_capture() -> None:
             "YOLO carregado: %s",
             getattr(yolo_model, "ckpt_path", settings.yolo_model),
         )
+
+        # Inicialização do ZeroMQ
+        context = zmq.Context()
+        socket = context.socket(zmq.PUB)
+        socket.bind("tcp://localhost:5556")
 
         if show_video and not _opencv_has_gui():
             logger.warning(
@@ -97,14 +126,23 @@ def run_capture() -> None:
                 break
 
             # Predição do YOLO
-            results = yolo_model.predict(frame, verbose=False, classes=[0])
+            results = yolo_model.predict(frame, verbose=False, classes=[0]) 
+    
+            if results:
+                metadata = _create_metadata(results)
+                socket.send_json(metadata) # envio dos dados para o serivço de Core
+            
+            # Processo de transferência dos frames para a montagem de clipe e streaming será utilizando Memória compartilhada
 
-            preview = _blur_boxes(cv2, frame, results) if settings.blur_video else frame
-
+            # Tratamento da imagem para exibição do preview/streaming/clipe
+           
+            preview = _blur_boxes(frame, results) if settings.blur_video else frame
             preview = results[0].plot(img=preview) if settings.show_plot else preview
 
+            # Exibição da imagem tratada (preview)
             if show_video:
                 cv2.imshow("Preview movimentos", preview)
+
 
     except Exception as exc:
         logger.error("Erro ao executar a captura: %s", exc)
@@ -114,4 +152,6 @@ def run_capture() -> None:
             cv2.destroyAllWindows()
         if cap is not None:
             cap.release()
+        socket.close()
+        context.term()
         logger.info("Captura encerrada")

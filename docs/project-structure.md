@@ -209,7 +209,7 @@ vigia/
 
 **Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO, OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência).
 
-**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` / `make bootstrap` / `make core` fazem `go mod tidy` e executam `main.go`. `make run` arranca os quatro em paralelo (`-j`). Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). Go via `HOST_GO` (default: `go` no PATH). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` / `make bootstrap` fazem `go mod tidy` e `go run`. `make core` faz `go mod tidy`, `go build` do binário `vigia-core` e executa-o (evita processo órfão do `go run` no Windows após CTRL+C). `make run` arranca os quatro em paralelo (`-j`). Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). Go via `HOST_GO` (default: `go` no PATH). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
 
 **Módulos principais (`capture/`):**
 
@@ -220,7 +220,14 @@ vigia/
 | `src/settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
 | `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
 | `src/yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
-| `src/capture_runner.py` | Loop OpenCV + YOLO pose + preview |
+| `src/capture_runner.py` | Loop OpenCV + YOLO pose + preview + PUB ZeroMQ |
+
+**Módulos principais (`core/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `main.go` | SUB ZeroMQ que liga ao PUB do capture; CTRL+C cancela o contexto e fecha o socket |
+| `go.mod` | Módulo `vigia-core` |
 
 **Módulos principais (`integration/`):**
 
@@ -580,6 +587,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-26] Onboard core: SUB liga ao PUB do capture; cancelamento fecha o socket e desbloqueia Dial/Recv (`core/main.go`, `core/main_test.go`)
+- [2026-09-26] Onboard core: CTRL+C fecha o socket ZeroMQ e `make core` usa `go build` (não `go run`) para não deixar a porta 5556 órfã (`core/main.go`, `Makefile`)
 - [2026-09-26] Onboard: `make run` volta a ser só `-j` nos quatro projetos (`Makefile`)
 - [2026-09-26] Onboard: compound `Debug Onboard` + tarefa `onboard: run` (`.vscode/launch.json`, `.vscode/tasks.json`)
 - [2026-09-26] Onboard: Makefile deixa de fazer `export` global do `.env` (rebentava `require_file` no 2.º `make`) (`Makefile`)

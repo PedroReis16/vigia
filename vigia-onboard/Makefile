@@ -21,9 +21,11 @@
 ifeq ($(OS),Windows_NT)
 HOST_PYTHON ?= py
 HOST_GO     ?= go
+CORE_BIN    := vigia-core.exe
 else
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
 HOST_GO     ?= go
+CORE_BIN    := ./vigia-core
 endif
 
 PROJECTS := capture integration bootstrap core

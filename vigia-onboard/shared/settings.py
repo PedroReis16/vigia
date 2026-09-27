@@ -36,11 +36,17 @@ class Settings:
     show_plot: bool = False
     blur_video: bool = False
     frame_rate: int = 12
+    classifier: str = "math"
+    slider_window_size: int = 30
+    fall_shm_name: str = "vigia-onboard-fall"
 
     @classmethod
     def from_env(cls) -> Settings:
         """Carrega as configurações do `.env` da raiz do onboard."""
         _load_onboard_env()
+        classifier = os.getenv("CLASSIFIER", "math").strip().lower()
+        if classifier not in ("math", "gru"):
+            classifier = "math"
         return cls(
             capture_source=_parse_capture_source(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=_parse_bool(os.getenv("SHOW_VIDEO", "false")),
@@ -53,6 +59,10 @@ class Settings:
                 os.getenv("BLUR_VIDEO", "false")
             ),  # TODO: Adicionar essa propriedade como um valor dinâmico
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
+            classifier=classifier,
+            slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
+            fall_shm_name=os.getenv("FALL_SHM_NAME", "vigia-onboard-fall").strip()
+            or "vigia-onboard-fall",
         )
 
 

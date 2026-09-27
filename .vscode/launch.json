@@ -81,26 +81,6 @@
             "linux": {
                 "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
             }
-        },
-        {
-            "name": "Vigia.Onboard.Core",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "core",
-            "cwd": "${workspaceFolder}/vigia-onboard",
-            "envFile": "${workspaceFolder}/vigia-onboard/.env",
-            "console": "integratedTerminal",
-            "justMyCode": true,
-            "preLaunchTask": "onboard: setup core",
-            "windows": {
-                "python": "${workspaceFolder}/vigia-onboard/.venv/Scripts/python.exe"
-            },
-            "osx": {
-                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
-            },
-            "linux": {
-                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
-            }
         }
     ],
     "compounds": [
@@ -121,8 +101,7 @@
         {
             "name": "Debug Onboard",
             "configurations": [
-                "Vigia.Onboard.Capture",
-                "Vigia.Onboard.Core"
+                "Vigia.Onboard.Capture"
             ],
             "stopAll": true
         }

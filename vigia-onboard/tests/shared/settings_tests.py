@@ -40,6 +40,9 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SHOW_YOLO_PLOT", "false")
     monkeypatch.setenv("CAPTURE_LOOP", "yes")
     monkeypatch.setenv("YOLO_MODEL", "yolo26n-pose")
+    monkeypatch.setenv("FRAME_RATE", "15")
+    monkeypatch.setenv("CLASSIFIER", "gru")
+    monkeypatch.setenv("SLIDER_WINDOW", "20")
     monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
 
     cfg = st.Settings.from_env()
@@ -49,3 +52,6 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.show_plot is False
     assert cfg.capture_loop is True
     assert cfg.yolo_model == "yolo26n-pose"
+    assert cfg.frame_rate == 15
+    assert cfg.classifier == "gru"
+    assert cfg.slider_window_size == 20

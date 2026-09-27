@@ -36,21 +36,6 @@
       "problemMatcher": []
     },
     {
-      "label": "onboard: setup core",
-      "type": "shell",
-      "command": "make",
-      "args": ["core", "SETUP_ONLY=1"],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard"
-      },
-      "presentation": {
-        "reveal": "silent",
-        "panel": "shared",
-        "showReuseMessage": false
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "onboard: capture",
       "type": "shell",
       "command": "make",
@@ -70,30 +55,10 @@
       "problemMatcher": []
     },
     {
-      "label": "onboard: core",
-      "type": "shell",
-      "command": "make",
-      "args": ["core"],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard"
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "dedicated",
-        "clear": true,
-        "group": "vigia-onboard",
-        "showReuseMessage": false
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "onboard: run",
-      "detail": "Terminais do capture e do core",
+      "detail": "Captura + thread de classificação (core)",
       "dependsOn": [
-        "onboard: capture",
-        "onboard: core"
+        "onboard: capture"
       ],
       "problemMatcher": []
     }

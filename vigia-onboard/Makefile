@@ -7,13 +7,11 @@
 # Receitas só usam o subconjunto comum (cd, &&, echo). Checagens e .env
 # ficam em funções Make — sem `command`, `test` ou `{ … }` POSIX.
 #
-#   make capture                  # setup + loop de captura
+#   make capture                  # setup + loop de captura (+ thread core)
 #   make capture SETUP_ONLY=1     # só venv/deps/modelo
-#   make core                     # setup + processo core
-#   make core SETUP_ONLY=1        # só venv/deps
 #   make integration              # setup + processo de integração
 #   make integration SETUP_ONLY=1 # só venv/deps
-#   make run                      # módulos em paralelo
+#   make run                      # capture + integration em paralelo
 # =============================================================================
 
 # python3 no macOS é muitas vezes o 3.9 do Xcode; o onboard precisa de >= 3.12.
@@ -24,12 +22,12 @@ else
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
 endif
 
-PROJECTS := capture core integration
+PROJECTS := capture integration
 
 # `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
 # das receitas — `export` sozinho exporta também require_* e o $(error) dispara
 # com mensagem vazia (`Makefile:38: *** .  Stop.`) assim que o .env existe.
-ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO
+ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO FRAME_RATE CLASSIFIER SLIDER_WINDOW FALL_SHM_NAME
 ifneq ($(wildcard $(CURDIR)/.env),)
 include $(CURDIR)/.env
 export $(ONBOARD_ENV_KEYS)
@@ -45,13 +43,11 @@ unexport require_dir require_file
 help:
 	@echo Uso: make projeto
 	@echo Inicializa o ambiente e executa o modulo.
-	@echo   make capture                  setup + loop de captura
+	@echo   make capture                  setup + loop de captura (+ thread core)
 	@echo   make capture SETUP_ONLY=1     so venv/deps/modelo
-	@echo   make core                     setup + processo core
-	@echo   make core SETUP_ONLY=1        so venv/deps
 	@echo   make integration              setup + processo de integracao
 	@echo   make integration SETUP_ONLY=1 so venv/deps
-	@echo   make run                      todos os modulos em paralelo
+	@echo   make run                      capture + integration em paralelo
 	@echo Configuracao: .env nesta pasta (veja .env.example).
 	@echo Windows: HOST_PYTHON=py (ou python). macOS: python3.12+.
 	@echo Projetos: $(PROJECTS)

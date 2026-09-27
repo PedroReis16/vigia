@@ -16,6 +16,7 @@ def test_onboard_root_ApontaParaRaizDoOnboard():
     root = paths.onboard_root()
     assert (root / "shared" / "paths.py").is_file()
     assert paths.capture_root() == root / "capture"
+    assert paths.core_root() == root / "core"
     assert paths.requirements_file() == root / "requirements.txt"
     assert paths.venv_dir() == root / ".venv"
 

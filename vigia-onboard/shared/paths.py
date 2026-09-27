@@ -16,6 +16,11 @@ def capture_root() -> Path:
     return onboard_root() / "capture"
 
 
+def core_root() -> Path:
+    """Raiz do pacote de classificação (`core/`)."""
+    return onboard_root() / "core"
+
+
 def integration_root() -> Path:
     """Raiz do serviço de integração (`integration/`)."""
     return onboard_root() / "integration"

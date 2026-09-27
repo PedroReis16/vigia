@@ -9,6 +9,7 @@ from typing import Any, Optional
 import cv2  # type: ignore
 
 from shared.settings import get_settings
+from core import save_points
 
 from .yolo_model import get_yolo_model
 
@@ -74,41 +75,6 @@ def _blur_boxes(image: Any, result: Any, ksize: int = _BLUR_KSIZE) -> Any:
     return preview
 
 
-def _create_metadata(result: Any) -> Optional[dict]:
-    """Cria os metadados para o envio para o serviço de Core."""
-    if result is None:
-        return None
-
-    keypoints = getattr(result, "keypoints", None)
-    data = getattr(keypoints, "data", None) if keypoints is not None else None
-    if data is None:
-        return None
-
-    boxes = getattr(result, "boxes", None)
-    ids = getattr(boxes, "id", None) if boxes is not None else None
-    people = []
-    for i, kpts in enumerate(data):
-        xyxy = boxes.xyxy[i].tolist() if boxes is not None else []
-        conf = float(boxes.conf[i]) if boxes is not None else 0.0
-        person_id = int(ids[i]) if ids is not None else i
-        people.append(
-            {
-                "id": person_id,
-                "box": [float(v) for v in xyxy],
-                "conf": conf,
-                "keypoints": kpts.cpu().numpy()[:, :3].tolist(),
-            }
-        )
-
-    if not people:
-        return None
-
-    return {
-        "ts": time.time(),
-        "people": people,
-    }
-
-
 def _should_restart_stream(
     source: int | str,
     capture_loop: bool,
@@ -146,6 +112,7 @@ def run_capture() -> None:
             show_video = False
 
         cap = cv2.VideoCapture(source)
+
         if not cap.isOpened():
             raise ValueError(
                 f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
@@ -166,14 +133,16 @@ def run_capture() -> None:
                     break
 
                 frame = result.orig_img
-                #TODO: Aplicar a lógica de montagem dos dados para o processamento CORE
+
+                if frame is not None:
+                    save_points(frame) # Repasse dos dados caputrados para o processamento dentro do CORE
 
                 # Frames para clipe/streaming serão via memória partilhada.
                 preview = (
                     _blur_boxes(frame, result) if settings.blur_video else frame
                 )
-
                 #TODO: Os clipes serão montados até aqui, com o blur aplicado. O plot é aplicado somente para o show
+
                 preview = result.plot(img=preview) if settings.show_plot else preview
 
                 if show_video:

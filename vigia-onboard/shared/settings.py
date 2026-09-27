@@ -35,6 +35,7 @@ class Settings:
     yolo_model: str = "yolo26s-pose"
     show_plot: bool = False
     blur_video: bool = False
+    frame_rate: int = 12
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -51,6 +52,7 @@ class Settings:
             blur_video=_parse_bool(
                 os.getenv("BLUR_VIDEO", "false")
             ),  # TODO: Adicionar essa propriedade como um valor dinâmico
+            frame_rate=int(os.getenv("FRAME_RATE", "12")),
         )
 
 

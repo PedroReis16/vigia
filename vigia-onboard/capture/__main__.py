@@ -7,6 +7,7 @@ import sys
 
 from shared.paths import capture_root
 from shared.runtime import prepare_runtime
+from capture.capture_runner import run_capture
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,7 @@ def main() -> int:
         logger.info("Runtime do capture inicializado em %s", capture_root())
         return 0
 
-    from capture.capture_runner import run_capture
-
+    
     logger.info("A executar a captura em %s", capture_root())
     run_capture()
     return 0

@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 from multiprocessing import context
 import time
-from typing import Any
+from typing import Any, Optional
 
 from .settings import get_settings
 from .yolo_model import get_yolo_model
 import cv2 # type: ignore	
-import zmq
+from .socket import create_socket, close_socket
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +58,13 @@ def _blur_boxes(image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
             preview[y1:y2, x1:x2] = cv2.blur(roi, (ksize, ksize))
     return preview
 
-def _create_metadata(results: Any) -> Any:
+def _create_metadata(results: Any) -> Optional[dict]:
     """Cria os metadados para o envio para o serviço de Core."""
     result = results[0]
     people = []
-    if result.keypoints.data is not None:
+    payload = {}
+
+    if result.keypoints is not None and result.keypoints.data is not None:
         boxes = result.boxes
         for i, kpts in enumerate(result.keypoints.data):
             xyxy = boxes.xyxy[i].tolist() if boxes is not None else []
@@ -74,10 +76,11 @@ def _create_metadata(results: Any) -> Any:
                 "keypoints": kpts.cpu().numpy()[:, :3].tolist(),  # 17 x [x, y, c]
             })
 
-    payload = {
-      "ts": time.time(),
-      "people": people,
-    }
+        payload = {
+            "ts": time.time(),
+            "people": people,
+        }
+
     return payload
 
 def run_capture() -> None:
@@ -97,9 +100,7 @@ def run_capture() -> None:
         )
 
         # Inicialização do ZeroMQ
-        context = zmq.Context()
-        socket = context.socket(zmq.PUB)
-        socket.bind("tcp://localhost:5556")
+        socket = create_socket("tcp://localhost:5556")
 
         if show_video and not _opencv_has_gui():
             logger.warning(
@@ -126,10 +127,19 @@ def run_capture() -> None:
                 break
 
             # Predição do YOLO
-            results = yolo_model.predict(frame, verbose=False, classes=[0]) 
+            results = yolo_model.predict(
+                frame, 
+                device="cpu",
+                conf=0.25,
+                verbose=False, 
+                tracker="botsort.yaml",
+                imgsz=320,
+                classes=[0],
+            ) 
     
-            if results:
-                metadata = _create_metadata(results)
+            metadata = _create_metadata(results)
+            
+            if metadata:
                 socket.send_json(metadata) # envio dos dados para o serivço de Core
             
             # Processo de transferência dos frames para a montagem de clipe e streaming será utilizando Memória compartilhada
@@ -152,6 +162,5 @@ def run_capture() -> None:
             cv2.destroyAllWindows()
         if cap is not None:
             cap.release()
-        socket.close()
-        context.term()
+        close_socket(socket)
         logger.info("Captura encerrada")

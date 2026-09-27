@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-import time
-from typing import Any, Optional
+from typing import Any
 
 import cv2  # type: ignore
 
 from shared.settings import get_settings
-from core import save_points
+from core import save_points, start_core_worker, stop_core_worker
 
+from .pose_extract import unpack_raw_points
 from .yolo_model import get_yolo_model
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,8 @@ def run_capture() -> None:
 
         logger.info("Captura iniciada (%s)", _source_label(source))
         interrupted = False
-        
+        start_core_worker()
+
         while True:
             had_frame = False
             for result in _stream_results(yolo_model, source):
@@ -132,10 +133,9 @@ def run_capture() -> None:
                     interrupted = True
                     break
 
-                frame = result.orig_img
+                save_points(unpack_raw_points(result))
 
-                if frame is not None:
-                    save_points(frame) # Repasse dos dados caputrados para o processamento dentro do CORE
+                frame = result.orig_img
 
                 # Frames para clipe/streaming serão via memória partilhada.
                 preview = (
@@ -157,6 +157,7 @@ def run_capture() -> None:
         logger.error("Erro ao executar a captura: %s", exc)
         raise
     finally:
+        stop_core_worker()
         if show_video:
             cv2.destroyAllWindows()
         if cap is not None:

@@ -8,8 +8,8 @@ from capture import __main__ as capture_main
 
 
 def test_capture_main_SetupOnly_NaoExecutaCaptura():
-    with patch.object(capture_main, "prepare_runtime"), patch(
-        "capture.capture_runner.run_capture"
+    with patch.object(capture_main, "prepare_runtime"), patch.object(
+        capture_main, "run_capture"
     ) as run:
         with patch.object(capture_main.sys, "argv", ["capture", "--setup-only"]):
             assert capture_main.main() == 0
@@ -18,8 +18,8 @@ def test_capture_main_SetupOnly_NaoExecutaCaptura():
 
 
 def test_capture_main_SemFlags_ExecutaCaptura():
-    with patch.object(capture_main, "prepare_runtime"), patch(
-        "capture.capture_runner.run_capture"
+    with patch.object(capture_main, "prepare_runtime"), patch.object(
+        capture_main, "run_capture"
     ) as run:
         with patch.object(capture_main.sys, "argv", ["capture"]):
             assert capture_main.main() == 0
@@ -28,8 +28,8 @@ def test_capture_main_SemFlags_ExecutaCaptura():
 
 
 def test_capture_main_PedeModelo():
-    with patch.object(capture_main, "prepare_runtime") as prep, patch(
-        "capture.capture_runner.run_capture"
+    with patch.object(capture_main, "prepare_runtime") as prep, patch.object(
+        capture_main, "run_capture"
     ):
         with patch.object(capture_main.sys, "argv", ["capture"]):
             capture_main.main()

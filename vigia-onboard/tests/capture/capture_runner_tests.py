@@ -44,6 +44,10 @@ def capture_deps():
     with (
         patch.object(cr, "get_yolo_model", return_value=model),
         patch.object(cr, "cv2", cv2),
+        patch.object(cr, "start_core_worker"),
+        patch.object(cr, "stop_core_worker"),
+        patch.object(cr, "save_points"),
+        patch.object(cr, "unpack_raw_points", return_value=[]),
     ):
         yield SimpleNamespace(
             cap=cap,
@@ -79,10 +83,21 @@ def test_run_capture_FonteFechada_Levanta(capture_deps):
 def test_run_capture_UmFrame_StreamEEncerra(capture_deps):
     result = _result()
     capture_deps.model.track.return_value = iter([result])
+    points = [object()]
 
-    with patch.object(cr, "get_settings", return_value=_settings()):
+    with (
+        patch.object(cr, "get_settings", return_value=_settings()),
+        patch.object(cr, "unpack_raw_points", return_value=points) as unpack,
+        patch.object(cr, "save_points") as save,
+        patch.object(cr, "start_core_worker") as start,
+        patch.object(cr, "stop_core_worker") as stop,
+    ):
         cr.run_capture()
 
+    unpack.assert_called_once_with(result)
+    save.assert_called_once_with(points)
+    start.assert_called_once()
+    stop.assert_called_once()
     capture_deps.model.track.assert_called_once_with(
         0, **cr._YOLO_STREAM_KWARGS
     )
@@ -142,39 +157,6 @@ def test_blur_boxes_AplicaNasBoxes():
         assert cr._blur_boxes(image, result, ksize=51) is preview
         preview.__setitem__.assert_called_once()
         cv2.blur.assert_called_once_with(roi, (51, 51))
-
-
-def test_create_metadata_SemKeypoints_DevolveNone():
-    assert cr._create_metadata(None) is None
-    assert cr._create_metadata(SimpleNamespace(keypoints=None)) is None
-
-
-def test_create_metadata_ComPessoa_IncluiBoxEKeypoints():
-    sliced = MagicMock()
-    sliced.tolist.return_value = [[1.0, 2.0, 0.9]]
-    kpts = MagicMock()
-    kpts.cpu.return_value.numpy.return_value.__getitem__.return_value = sliced
-    boxes = SimpleNamespace(
-        xyxy=[MagicMock(**{"tolist.return_value": [1.0, 2.0, 3.0, 4.0]})],
-        conf=[0.8],
-        id=[7],
-    )
-    result = SimpleNamespace(keypoints=SimpleNamespace(data=[kpts]), boxes=boxes)
-
-    with patch.object(cr.time, "time", return_value=123.0):
-        payload = cr._create_metadata(result)
-
-    assert payload == {
-        "ts": 123.0,
-        "people": [
-            {
-                "id": 7,
-                "box": [1.0, 2.0, 3.0, 4.0],
-                "conf": 0.8,
-                "keypoints": [[1.0, 2.0, 0.9]],
-            }
-        ],
-    }
 
 
 def test_run_capture_ShowVideo_BlurEPlot(capture_deps):

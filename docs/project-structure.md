@@ -80,8 +80,7 @@ vigia/
 ├── vigia-api/              # API cloud .NET + bibliotecas compartilhadas
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
-├── vigia-onboard/          # Onboard edge: captura (YOLO export on-demand), integração Go e artefatos de release
-├── vigia-onboard-test/     # Protótipo C++ captura+YOLO pose (OpenCV + ONNX Runtime)
+├── vigia-onboard/          # Onboard edge: captura YOLO (export on-demand) e artefatos de release
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
@@ -91,7 +90,7 @@ vigia/
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
-└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall) e tasks do workspace
+└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall, Onboard) e tasks do workspace
 ```
 
 ---
@@ -205,55 +204,35 @@ vigia/
 
 ### vigia-onboard
 
-**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), serviço de integração Go, base para o release `onboard`.
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), base para o release `onboard`.
 
-**Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
 
-**Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` / `make bootstrap` fazem `go mod tidy` e `go run`. `make core` faz `go mod tidy`, `go build` do binário `vigia-core` e executa-o (evita processo órfão do `go run` no Windows após CTRL+C). `make run` arranca os quatro em paralelo (`-j`). Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). Go via `HOST_GO` (default: `go` no PATH). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop. `make run` corre o capture. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
+
+**Módulos principais (`shared/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `paths.py` | Raiz do onboard, `capture/`, venv e `requirements.txt` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
+| `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 
 **Módulos principais (`capture/`):**
 
 | Módulo | Função |
 |--------|--------|
 | `src/bootstrap.py` | Inicialização + arranque: `.env` da raiz, venv, deps, export YOLO, `run_capture` |
-| `src/paths.py` | Raiz do serviço e interpretador do `.venv` |
-| `src/settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
-| `src/yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `models/yolo/` |
 | `src/yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 | `src/capture_runner.py` | Loop OpenCV + YOLO pose + preview + PUB ZeroMQ |
+| `src/socket.py` | PUB ZeroMQ para o core |
+| `src/socket.py` | PUB ZeroMQ do capture |
 
-**Módulos principais (`core/`):**
-
-| Módulo | Função |
-|--------|--------|
-| `main.go` | SUB ZeroMQ que liga ao PUB do capture; CTRL+C cancela o contexto e fecha o socket |
-| `go.mod` | Módulo `vigia-core` |
-
-**Módulos principais (`integration/`):**
+**Módulos principais (`shared/`):**
 
 | Módulo | Função |
 |--------|--------|
-| `cmd/main.go` | Ponto de entrada Go do serviço de integração |
-| `go.mod` | Módulo `vigia-integration` |
-
----
-
-### vigia-onboard-test
-
-**Propósito:** Protótipo C++ de captura + YOLO pose para comparar eficiência (CPU/threads) face ao `vigia-capture` Python; sem MQTT/classificador.
-
-**Tecnologias:** C++17, OpenCV (Conan 2), ONNX Runtime CPU (zip oficial); reutiliza o `.onnx` do onboard.
-
-**Ponto de entrada:** `vigia-onboard-test/main.cpp` → `vigia::run_capture()`
-
-**Dev local:** `Makefile` (`make run` / `make build` / `make clean`; `CONFIG=Debug|Release`)
-
-| Módulo | Função |
-|--------|--------|
-| `src/capture_runner.cpp` | Loop OpenCV + preview (espelho do Python) |
-| `src/yolo_session.cpp` | Sessão ORT sobre o ONNX exportado |
-| `src/yolo_pose.cpp` | Letterbox, decode end2end `[1,300,57]`, desenho skeleton |
-| `src/settings.cpp` | `CAPTURE_*`, `SHOW_*`, `YOLO_*` via `.env` |
+| `settings.py` | Configuração partilhada (`CAPTURE_*` / `SHOW_*` / `YOLO_MODEL`) a partir do `.env` da raiz |
 
 ---
 
@@ -587,20 +566,15 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-27] Docs: remove `vigia-services` (Go), `vigia-onboard-test` (C++) e integração Go do onboard; estrutura atual é Python (`docs/project-structure.md`, `.cursor/rules/project-documentation.mdc`, `.vscode`)
+- [2026-09-27] Onboard: `paths`, `settings` e `yolo_export` passam para `shared/` (`shared/`, `capture/src/`)
 - [2026-09-27] Onboard capture: `lap` para YOLO `track`/BoT-SORT (`capture/requirements.txt`)
-- [2026-09-26] Onboard core: SUB liga ao PUB do capture; cancelamento fecha o socket e desbloqueia Dial/Recv (`core/main.go`, `core/main_test.go`)
-- [2026-09-26] Onboard core: CTRL+C fecha o socket ZeroMQ e `make core` usa `go build` (não `go run`) para não deixar a porta 5556 órfã (`core/main.go`, `Makefile`)
-- [2026-09-26] Onboard: `make run` volta a ser só `-j` nos quatro projetos (`Makefile`)
 - [2026-09-26] Onboard: compound `Debug Onboard` + tarefa `onboard: run` (`.vscode/launch.json`, `.vscode/tasks.json`)
 - [2026-09-26] Onboard: Makefile deixa de fazer `export` global do `.env` (rebentava `require_file` no 2.º `make`) (`Makefile`)
 - [2026-09-26] Onboard: Makefile portátil Windows (`cmd`) e macOS/Linux (`sh`); bootstrap também procura `py`/`python` (`Makefile`, `capture/src/bootstrap.py`)
-- [2026-09-25] Onboard: `make integration` faz `go mod tidy` e executa `integration/main.go` (`Makefile`)
 - [2026-09-25] Onboard: `make capture` prepara o runtime e executa o loop OpenCV+YOLO (`src/bootstrap.py`, `src/capture_runner.py`, `src/settings.py`, `src/yolo_model.py`)
 - [2026-09-25] Onboard: export YOLO instala `onnx`/`onnxslim`, coloca o venv no PATH e desliga o AutoUpdate do Ultralytics (`Makefile`, `capture/requirements.txt`, `src/bootstrap.py`)
 - [2026-09-24] Onboard: raiz só Makefile + `.env`; `make capture` inicializa o venv/deps/YOLO de `capture/` (`src/bootstrap.py`)
-- [2026-09-20] Onboard-test: Makefile local (`make run`/`build`/`clean`) (`vigia-onboard-test/Makefile`)
-- [2026-09-19] Onboard-test C++: Conan 2 para OpenCV + ORT zip oficial; perfis VS 18 / tasks (`conanfile.txt`, `profiles/`, `scripts/conan.ps1`)
-- [2026-09-19] Protótipo C++ captura+YOLO pose (`vigia-onboard-test/`: OpenCV + ONNX Runtime, reutiliza ONNX do onboard)
 - [2026-09-23] API FIWARE: registration de comandos usa `Fiware:ProviderUrl` (`http://iot-agent:4041`); remove registrations órfãs no path Traefik `/iot` que faziam `START_STREAMING` retornar 502 (`FiwareService`, `OrionRegistrationSync`)
 - [2026-09-20] AlertService: resolve entity Orion `Sensor:{deviceId}` (clone IoT Agent) além de `urn:ngsi-ld:{name}`; Firebase local via `firebase-service-account.json` montado (`CredentialPath`)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)

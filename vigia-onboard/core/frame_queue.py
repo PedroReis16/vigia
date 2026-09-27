@@ -1,36 +1,62 @@
-from functools import lru_cache
-import queue
-import numpy as np # type: ignore
-import time
+"""Fila in-process de lotes de points brutos (capture → thread core)."""
 
+from __future__ import annotations
+
+import queue
+import time
+from functools import lru_cache
+
+from core.models.types import PoseObservation
 from shared import get_settings
 
+_QUEUE_MAXSIZE = 2
+
+
 class FrameQueue:
-    """Worker para processamento assíncrono dos frames capturados"""
+    """Fila curta com throttle a FRAME_RATE e backpressure (descarta se cheia)."""
 
-    def __init__(self, frame_rate: int) -> None:
-        self._frame_rate = frame_rate
-        self.frame_queue = queue.Queue(maxsize=30) #TODO: Colocar o tamanho dinamico da fila de acordo com o modelo de classificação
-        self.last_classify = time.monotonic()
+    def __init__(self, frame_rate: int, maxsize: int = _QUEUE_MAXSIZE) -> None:
+        self._frame_rate = max(frame_rate, 1)
+        self._queue: queue.Queue[list[PoseObservation] | None] = queue.Queue(
+            maxsize=maxsize
+        )
+        self._last_classify = 0.0
 
-    def push(self, frame: np.ndarray) -> None:
+    def push(self, observations: list[PoseObservation]) -> bool:
         """
-        Insere as coordenadas brutas do frame na fila
-        A fila é processada conforme a taxa de frames definida nas configurações, caso não esteja disponível para inserção, os dados são descartados
-        
-        Args:
-            frame: Frame capturado pelo YOLO
+        Enfileira o lote se passou o intervalo de FRAME_RATE.
+
         Returns:
-            None
+            True se o lote entrou na fila.
         """
+        now = time.monotonic()
+        if now - self._last_classify < 1.0 / self._frame_rate:
+            return False
+        try:
+            self._queue.put_nowait(observations)
+        except queue.Full:
+            return False
+        self._last_classify = now
+        return True
 
-        if time.monotonic() - self.last_classify >= 1.0 / self._frame_rate:
-            self.last_classify = time.monotonic()
+    def get(self, timeout: float | None = None) -> list[PoseObservation] | None:
+        return self._queue.get(timeout=timeout)
+
+    def put_sentinel(self) -> None:
+        """Acorda o worker para terminar (None)."""
+        try:
+            self._queue.put_nowait(None)
+        except queue.Full:
             try:
-                self.frame_queue.put_nowait(frame)
+                self._queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._queue.put_nowait(None)
             except queue.Full:
                 pass
 
+
 @lru_cache
-def get_frame_queue(frame_rate: int) -> FrameQueue:
-    return FrameQueue(frame_rate)
+def get_frame_queue() -> FrameQueue:
+    return FrameQueue(get_settings().frame_rate)

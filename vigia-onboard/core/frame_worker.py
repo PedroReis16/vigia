@@ -1,69 +1,96 @@
+"""Thread do core: consome points brutos, classifica e publica fall_state."""
+
 from __future__ import annotations
 
 import logging
-import time
-from typing import Any
+import queue
+import threading
 
-from .frame_queue import get_frame_queue
-from shared import get_settings
-import numpy as np # type: ignore
-from .models import PoseObservation
+from core.frame_queue import get_frame_queue
+from core.models.person_runtime import get_person_runtime_store
+from core.models.types import PoseObservation
+from core.point_filter import filter_observations
+from shared.fall_ipc import enqueue_fall_state
 
 logger = logging.getLogger(__name__)
 
+_worker: FrameWorker | None = None
+_thread: threading.Thread | None = None
 
-def _create_metadata(results: Any) -> tuple[list[int], list[PoseObservation]] | None:
-    """Extração e organização dos pontos do YOLO organizados para cada pessoa detectada"""
-    active_ids: list[int] = []
-    observations: list[PoseObservation] = []
 
-    for result in results:
-        kpts = result.keypoints
-        if kpts is None or kpts.data is None or len(kpts.data) <= 0:
-            continue
+class FrameWorker:
+    """Consome a FrameQueue na thread do core."""
 
-        boxes = result.boxes
-        ids_tensor = getattr(boxes, "id", None)
-        person_ids = (
-            [int(ids_tensor[i].item()) for i in range(len(kpts.data))]
-            if ids_tensor is not None and len(ids_tensor) >= len(kpts.data)
-            else list(range(len(kpts.data)))
-        )
+    def __init__(self) -> None:
+        self._queue = get_frame_queue()
+        self._stop = threading.Event()
 
-        for person_id, person_kpts in zip(person_ids, kpts.data):
-            kpts_np = np.asarray(person_kpts.numpy(), dtype=np.float32)
-            if kpts_np.ndim != 2 or kpts_np.shape[1] < 3:
+    def stop(self) -> None:
+        self._stop.set()
+        self._queue.put_sentinel()
+
+    def run(self) -> None:
+        from core.classifiers.factory import create_classifier
+
+        classifier = create_classifier()
+        logger.info("Core worker iniciado")
+
+        while not self._stop.is_set():
+            try:
+                batch = self._queue.get(timeout=0.2)
+            except queue.Empty:
                 continue
-            if kpts_np.shape[0] < 17:
-                padded = np.zeros((17, 3), dtype=np.float32)
-                padded[: kpts_np.shape[0]] = kpts_np[:, :3]
-                kpts_np = padded
-            else:
-                kpts_np = kpts_np[:17, :3]
+            if batch is None:
+                break
+            self._handle(batch, classifier)
 
-            active_ids.append(person_id)
-            observations.append(
-                PoseObservation(
-                    person_id=person_id,
-                    keypoints=kpts_np,
-                    timestamp=time.time(),
-                )
+        logger.info("Core worker encerrado")
+
+    def _handle(self, batch: list[PoseObservation], classifier) -> None:
+        active_ids = {obs.person_id for obs in batch}
+        filtered = filter_observations(batch)
+        decisions = classifier.process(filtered)
+        get_person_runtime_store().cleanup(active_ids)
+        cleanup = getattr(classifier, "cleanup", None)
+        if cleanup is not None:
+            cleanup(active_ids)
+
+        capture_ts = batch[0].timestamp if batch else 0.0
+        for decision in decisions:
+            enqueue_fall_state(
+                decision.label,
+                person_id=decision.person_id,
+                capture_ts=capture_ts,
+            )
+            logger.info(
+                "fall_state=%s person_id=%s alert=%s",
+                decision.label,
+                decision.person_id,
+                decision.alert,
             )
 
-    return [active_ids, observations]
+
+def save_points(observations: list[PoseObservation]) -> None:
+    """Enfileira points brutos. Não filtra nem classifica."""
+    get_frame_queue().push(observations)
 
 
-def save_points(frame_result: np.ndarray) -> None:
-    """Salvamento dos pontos capturados pelo YOLO e repasse para o processamento dentro do CORE"""
-
-    settings = get_settings()
-    frame_queue = get_frame_queue(settings.frame_rate)
-    
-    try:
-        active_ids, dataset = _create_metadata(frame_result)
-
-    except Exception as error:
-        logger.error(f"Erro ao criar o dataset: {error}")
+def start_core_worker() -> None:
+    """Arranca a thread do core se ainda não estiver a correr."""
+    global _worker, _thread
+    if _thread is not None and _thread.is_alive():
         return
+    _worker = FrameWorker()
+    _thread = threading.Thread(target=_worker.run, name="core-worker", daemon=True)
+    _thread.start()
 
 
+def stop_core_worker() -> None:
+    """Pede paragem e espera a thread do core."""
+    global _worker, _thread
+    if _worker is not None:
+        _worker.stop()
+    if _thread is not None:
+        _thread.join(timeout=2.0)
+    _worker = None
+    _thread = None

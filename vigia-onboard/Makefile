@@ -20,15 +20,11 @@
 # No Windows o Make 32-bit corre cmd.exe: `command -v` falha. Usar `python`/`go`.
 ifeq ($(OS),Windows_NT)
 HOST_PYTHON ?= py
-HOST_GO     ?= go
-CORE_BIN    := vigia-core.exe
 else
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
-HOST_GO     ?= go
-CORE_BIN    := ./vigia-core
 endif
 
-PROJECTS := capture integration bootstrap core
+PROJECTS := capture
 
 # `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
 # das receitas — `export` sozinho exporta também require_* e o $(error) dispara
@@ -51,8 +47,6 @@ help:
 	@echo Inicializa o ambiente e executa o projeto.
 	@echo   make capture                  setup + loop de captura
 	@echo   make capture SETUP_ONLY=1     só venv/deps/modelo
-	@echo   make integration              setup + serviço Go
-	@echo   make integration SETUP_ONLY=1 só go mod tidy
 	@echo   make run                      todos os projetos em paralelo
 	@echo Configuração: .env nesta pasta (veja .env.example).
 	@echo Windows: HOST_PYTHON=py (ou python). macOS: python3.12+.
@@ -67,18 +61,3 @@ capture:
 	$(call require_dir,$@)
 	$(call require_file,$@/src/bootstrap.py,'$@' ainda não tem src/bootstrap.py.)
 	@cd $@ && $(HOST_PYTHON) -m src.bootstrap $(if $(SETUP_ONLY),--setup-only,)
-
-integration:
-	$(call require_dir,$@)
-	$(call require_file,$@/go.mod,'$@' ainda não tem go.mod.)
-	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)
-
-bootstrap:
-	$(call require_dir,$@)
-	$(call require_file,$@/main.go,'$@' ainda não tem main.go.)
-	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)
-
-core:
-	$(call require_dir,$@)
-	$(call require_file,$@/main.go,'$@' ainda não tem main.go.)
-	@cd $@ && $(HOST_GO) mod tidy $(if $(SETUP_ONLY),&& echo Modulo Go inicializado em $(CURDIR)/$@,&& $(HOST_GO) run ./main.go)

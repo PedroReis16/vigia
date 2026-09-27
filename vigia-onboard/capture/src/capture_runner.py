@@ -3,18 +3,29 @@
 from __future__ import annotations
 
 import logging
-from multiprocessing import context
 import time
 from typing import Any, Optional
 
+import cv2  # type: ignore
+
 from .settings import get_settings
+from .socket import close_socket, create_socket
 from .yolo_model import get_yolo_model
-import cv2 # type: ignore	
-from .socket import create_socket, close_socket
 
 logger = logging.getLogger(__name__)
 
 _BLUR_KSIZE = 51
+_YOLO_STREAM_KWARGS: dict[str, Any] = {
+    "stream": True,
+    "persist": True,
+    "device": "cpu",
+    "conf": 0.25,
+    "verbose": False,
+    "tracker": "botsort.yaml",
+    "imgsz": 320,
+    "classes": [0],
+    "rect": False,
+}
 
 
 def _is_file_source(source: int | str) -> bool:
@@ -27,7 +38,6 @@ def _source_label(source: int | str) -> str:
     return f"câmera {source}"
 
 
-
 def _opencv_has_gui() -> bool:
     """False em builds headless (placa / PyInstaller) — imshow/waitKey não existem."""
     try:
@@ -38,10 +48,15 @@ def _opencv_has_gui() -> bool:
     return any(marker in info for marker in markers)
 
 
-def _blur_boxes(image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
+def _stream_results(model: Any, source: int | str) -> Any:
+    """YOLO track em modo stream: um Results por frame, IDs persistentes."""
+    return model.track(source, **_YOLO_STREAM_KWARGS)
+
+
+def _blur_boxes(image: Any, result: Any, ksize: int = _BLUR_KSIZE) -> Any:
     """Aplica blur nas boxes detectadas (classe pessoa) e devolve uma cópia."""
     preview = image.copy()
-    boxes = getattr(results[0], "boxes", None) if results else None
+    boxes = getattr(result, "boxes", None)
     xyxy = getattr(boxes, "xyxy", None) if boxes is not None else None
     if xyxy is None:
         return preview
@@ -58,35 +73,61 @@ def _blur_boxes(image: Any, results: Any, ksize: int = _BLUR_KSIZE) -> Any:
             preview[y1:y2, x1:x2] = cv2.blur(roi, (ksize, ksize))
     return preview
 
-def _create_metadata(results: Any) -> Optional[dict]:
-    """Cria os metadados para o envio para o serviço de Core."""
-    result = results[0]
-    people = []
-    payload = {}
 
-    if result.keypoints is not None and result.keypoints.data is not None:
-        boxes = result.boxes
-        for i, kpts in enumerate(result.keypoints.data):
-            xyxy = boxes.xyxy[i].tolist() if boxes is not None else []
-            conf = float(boxes.conf[i]) if boxes is not None else 0.0
-            people.append({
-                "id": i,
+def _create_metadata(result: Any) -> Optional[dict]:
+    """Cria os metadados para o envio para o serviço de Core."""
+    if result is None:
+        return None
+
+    keypoints = getattr(result, "keypoints", None)
+    data = getattr(keypoints, "data", None) if keypoints is not None else None
+    if data is None:
+        return None
+
+    boxes = getattr(result, "boxes", None)
+    ids = getattr(boxes, "id", None) if boxes is not None else None
+    people = []
+    for i, kpts in enumerate(data):
+        xyxy = boxes.xyxy[i].tolist() if boxes is not None else []
+        conf = float(boxes.conf[i]) if boxes is not None else 0.0
+        person_id = int(ids[i]) if ids is not None else i
+        people.append(
+            {
+                "id": person_id,
                 "box": [float(v) for v in xyxy],
                 "conf": conf,
-                "keypoints": kpts.cpu().numpy()[:, :3].tolist(),  # 17 x [x, y, c]
-            })
+                "keypoints": kpts.cpu().numpy()[:, :3].tolist(),
+            }
+        )
 
-        payload = {
-            "ts": time.time(),
-            "people": people,
-        }
+    if not people:
+        return None
 
-    return payload
+    return {
+        "ts": time.time(),
+        "people": people,
+    }
+
+
+def _should_restart_stream(
+    source: int | str,
+    capture_loop: bool,
+    had_frame: bool,
+    interrupted: bool,
+) -> bool:
+    return (
+        had_frame
+        and not interrupted
+        and _is_file_source(source)
+        and capture_loop
+    )
+
 
 def run_capture() -> None:
-    """Loop principal: lê a fonte, corre YOLO pose e mostra preview se pedido."""
+    """Loop principal: lê a fonte em stream YOLO e mostra preview se pedido."""
     show_video = False
     cap = None
+    socket = None
 
     try:
         settings = get_settings()
@@ -99,7 +140,6 @@ def run_capture() -> None:
             getattr(yolo_model, "ckpt_path", settings.yolo_model),
         )
 
-        # Inicialização do ZeroMQ
         socket = create_socket("tcp://localhost:5556")
 
         if show_video and not _opencv_has_gui():
@@ -113,46 +153,39 @@ def run_capture() -> None:
             raise ValueError(
                 f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
             )
+        # O loader do YOLO reabre a fonte; libertar para não bloquear a câmara.
+        cap.release()
+        cap = None
 
         logger.info("Captura iniciada (%s)", _source_label(source))
+        interrupted = False
+        
         while True:
-            if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
+            had_frame = False
+            for result in _stream_results(yolo_model, source):
+                had_frame = True
+                if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
+                    interrupted = True
+                    break
+
+                frame = result.orig_img
+                metadata = _create_metadata(result)
+                if metadata:
+                    socket.send_json(metadata)
+
+                # Frames para clipe/streaming serão via memória partilhada.
+                preview = (
+                    _blur_boxes(frame, result) if settings.blur_video else frame
+                )
+                preview = result.plot(img=preview) if settings.show_plot else preview
+
+                if show_video:
+                    cv2.imshow("Preview movimentos", preview)
+
+            if not _should_restart_stream(
+                source, capture_loop, had_frame, interrupted
+            ):
                 break
-
-            ret, frame = cap.read()
-            if not ret:
-                if _is_file_source(source) and capture_loop:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    continue
-                break
-
-            # Predição do YOLO
-            results = yolo_model.predict(
-                frame, 
-                device="cpu",
-                conf=0.25,
-                verbose=False, 
-                tracker="botsort.yaml",
-                imgsz=320,
-                classes=[0],
-            ) 
-    
-            metadata = _create_metadata(results)
-            
-            if metadata:
-                socket.send_json(metadata) # envio dos dados para o serivço de Core
-            
-            # Processo de transferência dos frames para a montagem de clipe e streaming será utilizando Memória compartilhada
-
-            # Tratamento da imagem para exibição do preview/streaming/clipe
-           
-            preview = _blur_boxes(frame, results) if settings.blur_video else frame
-            preview = results[0].plot(img=preview) if settings.show_plot else preview
-
-            # Exibição da imagem tratada (preview)
-            if show_video:
-                cv2.imshow("Preview movimentos", preview)
-
 
     except Exception as exc:
         logger.error("Erro ao executar a captura: %s", exc)
@@ -162,5 +195,6 @@ def run_capture() -> None:
             cv2.destroyAllWindows()
         if cap is not None:
             cap.release()
-        close_socket(socket)
+        if socket is not None:
+            close_socket(socket)
         logger.info("Captura encerrada")

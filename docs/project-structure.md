@@ -207,7 +207,7 @@ vigia/
 
 **Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), serviço de integração Go, base para o release `onboard`.
 
-**Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO, OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência).
+**Tecnologias:** Python (capture), Go (integration); Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
 
 **Ponto de entrada (dev):** na raiz, só `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop de captura. `make integration` / `make bootstrap` fazem `go mod tidy` e `go run`. `make core` faz `go mod tidy`, `go build` do binário `vigia-core` e executa-o (evita processo órfão do `go run` no Windows após CTRL+C). `make run` arranca os quatro em paralelo (`-j`). Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). Go via `HOST_GO` (default: `go` no PATH). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
 
@@ -587,6 +587,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-27] Onboard capture: `lap` para YOLO `track`/BoT-SORT (`capture/requirements.txt`)
 - [2026-09-26] Onboard core: SUB liga ao PUB do capture; cancelamento fecha o socket e desbloqueia Dial/Recv (`core/main.go`, `core/main_test.go`)
 - [2026-09-26] Onboard core: CTRL+C fecha o socket ZeroMQ e `make core` usa `go build` (não `go run`) para não deixar a porta 5556 órfã (`core/main.go`, `Makefile`)
 - [2026-09-26] Onboard: `make run` volta a ser só `-j` nos quatro projetos (`Makefile`)

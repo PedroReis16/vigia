@@ -25,6 +25,7 @@ def _stub_package_tree(*names: str) -> None:
 
 
 _stub_package_tree("ultralytics")
+_ensure_stub("zmq")
 
 if "onnxruntime" not in sys.modules:
     ort = ModuleType("onnxruntime")

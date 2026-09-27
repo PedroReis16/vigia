@@ -11,6 +11,8 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
+from .paths import capture_root
+
 logger = logging.getLogger(__name__)
 
 YoloExportBackend = Literal["onnx", "coreml", "ncnn"]
@@ -21,11 +23,10 @@ _YOLO_MODELS_SUBDIR = Path("models") / "yolo"
 
 
 def repo_or_bundle_root() -> Path:
-    """Raiz do serviço em dev; pasta de extração do PyInstaller quando congelado."""
+    """Raiz do capture em dev; pasta de extração do PyInstaller quando congelado."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(getattr(sys, "_MEIPASS"))
-    # src/yolo_export.py -> parents[1] == capture/
-    return Path(__file__).resolve().parents[1]
+    return capture_root()
 
 
 def normalize_yolo_pose_stem(model_setting: str | None) -> str:

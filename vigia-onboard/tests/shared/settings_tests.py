@@ -1,4 +1,4 @@
-"""Testes unitários para src.settings."""
+"""Testes unitários para shared.settings."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src import settings as st
+from shared import settings as st
 
 
 @pytest.fixture(autouse=True)

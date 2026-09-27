@@ -1,4 +1,4 @@
-"""Testes unitários para src.capture_runner."""
+"""Testes unitários para capture.capture_runner."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import capture_runner as cr
+from capture import capture_runner as cr
 
 
 def _settings(**overrides) -> SimpleNamespace:
@@ -39,21 +39,16 @@ def capture_deps():
     cv2 = MagicMock()
     cv2.VideoCapture.return_value = cap
     cv2.waitKey.return_value = 0
-    socket = MagicMock()
     model = MagicMock()
 
     with (
         patch.object(cr, "get_yolo_model", return_value=model),
-        patch.object(cr, "create_socket", return_value=socket),
-        patch.object(cr, "close_socket") as close_socket,
         patch.object(cr, "cv2", cv2),
     ):
         yield SimpleNamespace(
             cap=cap,
             cv2=cv2,
-            socket=socket,
             model=model,
-            close_socket=close_socket,
         )
 
 
@@ -78,7 +73,6 @@ def test_run_capture_FonteFechada_Levanta(capture_deps):
             cr.run_capture()
 
     capture_deps.cap.release.assert_called_once()
-    capture_deps.close_socket.assert_called_once_with(capture_deps.socket)
     capture_deps.model.track.assert_not_called()
 
 
@@ -96,7 +90,6 @@ def test_run_capture_UmFrame_StreamEEncerra(capture_deps):
     assert cr._YOLO_STREAM_KWARGS["persist"] is True
     capture_deps.model.predict.assert_not_called()
     capture_deps.cap.release.assert_called_once()
-    capture_deps.close_socket.assert_called_once_with(capture_deps.socket)
 
 
 def test_run_capture_ArquivoComLoop_ReiniciaStream(capture_deps):
@@ -201,7 +194,6 @@ def test_run_capture_ShowVideo_BlurEPlot(capture_deps):
         ),
         patch.object(cr, "_opencv_has_gui", return_value=True),
         patch.object(cr, "_blur_boxes", return_value=preview) as blur,
-        patch.object(cr, "_create_metadata", return_value={"people": []}),
     ):
         cr.run_capture()
 
@@ -210,4 +202,3 @@ def test_run_capture_ShowVideo_BlurEPlot(capture_deps):
     capture_deps.cv2.imshow.assert_called_once_with(
         "Preview movimentos", plotted
     )
-    capture_deps.socket.send_json.assert_called_once_with({"people": []})

@@ -208,13 +208,14 @@ vigia/
 
 **Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
 
-**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` prepara o runtime (`capture/src/bootstrap.py`: venv, deps, export YOLO) e executa o loop. `make run` corre o capture. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. Cada módulo arranca sozinho: `make capture` / `make core` (ou `python -m capture` / `python -m core`). O runtime partilhado (`shared/runtime.py`) cria o `.venv` da raiz, instala deps e reabre o processo no venv. O capture exporta YOLO; o core não. `make run` corre os módulos em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
 
 **Módulos principais (`shared/`):**
 
 | Módulo | Função |
 |--------|--------|
-| `paths.py` | Raiz do onboard, `capture/`, venv e `requirements.txt` |
+| `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
+| `paths.py` | Raiz do onboard, `capture/`, `.venv` e `requirements.txt` |
 | `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 
@@ -222,17 +223,18 @@ vigia/
 
 | Módulo | Função |
 |--------|--------|
-| `src/bootstrap.py` | Inicialização + arranque: `.env` da raiz, venv, deps, export YOLO, `run_capture` |
-| `src/yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
-| `src/capture_runner.py` | Loop OpenCV + YOLO pose + preview + PUB ZeroMQ |
-| `src/socket.py` | PUB ZeroMQ para o core |
-| `src/socket.py` | PUB ZeroMQ do capture |
+| `__main__.py` | `python -m capture`: runtime + (opcional) YOLO + `run_capture` |
+| `capture_runner.py` | Loop OpenCV + YOLO pose + preview |
+| `yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 
-**Módulos principais (`shared/`):**
+**Módulos principais (`core/`):**
 
 | Módulo | Função |
 |--------|--------|
-| `settings.py` | Configuração partilhada (`CAPTURE_*` / `SHOW_*` / `YOLO_MODEL`) a partir do `.env` da raiz |
+| `__main__.py` | `python -m core`: runtime (sem YOLO) + `run_core` |
+| `runner.py` | Processo core (stub até haver consumo da captura) |
+
+**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/` — pytest na raiz (`pythonpath` = `.`).
 
 ---
 
@@ -566,6 +568,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-27] Onboard: testes em `tests/` por módulo (`tests/shared/`, `tests/capture/`, `tests/core/`)
+- [2026-09-27] Onboard: inicialização individual `python -m capture` / `python -m core`; runtime e venv na raiz (`shared/runtime.py`, `Makefile`)
 - [2026-09-27] Docs: remove `vigia-services` (Go), `vigia-onboard-test` (C++) e integração Go do onboard; estrutura atual é Python (`docs/project-structure.md`, `.cursor/rules/project-documentation.mdc`, `.vscode`)
 - [2026-09-27] Onboard: `paths`, `settings` e `yolo_export` passam para `shared/` (`shared/`, `capture/src/`)
 - [2026-09-27] Onboard capture: `lap` para YOLO `track`/BoT-SORT (`capture/requirements.txt`)

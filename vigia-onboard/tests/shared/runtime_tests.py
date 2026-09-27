@@ -1,4 +1,4 @@
-"""Testes unitários para src.bootstrap."""
+"""Testes unitários para shared.runtime e shared.paths."""
 
 from __future__ import annotations
 
@@ -8,8 +8,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src import bootstrap
-from src import paths
+from shared import paths
+from shared import runtime
+
+
+def test_onboard_root_ApontaParaRaizDoOnboard():
+    root = paths.onboard_root()
+    assert (root / "shared" / "paths.py").is_file()
+    assert paths.capture_root() == root / "capture"
+    assert paths.requirements_file() == root / "requirements.txt"
+    assert paths.venv_dir() == root / ".venv"
 
 
 def test_venv_python_Unix():
@@ -24,14 +32,14 @@ def test_venv_python_Windows():
 
 def test_ensure_venv_JaExiste_NaoRecria(tmp_path: Path):
     venv = tmp_path / ".venv"
-    python = venv / "bin" / "python"
+    python = paths.venv_python(venv)
     python.parent.mkdir(parents=True)
     python.write_text("", encoding="utf-8")
 
-    with patch.object(bootstrap, "read_python_version", return_value=(3, 12)), patch.object(
-        bootstrap.venv, "EnvBuilder"
+    with patch.object(runtime, "read_python_version", return_value=(3, 12)), patch.object(
+        runtime.venv, "EnvBuilder"
     ) as builder_cls:
-        result = bootstrap.ensure_venv(venv)
+        result = runtime.ensure_venv(venv)
 
     assert result == python
     builder_cls.assert_not_called()
@@ -51,30 +59,30 @@ def test_ensure_venv_PythonAntigo_Recria(tmp_path: Path):
     builder = MagicMock()
     builder.create.side_effect = _create
 
-    with patch.object(bootstrap, "read_python_version", return_value=(3, 9)), patch.object(
-        bootstrap.venv, "EnvBuilder", return_value=builder
-    ), patch.object(bootstrap, "venv_python", return_value=python):
-        result = bootstrap.ensure_venv(venv)
+    with patch.object(runtime, "read_python_version", return_value=(3, 9)), patch.object(
+        runtime.venv, "EnvBuilder", return_value=builder
+    ), patch.object(runtime, "venv_python", return_value=python):
+        result = runtime.ensure_venv(venv)
 
     builder.create.assert_called_once_with(venv)
     assert result == python
 
 
 def test_resolve_host_python_AtualSuficiente():
-    with patch.object(bootstrap.sys, "version_info", (3, 13, 0)):
-        assert bootstrap.resolve_host_python() == Path(bootstrap.sys.executable)
+    with patch.object(runtime.sys, "version_info", (3, 13, 0)):
+        assert runtime.resolve_host_python() == Path(runtime.sys.executable)
 
 
 def test_host_python_candidates_WindowsIncluiPyEPython():
-    names = bootstrap.host_python_candidates("win32")
+    names = runtime.host_python_candidates("win32")
     assert names[0] == "py"
     assert "python" in names
     assert "python3.12" in names
 
 
 def test_host_python_candidates_UnixPreferePython3():
-    assert bootstrap.host_python_candidates("darwin") == ("python3.13", "python3.12")
-    assert bootstrap.host_python_candidates("linux") == ("python3.13", "python3.12")
+    assert runtime.host_python_candidates("darwin") == ("python3.13", "python3.12")
+    assert runtime.host_python_candidates("linux") == ("python3.13", "python3.12")
 
 
 def test_ensure_venv_Ausente_Cria(tmp_path: Path):
@@ -88,10 +96,10 @@ def test_ensure_venv_Ausente_Cria(tmp_path: Path):
     builder = MagicMock()
     builder.create.side_effect = _create
 
-    with patch.object(bootstrap.venv, "EnvBuilder", return_value=builder), patch.object(
-        bootstrap, "venv_python", return_value=venv / "bin" / "python"
+    with patch.object(runtime.venv, "EnvBuilder", return_value=builder), patch.object(
+        runtime, "venv_python", return_value=venv / "bin" / "python"
     ):
-        result = bootstrap.ensure_venv(venv)
+        result = runtime.ensure_venv(venv)
 
     builder.create.assert_called_once_with(venv)
     assert result == venv / "bin" / "python"
@@ -102,10 +110,10 @@ def test_dependencies_are_current_StampIgual(tmp_path: Path):
     req.write_text("foo==1\n", encoding="utf-8")
     venv = tmp_path / ".venv"
     venv.mkdir()
-    digest = bootstrap._hash_file(req)
-    (venv / bootstrap._STAMP_NAME).write_text(digest + "\n", encoding="utf-8")
+    digest = runtime._hash_file(req)
+    (venv / runtime._STAMP_NAME).write_text(digest + "\n", encoding="utf-8")
 
-    assert bootstrap.dependencies_are_current(venv, req) is True
+    assert runtime.dependencies_are_current(venv, req) is True
 
 
 def test_dependencies_are_current_StampAusente(tmp_path: Path):
@@ -114,7 +122,7 @@ def test_dependencies_are_current_StampAusente(tmp_path: Path):
     venv = tmp_path / ".venv"
     venv.mkdir()
 
-    assert bootstrap.dependencies_are_current(venv, req) is False
+    assert runtime.dependencies_are_current(venv, req) is False
 
 
 def test_ensure_dependencies_JaSincronizado_NaoInstala(tmp_path: Path):
@@ -125,12 +133,12 @@ def test_ensure_dependencies_JaSincronizado_NaoInstala(tmp_path: Path):
     python = venv / "bin" / "python"
     python.parent.mkdir()
     python.write_text("", encoding="utf-8")
-    (venv / bootstrap._STAMP_NAME).write_text(
-        bootstrap._hash_file(req) + "\n", encoding="utf-8"
+    (venv / runtime._STAMP_NAME).write_text(
+        runtime._hash_file(req) + "\n", encoding="utf-8"
     )
 
-    with patch.object(bootstrap.subprocess, "check_call") as pip:
-        bootstrap.ensure_dependencies(python, req)
+    with patch.object(runtime.subprocess, "check_call") as pip:
+        runtime.ensure_dependencies(python, req)
 
     pip.assert_not_called()
 
@@ -144,53 +152,55 @@ def test_ensure_dependencies_StampVelho_Instala(tmp_path: Path):
     python = bin_dir / "python"
     python.write_text("", encoding="utf-8")
 
-    with patch.object(bootstrap.subprocess, "check_call") as pip:
-        bootstrap.ensure_dependencies(python, req)
+    with patch.object(runtime.subprocess, "check_call") as pip:
+        runtime.ensure_dependencies(python, req)
 
     assert pip.call_count == 2
-    assert (venv / bootstrap._STAMP_NAME).is_file()
+    assert (venv / runtime._STAMP_NAME).is_file()
 
 
-def test_ensure_venv_scripts_on_path_PrependeScripts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_ensure_venv_scripts_on_path_PrependeScripts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     python = tmp_path / ".venv" / "bin" / "python"
     python.parent.mkdir(parents=True)
     monkeypatch.setenv("PATH", "/usr/bin")
 
-    bootstrap.ensure_venv_scripts_on_path(python)
+    runtime.ensure_venv_scripts_on_path(python)
 
     assert os.environ["PATH"].split(os.pathsep)[0] == str(python.parent)
 
 
 def test_disable_ultralytics_autoinstall_DefineDefault(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("YOLO_AUTOINSTALL", raising=False)
-    bootstrap.disable_ultralytics_autoinstall()
+    runtime.disable_ultralytics_autoinstall()
     assert os.environ["YOLO_AUTOINSTALL"] == "false"
 
 
 def test_disable_ultralytics_autoinstall_RespeitaOverride(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("YOLO_AUTOINSTALL", "true")
-    bootstrap.disable_ultralytics_autoinstall()
+    runtime.disable_ultralytics_autoinstall()
     assert os.environ["YOLO_AUTOINSTALL"] == "true"
 
 
-def test_ensure_venv_scripts_on_path_NaoDuplica(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_ensure_venv_scripts_on_path_NaoDuplica(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
     python = tmp_path / ".venv" / "bin" / "python"
     python.parent.mkdir(parents=True)
     scripts = str(python.parent)
     monkeypatch.setenv("PATH", f"{scripts}{os.pathsep}/usr/bin")
 
-    bootstrap.ensure_venv_scripts_on_path(python)
+    runtime.ensure_venv_scripts_on_path(python)
 
     assert os.environ["PATH"].split(os.pathsep).count(scripts) == 1
 
 
 def test_ensure_env_file_CopiaExample(tmp_path: Path):
     (tmp_path / ".env.example").write_text("YOLO_MODEL=yolo26s-pose\n", encoding="utf-8")
-    capture = tmp_path / "capture"
-    capture.mkdir()
 
-    with patch.object(bootstrap, "onboard_root", return_value=tmp_path):
-        dest = bootstrap.ensure_env_file()
+    with patch.object(runtime, "onboard_root", return_value=tmp_path):
+        dest = runtime.ensure_env_file()
 
     assert dest == tmp_path / ".env"
     assert dest is not None
@@ -202,8 +212,8 @@ def test_ensure_env_file_JaExiste_NaoSobrescreve(tmp_path: Path):
     existing = tmp_path / ".env"
     existing.write_text("OLD=1\n", encoding="utf-8")
 
-    with patch.object(bootstrap, "onboard_root", return_value=tmp_path):
-        dest = bootstrap.ensure_env_file()
+    with patch.object(runtime, "onboard_root", return_value=tmp_path):
+        dest = runtime.ensure_env_file()
 
     assert dest == existing
     assert existing.read_text(encoding="utf-8") == "OLD=1\n"
@@ -212,56 +222,56 @@ def test_ensure_env_file_JaExiste_NaoSobrescreve(tmp_path: Path):
 def test_prepare_runtime_ForaDoVenv_Reexecuta():
     python = Path("/tmp/fake-venv/bin/python")
 
-    with patch.object(bootstrap, "ensure_supported_interpreter"), patch.object(
-        bootstrap, "ensure_env_file"
-    ), patch.object(bootstrap, "ensure_venv", return_value=python), patch.object(
-        bootstrap, "is_running_in_venv", return_value=False
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=False
     ), patch.object(
-        bootstrap, "_reexec_in_venv", side_effect=SystemExit(0)
-    ) as reexec, patch.object(bootstrap, "ensure_dependencies") as deps, patch.object(
-        bootstrap, "ensure_model"
+        runtime, "_reexec_in_venv", side_effect=SystemExit(0)
+    ) as reexec, patch.object(runtime, "ensure_dependencies") as deps, patch.object(
+        runtime, "ensure_model"
     ) as model:
         with pytest.raises(SystemExit):
-            bootstrap.prepare_runtime()
+            runtime.prepare_runtime(reexec_module="capture")
 
-    reexec.assert_called_once_with(python, "src.bootstrap")
+    reexec.assert_called_once_with(python, "capture")
     deps.assert_not_called()
     model.assert_not_called()
 
 
-def test_main_SetupOnly_NaoExecutaCaptura():
-    with patch.object(bootstrap, "prepare_runtime"), patch(
-        "src.capture_runner.run_capture"
-    ) as run:
-        with patch.object(bootstrap.sys, "argv", ["src.bootstrap", "--setup-only"]):
-            assert bootstrap.main() == 0
+def test_prepare_runtime_NoVenv_InstalaSemModelo(tmp_path: Path):
+    python = tmp_path / ".venv" / "bin" / "python"
 
-    run.assert_not_called()
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=True
+    ), patch.object(
+        runtime, "ensure_dependencies"
+    ) as deps, patch.object(
+        runtime, "ensure_model", return_value=tmp_path / "m.onnx"
+    ) as model:
+        result = runtime.prepare_runtime(reexec_module="core", skip_model=True)
 
-
-def test_main_SemFlags_ExecutaCaptura():
-    with patch.object(bootstrap, "prepare_runtime"), patch(
-        "src.capture_runner.run_capture"
-    ) as run:
-        with patch.object(bootstrap.sys, "argv", ["src.bootstrap"]):
-            assert bootstrap.main() == 0
-
-    run.assert_called_once()
+    assert result == python
+    deps.assert_called_once_with(python)
+    model.assert_not_called()
 
 
 def test_prepare_runtime_NoVenv_InstalaEExporta(tmp_path: Path):
     python = tmp_path / ".venv" / "bin" / "python"
 
-    with patch.object(bootstrap, "ensure_supported_interpreter"), patch.object(
-        bootstrap, "ensure_env_file"
-    ), patch.object(bootstrap, "ensure_venv", return_value=python), patch.object(
-        bootstrap, "is_running_in_venv", return_value=True
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=True
     ), patch.object(
-        bootstrap, "ensure_dependencies"
+        runtime, "ensure_dependencies"
     ) as deps, patch.object(
-        bootstrap, "ensure_model", return_value=tmp_path / "m.onnx"
-    ):
-        result = bootstrap.prepare_runtime(skip_model=False)
+        runtime, "ensure_model", return_value=tmp_path / "m.onnx"
+    ) as model:
+        result = runtime.prepare_runtime(reexec_module="capture", skip_model=False)
 
     assert result == python
     deps.assert_called_once_with(python)
+    model.assert_called_once()

@@ -8,8 +8,8 @@ from typing import Any, Optional
 
 import cv2  # type: ignore
 
-from .settings import get_settings
-from .socket import close_socket, create_socket
+from shared.settings import get_settings
+
 from .yolo_model import get_yolo_model
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,6 @@ def run_capture() -> None:
     """Loop principal: lê a fonte em stream YOLO e mostra preview se pedido."""
     show_video = False
     cap = None
-    socket = None
 
     try:
         settings = get_settings()
@@ -139,8 +138,6 @@ def run_capture() -> None:
             "YOLO carregado: %s",
             getattr(yolo_model, "ckpt_path", settings.yolo_model),
         )
-
-        socket = create_socket("tcp://localhost:5556")
 
         if show_video and not _opencv_has_gui():
             logger.warning(
@@ -169,14 +166,14 @@ def run_capture() -> None:
                     break
 
                 frame = result.orig_img
-                metadata = _create_metadata(result)
-                if metadata:
-                    socket.send_json(metadata)
+                #TODO: Aplicar a lógica de montagem dos dados para o processamento CORE
 
                 # Frames para clipe/streaming serão via memória partilhada.
                 preview = (
                     _blur_boxes(frame, result) if settings.blur_video else frame
                 )
+
+                #TODO: Os clipes serão montados até aqui, com o blur aplicado. O plot é aplicado somente para o show
                 preview = result.plot(img=preview) if settings.show_plot else preview
 
                 if show_video:
@@ -195,6 +192,4 @@ def run_capture() -> None:
             cv2.destroyAllWindows()
         if cap is not None:
             cap.release()
-        if socket is not None:
-            close_socket(socket)
         logger.info("Captura encerrada")

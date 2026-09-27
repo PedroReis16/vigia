@@ -1,4 +1,4 @@
-"""Caminhos do serviço capture (raiz, venv, requirements)."""
+"""Caminhos do onboard (raiz, venv, requirements) e do serviço capture."""
 
 from __future__ import annotations
 
@@ -6,23 +6,24 @@ import sys
 from pathlib import Path
 
 
-def capture_root() -> Path:
-    """Raiz do serviço (`capture/`)."""
+def onboard_root() -> Path:
+    """Raiz do onboard (Makefile e `.env` central)."""
     return Path(__file__).resolve().parents[1]
 
 
-def onboard_root() -> Path:
-    """Raiz do onboard (onde estão o Makefile e o `.env` central)."""
-    return capture_root().parent
+def capture_root() -> Path:
+    """Raiz do serviço de captura (`capture/`)."""
+    return onboard_root() / "capture"
 
 
 def venv_dir() -> Path:
-    """Virtualenv do capture (`capture/.venv`)."""
-    return capture_root() / ".venv"
+    """Virtualenv partilhado do onboard (`.venv` na raiz)."""
+    return onboard_root() / ".venv"
 
 
 def requirements_file() -> Path:
-    return capture_root() / "requirements.txt"
+    """`requirements.txt` central do onboard."""
+    return onboard_root() / "requirements.txt"
 
 
 def venv_python(venv: Path | None = None) -> Path:

@@ -66,20 +66,40 @@
             "name": "Vigia.Onboard.Capture",
             "type": "debugpy",
             "request": "launch",
-            "module": "src.bootstrap",
-            "cwd": "${workspaceFolder}/vigia-onboard/capture",
+            "module": "capture",
+            "cwd": "${workspaceFolder}/vigia-onboard",
             "envFile": "${workspaceFolder}/vigia-onboard/.env",
             "console": "integratedTerminal",
             "justMyCode": true,
             "preLaunchTask": "onboard: setup capture",
             "windows": {
-                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/Scripts/python.exe"
+                "python": "${workspaceFolder}/vigia-onboard/.venv/Scripts/python.exe"
             },
             "osx": {
-                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/bin/python"
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
             },
             "linux": {
-                "python": "${workspaceFolder}/vigia-onboard/capture/.venv/bin/python"
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
+            }
+        },
+        {
+            "name": "Vigia.Onboard.Core",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "core",
+            "cwd": "${workspaceFolder}/vigia-onboard",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "onboard: setup core",
+            "windows": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/Scripts/python.exe"
+            },
+            "osx": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
+            },
+            "linux": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
             }
         }
     ],
@@ -101,7 +121,8 @@
         {
             "name": "Debug Onboard",
             "configurations": [
-                "Vigia.Onboard.Capture"
+                "Vigia.Onboard.Capture",
+                "Vigia.Onboard.Core"
             ],
             "stopAll": true
         }

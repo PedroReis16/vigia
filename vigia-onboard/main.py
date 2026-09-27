@@ -1,12 +1,6 @@
-"""
-Serviço para captura de imagens através de uma camera
-"""
+"""Atalho na raiz: equivalente a `python -m capture`."""
 
-import logging
-from src import run_capture
-
-logger = logging.getLogger(__name__)
-
+from capture.__main__ import main
 
 if __name__ == "__main__":
-    run_capture()
+    raise SystemExit(main())

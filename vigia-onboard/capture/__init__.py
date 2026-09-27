@@ -1,7 +1,7 @@
 """
-Recursos relacionados a captura de imagens.
+Módulo de captura.
 
-`run_capture` é importado sob demanda para o bootstrap conseguir correr no
+`run_capture` é importado sob demanda para o `__main__` conseguir correr no
 Python do host (sem OpenCV) antes de reabrir o .venv.
 """
 

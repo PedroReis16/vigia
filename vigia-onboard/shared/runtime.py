@@ -1,8 +1,9 @@
 """
-Inicialização do capture: venv, dependências e export YOLO.
+Runtime partilhado do onboard: venv, dependências e interpretador.
 
-Invocado pelo Makefile da raiz (`make capture`). Lê o `.env` central do onboard.
-Usa só a stdlib até reabrir o interpretador do `.venv` deste projeto.
+Usa só a stdlib até reabrir o interpretador do `.venv` da raiz.
+Cada módulo (`python -m capture`, `python -m core`) chama `prepare_runtime`
+com o seu nome de pacote para o reexec.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import sys
 import venv
 from pathlib import Path
 
-from .paths import (
+from shared.paths import (
     capture_root,
     is_running_in_venv,
     onboard_root,
@@ -24,12 +25,11 @@ from .paths import (
     venv_dir,
     venv_python,
 )
-from .yolo_export import DEFAULT_YOLO_IMGSZ, DEFAULT_YOLO_POSE_STEM
+from shared.yolo_export import DEFAULT_YOLO_IMGSZ, DEFAULT_YOLO_POSE_STEM
 
 logger = logging.getLogger(__name__)
 
 _STAMP_NAME = ".vigia-requirements.sha256"
-_BOOTSTRAP_MODULE = "src.bootstrap"
 MIN_PYTHON = (3, 12)
 _UNIX_HOST_PYTHON_CANDIDATES = ("python3.13", "python3.12")
 _WINDOWS_HOST_PYTHON_CANDIDATES = ("py", "python", "python3.13", "python3.12")
@@ -126,13 +126,13 @@ def resolve_host_python() -> Path:
     need = f"{MIN_PYTHON[0]}.{MIN_PYTHON[1]}"
     current = f"{sys.version_info.major}.{sys.version_info.minor}"
     raise RuntimeError(
-        f"O capture precisa de Python >= {need} (atual: {current}). "
+        f"O onboard precisa de Python >= {need} (atual: {current}). "
         f"Instale python@{need} ou defina HOST_PYTHON."
     )
 
 
-def ensure_supported_interpreter() -> None:
-    """Reabre o bootstrap com Python >= 3.12 se o atual for mais antigo."""
+def ensure_supported_interpreter(reexec_module: str) -> None:
+    """Reabre o módulo com Python >= 3.12 se o atual for mais antigo."""
     if _python_meets_min(sys.version_info[:2]):
         return
     host = resolve_host_python()
@@ -142,7 +142,7 @@ def ensure_supported_interpreter() -> None:
         sys.version_info.minor,
         host,
     )
-    os.execv(str(host), [str(host), "-m", _BOOTSTRAP_MODULE, *sys.argv[1:]])
+    os.execv(str(host), [str(host), "-m", reexec_module, *sys.argv[1:]])
 
 
 def disable_ultralytics_autoinstall() -> None:
@@ -172,7 +172,7 @@ def ensure_venv_scripts_on_path(python: Path | None = None) -> None:
 
 
 def ensure_venv(target: Path | None = None) -> Path:
-    """Cria o venv do capture se faltar (ou se o Python for < 3.12)."""
+    """Cria o venv da raiz do onboard se faltar (ou se o Python for < 3.12)."""
     root = target if target is not None else venv_dir()
     python = venv_python(root)
     if python.is_file():
@@ -268,7 +268,7 @@ def ensure_model(
     imgsz: int | None = None,
 ) -> Path:
     """Exporta (se preciso) o YOLO pose para a plataforma atual."""
-    from .yolo_export import ensure_yolo_pose_export
+    from shared.yolo_export import ensure_yolo_pose_export
 
     _load_env()
     stem = (model_setting or os.getenv("YOLO_MODEL") or DEFAULT_YOLO_POSE_STEM).strip()
@@ -283,17 +283,18 @@ def ensure_model(
 
 def prepare_runtime(
     *,
-    reexec_module: str = _BOOTSTRAP_MODULE,
-    skip_model: bool = False,
+    reexec_module: str,
+    skip_model: bool = True,
 ) -> Path:
     """
-    Garante venv, deps e (opcionalmente) o export YOLO deste serviço.
+    Garante venv e deps. Opcionalmente exporta o YOLO pose.
 
-    Se o interpretador atual não for o do venv, reabre o processo nele.
+    Se o interpretador atual não for o do venv, reabre o processo no
+    módulo indicado (`capture`, `core`, …).
     Devolve o path do Python do venv.
     """
     _configure_logging()
-    ensure_supported_interpreter()
+    ensure_supported_interpreter(reexec_module)
     ensure_env_file()
     python = ensure_venv()
     ensure_venv_scripts_on_path(python)
@@ -305,23 +306,3 @@ def prepare_runtime(
     if not skip_model:
         ensure_model()
     return python
-
-
-def main() -> int:
-    """CLI: `make capture` → prepara o runtime e executa a captura."""
-    args = sys.argv[1:]
-    skip_model = "--skip-model" in args
-    setup_only = "--setup-only" in args
-    prepare_runtime(skip_model=skip_model)
-    if setup_only:
-        logger.info("Runtime do capture inicializado em %s", capture_root())
-        return 0
-    from .capture_runner import run_capture
-
-    logger.info("A executar a captura em %s", capture_root())
-    run_capture()
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

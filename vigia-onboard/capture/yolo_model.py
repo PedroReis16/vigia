@@ -7,8 +7,8 @@ from functools import lru_cache
 
 from ultralytics import YOLO  # pyright: ignore[reportMissingImports]
 
-from .settings import get_settings
-from .yolo_export import ensure_yolo_pose_export
+from shared.settings import get_settings
+from shared.yolo_export import ensure_yolo_pose_export
 
 
 @dataclass(frozen=True)

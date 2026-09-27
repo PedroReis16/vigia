@@ -1,10 +1,10 @@
-"""Testes unitários para src.yolo_model."""
+"""Testes unitários para capture.yolo_model."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from src import yolo_model as ym
+from capture import yolo_model as ym
 
 
 def test_yolo_model_load_UsaExport(tmp_path):

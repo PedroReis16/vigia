@@ -1,4 +1,4 @@
-"""Testes unitários para src.yolo_export."""
+"""Testes unitários para shared.yolo_export."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src import yolo_export as ye
+from shared import yolo_export as ye
 
 
 def test_normalize_yolo_pose_stem_ComNomeSimples_Mantem():

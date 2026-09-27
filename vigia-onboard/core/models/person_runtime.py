@@ -1,10 +1,17 @@
+"""Estado em tempo de execução por pessoa rastreada."""
 
-from functools import lru_cache
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
+from .constants import MAX_MISSED_FRAMES
 from .fall_detector import FallDetector
-from .kalman_filter import KalmanPointTracker
-from .capture_constants import CaptureConstants
+
+if TYPE_CHECKING:
+    from .kalman_filter import KalmanPointTracker
+
 
 @dataclass
 class PersonRuntimeState:
@@ -17,9 +24,7 @@ class PersonRuntimeState:
 
 
 class PersonRuntimeStore:
-    """
-    Store por person_id do estado volátil da captura.
-    """
+    """Store por person_id do estado volátil da classificação."""
 
     def __init__(self) -> None:
         self._people: dict[int, PersonRuntimeState] = {}
@@ -28,9 +33,6 @@ class PersonRuntimeStore:
         if person_id not in self._people:
             self._people[person_id] = PersonRuntimeState()
         return self._people[person_id]
-
-    def get(self, person_id: int) -> PersonRuntimeState | None:
-        return self._people.get(person_id)
 
     def cleanup(self, active_person_ids: set[int]) -> None:
         """Remove estado de IDs fora de cena e trackers Kalman ociosos demais."""
@@ -42,7 +44,7 @@ class PersonRuntimeStore:
             stale_kpts = [
                 kpt_idx
                 for kpt_idx, tracker in state.kalman_trackers.items()
-                if tracker.missed_frames > CaptureConstants.MAX_MISSED_FRAMES
+                if tracker.missed_frames > MAX_MISSED_FRAMES
             ]
             for kpt_idx in stale_kpts:
                 del state.kalman_trackers[kpt_idx]

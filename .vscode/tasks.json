@@ -21,64 +21,6 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "conan: install vigia-onboard-test",
-      "type": "shell",
-      "command": "powershell",
-      "args": [
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        "${workspaceFolder}/vigia-onboard-test/scripts/conan.ps1",
-        "install",
-        ".",
-        "-of",
-        "build",
-        "--build=missing",
-        "--profile:host=profiles/windows-msvc-debug",
-        "--profile:build=profiles/windows-msvc-debug"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard-test"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "cmake: configure vigia-onboard-test",
-      "type": "shell",
-      "command": "cmake",
-      "args": [
-        "-B",
-        "${workspaceFolder}/vigia-onboard-test/build",
-        "-S",
-        "${workspaceFolder}/vigia-onboard-test",
-        "-DCMAKE_TOOLCHAIN_FILE=${workspaceFolder}/vigia-onboard-test/build/conan_toolchain.cmake",
-        "-DCMAKE_POLICY_DEFAULT_CMP0091=NEW"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard-test"
-      },
-      "problemMatcher": [],
-      "dependsOn": "conan: install vigia-onboard-test"
-    },
-    {
-      "label": "build: vigia-onboard-test",
-      "type": "shell",
-      "command": "cmake",
-      "args": [
-        "--build",
-        "${workspaceFolder}/vigia-onboard-test/build",
-        "--config",
-        "Debug"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard-test"
-      },
-      "group": "build",
-      "problemMatcher": "$msCompile",
-      "dependsOn": "cmake: configure vigia-onboard-test"
-    },
-    {
       "label": "onboard: setup capture",
       "type": "shell",
       "command": "make",
@@ -113,71 +55,10 @@
       "problemMatcher": []
     },
     {
-      "label": "onboard: integration",
-      "type": "shell",
-      "command": "make",
-      "args": ["integration"],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard"
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "dedicated",
-        "clear": true,
-        "group": "vigia-onboard",
-        "showReuseMessage": false
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "onboard: bootstrap",
-      "type": "shell",
-      "command": "make",
-      "args": ["bootstrap"],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard"
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "dedicated",
-        "clear": true,
-        "group": "vigia-onboard",
-        "showReuseMessage": false
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "onboard: core",
-      "type": "shell",
-      "command": "make",
-      "args": ["core"],
-      "options": {
-        "cwd": "${workspaceFolder}/vigia-onboard"
-      },
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "dedicated",
-        "clear": true,
-        "group": "vigia-onboard",
-        "showReuseMessage": false
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "onboard: run",
-      "detail": "4 terminais internos do Cursor: capture, integration, bootstrap, core",
-      "dependsOrder": "parallel",
+      "detail": "Terminal do capture",
       "dependsOn": [
-        "onboard: capture",
-        "onboard: integration",
-        "onboard: bootstrap",
-        "onboard: core"
+        "onboard: capture"
       ],
       "problemMatcher": []
     }

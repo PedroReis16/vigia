@@ -1,7 +1,7 @@
 # =============================================================================
 # Makefile — vigia-onboard
-# Único ponto de entrada. O .env da raiz é partilhado; cada projeto tem a sua
-# inicialização (Python: venv + src/bootstrap.py; Go: go mod).
+# Único ponto de entrada. O .env da raiz é partilhado; o capture inicializa
+# o runtime Python (venv + src/bootstrap.py).
 #
 # Portátil: GNU Make nativo no Windows (cmd.exe) e make no macOS/Linux (sh).
 # Receitas só usam o subconjunto comum (cd, &&, echo). Checagens e .env
@@ -9,15 +9,11 @@
 #
 #   make capture                  # setup + loop de captura
 #   make capture SETUP_ONLY=1     # só venv/deps/modelo
-#   make integration              # setup + serviço Go
-#   make integration SETUP_ONLY=1 # só go mod tidy
-#   make bootstrap                # setup + serviço Go
-#   make bootstrap SETUP_ONLY=1   # só go mod tidy
-#   make run                      # todos os projetos em paralelo
+#   make run                      # projetos em paralelo (hoje: capture)
 # =============================================================================
 
 # python3 no macOS é muitas vezes o 3.9 do Xcode; o capture precisa de >= 3.12.
-# No Windows o Make 32-bit corre cmd.exe: `command -v` falha. Usar `python`/`go`.
+# No Windows o Make 32-bit corre cmd.exe: `command -v` falha. Usar `python`.
 ifeq ($(OS),Windows_NT)
 HOST_PYTHON ?= py
 else

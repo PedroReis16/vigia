@@ -208,14 +208,14 @@ vigia/
 
 **Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
 
-**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. Cada módulo arranca sozinho: `make capture` / `make core` (ou `python -m capture` / `python -m core`). O runtime partilhado (`shared/runtime.py`) cria o `.venv` da raiz, instala deps e reabre o processo no venv. O capture exporta YOLO; o core não. `make run` corre os módulos em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. Cada módulo arranca sozinho: `make capture` / `make core` / `make integration` (ou `python -m capture` / `python -m core` / `python -m integration`). O runtime partilhado (`shared/runtime.py`) cria o `.venv` da raiz, instala deps e reabre o processo no venv. O capture exporta YOLO; core e integration não. `make run` corre os módulos em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta `get_settings` em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
 **Módulos principais (`shared/`):**
 
 | Módulo | Função |
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
-| `paths.py` | Raiz do onboard, `capture/`, `.venv` e `requirements.txt` |
+| `paths.py` | Raiz do onboard, `capture/`, `integration/`, `.venv` e `requirements.txt` |
 | `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 
@@ -234,7 +234,14 @@ vigia/
 | `__main__.py` | `python -m core`: runtime (sem YOLO) + `run_core` |
 | `runner.py` | Processo core (stub até haver consumo da captura) |
 
-**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/` — pytest na raiz (`pythonpath` = `.`).
+**Módulos principais (`integration/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
+| `integration_runner.py` | Processo FIWARE/MQTT (stub até haver consumo da classificação) |
+
+**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/` — pytest na raiz (`pythonpath` = `.`).
 
 ---
 
@@ -568,6 +575,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-27] Onboard: `python -m integration` — `integration_root`, lazy `get_settings` no `shared`, Makefile + testes
 - [2026-09-27] Onboard: testes em `tests/` por módulo (`tests/shared/`, `tests/capture/`, `tests/core/`)
 - [2026-09-27] Onboard: inicialização individual `python -m capture` / `python -m core`; runtime e venv na raiz (`shared/runtime.py`, `Makefile`)
 - [2026-09-27] Docs: remove `vigia-services` (Go), `vigia-onboard-test` (C++) e integração Go do onboard; estrutura atual é Python (`docs/project-structure.md`, `.cursor/rules/project-documentation.mdc`, `.vscode`)

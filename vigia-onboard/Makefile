@@ -11,6 +11,8 @@
 #   make capture SETUP_ONLY=1     # só venv/deps/modelo
 #   make core                     # setup + processo core
 #   make core SETUP_ONLY=1        # só venv/deps
+#   make integration              # setup + processo de integração
+#   make integration SETUP_ONLY=1 # só venv/deps
 #   make run                      # módulos em paralelo
 # =============================================================================
 
@@ -22,7 +24,7 @@ else
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
 endif
 
-PROJECTS := capture core
+PROJECTS := capture core integration
 
 # `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
 # das receitas — `export` sozinho exporta também require_* e o $(error) dispara
@@ -47,6 +49,8 @@ help:
 	@echo   make capture SETUP_ONLY=1     so venv/deps/modelo
 	@echo   make core                     setup + processo core
 	@echo   make core SETUP_ONLY=1        so venv/deps
+	@echo   make integration              setup + processo de integracao
+	@echo   make integration SETUP_ONLY=1 so venv/deps
 	@echo   make run                      todos os modulos em paralelo
 	@echo Configuracao: .env nesta pasta (veja .env.example).
 	@echo Windows: HOST_PYTHON=py (ou python). macOS: python3.12+.

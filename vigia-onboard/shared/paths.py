@@ -1,4 +1,4 @@
-"""Caminhos do onboard (raiz, venv, requirements) e do serviço capture."""
+"""Caminhos do onboard (raiz, venv, requirements) e dos serviços."""
 
 from __future__ import annotations
 
@@ -14,6 +14,11 @@ def onboard_root() -> Path:
 def capture_root() -> Path:
     """Raiz do serviço de captura (`capture/`)."""
     return onboard_root() / "capture"
+
+
+def integration_root() -> Path:
+    """Raiz do serviço de integração (`integration/`)."""
+    return onboard_root() / "integration"
 
 
 def venv_dir() -> Path:

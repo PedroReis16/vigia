@@ -206,33 +206,37 @@ vigia/
 
 **Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), base para o release `onboard`.
 
-**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência), pyzmq.
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), threading (core no processo de captura).
 
-**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. Cada módulo arranca sozinho: `make capture` / `make core` / `make integration` (ou `python -m capture` / `python -m core` / `python -m integration`). O runtime partilhado (`shared/runtime.py`) cria o `.venv` da raiz, instala deps e reabre o processo no venv. O capture exporta YOLO; core e integration não. `make run` corre os módulos em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta `get_settings` em lazy load para o host não precisar de `python-dotenv` antes do reexec.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO e a thread de classificação (`core/`). `make integration` / `python -m integration` é processo à parte. `make run` corre capture + integration em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta `get_settings` em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
 **Módulos principais (`shared/`):**
 
 | Módulo | Função |
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
-| `paths.py` | Raiz do onboard, `capture/`, `integration/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` a partir do `.env` da raiz |
+| `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `.venv` e `requirements.txt` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` / `FRAME_RATE` / `CLASSIFIER` / `SLIDER_WINDOW` a partir do `.env` da raiz |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
+| `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration) + aliases canónicos |
 
 **Módulos principais (`capture/`):**
 
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m capture`: runtime + (opcional) YOLO + `run_capture` |
-| `capture_runner.py` | Loop OpenCV + YOLO pose + preview |
+| `capture_runner.py` | Loop OpenCV + YOLO pose + preview; unpack de points e `save_points` |
+| `pose_extract.py` | Cópia `person_id` + keypoints `(17, 3)` + timestamp (sem imagem) |
 | `yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 
-**Módulos principais (`core/`):**
+**Módulos principais (`core/`):** pacote no mesmo processo da captura, thread dedicada.
 
 | Módulo | Função |
 |--------|--------|
-| `__main__.py` | `python -m core`: runtime (sem YOLO) + `run_core` |
-| `runner.py` | Processo core (stub até haver consumo da captura) |
+| `frame_worker.py` | `save_points` (fila) + worker: filtra/valida → classifica → enqueue `fall_state` |
+| `frame_queue.py` | Fila in-process (`FRAME_RATE`, max 2, backpressure) |
+| `classifiers/` | `math` (default) e `gru` via `CLASSIFIER`; sem `classifier.json` nem hot-swap |
+| `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU |
 
 **Módulos principais (`integration/`):**
 
@@ -575,6 +579,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-27] Onboard: classificação no `core/` (thread no capture); `save_points` só points brutos; math+GRU; SHM `fall_state`; sem `python -m core` (`.vscode` alinhado)
 - [2026-09-27] Onboard: `python -m integration` — `integration_root`, lazy `get_settings` no `shared`, Makefile + testes
 - [2026-09-27] Onboard: testes em `tests/` por módulo (`tests/shared/`, `tests/capture/`, `tests/core/`)
 - [2026-09-27] Onboard: inicialização individual `python -m capture` / `python -m core`; runtime e venv na raiz (`shared/runtime.py`, `Makefile`)

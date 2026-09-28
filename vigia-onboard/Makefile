@@ -27,7 +27,7 @@ PROJECTS := capture integration
 # `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
 # das receitas — `export` sozinho exporta também require_* e o $(error) dispara
 # com mensagem vazia (`Makefile:38: *** .  Stop.`) assim que o .env existe.
-ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO FRAME_RATE CLASSIFIER SLIDER_WINDOW FALL_SHM_NAME
+ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO FRAME_RATE CLASSIFIER SLIDER_WINDOW FALL_SHM_NAME DATA_DIR VIGIA_OTA_DIR
 ifneq ($(wildcard $(CURDIR)/.env),)
 include $(CURDIR)/.env
 export $(ONBOARD_ENV_KEYS)

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from dotenv import load_dotenv # type: ignore
+
+from dotenv import load_dotenv  # type: ignore
 
 from .paths import onboard_root
+
+# Defaults da placa (systemd). Em debug local use DATA_DIR fora de /opt/vigia.
+PROD_DATA_DIR = "/opt/vigia"
+PROD_OTA_DIR = "/var/lib/vigia/ota"
 
 
 def _parse_capture_source(raw: str) -> int | str:
@@ -27,7 +33,7 @@ def _load_onboard_env() -> None:
 
 @dataclass(frozen=True)
 class Settings:
-    """Configurações de captura."""
+    """Configurações de captura e provisionamento."""
 
     capture_source: int | str = 0
     show_video: bool = False
@@ -39,6 +45,7 @@ class Settings:
     classifier: str = "math"
     slider_window_size: int = 30
     fall_shm_name: str = "vigia-onboard-fall"
+    data_dir: str = PROD_DATA_DIR
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -63,6 +70,7 @@ class Settings:
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
             fall_shm_name=os.getenv("FALL_SHM_NAME", "vigia-onboard-fall").strip()
             or "vigia-onboard-fall",
+            data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
         )
 
 
@@ -70,3 +78,87 @@ class Settings:
 def get_settings() -> Settings:
     """Carrega as configurações de ambiente (singleton)."""
     return Settings.from_env()
+
+
+def get_identity_path() -> Path:
+    """Caminho de identity.json (bootstrap / seed local)."""
+    return Path(get_settings().data_dir) / "identity.json"
+
+
+def get_network_path() -> Path:
+    """Caminho de network.json (bootstrap / seed local)."""
+    return Path(get_settings().data_dir) / "network.json"
+
+
+def resolve_ota_dir() -> Path:
+    """
+    Diretório OTA: VIGIA_OTA_DIR explícito, senão {DATA_DIR}/ota em dev local,
+    ou /var/lib/vigia/ota na instalação da placa (DATA_DIR=/opt/vigia).
+    """
+    explicit = (os.getenv("VIGIA_OTA_DIR") or "").strip()
+    if explicit:
+        return Path(explicit)
+    data_dir = (get_settings().data_dir or PROD_DATA_DIR).rstrip("/") or PROD_DATA_DIR
+    if data_dir != PROD_DATA_DIR:
+        return Path(data_dir) / "ota"
+    return Path(PROD_OTA_DIR)
+
+
+@dataclass(frozen=True)
+class DeviceIdentity:
+    """Identidade do dispositivo provisionada pelo bootstrap."""
+
+    device_id: str
+    device_name: str
+    sign_priv: str
+    ecdh_priv: str
+
+    @classmethod
+    def from_json(cls) -> DeviceIdentity:
+        identity_path = get_identity_path()
+        if not identity_path.exists():
+            raise FileNotFoundError(f"Identity file not found: {identity_path}")
+        identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        return cls(
+            device_id=identity["device_id"],
+            device_name=identity["device_name"],
+            sign_priv=identity["sign_priv"],
+            ecdh_priv=identity["ecdh_priv"],
+        )
+
+
+@lru_cache(maxsize=1)
+def get_device_identity() -> DeviceIdentity:
+    """Retorna a identidade do dispositivo."""
+    return DeviceIdentity.from_json()
+
+
+@dataclass(frozen=True)
+class NetworkSettings:
+    """Credenciais de rede e endpoints cloud (FIWARE / API / stream)."""
+
+    ssid: str
+    password: str
+    api_base_url: str
+    fiware_api_key: str
+    stream_ingest_url: str
+
+    @classmethod
+    def from_json(cls) -> NetworkSettings:
+        network_path = get_network_path()
+        if not network_path.exists():
+            raise FileNotFoundError(f"Network file not found: {network_path}")
+        network = json.loads(network_path.read_text(encoding="utf-8"))
+        return cls(
+            ssid=network["ssid"],
+            password=network["password"],
+            api_base_url=network["api_base_url"],
+            fiware_api_key=network["fiware_api_key"],
+            stream_ingest_url=str(network.get("stream_ingest_url") or "").strip(),
+        )
+
+
+@lru_cache(maxsize=1)
+def get_network_settings() -> NetworkSettings:
+    """Retorna as configurações de rede do dispositivo."""
+    return NetworkSettings.from_json()

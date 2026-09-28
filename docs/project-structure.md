@@ -204,11 +204,13 @@ vigia/
 
 ### vigia-onboard
 
-**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), base para o release `onboard`.
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread e integração FIWARE/MQTT em processo isolado; base para o release `onboard`.
 
-**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), threading (core no processo de captura).
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core no processo de captura).
 
-**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO e a thread de classificação (`core/`). `make integration` / `python -m integration` é processo à parte. `make run` corre capture + integration em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta `get_settings` em lazy load para o host não precisar de `python-dotenv` antes do reexec.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO e a thread de classificação (`core/`). `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM). `make run` corre capture + integration em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
+
+**Pré-requisito (integration):** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed). Capture/core funcionam sem provisionamento; integration falha cedo se os ficheiros faltarem.
 
 **Módulos principais (`shared/`):**
 
@@ -216,9 +218,9 @@ vigia/
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
 | `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_MODEL` / `FRAME_RATE` / `CLASSIFIER` / `SLIDER_WINDOW` a partir do `.env` da raiz |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
-| `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration) + aliases canónicos |
+| `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 
 **Módulos principais (`capture/`):**
 
@@ -243,7 +245,9 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
-| `integration_runner.py` | Processo FIWARE/MQTT (stub até haver consumo da classificação) |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_*` no-op até `stream/` |
+
+**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto (sem MQTT no hot path de captura).
 
 **Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/` — pytest na raiz (`pythonpath` = `.`).
 
@@ -306,6 +310,8 @@ vigia/
 ### seed-codes
 
 **Propósito:** Utilitários de desenvolvimento — frame assinado e mock do edge local (sem Pi/BLE).
+
+**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
 
 | Script | Função |
 |--------|--------|
@@ -579,6 +585,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-28] seed-codes: Makefile ponto de entrada (`seed`, `publish-frame`, `convert`, `deps`, `test`); `.env` opcional (`Makefile`)
+- [2026-09-28] Onboard: integração FIWARE/MQTT no processo `integration` (poll SHM → Ultralight attrs; cmds `device_update`/stream stub); `DATA_DIR` identity/network; `paho-mqtt` (`integration_runner`, `fall_ipc`, `settings`)
 - [2026-09-27] Onboard: classificação no `core/` (thread no capture); `save_points` só points brutos; math+GRU; SHM `fall_state`; sem `python -m core` (`.vscode` alinhado)
 - [2026-09-27] Onboard: `python -m integration` — `integration_root`, lazy `get_settings` no `shared`, Makefile + testes
 - [2026-09-27] Onboard: testes em `tests/` por módulo (`tests/shared/`, `tests/capture/`, `tests/core/`)

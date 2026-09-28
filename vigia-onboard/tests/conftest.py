@@ -35,6 +35,15 @@ _ensure_stub("zmq")
 _ensure_stub("cv2")
 _ensure_stub("dotenv")
 
+# paho-mqtt: stub leve para unit tests sem instalar o pacote no host.
+_stub_package_tree("paho", "paho.mqtt", "paho.mqtt.client", "paho.mqtt.enums")
+_paho_enums = sys.modules["paho.mqtt.enums"]
+_paho_enums.CallbackAPIVersion = MagicMock()  # type: ignore[attr-defined]
+_paho_enums.CallbackAPIVersion.VERSION2 = 2  # type: ignore[attr-defined]
+_paho_client = sys.modules["paho.mqtt.client"]
+_paho_client.Client = MagicMock  # type: ignore[attr-defined]
+_paho_client.MQTTMessage = MagicMock  # type: ignore[attr-defined]
+
 if "onnxruntime" not in sys.modules:
     ort = ModuleType("onnxruntime")
     ort.InferenceSession = MagicMock  # type: ignore[attr-defined]

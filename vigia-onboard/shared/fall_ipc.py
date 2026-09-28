@@ -31,7 +31,7 @@ def normalize_fall_state(label: str) -> str:
 
 
 def ensure_fall_shm() -> EventShmRing | None:
-    """Cria ou anexa o ring de fall_state. None se a SHM falhar."""
+    """Cria ou anexa o ring de fall_state (writer). None se a SHM falhar."""
     global _fall_shm
     if _fall_shm is not None:
         return _fall_shm
@@ -41,6 +41,17 @@ def ensure_fall_shm() -> EventShmRing | None:
         logger.warning("Fall SHM indisponível: %s", error)
         _fall_shm = None
     return _fall_shm
+
+
+def attach_fall_shm(shm_name: str | None = None) -> EventShmRing:
+    """
+    Anexa o ring para leitura no processo de integração.
+
+    Se o ring ainda não existir (integration sobe antes do capture), cria-o
+    com o nome canónico para o writer anexar depois.
+    """
+    name = (shm_name or get_settings().fall_shm_name).strip() or get_settings().fall_shm_name
+    return EventShmRing.open_or_create(name)
 
 
 def enqueue_fall_state(

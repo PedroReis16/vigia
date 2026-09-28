@@ -8,8 +8,8 @@ from integration import __main__ as integration_main
 
 
 def test_integration_main_SetupOnly_NaoExecutaRunner():
-    with patch.object(integration_main, "prepare_runtime"), patch.object(
-        integration_main, "run_integration"
+    with patch.object(integration_main, "prepare_runtime"), patch(
+        "integration.integration_runner.run_integration"
     ) as run:
         with patch.object(integration_main.sys, "argv", ["integration", "--setup-only"]):
             assert integration_main.main() == 0
@@ -18,8 +18,8 @@ def test_integration_main_SetupOnly_NaoExecutaRunner():
 
 
 def test_integration_main_SemFlags_ExecutaRunner():
-    with patch.object(integration_main, "prepare_runtime"), patch.object(
-        integration_main, "run_integration"
+    with patch.object(integration_main, "prepare_runtime"), patch(
+        "integration.integration_runner.run_integration"
     ) as run:
         with patch.object(integration_main.sys, "argv", ["integration"]):
             assert integration_main.main() == 0
@@ -28,8 +28,8 @@ def test_integration_main_SemFlags_ExecutaRunner():
 
 
 def test_integration_main_NaoPedeModelo():
-    with patch.object(integration_main, "prepare_runtime") as prep, patch.object(
-        integration_main, "run_integration"
+    with patch.object(integration_main, "prepare_runtime") as prep, patch(
+        "integration.integration_runner.run_integration"
     ):
         with patch.object(integration_main.sys, "argv", ["integration"]):
             integration_main.main()

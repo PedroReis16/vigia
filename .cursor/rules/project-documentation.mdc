@@ -26,14 +26,13 @@ monorepo a cada conversa.
 | `vigia-api/` | API atual (.NET) + libs Fiware/Database/Cache/Cloud/Models |
 | `vigia-bootstrap/` | Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade |
 | `vigia-fall/` | Detecção no Raspberry Pi (Python, YOLO, MQTT, BLE) |
+| `vigia-onboard/` | Onboard edge: captura YOLO (Python), release `onboard` |
 | `vigia_ui/` | App Flutter do cuidador |
 | `vigia-web/` | Frontend web Angular (camadas `pages` → `usecases` → `services`) |
-| `vigia-services/` | API Go legado + CLI `vigia-bootstrap` (histórico) |
 | `docker-compose/` | Local (API .NET + FIWARE + MediaMTX) e deploy |
 
 Detalhes (endpoints, schema FIWARE, compose, CI, decisões) estão no doc — não
-duplique aqui. Atenção: **duas APIs coexistindo** (local = .NET; deploy/release
-de serviço ainda pode referenciar Go). Ao mudar contrato HTTP, confira o runtime.
+duplique aqui. Contrato HTTP da API: `vigia-api` (.NET).
 
 ### vigia-web (padrão de desenvolvimento)
 

@@ -61,6 +61,26 @@
             "envFile": "${workspaceFolder}/vigia-fall/.env",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Vigia.Onboard.Capture",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "capture",
+            "cwd": "${workspaceFolder}/vigia-onboard",
+            "envFile": "${workspaceFolder}/vigia-onboard/.env",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "onboard: setup capture",
+            "windows": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/Scripts/python.exe"
+            },
+            "osx": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
+            },
+            "linux": {
+                "python": "${workspaceFolder}/vigia-onboard/.venv/bin/python"
+            }
         }
     ],
     "compounds": [
@@ -77,6 +97,13 @@
                 "Vigia.Bootstrap",
                 "Vigia.Fall"
             ]
+        },
+        {
+            "name": "Debug Onboard",
+            "configurations": [
+                "Vigia.Onboard.Capture"
+            ],
+            "stopAll": true
         }
     ]
 }

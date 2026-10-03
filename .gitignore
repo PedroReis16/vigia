@@ -215,6 +215,10 @@ __marimo__/
 # YOLO pose exports (gerados on-demand; não commitados)
 vigia-fall/models/yolo/**
 !vigia-fall/models/yolo/.gitkeep
+vigia-onboard/capture/models/yolo/**
+!vigia-onboard/capture/models/yolo/.gitkeep
+vigia-onboard/vigia-capture/models/yolo/**
+!vigia-onboard/vigia-capture/models/yolo/.gitkeep
 
 backend/vigia-bootstrap
 
@@ -276,7 +280,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-vigia-services/apps/vigia-api/cmd/__debug_bin*
 docker-compose/**/certificates
 docker-compose/**/minio_data
 docker-compose/local/firebase-service-account.json
@@ -334,3 +337,7 @@ __screenshots__/
 Thumbs.db
 
 edge-data/
+
+# Binários locais do onboard (go build no Makefile)
+vigia-onboard/core/vigia-core
+vigia-onboard/core/vigia-core.exe

@@ -80,6 +80,7 @@ vigia/
 ├── vigia-api/              # API cloud .NET + bibliotecas compartilhadas
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
+├── vigia-onboard/          # Onboard edge: captura YOLO (export on-demand) e artefatos de release
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
@@ -89,7 +90,7 @@ vigia/
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
-└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall) e tasks do workspace
+└── .vscode/                # Launch configs (API, UI, Bootstrap, Fall, Onboard) e tasks do workspace
 ```
 
 ---
@@ -201,6 +202,70 @@ vigia/
 
 ---
 
+### vigia-onboard
+
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread, integração FIWARE/MQTT em processo isolado e streaming/clipes via Processes filhos do capture; base para o release `onboard`.
+
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX.
+
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make run` corre capture + integration em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
+
+**Pré-requisito (integration):** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed). Capture/core funcionam sem provisionamento; integration falha cedo se os ficheiros faltarem. Streaming RTMP exige `stream_ingest_url` em `network.json`.
+
+**Módulos principais (`shared/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
+| `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `.venv` e `requirements.txt` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` |
+| `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
+| `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
+| `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`); integration escreve, capture/workers leem |
+| `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips) |
+| `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S * FRAME_RATE`); escrito pelo Process de clips |
+
+**Módulos principais (`capture/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `__main__.py` | `python -m capture`: runtime + (opcional) YOLO + `run_capture` |
+| `capture_runner.py` | Loop YOLO pose + preview; blur → live SHM se export activo; supervisão dos workers `stream/` numa thread à parte |
+| `pose_extract.py` | Cópia `person_id` + keypoints `(17, 3)` + timestamp (sem imagem) |
+| `yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
+
+**Módulos principais (`core/`):** pacote no mesmo processo da captura, thread dedicada.
+
+| Módulo | Função |
+|--------|--------|
+| `frame_worker.py` | `save_points` (fila) + worker: filtra/valida → classifica → enqueue `fall_state` |
+| `frame_queue.py` | Fila in-process (`FRAME_RATE`, max 2, backpressure) |
+| `classifiers/` | `math` (default) e `gru` via `CLASSIFIER`; sem `classifier.json` nem hot-swap |
+| `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU |
+
+**Módulos principais (`stream/`):** biblioteca do capture (não é serviço Make).
+
+| Módulo | Função |
+|--------|--------|
+| `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
+| `stream_runner.py` | Process RTMP: live SHM → FFmpeg → MediaMTX enquanto `stream_on` |
+| `clips_runner.py` | Process janela: live SHM → ClipFrameRing enquanto `clips_enabled` (sem export nesta fase) |
+| `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
+| `mp_compat.py` | `freeze_support` + stop de filhos |
+
+**Módulos principais (`integration/`):**
+
+| Módulo | Função |
+|--------|--------|
+| `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` e `clips_on`/`off` → ControlShm |
+
+**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. Capture escreve LiveFrameShm; Processes filhos de `stream/` consomem (RTMP e janela de clips). Flags FIWARE via ControlShm. Export de clipes no FALL e montagem na API são follow-ups.
+
+**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/`, `tests/stream/` — pytest na raiz (`pythonpath` = `.`).
+
+---
+
 ### vigia_ui
 
 **Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push notifications.
@@ -258,6 +323,8 @@ vigia/
 ### seed-codes
 
 **Propósito:** Utilitários de desenvolvimento — frame assinado e mock do edge local (sem Pi/BLE).
+
+**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
 
 | Script | Função |
 |--------|--------|
@@ -531,11 +598,29 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-09-30] Onboard: supervisão de stream/clips sai do loop YOLO (thread + Event); escrita live SHM sem cópia extra (`stream/__init__.py`, `capture_runner.py`, `live_frame_shm.py`)
+- [2026-09-28] Onboard: módulo `stream/` (lib do capture) — Processes isolados RTMP/FFmpeg→MediaMTX e janela de clips 30s; ControlShm + LiveFrameShm + ClipFrameRing; cmds FIWARE `stream_*`/`clips_*` (`stream/`, `shared/stream_control.py`, `capture_runner`, `integration_runner`)
+- [2026-09-28] seed-codes: Makefile ponto de entrada (`seed`, `publish-frame`, `convert`, `deps`, `test`); `.env` opcional (`Makefile`)
+- [2026-09-28] Onboard: integração FIWARE/MQTT no processo `integration` (poll SHM → Ultralight attrs; cmds `device_update`/stream stub); `DATA_DIR` identity/network; `paho-mqtt` (`integration_runner`, `fall_ipc`, `settings`)
+- [2026-09-27] Onboard: classificação no `core/` (thread no capture); `save_points` só points brutos; math+GRU; SHM `fall_state`; sem `python -m core` (`.vscode` alinhado)
+- [2026-09-27] Onboard: `python -m integration` — `integration_root`, lazy `get_settings` no `shared`, Makefile + testes
+- [2026-09-27] Onboard: testes em `tests/` por módulo (`tests/shared/`, `tests/capture/`, `tests/core/`)
+- [2026-09-27] Onboard: inicialização individual `python -m capture` / `python -m core`; runtime e venv na raiz (`shared/runtime.py`, `Makefile`)
+- [2026-09-27] Docs: remove `vigia-services` (Go), `vigia-onboard-test` (C++) e integração Go do onboard; estrutura atual é Python (`docs/project-structure.md`, `.cursor/rules/project-documentation.mdc`, `.vscode`)
+- [2026-09-27] Onboard: `paths`, `settings` e `yolo_export` passam para `shared/` (`shared/`, `capture/src/`)
+- [2026-09-27] Onboard capture: `lap` para YOLO `track`/BoT-SORT (`capture/requirements.txt`)
+- [2026-09-26] Onboard: compound `Debug Onboard` + tarefa `onboard: run` (`.vscode/launch.json`, `.vscode/tasks.json`)
+- [2026-09-26] Onboard: Makefile deixa de fazer `export` global do `.env` (rebentava `require_file` no 2.º `make`) (`Makefile`)
+- [2026-09-26] Onboard: Makefile portátil Windows (`cmd`) e macOS/Linux (`sh`); bootstrap também procura `py`/`python` (`Makefile`, `capture/src/bootstrap.py`)
+- [2026-09-25] Onboard: `make capture` prepara o runtime e executa o loop OpenCV+YOLO (`src/bootstrap.py`, `src/capture_runner.py`, `src/settings.py`, `src/yolo_model.py`)
+- [2026-09-25] Onboard: export YOLO instala `onnx`/`onnxslim`, coloca o venv no PATH e desliga o AutoUpdate do Ultralytics (`Makefile`, `capture/requirements.txt`, `src/bootstrap.py`)
+- [2026-09-24] Onboard: raiz só Makefile + `.env`; `make capture` inicializa o venv/deps/YOLO de `capture/` (`src/bootstrap.py`)
 - [2026-09-23] API FIWARE: registration de comandos usa `Fiware:ProviderUrl` (`http://iot-agent:4041`); remove registrations órfãs no path Traefik `/iot` que faziam `START_STREAMING` retornar 502 (`FiwareService`, `OrionRegistrationSync`)
 - [2026-09-20] AlertService: resolve entity Orion `Sensor:{deviceId}` (clone IoT Agent) além de `urn:ngsi-ld:{name}`; Firebase local via `firebase-service-account.json` montado (`CredentialPath`)
 - [2026-09-19] API FIWARE: provisionamento MQTT inclui `apikey` do serviço; startup remove clones `Sensor:{deviceId}` e reprovisiona se faltar apikey (`FiwareService.RegisterSensorAsync`)
 - [2026-09-19] Fall: em SUSPECT, score na zona morna (≥ low) confirma FALL após `persistence_frames` (pós-impacto); só score < low aborta para NORMAL (`fall_detector.py`)
 - [2026-09-19] Fall: FrameWorker enfileira todas as classificações para o FIWARE (sem dedupe por estado); MQTT continua a publicar cada evento da SHM (`frame_worker`)
+- [2026-09-14] Onboard capture: YOLO pose por plataforma (ONNX/CoreML/NCNN) com export on-demand, alinhado ao fall (`vigia-capture/src/yolo_export.py`, `yolo_model.py`, `capture_runner.py`)
 - [2026-09-12] Fall: `FallDetector.update` completa transições SUSPECT→FALL/NORMAL/FALSE_POSITIVE por score persistente/timeout (`fall_detector.py`)
 - [2026-09-12] Fall: publicação FIWARE contínua em `suspect`/`fall` (todo frame do percurso NORMAL→SUSPECT→FALL); dedupe no capture só para `normal`/outros; FIWARE publica cada evento da SHM (`frame_worker`, `fiware_runner`)
 - [2026-09-12] Bootstrap: `WIFI_MOCK=true` grava `network.json` automaticamente em debug (`ensure_mock_network`, `MOCK_*` env)

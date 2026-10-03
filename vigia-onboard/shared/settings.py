@@ -45,7 +45,17 @@ class Settings:
     classifier: str = "math"
     slider_window_size: int = 30
     fall_shm_name: str = "vigia-onboard-fall"
+    stream_control_shm_name: str = "vigia-onboard-stream-ctrl"
+    live_shm_name: str = "vigia-onboard-live"
+    clip_shm_name: str = "vigia-onboard-clip"
+    clip_window_s: int = 30
+    clip_max_payload: int = 640 * 480 * 3
     data_dir: str = PROD_DATA_DIR
+
+    @property
+    def clip_slot_count(self) -> int:
+        """Slots da janela de clipes ≈ CLIP_WINDOW_S * FRAME_RATE."""
+        return max(1, int(self.clip_window_s) * max(1, int(self.frame_rate)))
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -70,6 +80,18 @@ class Settings:
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
             fall_shm_name=os.getenv("FALL_SHM_NAME", "vigia-onboard-fall").strip()
             or "vigia-onboard-fall",
+            stream_control_shm_name=os.getenv(
+                "STREAM_CONTROL_SHM_NAME", "vigia-onboard-stream-ctrl"
+            ).strip()
+            or "vigia-onboard-stream-ctrl",
+            live_shm_name=os.getenv("LIVE_SHM_NAME", "vigia-onboard-live").strip()
+            or "vigia-onboard-live",
+            clip_shm_name=os.getenv("CLIP_SHM_NAME", "vigia-onboard-clip").strip()
+            or "vigia-onboard-clip",
+            clip_window_s=max(1, int(os.getenv("CLIP_WINDOW_S", "30"))),
+            clip_max_payload=max(
+                1, int(os.getenv("CLIP_MAX_PAYLOAD", str(640 * 480 * 3)))
+            ),
             data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
         )
 

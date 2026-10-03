@@ -22,6 +22,7 @@ from shared.settings import (
     get_network_settings,
     resolve_ota_dir,
 )
+from shared.stream_control import set_clips_enabled, set_stream_status
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +34,6 @@ _device_id: str | None = None
 
 _LOCAL_MQTT_WS_PATH = "/vigia/fiware/mosquitto"
 _PROD_MQTT_WS_PATH = "/"
-
-
-def set_stream_status(enabled: bool) -> None:
-    """Hook para o processo de stream futuro; no-op enquanto stream/ for placeholder."""
-    logger.info("stream_status=%s (noop — stream process not wired)", enabled)
 
 
 def _write_ota_pending(revision: str) -> None:
@@ -93,6 +89,10 @@ def _on_message(_: mqtt.Client, __: Any, message: mqtt.MQTTMessage) -> None:
                 set_stream_status(True)
             case "stream_off":
                 set_stream_status(False)
+            case "clips_on":
+                set_clips_enabled(True)
+            case "clips_off":
+                set_clips_enabled(False)
             case "device_update":
                 _write_ota_pending(value)
             case _:

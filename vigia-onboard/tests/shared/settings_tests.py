@@ -47,6 +47,7 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("FRAME_RATE", "15")
     monkeypatch.setenv("CLASSIFIER", "gru")
     monkeypatch.setenv("SLIDER_WINDOW", "20")
+    monkeypatch.setenv("CLIP_WINDOW_S", "30")
     monkeypatch.setenv("DATA_DIR", "/tmp/edge-data")
     monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
 
@@ -60,6 +61,8 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.frame_rate == 15
     assert cfg.classifier == "gru"
     assert cfg.slider_window_size == 20
+    assert cfg.clip_window_s == 30
+    assert cfg.clip_slot_count == 450
     assert cfg.data_dir == "/tmp/edge-data"
 
 

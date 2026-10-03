@@ -74,6 +74,26 @@ def test_on_message_stream_on_nao_escreve_pending(
     assert not (tmp_path / "pending.json").exists()
 
 
+def test_on_message_clips_on_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
+    monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
+    monkeypatch.setattr(runner, "_device_id", "dev1")
+    called: dict[str, bool | None] = {"v": None}
+    monkeypatch.setattr(
+        runner, "set_clips_enabled", lambda v: called.__setitem__("v", v)
+    )
+    msg = MagicMock()
+    msg.payload = b"dev1@clips_on|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is True
+
+    msg.payload = b"dev1@clips_off|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is False
+
+
 @pytest.mark.parametrize(
     ("api_base_url", "expected"),
     [

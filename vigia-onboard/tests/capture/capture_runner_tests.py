@@ -18,6 +18,10 @@ def _settings(**overrides) -> SimpleNamespace:
         "blur_video": False,
         "capture_loop": False,
         "yolo_model": "yolo26s-pose",
+        "frame_rate": 12,
+        "live_shm_name": "vigia-onboard-live-test",
+        "clip_shm_name": "vigia-onboard-clip-test",
+        "clip_max_payload": 640 * 480 * 3,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -48,6 +52,11 @@ def capture_deps():
         patch.object(cr, "stop_core_worker"),
         patch.object(cr, "save_points"),
         patch.object(cr, "unpack_raw_points", return_value=[]),
+        patch.object(cr, "prepare_multiprocessing"),
+        patch.object(cr, "start_supervisor"),
+        patch.object(cr, "stop_supervisor"),
+        patch.object(cr, "export_active", return_value=False),
+        patch.object(cr, "_open_live_shm", return_value=None),
     ):
         yield SimpleNamespace(
             cap=cap,
@@ -184,3 +193,39 @@ def test_run_capture_ShowVideo_BlurEPlot(capture_deps):
     capture_deps.cv2.imshow.assert_called_once_with(
         "Preview movimentos", plotted
     )
+
+
+def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
+    live = MagicMock()
+    live.name = "live-test"
+    result = _result()
+    capture_deps.model.track.return_value = iter([result])
+
+    with (
+        patch.object(cr, "get_settings", return_value=_settings()),
+        patch.object(cr, "_open_live_shm", return_value=live),
+        patch.object(cr, "export_active", return_value=True),
+        patch.object(cr, "start_supervisor") as start,
+    ):
+        cr.run_capture()
+
+    live.write.assert_called_once_with("frame", 12)
+    start.assert_called_once()
+    live.reset_sequence.assert_called_once()
+    live.close.assert_called_once()
+    live.unlink.assert_called_once()
+
+
+def test_run_capture_FlagsOff_NaoEscreveLiveShm(capture_deps):
+    live = MagicMock()
+    live.name = "live-test"
+    capture_deps.model.track.return_value = iter([_result()])
+
+    with (
+        patch.object(cr, "get_settings", return_value=_settings()),
+        patch.object(cr, "_open_live_shm", return_value=live),
+        patch.object(cr, "export_active", return_value=False),
+    ):
+        cr.run_capture()
+
+    live.write.assert_not_called()

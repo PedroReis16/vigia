@@ -342,7 +342,8 @@ vigia/
 
 | Path | Uso |
 |------|-----|
-| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
+| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
+| `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -352,7 +353,9 @@ vigia/
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`.
+
+**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
 ---
 
@@ -598,6 +601,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-03] Compose local: Keycloak atrás do Traefik em `/auth` (`docker-compose/local/docker-compose.yaml`)
+- [2026-10-03] Compose local: Keycloak no mesmo Postgres da API, isolado no schema `keycloak` (`docker-compose/local/docker-compose.yaml`, `postgres/init/01-keycloak-schema.sql`)
 - [2026-09-30] Onboard: supervisão de stream/clips sai do loop YOLO (thread + Event); escrita live SHM sem cópia extra (`stream/__init__.py`, `capture_runner.py`, `live_frame_shm.py`)
 - [2026-09-28] Onboard: módulo `stream/` (lib do capture) — Processes isolados RTMP/FFmpeg→MediaMTX e janela de clips 30s; ControlShm + LiveFrameShm + ClipFrameRing; cmds FIWARE `stream_*`/`clips_*` (`stream/`, `shared/stream_control.py`, `capture_runner`, `integration_runner`)
 - [2026-09-28] seed-codes: Makefile ponto de entrada (`seed`, `publish-frame`, `convert`, `deps`, `test`); `.env` opcional (`Makefile`)

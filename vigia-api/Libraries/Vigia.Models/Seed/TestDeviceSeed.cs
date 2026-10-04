@@ -35,7 +35,6 @@ public static class TestDeviceSeed
         Nickname = Nickname,
         MacAddress = MacAddress,
         Room = Room,
-        SignPublicKey = SignPublicKey,
         GroupId = GroupId,
         CreatedAt = CreatedAt,
         UpdatedAt = null,

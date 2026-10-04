@@ -59,14 +59,14 @@ public class MigrationStartupFilter<TContext> : IStartupFilter where TContext : 
         }
 
         // Keep DEBUG test device sign key in sync with TestDeviceSeed (pair used by seed-codes).
-        if (!string.Equals(existing.SignPublicKey, TestDeviceSeed.SignPublicKey, StringComparison.OrdinalIgnoreCase))
-        {
-            existing.SignPublicKey = TestDeviceSeed.SignPublicKey;
-            db.SaveChanges();
-            logger?.LogInformation(
-                "SignPublicKey do device de teste {DeviceId} atualizada (DEBUG)",
-                TestDeviceSeed.Id);
-        }
+        // if (!string.Equals(existing.SignPublicKey, TestDeviceSeed.SignPublicKey, StringComparison.OrdinalIgnoreCase))
+        // {
+        //     existing.SignPublicKey = TestDeviceSeed.SignPublicKey;
+        //     db.SaveChanges();
+        //     logger?.LogInformation(
+        //         "SignPublicKey do device de teste {DeviceId} atualizada (DEBUG)",
+        //         TestDeviceSeed.Id);
+        // }
     }
 #endif
 }

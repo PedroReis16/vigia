@@ -9,7 +9,6 @@ namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize]
 public class DevicesController(IDevicesService service) : ControllerBase
 {
     private readonly IDevicesService _service = service;

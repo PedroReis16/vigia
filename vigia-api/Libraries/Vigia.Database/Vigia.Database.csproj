@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Vigia.Database.UnitTests" />
+    <InternalsVisibleTo Include="Vigia.API.UnitTests" />
   </ItemGroup>
 
 </Project>

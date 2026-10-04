@@ -38,21 +38,6 @@ namespace Vigia.Database.Migrations
                     b.ToTable("GroupUser");
                 });
 
-            modelBuilder.Entity("UserUserRole", b =>
-                {
-                    b.Property<string>("RolesId")
-                        .HasColumnType("varchar");
-
-                    b.Property<Guid>("UsersId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("RolesId", "UsersId");
-
-                    b.HasIndex("UsersId");
-
-                    b.ToTable("UserUserRole");
-                });
-
             modelBuilder.Entity("Vigia.Models.Entities.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -98,12 +83,6 @@ namespace Vigia.Database.Migrations
                     b.Property<DeviceRooms?>("Room")
                         .HasColumnType("device_rooms")
                         .HasColumnName("room");
-
-                    b.Property<string>("SignPublicKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("sign_public_key");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone")
@@ -304,74 +283,6 @@ namespace Vigia.Database.Migrations
                     b.ToTable("group_invites", (string)null);
                 });
 
-            modelBuilder.Entity("Vigia.Models.Entities.RefreshToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("expires_at");
-
-                    b.Property<string>("ReplacedToken")
-                        .HasColumnType("text")
-                        .HasColumnName("replaced_token");
-
-                    b.Property<string>("RequestIp")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("created_by_ip");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("revoked_at");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("token");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("DeletedAt");
-
-                    b.HasIndex("ReplacedToken")
-                        .IsUnique();
-
-                    b.HasIndex("RequestIp");
-
-                    b.HasIndex("Token")
-                        .IsUnique();
-
-                    b.HasIndex("UpdatedAt");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("refresh_tokens", (string)null);
-                });
-
             modelBuilder.Entity("Vigia.Models.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -395,21 +306,11 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("email");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("Phone")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("name");
-
-                    b.Property<byte[]>("Password")
-                        .IsRequired()
-                        .HasColumnType("bytea")
-                        .HasColumnName("password");
-
-                    b.Property<byte[]>("Salt")
-                        .IsRequired()
-                        .HasColumnType("bytea")
-                        .HasColumnName("salt");
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("phone");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone")
@@ -423,22 +324,11 @@ namespace Vigia.Database.Migrations
 
                     b.HasIndex("Email");
 
-                    b.HasIndex("Name");
+                    b.HasIndex("Phone");
 
                     b.HasIndex("UpdatedAt");
 
                     b.ToTable("users", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b"),
-                            CreatedAt = new DateTime(2026, 7, 27, 17, 42, 22, 525, DateTimeKind.Utc).AddTicks(2940),
-                            Email = "admin",
-                            Name = "Super usuário",
-                            Password = new byte[] { 81, 63, 165, 86, 58, 124, 112, 36, 10, 178, 217, 152, 172, 164, 210, 132, 253, 161, 96, 153, 164, 26, 37, 230, 224, 66, 50, 93, 84, 223, 94, 216 },
-                            Salt = new byte[] { 2, 20, 73, 2, 70, 73, 43, 120, 27, 233, 195, 53, 98, 210, 219, 129 }
-                        });
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.UserPushToken", b =>
@@ -494,31 +384,6 @@ namespace Vigia.Database.Migrations
                     b.ToTable("user_push_tokens", (string)null);
                 });
 
-            modelBuilder.Entity("Vigia.Models.Entities.UserRole", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(16)
-                        .HasColumnType("varchar")
-                        .HasColumnName("id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Id")
-                        .IsUnique();
-
-                    b.ToTable("user_roles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = "ADMIN"
-                        },
-                        new
-                        {
-                            Id = "USER"
-                        });
-                });
-
             modelBuilder.Entity("GroupUser", b =>
                 {
                     b.HasOne("Vigia.Models.Entities.Group", null)
@@ -530,21 +395,6 @@ namespace Vigia.Database.Migrations
                     b.HasOne("Vigia.Models.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("LinkedUsersId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("UserUserRole", b =>
-                {
-                    b.HasOne("Vigia.Models.Entities.UserRole", null)
-                        .WithMany()
-                        .HasForeignKey("RolesId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Vigia.Models.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("UsersId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

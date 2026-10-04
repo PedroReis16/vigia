@@ -6,6 +6,7 @@ ARG BUILD_CONFIGURATION=Release
 
 # Project files first (restore cache)
 COPY vigia-api/Vigia.API/Vigia.API.csproj Vigia.API/
+COPY vigia-api/Libraries/Vigia.AMQP/Vigia.AMQP.csproj Libraries/Vigia.AMQP/
 COPY vigia-api/Libraries/Vigia.Models/Vigia.Models.csproj Libraries/Vigia.Models/
 COPY vigia-api/Libraries/Vigia.Database/Vigia.Database.csproj Libraries/Vigia.Database/
 COPY vigia-api/Libraries/Vigia.Cache/Vigia.Cache.csproj Libraries/Vigia.Cache/

@@ -19,6 +19,7 @@ using Vigia.Fiware.Extensions;
 using Microsoft.AspNetCore.SignalR;
 using Vigia.API.Extensions;
 using Vigia.Cloud.Extensions;
+using Vigia.AMQP.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -56,13 +57,15 @@ builder.Services.AddCloudServices(builder.Configuration);
 // Firebase push notifications
 builder.Services.AddFirebasePushNotifications(builder.Configuration);
 
+builder.Services.AddRabbitMq();
+builder.Services.AddScoped<IKeycloakUserSyncService, KeycloakUserSyncService>();
+builder.Services.AddHostedService<KeycloakUserSyncConsumer>();
+
 // Services
-builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IDeviceShareService, DeviceShareService>();
-builder.Services.AddTransient<IAuthService, AuthService>();
 builder.Services.AddTransient<IDeviceCommandsService, DeviceCommandsService>();
 builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
@@ -81,7 +84,6 @@ builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>
 builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
 
-builder.Services.AddSingleton<IDeviceSignPublicKeyProvider, DeviceSignPublicKeyProvider>();
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

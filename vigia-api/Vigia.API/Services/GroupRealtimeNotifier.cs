@@ -25,49 +25,50 @@ public class GroupRealtimeNotifier(
 
     private async Task NotifyAsync(Guid groupId, Guid affectedUserId, string changeType)
     {
-        try
-        {
-            using IServiceScope scope = _scopeFactory.CreateScope();
-            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
-            IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
 
-            List<Guid> memberIds = (await userDao.GetUsersByGroupAsync(groupId))
-                .Select(u => u.Id)
-                .ToList();
+        // try
+        // {
+        //     using IServiceScope scope = _scopeFactory.CreateScope();
+        //     IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
+        //     IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
 
-            if (!memberIds.Contains(affectedUserId))
-                memberIds.Add(affectedUserId);
+        //     List<Guid> memberIds = (await userDao.GetUsersByGroupAsync(groupId))
+        //         .Select(u => u.Id)
+        //         .ToList();
 
-            List<Guid> deviceIds = await devicesDao.GetDeviceIdsByGroupAsync(groupId);
+        //     if (!memberIds.Contains(affectedUserId))
+        //         memberIds.Add(affectedUserId);
 
-            GroupMembershipChangedDTO payload = new()
-            {
-                GroupId = groupId,
-                AffectedUserId = affectedUserId,
-                ChangeType = changeType,
-                DeviceIds = deviceIds,
-            };
+        //     List<Guid> deviceIds = await devicesDao.GetDeviceIdsByGroupAsync(groupId);
 
-            // Prefer explicit per-user SignalR groups (joined in OnConnectedAsync).
-            // Also fan-out via Clients.User as a secondary path.
-            foreach (Guid memberId in memberIds)
-            {
-                string key = memberId.ToString();
-                await _hubContext.Clients
-                    .Group(DeviceGroupsHub.UserGroupName(key))
-                    .SendAsync(MembershipChangedEvent, payload);
-                await _hubContext.Clients
-                    .User(key)
-                    .SendAsync(MembershipChangedEvent, payload);
-            }
+        //     GroupMembershipChangedDTO payload = new()
+        //     {
+        //         GroupId = groupId,
+        //         AffectedUserId = affectedUserId,
+        //         ChangeType = changeType,
+        //         DeviceIds = deviceIds,
+        //     };
 
-            _logger.LogInformation(
-                "SignalR {Event} group={GroupId} user={UserId} type={ChangeType} recipients={Count} devices={DeviceCount}",
-                MembershipChangedEvent, groupId, affectedUserId, changeType, memberIds.Count, deviceIds.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Falha ao notificar alteração de membros do grupo {GroupId}", groupId);
-        }
+        //     // Prefer explicit per-user SignalR groups (joined in OnConnectedAsync).
+        //     // Also fan-out via Clients.User as a secondary path.
+        //     foreach (Guid memberId in memberIds)
+        //     {
+        //         string key = memberId.ToString();
+        //         await _hubContext.Clients
+        //             .Group(DeviceGroupsHub.UserGroupName(key))
+        //             .SendAsync(MembershipChangedEvent, payload);
+        //         await _hubContext.Clients
+        //             .User(key)
+        //             .SendAsync(MembershipChangedEvent, payload);
+        //     }
+
+        //     _logger.LogInformation(
+        //         "SignalR {Event} group={GroupId} user={UserId} type={ChangeType} recipients={Count} devices={DeviceCount}",
+        //         MembershipChangedEvent, groupId, affectedUserId, changeType, memberIds.Count, deviceIds.Count);
+        // }
+        // catch (Exception ex)
+        // {
+        //     _logger.LogError(ex, "Falha ao notificar alteração de membros do grupo {GroupId}", groupId);
+        // }
     }
 }

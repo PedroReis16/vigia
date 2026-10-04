@@ -7,119 +7,54 @@ using Vigia.Models.Exceptions;
 
 namespace Vigia.Database.EFDao;
 
-internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : BaseDao<User>(context, cache), IUserDao
+internal class UserDao(VigiaDbContext context) : BaseDao<User>(context), IUserDao
 {
-    protected override IUserDaoCache? GetCache() => Cache as IUserDaoCache;
+    protected override IRepositoryCache<User>? GetCache() => null;
 
-    protected override Task ValidateEntityForInsert(params User[] obj)
+    protected override Task ValidateEntityForInsert(params User[] obj) => Task.CompletedTask;
+
+    protected override Task ValidateEntityForUpdate(params User[] obj) => Task.CompletedTask;
+
+    public async Task UpsertAsync(User user)
     {
-        return Task.CompletedTask;
-    }
+        if (user.Id == Guid.Empty)
+            throw new EntityValidationException(nameof(user.Id), "O ID do usuário é obrigatório", ErrorCodes.USER_ID_REQUIRED);
 
-    protected override Task ValidateEntityForUpdate(params User[] obj)
-    {
-        throw new NotImplementedException();
-    }
+        DbSet<User> dbSet = Context.Set<User>();
+        User? existing = await dbSet.FirstOrDefaultAsync(u => u.Id == user.Id);
 
-    public override async Task<User?> FindAsync(object key, bool track = false)
-    {
-        User? result = null;
-
-        if (!track && Cache != null)
+        if (existing is null)
         {
-            result = Cache.GetEntity(key.ToString()!);
-
-            // Ignore stale login stubs cached without Name/LinkedGroups.
-            if (result != null &&
-                !string.IsNullOrEmpty(result.Name) &&
-                result.LinkedGroups != null)
-            {
-                return result;
-            }
-
-            if (result != null)
-                Cache.RemoveEntity(result);
-        }
-
-        IQueryable<User> query = Context.Set<User>()
-            .Where(u => u.Id.Equals(key) && u.DeletedAt == null)
-            .Include(u => u.Roles)
-            .Include(u => u.LinkedGroups);
-
-        if (!track)
-            query = query.AsNoTracking();
-
-        result = await query.FirstOrDefaultAsync();
-
-        if (result != null && !track)
-            Cache?.AddEntity(result);
-
-        return result;
-    }
-
-    public async Task<User?> FindUserByEmailAsync(string email)
-    {
-        User? result = null;
-
-        // Não consulta no cache pois essa consulta é feita apenas para a autenticação do usuário, demais consultas são feitas através do id do usuário
-        IQueryable<User> query = Context.Set<User>()
-            .Where(u => u.Email.Equals(email) && u.DeletedAt == null)
-            .Include(u => u.Roles)
-            .Select(u => new User
-            {
-                Id = u.Id,
-                Salt = u.Salt,
-                Password = u.Password,
-                Roles = u.Roles.Select(r => new UserRole(r.Id)
-                ).ToList(),
-            });
-
-        result = await query.FirstOrDefaultAsync();
-
-        // Never cache this projection: it omits Name/Email/LinkedGroups and would
-        // poison FindAsync(userId) used by track/claim and other flows.
-        return result;
-    }
-
-    public override async Task<int> AddAsync(params User[] obj)
-    {
-        DbSet<User> users = Context.Set<User>();
-
-        User newUser = obj[0];
-
-        User? trackedUser = await users.Where(u => u.Email.Equals(newUser.Email)).FirstOrDefaultAsync();
-
-        List<UserRole> roles = await Context.Set<UserRole>().Where(r => r.Id.Equals("USER")).ToListAsync();
-
-        if (trackedUser == null)
-        {
-            newUser.Roles = roles;
-            users.Add(newUser);
+            user.DeletedAt = null;
+            user.CreatedAt = DateTime.UtcNow;
+            dbSet.Add(user);
         }
         else
         {
-            if (trackedUser.DeletedAt == null)
-                throw new EntityValidationException(nameof(User), "O email já está em uso para um outro usuário", ErrorCodes.USER_EMAIL_ALREADY_IN_USE);
-
-            trackedUser.Name = newUser.Name;
-            trackedUser.Email = newUser.Email;
-            trackedUser.Password = newUser.Password;
-            trackedUser.Salt = newUser.Salt;
-            trackedUser.UpdatedAt = DateTime.UtcNow;
-            trackedUser.DeletedAt = null;
-
-            Cache?.RemoveEntity(trackedUser);
-            users.Update(trackedUser);
+            existing.Email = user.Email;
+            existing.Phone = user.Phone;
+            existing.DeletedAt = null;
+            existing.UpdatedAt = DateTime.UtcNow;
+            dbSet.Update(existing);
         }
 
-        return await Context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
     }
-    
-    public async Task<List<User>> GetUsersByGroupAsync(Guid groupId)
+
+    public async Task SoftDeleteAsync(Guid userId)
     {
-        return await Context.Set<User>()
-            .Where(u => u.LinkedGroups.Any(g => g.Id == groupId) && u.DeletedAt == null)
-            .AsNoTracking()
-            .ToListAsync();
+        if (userId == Guid.Empty)
+            return;
+
+        DbSet<User> dbSet = Context.Set<User>();
+        User? existing = await dbSet.FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null);
+        if (existing is null)
+            return;
+
+        DateTime now = DateTime.UtcNow;
+        existing.DeletedAt = now;
+        existing.UpdatedAt = now;
+        dbSet.Update(existing);
+        await Context.SaveChangesAsync();
     }
 }

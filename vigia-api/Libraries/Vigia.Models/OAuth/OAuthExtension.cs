@@ -33,8 +33,6 @@ public static class OAuthExtension
             })
             .AddScheme<AuthenticationSchemeOptions, AllowAnonymousAuthenticationHandler>(
                 AllowAnonymousDefaults.AllowAnonymousScheme, _ => { })
-            .AddScheme<AuthenticationSchemeOptions, DeviceSignatureAuthenticationHandler>(
-                DeviceSignatureDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, FrameAccessTokenAuthenticationHandler>(
                 FrameAccessTokenDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, MediaMtxTokenAuthenticationHandler>(

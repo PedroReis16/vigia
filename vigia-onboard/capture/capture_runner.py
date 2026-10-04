@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import cv2  # type: ignore
 
+from shared.capture_gate import (
+    capture_allowed,
+    clear_capture_pid,
+    consume_capture_restart,
+    restart_pending,
+    write_capture_pid,
+)
 from shared.live_frame_shm import DEFAULT_MAX_PAYLOAD, LiveFrameShm
 from shared.settings import get_settings
 from core import save_points, start_core_worker, stop_core_worker
@@ -17,6 +25,7 @@ from .yolo_model import get_yolo_model
 
 logger = logging.getLogger(__name__)
 
+_GATE_POLL_S = 0.2
 _BLUR_KSIZE = 51
 _YOLO_STREAM_KWARGS: dict[str, Any] = {
     "stream": True,
@@ -102,11 +111,27 @@ def _open_live_shm(settings) -> LiveFrameShm | None:
         return None
 
 
-def run_capture() -> None:
-    """Loop principal: lê a fonte em stream YOLO e mostra preview se pedido."""
+def _wait_until_allowed() -> None:
+    """Bloqueia até identity.json, network.json e ausência de capture.hold."""
+    announced = False
+    while not capture_allowed():
+        if not announced:
+            logger.info(
+                "Captura bloqueada até o provisionamento (identity, network, sem hold)"
+            )
+            announced = True
+        time.sleep(_GATE_POLL_S)
+
+
+def _run_capture_session() -> str:
+    """Uma sessão de câmera. Devolve done, hold ou restart."""
+    if restart_pending():
+        consume_capture_restart()
+
     show_video = False
     cap = None
     live_shm: LiveFrameShm | None = None
+    write_capture_pid()
 
     try:
         prepare_multiprocessing()
@@ -152,6 +177,10 @@ def run_capture() -> None:
         while True:
             had_frame = False
             for result in _stream_results(yolo_model, source):
+                if not capture_allowed():
+                    return "hold"
+                if restart_pending():
+                    return "restart"
                 had_frame = True
                 if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
                     interrupted = True
@@ -172,15 +201,20 @@ def run_capture() -> None:
                 if show_video:
                     cv2.imshow("Preview movimentos", preview)
 
+            if not capture_allowed():
+                return "hold"
+            if restart_pending():
+                return "restart"
             if not _should_restart_stream(
                 source, capture_loop, had_frame, interrupted
             ):
-                break
+                return "done"
 
     except Exception as exc:
         logger.error("Erro ao executar a captura: %s", exc)
         raise
     finally:
+        clear_capture_pid()
         stop_supervisor()
         stop_core_worker()
         if live_shm is not None:
@@ -192,3 +226,12 @@ def run_capture() -> None:
         if cap is not None:
             cap.release()
         logger.info("Captura encerrada")
+
+
+def run_capture() -> None:
+    """Espera o gate e corre sessões até a fonte terminar sem restart nem hold."""
+    while True:
+        _wait_until_allowed()
+        reason = _run_capture_session()
+        if reason == "done":
+            return

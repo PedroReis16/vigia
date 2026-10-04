@@ -57,6 +57,11 @@ def capture_deps():
         patch.object(cr, "stop_supervisor"),
         patch.object(cr, "export_active", return_value=False),
         patch.object(cr, "_open_live_shm", return_value=None),
+        patch.object(cr, "capture_allowed", return_value=True),
+        patch.object(cr, "restart_pending", return_value=False),
+        patch.object(cr, "write_capture_pid"),
+        patch.object(cr, "clear_capture_pid"),
+        patch.object(cr, "consume_capture_restart"),
     ):
         yield SimpleNamespace(
             cap=cap,
@@ -76,6 +81,43 @@ def test_should_restart_stream_SoArquivoComLoopEFrames():
     assert not cr._should_restart_stream("/tmp/clip.mp4", False, True, False)
     assert not cr._should_restart_stream("/tmp/clip.mp4", True, False, False)
     assert not cr._should_restart_stream("/tmp/clip.mp4", True, True, True)
+
+
+def test_run_capture_GateFechado_NaoAbreCamera(capture_deps, monkeypatch):
+    monkeypatch.setattr(cr, "capture_allowed", lambda: False)
+
+    def _sleep(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cr.time, "sleep", _sleep)
+    with pytest.raises(KeyboardInterrupt):
+        cr.run_capture()
+    capture_deps.model.track.assert_not_called()
+
+
+def test_run_capture_Restart_AbreNovaSessao(capture_deps, monkeypatch):
+    flag = {"on": False}
+    monkeypatch.setattr(cr, "restart_pending", lambda: flag["on"])
+
+    def _consume() -> bool:
+        flag["on"] = False
+        return True
+
+    monkeypatch.setattr(cr, "consume_capture_restart", _consume)
+
+    saves = {"n": 0}
+
+    def _save(_points) -> None:
+        saves["n"] += 1
+        if saves["n"] == 1:
+            flag["on"] = True
+
+    monkeypatch.setattr(cr, "save_points", _save)
+    capture_deps.model.track.side_effect = [iter([_result("a")]), iter([_result("b")])]
+
+    cr.run_capture()
+
+    assert capture_deps.model.track.call_count == 2
 
 
 def test_run_capture_FonteFechada_Levanta(capture_deps):

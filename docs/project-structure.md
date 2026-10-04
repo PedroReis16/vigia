@@ -208,21 +208,22 @@ vigia/
 
 ### vigia-onboard
 
-**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread, integração FIWARE/MQTT em processo isolado e streaming/clipes via Processes filhos do capture; base para o release `onboard`.
+**Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread, integração FIWARE/MQTT em processo isolado, streaming/clipes via Processes filhos do capture, e control plane (`interface`: BLE, Wi-Fi, LCD, gate da captura) no mesmo instalador; base para o release `onboard`.
 
-**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX.
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX. Control plane: asyncio, `cryptography`, `getmac`, `gpiozero`/`RPLCD` (LCD; degradam sem hardware), `bless` só em Linux.
 
-**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make run` corre capture + integration em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
+**Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make interface` / `python -m interface` é o control plane (BLE, Wi-Fi, LCD, gate). `make run` corre capture + integration + interface em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
-**Pré-requisito (integration):** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed). Capture/core funcionam sem provisionamento; integration falha cedo se os ficheiros faltarem. Streaming RTMP exige `stream_ingest_url` em `network.json`.
+**Pré-requisito:** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed) e ausência de `capture.hold`. Capture e integration esperam esses ficheiros em vez de falhar; o interface escreve-os (BLE ou `WIFI_MOCK`) e abre o gate. Com seed já presente e sem hold, `make capture` segue. Streaming RTMP exige `stream_ingest_url` em `network.json`. `classifier.json` (`math`|`gru`) é a preferência de modelo; sem ficheiro, vale `CLASSIFIER` do ambiente.
 
 **Módulos principais (`shared/`):**
 
 | Módulo | Função |
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
-| `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` |
+| `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `interface/`, `.venv` e `requirements.txt` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` |
+| `capture_gate.py` | `capture.hold` (bloqueia), `capture.restart` (releitura do modelo), `capture.pid` (CPU/RAM e “serviço activo”) |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 | `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`); integration escreve, capture/workers leem |
@@ -244,7 +245,7 @@ vigia/
 |--------|--------|
 | `frame_worker.py` | `save_points` (fila) + worker: filtra/valida → classifica → enqueue `fall_state` |
 | `frame_queue.py` | Fila in-process (`FRAME_RATE`, max 2, backpressure) |
-| `classifiers/` | `math` (default) e `gru` via `CLASSIFIER`; sem `classifier.json` nem hot-swap |
+| `classifiers/` | `math` (default) e `gru`; lê `classifier.json` no arranque da sessão (fallback `CLASSIFIER` se o ficheiro não existir); restart via `capture.restart`, sem hot-swap |
 | `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU |
 
 **Módulos principais (`stream/`):** biblioteca do capture (não é serviço Make).
@@ -262,11 +263,21 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
-| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` e `clips_on`/`off` → ControlShm |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` e `clips_on`/`off` → ControlShm; espera o provisionamento e não publica com o gate fechado |
+
+**Módulos principais (`interface/`):** control plane no mesmo instalador (porte do `vigia-bootstrap`). `python -m interface` não exporta YOLO.
+
+| Módulo | Função |
+|--------|--------|
+| `__main__.py` / `interface_runner.py` | Runtime + loop asyncio: LCD e supervisor de provisionamento |
+| `provision/` | BLE, Wi-Fi, identidade, `classifier.json`, estado de pareamento, OTA do pacote `onboard/`, gate (hold/release/restart) no lugar de `systemctl` do fall |
+| `ui/` | LCD 16x2, menu (CPU/RAM, Wi-Fi, serviço, modelo, OTA), GPIO; sem hardware degrada para no-op |
 
 **IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. Capture escreve LiveFrameShm; Processes filhos de `stream/` consomem (RTMP e janela de clips). Flags FIWARE via ControlShm. Export de clipes no FALL e montagem na API são follow-ups.
 
-**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/`, `tests/stream/` — pytest na raiz (`pythonpath` = `.`).
+**Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/`, `tests/stream/`, `tests/interface/` — pytest na raiz (`pythonpath` = `.`).
+
+O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o control plane do instalador `onboard`.
 
 ---
 
@@ -617,6 +628,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Onboard: módulo `interface` (porte do control plane do bootstrap no mesmo instalador); gate `capture.hold`/`restart`/`pid` bloqueia captura e integração até o provisionamento; `classifier.json` (`interface/`, `shared/capture_gate.py`, `capture_runner`, `integration_runner`)
 - [2026-10-04] Keycloak: telefone obrigatório no perfil do usuário e no cadastro do tema `vigia` (`user-profile.json`, `themes/vigia/login/`, `apply-smtp.sh`)
 - [2026-10-04] Compose local: MailHog recebe e-mails do Keycloak (verificação e redefinição de senha) (`docker-compose/local/docker-compose.yaml`, `keycloak/apply-smtp.sh`, `realm-export.json`)
 - [2026-10-04] Compose local: Keycloak importa o realm `vigia` no start a partir de `realm-export.json` (`docker-compose/local/docker-compose.yaml`)

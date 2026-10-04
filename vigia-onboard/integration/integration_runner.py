@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -15,6 +16,7 @@ from urllib.parse import urlparse
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
+from shared.capture_gate import capture_allowed
 from shared.event_types import EVENT_FALL_STATE
 from shared.fall_ipc import attach_fall_shm, normalize_fall_state
 from shared.settings import (
@@ -165,6 +167,29 @@ def _publish_fall_state(client: mqtt.Client, topic: str, state: str) -> None:
     logger.info("fall_state=%s", state)
 
 
+def _reset_provision_cache() -> None:
+    for fn in (get_device_identity, get_network_settings):
+        clear = getattr(fn, "cache_clear", None)
+        if clear is not None:
+            clear()
+
+
+def _wait_for_provision():
+    """Espera identity.json e network.json. Não liga o MQTT antes disso."""
+    announced = False
+    while True:
+        _reset_provision_cache()
+        try:
+            return get_device_identity(), get_network_settings()
+        except FileNotFoundError:
+            if not announced:
+                logger.info(
+                    "Integração à espera de identity.json e network.json"
+                )
+                announced = True
+            time.sleep(0.5)
+
+
 def run_integration() -> None:
     """
     Processo principal de integração: MQTT persistente + poll da fall SHM.
@@ -173,12 +198,7 @@ def run_integration() -> None:
 
     logger.info("Integration running")
 
-    try:
-        identity = get_device_identity()
-        network_settings = get_network_settings()
-    except FileNotFoundError as error:
-        logger.error("Provisionamento em falta: %s", error)
-        raise
+    identity, network_settings = _wait_for_provision()
 
     OTA_DIR = resolve_ota_dir()
     PENDING_PATH = OTA_DIR / "pending.json"
@@ -198,6 +218,9 @@ def run_integration() -> None:
     fall_shm = attach_fall_shm()
     try:
         while True:
+            if not capture_allowed():
+                time.sleep(0.05)
+                continue
             event = fall_shm.read_next(timeout=0.05)
             if event is None:
                 continue

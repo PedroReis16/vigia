@@ -11,7 +11,9 @@
 #   make capture SETUP_ONLY=1     # só venv/deps/modelo
 #   make integration              # setup + processo de integração
 #   make integration SETUP_ONLY=1 # só venv/deps
-#   make run                      # capture + integration em paralelo
+#   make interface                # setup + control plane (BLE, Wi-Fi, LCD, gate)
+#   make interface SETUP_ONLY=1   # só venv/deps
+#   make run                      # capture + integration + interface em paralelo
 # =============================================================================
 
 # python3 no macOS é muitas vezes o 3.9 do Xcode; o onboard precisa de >= 3.12.
@@ -22,12 +24,12 @@ else
 HOST_PYTHON ?= $(shell command -v python3.12 || command -v python3.13 || command -v python3)
 endif
 
-PROJECTS := capture integration
+PROJECTS := capture integration interface
 
 # `.env` em KEY=VALUE (veja .env.example). Só estas chaves vão para o ambiente
 # das receitas — `export` sozinho exporta também require_* e o $(error) dispara
 # com mensagem vazia (`Makefile:38: *** .  Stop.`) assim que o .env existe.
-ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO FRAME_RATE CLASSIFIER SLIDER_WINDOW FALL_SHM_NAME STREAM_CONTROL_SHM_NAME LIVE_SHM_NAME CLIP_SHM_NAME CLIP_WINDOW_S CLIP_MAX_PAYLOAD DATA_DIR VIGIA_OTA_DIR
+ONBOARD_ENV_KEYS := CAPTURE_SOURCE SHOW_VIDEO SHOW_YOLO_PLOT CAPTURE_LOOP YOLO_MODEL YOLO_IMGSZ SHOW_PLOT BLUR_VIDEO FRAME_RATE CLASSIFIER SLIDER_WINDOW FALL_SHM_NAME STREAM_CONTROL_SHM_NAME LIVE_SHM_NAME CLIP_SHM_NAME CLIP_WINDOW_S CLIP_MAX_PAYLOAD DATA_DIR VIGIA_OTA_DIR VIGIA_INSTALL_ROOT DEBUG BLE_ENABLED WIFI_MOCK WIFI_MOCK_RESULT LCD_ENABLED MOCK_WIFI_SSID MOCK_WIFI_PASSWORD MOCK_API_BASE_URL MOCK_FIWARE_API_KEY MOCK_STREAM_INGEST_URL
 ifneq ($(wildcard $(CURDIR)/.env),)
 include $(CURDIR)/.env
 export $(ONBOARD_ENV_KEYS)
@@ -47,7 +49,9 @@ help:
 	@echo   make capture SETUP_ONLY=1     so venv/deps/modelo
 	@echo   make integration              setup + processo de integracao
 	@echo   make integration SETUP_ONLY=1 so venv/deps
-	@echo   make run                      capture + integration em paralelo
+	@echo   make interface                setup + control plane
+	@echo   make interface SETUP_ONLY=1   so venv/deps
+	@echo   make run                      capture + integration + interface em paralelo
 	@echo Configuracao: .env nesta pasta (veja .env.example).
 	@echo Windows: HOST_PYTHON=py (ou python). macOS: python3.12+.
 	@echo Projetos: $(PROJECTS)

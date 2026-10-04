@@ -150,16 +150,24 @@ def test_fiware_loop_normaliza_aliases_por_evento() -> None:
     ]
 
 
-def test_run_integration_FalhaSemProvisionamento(
+def test_run_integration_EsperaProvisionamento(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        runner,
-        "get_device_identity",
-        MagicMock(side_effect=FileNotFoundError("Identity file not found")),
-    )
-    with pytest.raises(FileNotFoundError):
+    sleeps = {"n": 0}
+
+    def _missing():
+        raise FileNotFoundError("Identity file not found")
+
+    def _sleep(_seconds: float) -> None:
+        sleeps["n"] += 1
+        if sleeps["n"] >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "get_device_identity", _missing)
+    monkeypatch.setattr(runner.time, "sleep", _sleep)
+    with pytest.raises(KeyboardInterrupt):
         runner.run_integration()
+    assert sleeps["n"] >= 1
 
 
 def test_run_integration_PublicaEventosDaShm(
@@ -205,6 +213,7 @@ def test_run_integration_PublicaEventosDaShm(
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
+    monkeypatch.setattr(runner, "capture_allowed", lambda: True)
     monkeypatch.setattr(ring, "read_next", read_then_interrupt)
 
     try:
@@ -217,3 +226,44 @@ def test_run_integration_PublicaEventosDaShm(
     client.publish.assert_called_once_with("/apikey/dev1/attrs", "fall|suspect")
     client.loop_stop.assert_called_once()
     client.disconnect.assert_called_once()
+
+
+def test_run_integration_NaoPublicaComGateFechado(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    ring = EventShmRing.create(slot_count=4, payload_max=64)
+    sleeps = {"n": 0}
+
+    def _sleep(_seconds: float) -> None:
+        sleeps["n"] += 1
+        if sleeps["n"] >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        runner,
+        "get_device_identity",
+        lambda: SimpleNamespace(device_id="dev1"),
+    )
+    monkeypatch.setattr(
+        runner,
+        "get_network_settings",
+        lambda: SimpleNamespace(
+            api_base_url="http://localhost/vigia",
+            fiware_api_key="apikey",
+        ),
+    )
+    monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
+    monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
+    monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
+    monkeypatch.setattr(runner, "capture_allowed", lambda: False)
+    monkeypatch.setattr(runner.time, "sleep", _sleep)
+
+    try:
+        runner.run_integration()
+    finally:
+        ring.close()
+        ring.unlink()
+
+    client.publish.assert_not_called()
+    assert sleeps["n"] >= 1

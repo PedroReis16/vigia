@@ -13,7 +13,9 @@ __all__ = [
     "get_settings",
     "get_device_identity",
     "get_network_settings",
+    "get_classifier_path",
     "resolve_ota_dir",
+    "resolve_install_root",
 ]
 
 

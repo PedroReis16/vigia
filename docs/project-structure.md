@@ -24,6 +24,9 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Proxy / TLS:** Traefik v3.6
 - **Banco relacional:** PostgreSQL 15
 - **Cache:** Redis
+- **Mensageria:** RabbitMQ (sincronização de usuários do Keycloak)
+- **Identidade local:** Keycloak 26
+- **E-mail local:** MailHog (SMTP do Keycloak: verificação de e-mail e redefinição de senha)
 - **Object storage:** MinIO (buckets `vigia-pictures`, `vigia-versions`, `vigia-releases`)
 - **FIWARE:** Orion 3.11, IoT Agent Ultralight, Mosquitto, STH-Comet, MongoDB (histórico + interno)
 - **Streaming:** MediaMTX (RTMP, WebRTC/WHEP, webhooks)
@@ -101,7 +104,7 @@ vigia/
 
 **Propósito:** API REST central — autenticação, gestão de devices/usuários/grupos, integração FIWARE, alertas, OTA, upload de frames, push notifications, SignalR.
 
-**Tecnologias:** .NET 10, ASP.NET Core, EF Core, Redis, SignalR, Firebase Admin, NSec.
+**Tecnologias:** .NET 10, ASP.NET Core, EF Core, Redis, RabbitMQ, SignalR, Firebase Admin, NSec.
 
 **Ponto de entrada:** `vigia-api/Vigia.API/Program.cs` — base path `/vigia`, porta local `8090` (Docker: `8090:8080`).
 
@@ -114,6 +117,7 @@ vigia/
 | `Vigia.Fiware` | Cliente HTTP Orion/IoT Agent, sync de schema, subscriptions; `Fiware:ProviderUrl` = norte NGSI (`http://iot-agent:4041`) |
 | `Vigia.Cache` | Abstrações Redis + in-memory |
 | `Vigia.Cloud` | Storage S3-compatible (versões OTA + pictures) |
+| `Vigia.AMQP` | Cliente RabbitMQ: topologia, publicação e consumo (`vigia.users.sync` para o usuário do Keycloak) |
 
 **Controllers:**
 
@@ -342,10 +346,14 @@ vigia/
 
 | Path | Uso |
 |------|-----|
-| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
+| `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, MailHog, RabbitMQ, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
 | `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; páginas e campos continuam os do Keycloak |
+| `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
+| `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
+| `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e declara o atributo `phone` |
+| `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog e liga `verifyEmail`; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -355,7 +363,11 @@ vigia/
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. Realms novos escolhem Login theme `vigia` em Realm settings.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`.
+
+**MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) quando o realm já existe.
+
+**RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens.
 
 **FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
@@ -438,6 +450,7 @@ vigia/
 | Códigos de erro espelhados entre API e Flutter | `ErrorCodes.cs` ↔ `error_codes.dart` |
 | Token FCM: plataformas `android`, `ios`, `web` | `UserPushTokenService` |
 | Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
+| Usuário local usa o UUID do Keycloak; cadastro, login e alteração de perfil fazem upsert, exclusão faz soft-delete e desativa push tokens | Fila `vigia.users.sync` + `KeycloakUserSyncService` |
 
 **Referência detalhada FIWARE:** tutorial operacional de schema (adicionar comandos/atributos, env vars, verificação MongoDB) permanece em [`README.md`](../README.md) seção FIWARE.
 
@@ -500,7 +513,7 @@ vigia/
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
 | vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
-| vigia-api | unitários em Database (`UserPushTokenDao`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
+| vigia-api | unitários em Database (`UserPushTokenDao`), API (`KeycloakUserSyncService`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
@@ -603,6 +616,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Compose local: MailHog recebe e-mails do Keycloak (verificação e redefinição de senha) (`docker-compose/local/docker-compose.yaml`, `keycloak/apply-smtp.sh`, `realm-export.json`)
+- [2026-10-04] Compose local: Keycloak importa o realm `vigia` no start a partir de `realm-export.json` (`docker-compose/local/docker-compose.yaml`)
+- [2026-10-04] Keycloak publica ações de usuário no RabbitMQ; a API sincroniza `users` e desativa push tokens na exclusão (`vigia-webhook`, `Vigia.AMQP`, `KeycloakUserSyncService`)
 - [2026-10-04] Tema de login `vigia`: rótulos de lembrar/esqueci/voltar seguem o locale do Keycloak (`themes/vigia/login/messages/`, `footer.ftl`)
 - [2026-10-03] Compose local: tema de login Keycloak `vigia` (cores/logo do auth web e Flutter) (`docker-compose/local/keycloak/`, `docker-compose.yaml`)
 - [2026-10-03] Compose local: Keycloak atrás do Traefik em `/auth` (`docker-compose/local/docker-compose.yaml`)

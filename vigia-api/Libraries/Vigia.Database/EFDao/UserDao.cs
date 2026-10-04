@@ -43,7 +43,6 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
 
         IQueryable<User> query = Context.Set<User>()
             .Where(u => u.Id.Equals(key) && u.DeletedAt == null)
-            .Include(u => u.Roles)
             .Include(u => u.LinkedGroups);
 
         if (!track)
@@ -64,14 +63,11 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
         // Não consulta no cache pois essa consulta é feita apenas para a autenticação do usuário, demais consultas são feitas através do id do usuário
         IQueryable<User> query = Context.Set<User>()
             .Where(u => u.Email.Equals(email) && u.DeletedAt == null)
-            .Include(u => u.Roles)
             .Select(u => new User
             {
                 Id = u.Id,
                 Salt = u.Salt,
                 Password = u.Password,
-                Roles = u.Roles.Select(r => new UserRole(r.Id)
-                ).ToList(),
             });
 
         result = await query.FirstOrDefaultAsync();
@@ -89,11 +85,8 @@ internal class UserDao(VigiaDbContext context, IUserDaoCache? cache = null) : Ba
 
         User? trackedUser = await users.Where(u => u.Email.Equals(newUser.Email)).FirstOrDefaultAsync();
 
-        List<UserRole> roles = await Context.Set<UserRole>().Where(r => r.Id.Equals("USER")).ToListAsync();
-
         if (trackedUser == null)
         {
-            newUser.Roles = roles;
             users.Add(newUser);
         }
         else

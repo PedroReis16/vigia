@@ -34,10 +34,6 @@ internal class UsersConfiguration : BaseConfiguration<User>
         _ = builder.HasMany(u => u.LinkedGroups)
             .WithMany(g => g.LinkedUsers);
 
-        _ = builder
-            .HasMany(u => u.Roles)
-            .WithMany(ur => ur.Users);
-
         _ = builder.HasIndex(u => u.Name);
         _ = builder.HasIndex(u => u.Email);
 

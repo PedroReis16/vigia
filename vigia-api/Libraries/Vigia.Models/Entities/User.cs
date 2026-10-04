@@ -12,5 +12,4 @@ public class User : BaseEntity
 
     // 1 usuário pode ter vários grupos -> 1 grupo pode ter vários usuários
     public ICollection<Group> LinkedGroups { get; set; } = null!;
-    public ICollection<UserRole> Roles { get; set; } = null!;
 }

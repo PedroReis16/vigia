@@ -128,6 +128,7 @@ vigia/
 | `DevicesController` | CRUD e registro de devices |
 | `DevicesCommandController` | Comandos FIWARE para devices |
 | `DevicesFrameController` | Upload e acesso a frames |
+| `DevicesClipController` | Recebe frames PNG numerados, monta o MP4 do clipe e serve o vídeo (`AllowAnonymous`) |
 | `DeviceShareController` | Convites e compartilhamento de grupos |
 | `DevicesUsersController` | Membros do grupo / associação user-device |
 | `DeviceUpdatesController` | OTA — upload e distribuição de versões |
@@ -254,7 +255,8 @@ vigia/
 |--------|--------|
 | `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
 | `stream_runner.py` | Process RTMP: live SHM → FFmpeg → MediaMTX enquanto `stream_on` |
-| `clips_runner.py` | Process janela: live SHM → ClipFrameRing enquanto `clips_enabled` (sem export nesta fase) |
+| `clips_runner.py` | Process janela: live SHM → ClipFrameRing; na entrada em `fall`, dispara o export |
+| `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
 | `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
 | `mp_compat.py` | `freeze_support` + stop de filhos |
 
@@ -273,7 +275,7 @@ vigia/
 | `provision/` | BLE, Wi-Fi, identidade, `classifier.json`, estado de pareamento, OTA do pacote `onboard/`, gate (hold/release/restart) no lugar de `systemctl` do fall |
 | `ui/` | LCD 16x2, menu (CPU/RAM, Wi-Fi, serviço, modelo, OTA), GPIO; sem hardware degrada para no-op |
 
-**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. Capture escreve LiveFrameShm; Processes filhos de `stream/` consomem (RTMP e janela de clips). Flags FIWARE via ControlShm. Export de clipes no FALL e montagem na API são follow-ups.
+**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. O processo de clips só observa o último `fall_state` (`peek_latest`, sem consumir a fila). Capture escreve LiveFrameShm; Processes filhos de `stream/` consomem (RTMP e janela de clips). Flags FIWARE via ControlShm. Na entrada em `fall`, com clips ativos, o snapshot da janela segue em PNG para `POST /devices/{id}/clips`.
 
 **Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/`, `tests/stream/`, `tests/interface/` — pytest na raiz (`pythonpath` = `.`).
 
@@ -628,10 +630,18 @@ flowchart LR
 2. POST para `/devices/{id}/frame`
 3. API armazena o frame (`vigia-pictures`)
 
+### 7. Montagem de clipes
+
+1. Com `clips_on`, o processo de clips mantém a janela (`CLIP_WINDOW_S` × `FRAME_RATE`) a partir da live SHM
+2. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas e envia, sem autenticação, `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
+3. A API grava os PNG numerados em disco local. Quando a sequência fecha, ffmpeg decodifica os PNG e gera H.264 CRF 18
+4. O MP4 sobe para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4`) e fica em `GET /devices/{id}/clips` e `GET /devices/{id}/clips/{clipId}`
+
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Clipes: a placa envia a janela de queda em PNG sem perdas e a API monta o MP4 (`DevicesClipController`, `stream/clip_export.py`, `clips_runner.py`)
 - [2026-10-04] Remove a sign key Ed25519 do registro, da identidade edge e do upload de frames (`vigia-api`, `vigia-bootstrap`, `vigia-fall`, `seed-codes`)
 - [2026-10-04] App: pareamento BLE sem desafio Ed25519; registro de device sem `signPublicKey` obrigatória (`vigia_ui`, `DevicesService`)
 - [2026-10-04] Onboard: pareamento BLE sem desafio Ed25519 nem chaves privadas em `identity.json` (`interface/provision/`, `shared/settings.py`)

@@ -50,3 +50,18 @@ def test_write_FilaCheia_DescartaMaisAntigo() -> None:
 )
 def test_normalize_fall_state(raw: str, expected: str) -> None:
     assert normalize_fall_state(raw) == expected
+
+
+def test_peek_latest_NaoConsomeAFila() -> None:
+    ring = EventShmRing.create(slot_count=4, payload_max=32)
+    try:
+        ring.write(EVENT_FALL_STATE, "fall")
+        peeked = ring.peek_latest()
+        assert peeked is not None
+        assert peeked.payload == "fall"
+        event = ring.read_next(timeout=1.0)
+        assert event is not None
+        assert event.payload == "fall"
+    finally:
+        ring.close()
+        ring.unlink()

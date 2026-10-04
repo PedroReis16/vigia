@@ -1,0 +1,71 @@
+{
+  "unmanagedAttributePolicy": "DISABLED",
+  "attributes": [
+    {
+      "name": "username",
+      "displayName": "${username}",
+      "validations": {
+        "length": { "min": 3, "max": 255 },
+        "username-prohibited-characters": {},
+        "up-username-not-idn-homograph": {}
+      },
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin", "user"]
+      },
+      "multivalued": false
+    },
+    {
+      "name": "email",
+      "displayName": "${email}",
+      "validations": {
+        "email": {},
+        "length": { "max": 255 }
+      },
+      "required": { "roles": ["user"] },
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin", "user"]
+      },
+      "multivalued": false
+    },
+    {
+      "name": "firstName",
+      "displayName": "${firstName}",
+      "required": { "roles": ["user"] },
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin", "user"]
+      },
+      "multivalued": false,
+      "validations": {
+        "length": { "max": 64 }
+      }
+    },
+    {
+      "name": "lastName",
+      "displayName": "${lastName}",
+      "required": { "roles": ["user"] },
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin", "user"]
+      },
+      "multivalued": false,
+      "validations": {
+        "length": { "max": 64 }
+      }
+    },
+    {
+      "name": "phone",
+      "displayName": "phone",
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin", "user"]
+      },
+      "multivalued": false,
+      "validations": {
+        "length": { "max": 16 }
+      }
+    }
+  ]
+}

@@ -20,12 +20,47 @@ services:
     networks:
       - vigia-network
 
+  # ─── RABBITMQ ─────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: vigia-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: vigia
+      RABBITMQ_DEFAULT_PASS: vigia123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - vigia-network
+
+  # ─── MAILHOG (SMTP local do fluxo de autenticação) ─────────────────────
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: vigia-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP (Keycloak na rede usa mailhog:1025)
+      - "8025:8025" # UI http://localhost:8025
+    networks:
+      - vigia-network
+
   # ─── KEYCLOAK ─────────────────────────────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    image: vigia-keycloak:local
     container_name: keycloak
     restart: unless-stopped
-    command: start-dev   # em produção: start
+    # --import-realm lê /opt/keycloak/data/import/*-realm.json só se o realm ainda não existir
+    command: start-dev --import-realm
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/vigia?currentSchema=keycloak
@@ -39,14 +74,25 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_HOST: rabbitmq
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PORT: "5672"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_USERNAME: vigia
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PASSWORD: vigia123
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_EXCHANGE: vigia.users.direct_exchange
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_ROUTING_KEY: users.sync
     ports:
       - "8081:8080"
     volumes:
       - ./keycloak/themes/vigia:/opt/keycloak/themes/vigia:ro
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/vigia-realm.json:ro
     depends_on:
       postgres:
         condition: service_healthy
       traefik:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
         condition: service_started
     labels:
       - "traefik.enable=true"
@@ -54,6 +100,24 @@ services:
       - "traefik.http.routers.keycloak.entrypoints=web"
       - "traefik.http.routers.keycloak.priority=40"
       - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
+  # Reaplica o SMTP no realm vigia: --import-realm ignora realm que já existe.
+  keycloak-realm-smtp:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-smtp
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-smtp.sh"]
+    volumes:
+      - ./keycloak/apply-smtp.sh:/apply-smtp.sh:ro
     networks:
       - vigia-network
 
@@ -129,6 +193,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"

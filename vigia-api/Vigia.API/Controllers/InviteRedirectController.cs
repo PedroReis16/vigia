@@ -11,7 +11,6 @@ namespace Vigia.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("i")]
-[AllowAnonymous]
 public class InviteRedirectController(IConfiguration configuration) : ControllerBase
 {
     private readonly IConfiguration _configuration = configuration;

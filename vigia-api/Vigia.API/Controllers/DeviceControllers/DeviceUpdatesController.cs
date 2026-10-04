@@ -21,7 +21,6 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Metadados do pacote rolling atual (<c>revision</c> para o device comparar com o instalado).
     /// </summary>
     [HttpGet("current")]
-    [AllowAnonymous]
     public async Task<IActionResult> GetCurrentUpdate()
     {
         DeviceUpdateInfo? info = await _service.GetCurrentUpdateAsync();
@@ -35,7 +34,6 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Stream do pacote OTA rolling atual.
     /// </summary>
     [HttpGet("download")]
-    [AllowAnonymous]
     public async Task<IActionResult> DownloadCurrentUpdate()
     {
         Stream stream = await _service.DownloadCurrentUpdateAsync();
@@ -47,7 +45,6 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Form: fileChunk, fileId, chunkIndex, totalChunks, revision (ex.: git SHA).
     /// </summary>
     [HttpPost]
-    [AllowAnonymous]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadDeviceUpdate(
         IFormFile fileChunk,

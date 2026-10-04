@@ -7,7 +7,6 @@ namespace Vigia.API.Controllers;
 [Route("[controller]")]
 public class HealthCheckController : ControllerBase
 {
-    [AllowAnonymous]
     [HttpGet]
     public IActionResult Get()
     {

@@ -1,5 +1,6 @@
 #!/bin/sh
-# Liga eventos no realm master, registra o listener vigia-webhook e declara o atributo phone.
+# Liga eventos no realm master, registra o listener vigia-webhook e aplica o perfil
+# de usuário (atributo phone) nos realms master e vigia.
 # Rode no host, com o container no ar.
 set -eu
 
@@ -20,5 +21,7 @@ docker exec "$CONTAINER" /opt/keycloak/bin/kcadm.sh update events/config -r mast
   -s 'eventsListeners=["jboss-logging","vigia-webhook"]'
 
 docker cp "$SCRIPT_DIR/user-profile.json" "$CONTAINER":/tmp/vigia-user-profile.json
-docker exec "$CONTAINER" /opt/keycloak/bin/kcadm.sh update users/profile -r master \
-  -f /tmp/vigia-user-profile.json
+for realm in master vigia; do
+  docker exec "$CONTAINER" /opt/keycloak/bin/kcadm.sh update users/profile -r "$realm" \
+    -f /tmp/vigia-user-profile.json
+done

@@ -1,5 +1,4 @@
 {
-  "unmanagedAttributePolicy": "DISABLED",
   "attributes": [
     {
       "name": "username",
@@ -39,7 +38,8 @@
       },
       "multivalued": false,
       "validations": {
-        "length": { "max": 64 }
+        "length": { "max": 255 },
+        "person-name-prohibited-characters": {}
       }
     },
     {
@@ -52,19 +52,27 @@
       },
       "multivalued": false,
       "validations": {
-        "length": { "max": 64 }
+        "length": { "max": 255 },
+        "person-name-prohibited-characters": {}
       }
     },
     {
       "name": "phone",
-      "displayName": "phone",
+      "displayName": "${phoneNumber}",
+      "annotations": {
+        "inputType": "html5-tel"
+      },
+      "required": { "roles": ["user"] },
       "permissions": {
         "view": ["admin", "user"],
         "edit": ["admin", "user"]
       },
       "multivalued": false,
       "validations": {
-        "length": { "max": 16 }
+        "length": { "min": 8, "max": 16 },
+        "pattern": {
+          "pattern": "^[0-9+() .-]{8,16}$"
+        }
       }
     }
   ]

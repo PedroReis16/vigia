@@ -70,6 +70,7 @@
   }
 
   var EMAIL_PATTERN = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
+  var PHONE_PATTERN = /^[0-9+() .-]{8,16}$/;
 
   function linkRow(link) {
     return link.closest("#kc-form-options")
@@ -145,6 +146,7 @@
       var id = (input.id || input.name || "").toLowerCase();
       var type = (input.getAttribute("type") || "").toLowerCase();
       if ((type === "email" || id === "email") && !EMAIL_PATTERN.test(input.value.trim())) return false;
+      if ((type === "tel" || id === "phone") && !PHONE_PATTERN.test(input.value.trim())) return false;
     }
     if (password && confirm && password.value !== confirm.value) return false;
     return true;
@@ -309,6 +311,7 @@
     var name = (input.name || "").toLowerCase();
     if (type === "password") return "password";
     if (type === "email" || id === "email" || name === "email") return "email";
+    if (type === "tel" || id === "phone" || name === "phone") return "phone";
     var onRegister = !!group.closest("#kc-register-form");
     if (onRegister && (id === "username" || id === "firstname" || id === "lastname" || name === "firstname" || name === "lastname")) {
       return "user";
@@ -334,6 +337,10 @@
     if (kind) {
       group.classList.add("vigia-field--icon", "vigia-field--" + kind);
     }
+    if (kind === "phone") {
+      input.setAttribute("autocomplete", "tel");
+      input.setAttribute("inputmode", "tel");
+    }
     stripAsterisk(label);
 
     var update = function () {
@@ -350,8 +357,9 @@
     firstname: { order: "1", half: true },
     lastname: { order: "2", half: true },
     email: { order: "3", half: false },
-    password: { order: "4", half: true },
-    "password-confirm": { order: "5", half: true }
+    phone: { order: "4", half: false },
+    password: { order: "5", half: true },
+    "password-confirm": { order: "6", half: true }
   };
 
   function layoutRegister(root) {
@@ -360,7 +368,7 @@
         var input = group.querySelector("input:not([type='hidden']):not([type='submit']), textarea, select");
         var holder = group.querySelector("#kc-form-buttons");
         if (!input) {
-          if (holder) group.style.order = "6";
+          if (holder) group.style.order = "7";
           return;
         }
         var key = (input.id || input.name || "").toLowerCase();

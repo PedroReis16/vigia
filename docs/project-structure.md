@@ -352,8 +352,9 @@ vigia/
 | `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
-| `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e declara o atributo `phone` |
-| `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog e liga `verifyEmail`; o compose roda uma vez após o Keycloak subir |
+| `docker-compose/local/keycloak/user-profile.json` | Perfil declarativo do usuário: `username`, `email`, `firstName`, `lastName` e `phone` (obrigatório, até 16 caracteres) |
+| `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e aplica `user-profile.json` nos realms `master` e `vigia` |
+| `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, liga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -365,7 +366,7 @@ vigia/
 
 **Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`.
 
-**MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) quando o realm já existe.
+**MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
 
 **RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens.
 
@@ -616,6 +617,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Keycloak: telefone obrigatório no perfil do usuário e no cadastro do tema `vigia` (`user-profile.json`, `themes/vigia/login/`, `apply-smtp.sh`)
 - [2026-10-04] Compose local: MailHog recebe e-mails do Keycloak (verificação e redefinição de senha) (`docker-compose/local/docker-compose.yaml`, `keycloak/apply-smtp.sh`, `realm-export.json`)
 - [2026-10-04] Compose local: Keycloak importa o realm `vigia` no start a partir de `realm-export.json` (`docker-compose/local/docker-compose.yaml`)
 - [2026-10-04] Keycloak publica ações de usuário no RabbitMQ; a API sincroniza `users` e desativa push tokens na exclusão (`vigia-webhook`, `Vigia.AMQP`, `KeycloakUserSyncService`)

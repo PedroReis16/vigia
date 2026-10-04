@@ -1,6 +1,7 @@
 #!/bin/bash
-# Aponta o realm vigia para o MailHog e liga verificação de e-mail.
-# O compose roda este script uma vez, depois que o Keycloak sobe.
+# Aponta o realm vigia para o MailHog, liga verificação de e-mail e aplica o
+# perfil de usuário (atributo phone). O compose roda este script uma vez, depois
+# que o Keycloak sobe.
 set -eu
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080/auth}"
@@ -51,3 +52,16 @@ do
 done
 
 echo "SMTP do realm $REALM apontado para mailhog:1025"
+
+i=0
+until /opt/keycloak/bin/kcadm.sh update users/profile -r "$REALM" -f /user-profile.json
+do
+  i=$((i + 1))
+  if [ "$i" -gt 20 ]; then
+    echo "Não foi possível gravar o perfil de usuário no realm $REALM" >&2
+    exit 1
+  fi
+  sleep 3
+done
+
+echo "Perfil de usuário do realm $REALM atualizado"

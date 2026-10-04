@@ -103,7 +103,7 @@ services:
     networks:
       - vigia-network
 
-  # Reaplica o SMTP no realm vigia: --import-realm ignora realm que já existe.
+  # Reaplica SMTP e o perfil de usuário (phone) no realm vigia: --import-realm ignora realm que já existe.
   keycloak-realm-smtp:
     image: vigia-keycloak:local
     container_name: keycloak-realm-smtp
@@ -118,6 +118,7 @@ services:
     entrypoint: ["/bin/bash", "/apply-smtp.sh"]
     volumes:
       - ./keycloak/apply-smtp.sh:/apply-smtp.sh:ro
+      - ./keycloak/user-profile.json:/user-profile.json:ro
     networks:
       - vigia-network
 

@@ -31,8 +31,6 @@ internal class UserDao(VigiaDbContext context) : BaseDao<User>(context), IUserDa
         }
         else
         {
-            existing.FirstName = user.FirstName;
-            existing.LastName = user.LastName;
             existing.Email = user.Email;
             existing.Phone = user.Phone;
             existing.DeletedAt = null;

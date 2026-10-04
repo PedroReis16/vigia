@@ -33,8 +33,6 @@ internal class KeycloakUserSyncService(IUserDao userDao, IUserPushTokenDao pushT
         await _userDao.UpsertAsync(new User
         {
             Id = message.Id,
-            FirstName = Normalize(message.FirstName, FirstNameMaxLength),
-            LastName = Normalize(message.LastName, LastNameMaxLength),
             Email = Normalize(message.Email, EmailMaxLength),
             Phone = Normalize(message.Phone, PhoneMaxLength),
         });

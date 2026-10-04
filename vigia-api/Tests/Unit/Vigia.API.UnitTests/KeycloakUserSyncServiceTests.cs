@@ -19,8 +19,6 @@ public class KeycloakUserSyncServiceTests
         {
             Operation = "upsert",
             Id = userId,
-            FirstName = "Ana",
-            LastName = "Lima",
             Email = "ana@vigia.test",
             Phone = "11999990000",
         });
@@ -29,8 +27,6 @@ public class KeycloakUserSyncServiceTests
         {
             Operation = "upsert",
             Id = userId,
-            FirstName = "Ana Maria",
-            LastName = "Lima",
             Email = "ana.maria@vigia.test",
             Phone = "11988880000",
         });
@@ -38,7 +34,6 @@ public class KeycloakUserSyncServiceTests
         List<User> users = await context.Users.Where(u => u.Id == userId).ToListAsync();
         Assert.Single(users);
         Assert.Equal(userId, users[0].Id);
-        Assert.Equal("Ana Maria", users[0].FirstName);
         Assert.Equal("ana.maria@vigia.test", users[0].Email);
         Assert.Equal("11988880000", users[0].Phone);
         Assert.Null(users[0].DeletedAt);
@@ -55,8 +50,6 @@ public class KeycloakUserSyncServiceTests
         {
             Operation = "upsert",
             Id = userId,
-            FirstName = "Ana",
-            LastName = "Lima",
             Email = "ana@vigia.test",
             Phone = "11999990000",
         });
@@ -66,15 +59,12 @@ public class KeycloakUserSyncServiceTests
         {
             Operation = "upsert",
             Id = userId,
-            FirstName = "Ana",
-            LastName = "Souza",
             Email = "ana@vigia.test",
             Phone = "11999990000",
         });
 
         User user = await context.Users.SingleAsync(u => u.Id == userId);
         Assert.Null(user.DeletedAt);
-        Assert.Equal("Souza", user.LastName);
     }
 
     [Fact]

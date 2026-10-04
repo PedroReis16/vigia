@@ -11,18 +11,6 @@ internal class UsersConfiguration : BaseConfiguration<User>
         base.Configure(builder);
 
         _ = builder
-            .Property(u => u.FirstName)
-            .IsRequired()
-            .HasColumnName("first_name")
-            .HasMaxLength(64);
-
-        _ = builder
-            .Property(u => u.LastName)
-            .IsRequired()
-            .HasColumnName("last_name")
-            .HasMaxLength(64);
-
-        _ = builder
             .Property(u => u.Email)
             .IsRequired()
             .HasColumnName("email")
@@ -38,8 +26,6 @@ internal class UsersConfiguration : BaseConfiguration<User>
             .HasMany(u => u.LinkedGroups)
             .WithMany(g => g.LinkedUsers);
 
-        _ = builder.HasIndex(u => u.FirstName);
-        _ = builder.HasIndex(u => u.LastName);
         _ = builder.HasIndex(u => u.Email);
         _ = builder.HasIndex(u => u.Phone);
     }

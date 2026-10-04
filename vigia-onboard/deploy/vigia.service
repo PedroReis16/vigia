@@ -1,0 +1,31 @@
+# Unit systemd do serviço Vigia (bundle PyInstaller onedir em /opt/vigia/onboard/).
+#
+#   sudo ./install.sh /path/to/vigia-onboard-linux-arm64.tar.gz
+#
+# Um único processo pai arranca captura, integração e interface.
+# O interface provisiona a placa (identity.json / network.json); a captura
+# fica em espera no gate até o pareamento.
+
+[Unit]
+Description=Vigia
+After=network-online.target bluetooth.target
+Wants=network-online.target NetworkManager.service bluetooth.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vigia/onboard
+EnvironmentFile=-/opt/vigia/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=DATA_DIR=/opt/vigia
+Environment=SHOW_VIDEO=false
+Environment=DEBUG=false
+Environment=WIFI_MOCK=false
+Environment=BLE_ENABLED=true
+Environment=LCD_ENABLED=true
+ExecStart=/opt/vigia/onboard/vigia
+Restart=on-failure
+RestartSec=5
+SyslogIdentifier=vigia
+
+[Install]
+WantedBy=multi-user.target

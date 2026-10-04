@@ -13,6 +13,15 @@ import pytest
 from interface.provision import ota as ota_svc
 
 
+def test_install_subprocess_env_marca_ota(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ota_svc, "system_subprocess_env", lambda: {"PATH": "/usr/bin"}
+    )
+    env = ota_svc.install_subprocess_env()
+    assert env["PATH"] == "/usr/bin"
+    assert env[ota_svc.OTA_APPLY_ENV] == "1"
+
+
 def test_needs_update_revision() -> None:
     assert ota_svc.needs_update("abc", None)
     assert ota_svc.needs_update("abc", "def")

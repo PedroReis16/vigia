@@ -279,6 +279,12 @@ vigia/
 
 O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o control plane do instalador `onboard`.
 
+**Deploy:** `/opt/vigia/onboard/`, systemd `vigia.service` (nome **Vigia**). Um processo pai (`main.py`, binário `vigia`) arranca captura, integração e interface. O unit fixa `DATA_DIR=/opt/vigia`. A instalação manual desactiva `vigia-bootstrap` e `fall-detection` se existirem.
+
+**Build:** `make ensure-model` (NCNN em `capture/models/yolo/`) → `make build-linux-arm64` (nativo em linux/arm64, Docker nos outros hosts) → `dist/vigia-onboard-deploy.zip` + tarball OTA. O bundle inclui `models/yolo/yolo26s-pose_ncnn_model`. Linux ELF aarch64 (Raspberry Pi OS).
+
+**Docs operacionais:** `vigia-onboard/docs/DEPLOY.md`
+
 ---
 
 ### vigia_ui
@@ -407,7 +413,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 2. **Provisionamento FIWARE antes do banco** — No registro de device, FIWARE é provisionado primeiro; se a persistência no PostgreSQL falhar, o provisionamento é revertido (`DevicesService.RegisterDeviceAsync`).
 
-3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes.
+3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
 4. **Autenticação multi-esquema** — JWT Bearer para usuários mobile/web; Ed25519 para requests de devices (frames); tokens efêmeros para acesso a frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming.
 
@@ -628,6 +634,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Onboard: instalador Linux ARM64 do serviço único `vigia` com YOLO NCNN no bundle (`vigia-onboard/deploy/`, `Makefile`, `onboard-release.yml`)
 - [2026-10-04] Onboard: módulo `interface` (porte do control plane do bootstrap no mesmo instalador); gate `capture.hold`/`restart`/`pid` bloqueia captura e integração até o provisionamento; `classifier.json` (`interface/`, `shared/capture_gate.py`, `capture_runner`, `integration_runner`)
 - [2026-10-04] Keycloak: telefone obrigatório no perfil do usuário e no cadastro do tema `vigia` (`user-profile.json`, `themes/vigia/login/`, `apply-smtp.sh`)
 - [2026-10-04] Compose local: MailHog recebe e-mails do Keycloak (verificação e redefinição de senha) (`docker-compose/local/docker-compose.yaml`, `keycloak/apply-smtp.sh`, `realm-export.json`)

@@ -289,6 +289,17 @@ def _remove_backup() -> None:
         shutil.rmtree(BUNDLE_PREV, ignore_errors=True)
 
 
+# install.sh vê esta variável e não pára o unit (o apply corre dentro do serviço).
+OTA_APPLY_ENV = "VIGIA_OTA_APPLY"
+
+
+def install_subprocess_env() -> dict[str, str]:
+    """Ambiente do install.sh durante OTA, sem derrubar o serviço Vigia."""
+    env = system_subprocess_env()
+    env[OTA_APPLY_ENV] = "1"
+    return env
+
+
 def apply_update(
     package_path: Path,
     *,
@@ -341,7 +352,7 @@ def apply_update(
                 capture_output=True,
                 text=True,
                 check=False,
-                env=system_subprocess_env(),
+                env=install_subprocess_env(),
             )
             if result.returncode != 0:
                 detail = (result.stderr or result.stdout or "").strip()

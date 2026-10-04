@@ -34,6 +34,7 @@ MANIFEST
 *.spec
 !vigia-fall/vigia-fall-detection.spec
 !vigia-bootstrap/vigia-bootstrap.spec
+!vigia-onboard/vigia-onboard.spec
 
 # Installer logs
 pip-log.txt

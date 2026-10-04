@@ -1,4 +1,62 @@
 services:
+  # ─── POSTGRES ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: vigia-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=vigia
+      - POSTGRES_PASSWORD=vigia123
+      - POSTGRES_DB=vigia
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigia -d vigia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vigia-network
+
+  # ─── KEYCLOAK ─────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    restart: unless-stopped
+    command: start-dev   # em produção: start
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/vigia?currentSchema=keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: senha_forte
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Traefik encaminha /auth sem strip; o console usa o Host da requisição (localhost e :81)
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak/themes/vigia:/opt/keycloak/themes/vigia:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      traefik:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.routers.keycloak.priority=40"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
   # ─── REDIS ────────────────────────────────────────────────────────────────
   redis:
     image: redis:latest
@@ -24,24 +82,7 @@ services:
       - vigia-network
     depends_on:
       - redis
-  # ─── POSTGRES ────────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:15
-    container_name: vigia-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=vigia
-      - POSTGRES_PASSWORD=vigia123
-      - POSTGRES_DB=vigia
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d vigia"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - vigia-network
+
   # ─── Minio ────────────────────────────────────────────────────────────────
   minio:
     image: quay.io/minio/minio:latest

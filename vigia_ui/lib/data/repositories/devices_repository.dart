@@ -76,7 +76,6 @@ class DevicesRepository {
           'id': device.id,
           'name': device.name,
           'macAddress': device.macAddress,
-          'signPublicKey': device.signPublicKey,
         },
       );
     } on DioException catch (e) {

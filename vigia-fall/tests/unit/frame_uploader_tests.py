@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 from unittest.mock import MagicMock
 
 import numpy as np
-from cryptography.hazmat.primitives.asymmetric.ed25519 import (
-    Ed25519PrivateKey,
-    Ed25519PublicKey,
-)
 
 from capture import frame_uploader
-from shared import test_device_seed
 
 
 def test_build_multipart_ContemJpegEBoundary() -> None:
@@ -35,28 +29,6 @@ def test_normalize_api_base_GaranteBarraFinal() -> None:
     )
 
 
-def test_device_signature_Canonical_VerificaComChavePublicaDoSeed() -> None:
-    """Espelha DeviceSignatureAuthenticationHandler + TestDeviceSeed."""
-    jpeg = b"\xff\xd8\xff\xd9"
-    body, _ = frame_uploader._build_multipart(jpeg)
-    timestamp = 1_720_000_000
-    body_hash = hashlib.sha256(body).hexdigest()
-    canonical = (
-        f"POST\n/devices/{test_device_seed.DEVICE_ID}/frame\n"
-        f"{timestamp}\n{body_hash}"
-    )
-
-    private_key = Ed25519PrivateKey.from_private_bytes(
-        bytes.fromhex(test_device_seed.SIGN_PRIVATE_KEY)
-    )
-    signature = private_key.sign(canonical.encode("utf-8"))
-
-    public_key = Ed25519PublicKey.from_public_bytes(
-        bytes.fromhex(test_device_seed.SIGN_PUBLIC_KEY)
-    )
-    public_key.verify(signature, canonical.encode("utf-8"))
-
-
 def test_maybe_upload_thumbnail_ComFrameVazio_NaoDisparaUpload(
     monkeypatch,
 ) -> None:
@@ -75,7 +47,20 @@ def test_maybe_upload_thumbnail_ComFrameVazio_NaoDisparaUpload(
 
 def test_maybe_upload_thumbnail_ComIntervaloRespeitado_DisparaUmaVez(
     monkeypatch,
+    tmp_path,
 ) -> None:
+    (tmp_path / "identity.json").write_text(
+        '{"device_id":"dev","device_name":"Vigia-test"}',
+        encoding="utf-8",
+    )
+    (tmp_path / "network.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        frame_uploader, "get_identity_path", lambda: tmp_path / "identity.json"
+    )
+    monkeypatch.setattr(
+        frame_uploader, "get_network_path", lambda: tmp_path / "network.json"
+    )
+
     started: list[MagicMock] = []
 
     class FakeThread:

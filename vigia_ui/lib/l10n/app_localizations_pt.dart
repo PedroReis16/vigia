@@ -99,13 +99,6 @@ class AppLocalizationsPt extends AppLocalizations {
       'Dispositivo encontrado. Estabelecendo a conexão com o Vigia…';
 
   @override
-  String get authenticatingTitle => 'Validando dispositivo';
-
-  @override
-  String get authenticatingDescription =>
-      'Confirmando a identidade do Vigia e autenticando o aplicativo…';
-
-  @override
   String get registeringTitle => 'Registrando dispositivo';
 
   @override

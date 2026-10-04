@@ -81,7 +81,6 @@ builder.Services.AddRepositoryServices();
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
-builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
 
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();

@@ -16,16 +16,13 @@ import seed_local_edge as seed  # noqa: E402
 
 
 class SeedLocalEdgeTests(unittest.TestCase):
-    def test_sign_public_key_matches_test_device_seed(self) -> None:
-        self.assertEqual(seed.sign_public_key_hex(), seed.EXPECTED_SIGN_PUBLIC_KEY)
-
     def test_identity_fields(self) -> None:
         identity = seed.build_identity()
         self.assertEqual(identity["device_id"], seed.DEVICE_ID)
         self.assertEqual(identity["device_name"], seed.DEVICE_NAME)
         self.assertEqual(identity["mac_address"], seed.MAC_ADDRESS)
-        self.assertEqual(len(identity["sign_priv"]), 64)
-        self.assertEqual(len(identity["ecdh_priv"]), 64)
+        self.assertNotIn("sign_priv", identity)
+        self.assertNotIn("ecdh_priv", identity)
 
     def test_network_strips_trailing_slash(self) -> None:
         network = seed.build_network(api_base_url="http://localhost:8090/vigia/")

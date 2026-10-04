@@ -262,18 +262,6 @@ abstract class AppLocalizations {
   /// **'Dispositivo encontrado. Estabelecendo a conexão com o Vigia…'**
   String get connectingDescription;
 
-  /// No description provided for @authenticatingTitle.
-  ///
-  /// In pt, this message translates to:
-  /// **'Validando dispositivo'**
-  String get authenticatingTitle;
-
-  /// No description provided for @authenticatingDescription.
-  ///
-  /// In pt, this message translates to:
-  /// **'Confirmando a identidade do Vigia e autenticando o aplicativo…'**
-  String get authenticatingDescription;
-
   /// No description provided for @registeringTitle.
   ///
   /// In pt, this message translates to:

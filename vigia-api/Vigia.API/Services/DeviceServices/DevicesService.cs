@@ -55,14 +55,6 @@ internal class DevicesService(
             if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
                 throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
 
-            if (string.IsNullOrWhiteSpace(newDevice.SignPublicKey))
-                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
-
-            if (!Validators.IsValidEd25519PublicKeyHex(newDevice.SignPublicKey))
-                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
-
-            string normalizedSignPublicKey = newDevice.SignPublicKey.ToLowerInvariant();
-
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
@@ -119,9 +111,6 @@ internal class DevicesService(
                 _logger.LogError(errorMsg);
                 throw new Exception(errorMsg);
             }
-
-            IDeviceSignPublicKeyProvider signPublicKeyProvider = scope.ServiceProvider.GetRequiredService<IDeviceSignPublicKeyProvider>();
-            signPublicKeyProvider.SetSignPublicKey(newDevice.Id, normalizedSignPublicKey);
 
             _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
         }

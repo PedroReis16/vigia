@@ -38,7 +38,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ORM:** Entity Framework Core + Npgsql (PostgreSQL)
 - **Cache:** Redis + in-memory (`Vigia.Cache`)
 - **Realtime:** SignalR
-- **Auth:** JWT Bearer, Ed25519 (NSec), tokens efêmeros, service token (dev)
+- **Auth:** JWT Bearer, tokens efêmeros para frames, service token (dev)
 - **Push:** Firebase Admin (Android + Web)
 - **Docs API:** Swagger/OpenAPI
 - **Storage:** S3-compatible via `Vigia.Cloud` (MinIO)
@@ -88,7 +88,7 @@ vigia/
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
-├── seed-codes/             # Utilitários dev: frame assinado + seed do edge local
+├── seed-codes/             # Utilitários dev: frame de teste + seed do edge local
 ├── edge-data/              # Mock local identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
@@ -104,7 +104,7 @@ vigia/
 
 **Propósito:** API REST central — autenticação, gestão de devices/usuários/grupos, integração FIWARE, alertas, OTA, upload de frames, push notifications, SignalR.
 
-**Tecnologias:** .NET 10, ASP.NET Core, EF Core, Redis, RabbitMQ, SignalR, Firebase Admin, NSec.
+**Tecnologias:** .NET 10, ASP.NET Core, EF Core, Redis, RabbitMQ, SignalR, Firebase Admin.
 
 **Ponto de entrada:** `vigia-api/Vigia.API/Program.cs` — base path `/vigia`, porta local `8090` (Docker: `8090:8080`).
 
@@ -127,7 +127,7 @@ vigia/
 | `UserController` | Push tokens do usuário |
 | `DevicesController` | CRUD e registro de devices |
 | `DevicesCommandController` | Comandos FIWARE para devices |
-| `DevicesFrameController` | Upload e acesso a frames (assinatura Ed25519) |
+| `DevicesFrameController` | Upload e acesso a frames |
 | `DeviceShareController` | Convites e compartilhamento de grupos |
 | `DevicesUsersController` | Membros do grupo / associação user-device |
 | `DeviceUpdatesController` | OTA — upload e distribuição de versões |
@@ -173,7 +173,7 @@ vigia/
 
 ### vigia-fall
 
-**Propósito:** Serviço de detecção de quedas — captura de câmera, inferência YOLO pose, detecção de queda, telemetria FIWARE via MQTT, upload de frames assinados, streaming RTMP.
+**Propósito:** Serviço de detecção de quedas — captura de câmera, inferência YOLO pose, detecção de queda, telemetria FIWARE via MQTT, upload de frames, streaming RTMP.
 
 **Tecnologias:** Python 3.12, Ultralytics YOLO, OpenCV, onnxruntime, paho-mqtt, SQLite, PyInstaller.
 
@@ -343,13 +343,13 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ### seed-codes
 
-**Propósito:** Utilitários de desenvolvimento — frame assinado e mock do edge local (sem Pi/BLE).
+**Propósito:** Utilitários de desenvolvimento — frame de teste e mock do edge local (sem Pi/BLE).
 
 **Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
 
 | Script | Função |
 |--------|--------|
-| `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` (Ed25519 / TestDeviceSeed) |
+| `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` |
 | `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
 | `seed-codes/video_converter.py` | Converte AVI → MP4 via ffmpeg (reencode H.264/AAC ou `--copy`) |
 
@@ -415,7 +415,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
-4. **Autenticação multi-esquema** — JWT Bearer para usuários mobile/web; Ed25519 para requests de devices (frames); tokens efêmeros para acesso a frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming.
+4. **Autenticação multi-esquema** — JWT Bearer para usuários mobile/web; tokens efêmeros para acesso a frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming.
 
 5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
@@ -446,7 +446,6 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |-------|-----------------|
 | Nome do device deve seguir `^Vigia-[0-9a-f]{8}$` (ex.: `Vigia-a1b2c3d4`) | `DevicesService`, `vigia-bootstrap/provision/identity.py`, `vigia_ui/lib/domain/constants.dart` |
 | Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); fall lê no start e instancia `FallClassifier`; unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py`; `vigia-fall/capture/classifiers/` |
-| Chave pública Ed25519 (hex 64 chars) obrigatória no registro | `DevicesService` + `DeviceSignatureAuthenticationHandler` |
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
 | Convite expira em **7 dias**; apenas o owner pode gerar | `DeviceShareService` |
@@ -560,7 +559,7 @@ flowchart LR
     end
     Fall -->|"MQTT Ultralight"| FIWARE
     Fall -->|RTMP| MTX
-    Fall -->|"frames assinados"| API
+    Fall -->|"frames JPEG"| API
     FIWARE -->|"webhook fall_state"| API
     MTX -->|webhook| API
     API --> PG
@@ -577,7 +576,7 @@ flowchart LR
 1. App Flutter escaneia BLE e conecta ao bootstrap (nome `Vigia-…`)
 2. App envia credenciais Wi-Fi via BLE; bootstrap conecta à rede
 3. Bootstrap gera identidade → grava `identity.json` e `network.json`
-4. App registra device na API (nome, chave Ed25519, metadados)
+4. App registra device na API (nome, MAC e metadados)
 5. API provisiona device no FIWARE (atributos + comandos do schema) → persiste no PostgreSQL
 6. Se persistência falhar, provisionamento FIWARE é revertido
 
@@ -626,14 +625,15 @@ flowchart LR
 ### 6. Upload de frames
 
 1. Fall-detection captura frame JPEG
-2. Assina request com chave privada Ed25519 (par da `SignPublicKey` registrada)
-3. POST para API com scheme `DeviceSignature`
-4. API valida assinatura → armazena frame no MinIO (`vigia-pictures`)
+2. POST para `/devices/{id}/frame`
+3. API armazena o frame (`vigia-pictures`)
 
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Remove a sign key Ed25519 do registro, da identidade edge e do upload de frames (`vigia-api`, `vigia-bootstrap`, `vigia-fall`, `seed-codes`)
+- [2026-10-04] App: pareamento BLE sem desafio Ed25519; registro de device sem `signPublicKey` obrigatória (`vigia_ui`, `DevicesService`)
 - [2026-10-04] Onboard: pareamento BLE sem desafio Ed25519 nem chaves privadas em `identity.json` (`interface/provision/`, `shared/settings.py`)
 - [2026-10-04] Onboard: o stream publica no fps da fonte (`CAP_PROP_FPS`); `FRAME_RATE` fica na classificação (`capture_runner.py`)
 - [2026-10-04] Onboard: instalador Linux ARM64 do serviço único `vigia` com YOLO NCNN no bundle (`vigia-onboard/deploy/`, `Makefile`, `onboard-release.yml`)

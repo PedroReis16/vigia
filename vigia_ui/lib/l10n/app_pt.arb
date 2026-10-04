@@ -41,8 +41,6 @@
   "stepWaitDescription": "Aguarde alguns segundos até que a configuração seja concluída com sucesso.",
   "connectingTitle": "Conectando",
   "connectingDescription": "Dispositivo encontrado. Estabelecendo a conexão com o Vigia…",
-  "authenticatingTitle": "Validando dispositivo",
-  "authenticatingDescription": "Confirmando a identidade do Vigia e autenticando o aplicativo…",
   "registeringTitle": "Registrando dispositivo",
   "registeringDescription": "Criando o registro do dispositivo nos servidores Vigia…",
   "fetchingConfigTitle": "Preparando configuração",

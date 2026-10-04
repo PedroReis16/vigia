@@ -15,7 +15,6 @@ hiddenimports = [
     "RPLCD",
     "smbus2",
     "bless",
-    "cryptography",
     "getmac",
     "dotenv",
 ]

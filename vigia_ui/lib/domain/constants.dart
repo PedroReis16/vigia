@@ -8,9 +8,6 @@ class Constants {
   static final Guid charIdentityUuid = Guid(
     '776ee4be-ecd4-4331-9f0e-7a53f1d9a4ba',
   );
-  static final Guid charChallengeUuid = Guid(
-    '2984802e-d12e-4e6c-870f-3b37f1845961',
-  );
   static final Guid charProvisionUuid = Guid(
     '2562213c-2180-4320-a70f-247a6125b47a',
   );

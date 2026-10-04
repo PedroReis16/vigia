@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/repository_providers/devices_repository_provider.dart';
-import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
 import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
@@ -44,7 +43,6 @@ class DevicePairingState {
 @riverpod
 class DevicePairing extends _$DevicePairing {
   final BlePairingService _ble = BlePairingService();
-  final AppIdentityService _identity = AppIdentityService();
 
   StreamSubscription<ScanResult>? _scanSubscription;
   BluetoothDevice? _connectedBleDevice;
@@ -195,23 +193,12 @@ class DevicePairing extends _$DevicePairing {
           : result.device.platformName.trim();
       _bleName = name;
 
-      state = const DevicePairingState(
-        stage: DevicePairingStage.authenticating,
-      );
-
       final identity = await _ble.readIdentity(result.device);
       _deviceIdentity = identity;
-
-      final appPub = await _identity.publicKeyHex();
-      await _ble.authenticate(
-        result.device,
-        appSignPubHex: appPub,
-        signNonce: _identity.signHex,
-      );
     } catch (error) {
       state = DevicePairingState(
         stage: DevicePairingStage.error,
-        errorMessage: 'Não foi possível autenticar: $error',
+        errorMessage: 'Não foi possível ler o dispositivo: $error',
       );
       return;
     }
@@ -257,7 +244,6 @@ class DevicePairing extends _$DevicePairing {
     return NewDevice(
       id: identity.deviceId,
       name: identity.name.isNotEmpty ? identity.name : (_bleName ?? 'Vigia'),
-      signPublicKey: identity.signPub,
       macAddress: identity.macAddress,
     );
   }

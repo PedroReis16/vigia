@@ -43,7 +43,6 @@ hiddenimports += [
     "dotenv",
     "loguru",
     "getmac",
-    "cryptography",
     "paho.mqtt.client",
     "onnxruntime",
     "capture.classifiers",

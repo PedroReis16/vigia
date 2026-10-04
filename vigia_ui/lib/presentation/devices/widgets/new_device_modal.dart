@@ -97,11 +97,6 @@ class _NewDeviceModalState extends ConsumerState<NewDeviceModal> {
             title: context.translations.connectingTitle,
             description: context.translations.connectingDescription,
           ),
-          DevicePairingStage.authenticating => StatusView(
-            icon: _progressIcon(),
-            title: context.translations.authenticatingTitle,
-            description: context.translations.authenticatingDescription,
-          ),
           DevicePairingStage.registering => StatusView(
             icon: _progressIcon(),
             title: context.translations.registeringTitle,

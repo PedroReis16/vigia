@@ -214,7 +214,7 @@ vigia/
 
 **Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make interface` / `python -m interface` é o control plane (BLE, Wi-Fi, LCD, gate). `make run` corre capture + integration + interface em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
-**Pré-requisito:** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed) e ausência de `capture.hold`. Capture e integration esperam esses ficheiros em vez de falhar; o interface escreve-os (BLE ou `WIFI_MOCK`) e abre o gate. Com seed já presente e sem hold, `make capture` segue. Streaming RTMP exige `stream_ingest_url` em `network.json`. `classifier.json` (`math`|`gru`) é a preferência de modelo; sem ficheiro, vale `CLASSIFIER` do ambiente.
+**Pré-requisito:** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed) e ausência de `capture.hold`. Capture e integration esperam esses ficheiros; o interface escreve-os (BLE ou `WIFI_MOCK`) e abre o gate. Em debug local, `WIFI_MOCK` ligado (default quando `DEBUG=true` e a chave falta no `.env`) grava `network.json` mock e liberta a captura, como o bootstrap fazia. Na placa o unit força `DEBUG=false` e `WIFI_MOCK=false`. Com seed já presente e sem hold, `make capture` segue. Streaming RTMP exige `stream_ingest_url` em `network.json`. `classifier.json` (`math`|`gru`) é a preferência de modelo; sem ficheiro, vale `CLASSIFIER` do ambiente.
 
 **Módulos principais (`shared/`):**
 
@@ -635,6 +635,7 @@ flowchart LR
 ## 9. Changelog Técnico
 
 - [2026-10-04] Onboard: instalador Linux ARM64 do serviço único `vigia` com YOLO NCNN no bundle (`vigia-onboard/deploy/`, `Makefile`, `onboard-release.yml`)
+- [2026-10-04] Onboard: em debug local, `WIFI_MOCK` segue `DEBUG` quando não está no `.env` — o interface grava `network.json` e abre o gate da captura (`shared/settings.py`)
 - [2026-10-04] Onboard: módulo `interface` (porte do control plane do bootstrap no mesmo instalador); gate `capture.hold`/`restart`/`pid` bloqueia captura e integração até o provisionamento; `classifier.json` (`interface/`, `shared/capture_gate.py`, `capture_runner`, `integration_runner`)
 - [2026-10-04] Keycloak: telefone obrigatório no perfil do usuário e no cadastro do tema `vigia` (`user-profile.json`, `themes/vigia/login/`, `apply-smtp.sh`)
 - [2026-10-04] Compose local: MailHog recebe e-mails do Keycloak (verificação e redefinição de senha) (`docker-compose/local/docker-compose.yaml`, `keycloak/apply-smtp.sh`, `realm-export.json`)

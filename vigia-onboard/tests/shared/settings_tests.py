@@ -38,6 +38,20 @@ def test_parse_bool():
     assert st._parse_bool("0") is False
 
 
+def test_wifi_mock_segue_debug_quando_ausente(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
+    monkeypatch.delenv("WIFI_MOCK", raising=False)
+    monkeypatch.delenv("DEBUG", raising=False)
+    assert st.Settings.from_env().wifi_mock is True
+
+    monkeypatch.setenv("DEBUG", "false")
+    assert st.Settings.from_env().wifi_mock is False
+
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("WIFI_MOCK", "false")
+    assert st.Settings.from_env().wifi_mock is False
+
+
 def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("CAPTURE_SOURCE", "1")
     monkeypatch.setenv("SHOW_VIDEO", "true")

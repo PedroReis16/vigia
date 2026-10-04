@@ -27,6 +27,14 @@ def _parse_bool(raw: str) -> bool:
     return raw.strip().lower() in ("1", "true", "t", "yes", "y")
 
 
+def _wifi_mock_from_env(debug: bool) -> bool:
+    """Sem WIFI_MOCK explícito, o mock segue o DEBUG (dev local ligado, placa desligada)."""
+    raw = os.getenv("WIFI_MOCK")
+    if raw is None or raw.strip() == "":
+        return debug
+    return _parse_bool(raw)
+
+
 def _load_onboard_env() -> None:
     load_dotenv(onboard_root() / ".env")
 
@@ -53,7 +61,7 @@ class Settings:
     data_dir: str = PROD_DATA_DIR
     debug: bool = True
     ble_enabled: bool = True
-    wifi_mock: bool = False
+    wifi_mock: bool = True
     wifi_mock_result: str = "success"
     mock_wifi_ssid: str = "local-mock"
     mock_wifi_password: str = "unused"
@@ -73,6 +81,7 @@ class Settings:
         classifier = os.getenv("CLASSIFIER", "math").strip().lower()
         if classifier not in ("math", "gru"):
             classifier = "math"
+        debug = _parse_bool(os.getenv("DEBUG", "true"))
         return cls(
             capture_source=_parse_capture_source(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=_parse_bool(os.getenv("SHOW_VIDEO", "false")),
@@ -102,9 +111,9 @@ class Settings:
                 1, int(os.getenv("CLIP_MAX_PAYLOAD", str(640 * 480 * 3)))
             ),
             data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
-            debug=_parse_bool(os.getenv("DEBUG", "true")),
+            debug=debug,
             ble_enabled=_parse_bool(os.getenv("BLE_ENABLED", "true")),
-            wifi_mock=_parse_bool(os.getenv("WIFI_MOCK", "false")),
+            wifi_mock=_wifi_mock_from_env(debug),
             wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower()
             or "success",
             mock_wifi_ssid=os.getenv("MOCK_WIFI_SSID", "local-mock").strip()

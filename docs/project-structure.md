@@ -235,7 +235,7 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m capture`: runtime + (opcional) YOLO + `run_capture` |
-| `capture_runner.py` | Loop YOLO pose + preview; blur → live SHM se export activo; supervisão dos workers `stream/` numa thread à parte |
+| `capture_runner.py` | Loop YOLO pose + preview; blur → live SHM se export activo (fps da fonte, fallback `FRAME_RATE`); supervisão dos workers `stream/` numa thread à parte |
 | `pose_extract.py` | Cópia `person_id` + keypoints `(17, 3)` + timestamp (sem imagem) |
 | `yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 
@@ -634,6 +634,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Onboard: o stream publica no fps da fonte (`CAP_PROP_FPS`); `FRAME_RATE` fica na classificação (`capture_runner.py`)
 - [2026-10-04] Onboard: instalador Linux ARM64 do serviço único `vigia` com YOLO NCNN no bundle (`vigia-onboard/deploy/`, `Makefile`, `onboard-release.yml`)
 - [2026-10-04] Onboard: em debug local, `WIFI_MOCK` segue `DEBUG` quando não está no `.env` — o interface grava `network.json` e abre o gate da captura (`shared/settings.py`)
 - [2026-10-04] Onboard: módulo `interface` (porte do control plane do bootstrap no mesmo instalador); gate `capture.hold`/`restart`/`pid` bloqueia captura e integração até o provisionamento; `classifier.json` (`interface/`, `shared/capture_gate.py`, `capture_runner`, `integration_runner`)

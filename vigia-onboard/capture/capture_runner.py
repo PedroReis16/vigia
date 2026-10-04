@@ -50,6 +50,30 @@ def _source_label(source: int | str) -> str:
     return f"câmera {source}"
 
 
+def _read_fps(cap: Any) -> float | None:
+    try:
+        raw = float(cap.get(cv2.CAP_PROP_FPS))
+    except (TypeError, ValueError):
+        return None
+    if raw != raw or raw < 1:
+        return None
+    return raw
+
+
+def _source_fps(cap: Any, fallback: int) -> int:
+    """FPS da fonte para o stream. Sem valor válido, usa ``FRAME_RATE``."""
+    raw = _read_fps(cap)
+    if raw is None:
+        try:
+            cap.read()
+        except Exception:
+            return fallback
+        raw = _read_fps(cap)
+    if raw is None:
+        return fallback
+    return max(1, int(round(raw)))
+
+
 def _opencv_has_gui() -> bool:
     """False em builds headless (placa / PyInstaller) — imshow/waitKey não existem."""
     try:
@@ -139,7 +163,7 @@ def _run_capture_session() -> str:
         source = settings.capture_source
         show_video = settings.show_video
         capture_loop = settings.capture_loop
-        stream_fps = max(1, int(settings.frame_rate))
+        fallback_fps = max(1, int(settings.frame_rate))
         yolo_model = get_yolo_model()
         logger.info(
             "YOLO carregado: %s",
@@ -160,11 +184,16 @@ def _run_capture_session() -> str:
             raise ValueError(
                 f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
             )
+        source_fps = _source_fps(cap, fallback_fps)
         # O loader do YOLO reabre a fonte; libertar para não bloquear a câmara.
         cap.release()
         cap = None
 
-        logger.info("Captura iniciada (%s)", _source_label(source))
+        logger.info(
+            "Captura iniciada (%s, stream %s fps)",
+            _source_label(source),
+            source_fps,
+        )
         interrupted = False
         start_core_worker()
         if live_shm is not None:
@@ -194,7 +223,7 @@ def _run_capture_session() -> str:
                 )
 
                 if live_shm is not None and export_active():
-                    live_shm.write(preview, stream_fps)
+                    live_shm.write(preview, source_fps)
 
                 preview = result.plot(img=preview) if settings.show_plot else preview
 

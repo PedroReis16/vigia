@@ -75,6 +75,18 @@ def test_source_label_CameraEVideo():
     assert "clip.mp4" in cr._source_label("/tmp/clip.mp4")
 
 
+def test_source_fps_UsaFonteOuFrameRate():
+    cap = MagicMock()
+    cap.get.return_value = 29.97
+    assert cr._source_fps(cap, 12) == 30
+
+    cap.get.return_value = 0
+    assert cr._source_fps(cap, 12) == 12
+
+    cap.get.side_effect = TypeError
+    assert cr._source_fps(cap, 12) == 12
+
+
 def test_should_restart_stream_SoArquivoComLoopEFrames():
     assert cr._should_restart_stream("/tmp/clip.mp4", True, True, False)
     assert not cr._should_restart_stream(0, True, True, False)
@@ -242,6 +254,7 @@ def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
     live.name = "live-test"
     result = _result()
     capture_deps.model.track.return_value = iter([result])
+    capture_deps.cap.get.return_value = 30
 
     with (
         patch.object(cr, "get_settings", return_value=_settings()),
@@ -251,7 +264,7 @@ def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
     ):
         cr.run_capture()
 
-    live.write.assert_called_once_with("frame", 12)
+    live.write.assert_called_once_with("frame", 30)
     start.assert_called_once()
     live.reset_sequence.assert_called_once()
     live.close.assert_called_once()

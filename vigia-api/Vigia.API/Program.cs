@@ -19,6 +19,7 @@ using Vigia.Fiware.Extensions;
 using Microsoft.AspNetCore.SignalR;
 using Vigia.API.Extensions;
 using Vigia.Cloud.Extensions;
+using Vigia.AMQP.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +56,10 @@ builder.Services.AddCloudServices(builder.Configuration);
 
 // Firebase push notifications
 builder.Services.AddFirebasePushNotifications(builder.Configuration);
+
+builder.Services.AddRabbitMq();
+builder.Services.AddScoped<IKeycloakUserSyncService, KeycloakUserSyncService>();
+builder.Services.AddHostedService<KeycloakUserSyncConsumer>();
 
 // Services
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();

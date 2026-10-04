@@ -7,8 +7,6 @@ import logging
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from getmac import get_mac_address
 
 from .settings import get_identity_path, get_network_path
@@ -21,16 +19,6 @@ class DeviceIdentity:
     device_id: UUID
     device_name: str
     mac_address: str
-    sign_priv: ed25519.Ed25519PrivateKey
-    ecdh_priv: x25519.X25519PrivateKey
-
-
-def _raw_priv(key) -> str:
-    return key.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).hex()
 
 
 def _mac_address() -> str:
@@ -49,8 +37,6 @@ def _write_identity(identity: DeviceIdentity) -> None:
                 "device_id": str(identity.device_id),
                 "device_name": identity.device_name,
                 "mac_address": identity.mac_address,
-                "sign_priv": _raw_priv(identity.sign_priv),
-                "ecdh_priv": _raw_priv(identity.ecdh_priv),
             }
         )
     )
@@ -65,21 +51,13 @@ def load_or_create_identity() -> DeviceIdentity:
     path = get_identity_path()
     if path.exists():
         data = json.loads(path.read_text())
-        sign_priv = ed25519.Ed25519PrivateKey.from_private_bytes(
-            bytes.fromhex(data["sign_priv"])
-        )
-        ecdh_priv = x25519.X25519PrivateKey.from_private_bytes(
-            bytes.fromhex(data["ecdh_priv"])
-        )
         mac = data.get("mac_address") or _mac_address()
         identity = DeviceIdentity(
             device_id=UUID(data["device_id"]),
             device_name=data["device_name"],
             mac_address=mac,
-            sign_priv=sign_priv,
-            ecdh_priv=ecdh_priv,
         )
-        if "mac_address" not in data:
+        if "mac_address" not in data or "sign_priv" in data or "ecdh_priv" in data:
             _write_identity(identity)
         return identity
 
@@ -87,8 +65,6 @@ def load_or_create_identity() -> DeviceIdentity:
         device_id=uuid4(),
         device_name=f"Vigia-{uuid4().hex[:8]}",
         mac_address=_mac_address(),
-        sign_priv=ed25519.Ed25519PrivateKey.generate(),
-        ecdh_priv=x25519.X25519PrivateKey.generate(),
     )
     _write_identity(identity)
     log.info("Identidade criada: %s (%s)", identity.device_name, identity.device_id)

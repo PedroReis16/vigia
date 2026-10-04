@@ -1,21 +1,14 @@
-"""Beacon BLE de provisionamento (mesmo protocolo GATT do fall)."""
+"""Beacon BLE de provisionamento de rede (identidade e Wi-Fi)."""
 
 from __future__ import annotations
 
 import asyncio
-import base64
-import binascii
 import json
 import logging
-import os
 import threading
 from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 from uuid import UUID
-
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 
 from . import state
 from .settings import get_settings
@@ -32,11 +25,7 @@ loop: Optional[asyncio.AbstractEventLoop] = None
 
 SERVICE_UUID = "adbb2064-403f-490f-8e0b-d2df7a3e8976"
 CHAR_IDENTITY_UUID = "776ee4be-ecd4-4331-9f0e-7a53f1d9a4ba"
-CHAR_CHALLENGE_UUID = "2984802e-d12e-4e6c-870f-3b37f1845961"
 CHAR_PROVISION_UUID = "2562213c-2180-4320-a70f-247a6125b47a"
-
-_STATUS_VALIDATED = b"VALIDATED"
-_STATUS_INVALID = b"INVALID"
 
 device_context: dict = {}
 
@@ -112,36 +101,6 @@ def __as_bytes(value: Any) -> bytes:
     return bytes(value)
 
 
-def _decode_ed25519_field(value: str, expected_len: int) -> bytes:
-    """Decode hex (legacy) or base64 (compact BLE write) Ed25519 material."""
-    normalized = value.strip()
-    if len(normalized) == expected_len * 2 and all(
-        ch in "0123456789abcdefABCDEF" for ch in normalized
-    ):
-        return bytes.fromhex(normalized)
-    try:
-        decoded = base64.b64decode(normalized, validate=True)
-    except binascii.Error as exc:
-        raise ValueError("campo Ed25519 inválido") from exc
-    if len(decoded) != expected_len:
-        raise ValueError("campo Ed25519 inválido")
-    return decoded
-
-
-def _parse_auth_payload(payload: dict[str, Any]) -> tuple[bytes, bytes]:
-    signature_raw = payload.get("signature")
-    if not signature_raw:
-        raise ValueError("signature ausente")
-
-    incoming_pub = payload.get("app_sign_pub")
-    if not incoming_pub:
-        raise ValueError("app_sign_pub ausente no primeiro vínculo")
-
-    pub_bytes = _decode_ed25519_field(str(incoming_pub), 32)
-    sig_bytes = _decode_ed25519_field(str(signature_raw), 64)
-    return pub_bytes, sig_bytes
-
-
 def __set_provision_status(
     status: bytes, characteristic: Optional["BlessGATTCharacteristic"] = None
 ) -> None:
@@ -180,52 +139,8 @@ async def __provision_wifi_async(
 def __write_request(characteristic: "BlessGATTCharacteristic", value: Any):
     global device_context
 
-    if __uuid_eq(characteristic.uuid, CHAR_CHALLENGE_UUID):
-        log.info("Escrevendo resposta do desafio de sincronia...")
-        try:
-            payload = json.loads(__as_bytes(value).decode("utf-8"))
-            pub_bytes, sig_bytes = _parse_auth_payload(payload)
-
-            nonce = device_context.get("current_nonce")
-            if not nonce:
-                raise ValueError("nenhum desafio ativo")
-
-            pub_hex = pub_bytes.hex()
-            stored_pub = device_context.get("app_sign_pub")
-            if stored_pub:
-                if stored_pub != pub_hex:
-                    raise ValueError("app_sign_pub divergente")
-            else:
-                device_context["app_sign_pub"] = pub_hex
-
-            public_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
-            public_key.verify(sig_bytes, nonce)
-
-            device_context["authenticated_session"] = True
-            device_context["last_challenge_status"] = _STATUS_VALIDATED
-            characteristic.value = bytearray(_STATUS_VALIDATED)
-            state.set_pairing_stage(state.USER_FOUND)
-            log.info("Desafio VALIDATED")
-        except (InvalidSignature, ValueError, KeyError, json.JSONDecodeError) as exc:
-            log.warning("Desafio INVALID: %s", exc)
-            device_context["authenticated_session"] = False
-            device_context["last_challenge_status"] = _STATUS_INVALID
-            characteristic.value = bytearray(_STATUS_INVALID)
-            state.set_pairing_stage(state.PAIRING_ERROR)
-        except Exception as exc:
-            log.warning("Desafio INVALID (erro inesperado): %s", exc)
-            device_context["authenticated_session"] = False
-            device_context["last_challenge_status"] = _STATUS_INVALID
-            characteristic.value = bytearray(_STATUS_INVALID)
-            state.set_pairing_stage(state.PAIRING_ERROR)
-
-    elif __uuid_eq(characteristic.uuid, CHAR_PROVISION_UUID):
+    if __uuid_eq(characteristic.uuid, CHAR_PROVISION_UUID):
         log.info("Escrevendo resposta do provisionamento de rede...")
-
-        if not device_context.get("authenticated_session"):
-            __set_provision_status(b"UNAUTHORIZED", characteristic)
-            state.set_pairing_stage(state.PAIRING_ERROR)
-            return
 
         try:
             payload = json.loads(__as_bytes(value).decode("utf-8"))
@@ -282,39 +197,13 @@ def __write_request(characteristic: "BlessGATTCharacteristic", value: Any):
 
 
 def __read_identity() -> bytearray:
-    pub_sign = (
-        device_context["sign_priv"]
-        .public_key()
-        .public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
-        .hex()
-    )
-
-    pub_ecdh = (
-        device_context["ecdh_priv"]
-        .public_key()
-        .public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
-        .hex()
-    )
-
     identity_packet = {
         "device_id": str(device_context["device_id"]),
         "name": device_context["device_name"],
         "mac_address": device_context["mac_address"],
-        "sign_pub": pub_sign,
-        "ecdh_pub": pub_ecdh,
     }
 
     return bytearray(json.dumps(identity_packet).encode("utf-8"))
-
-
-def __read_challenge() -> bytearray:
-    device_context["current_nonce"] = os.urandom(16)
-    device_context["authenticated_session"] = False
-    return bytearray(device_context["current_nonce"].hex().encode("utf-8"))
 
 
 def __read_request(characteristic: "BlessGATTCharacteristic") -> bytearray:
@@ -322,18 +211,6 @@ def __read_request(characteristic: "BlessGATTCharacteristic") -> bytearray:
         data = __read_identity()
         characteristic.value = data
         state.set_pairing_stage(state.APP_CONNECTED)
-        return data
-
-    if __uuid_eq(characteristic.uuid, CHAR_CHALLENGE_UUID):
-        status = device_context.pop("last_challenge_status", None)
-        if status is not None:
-            if status == _STATUS_VALIDATED:
-                state.set_pairing_stage(state.WAITING_WIFI)
-            characteristic.value = bytearray(status)
-            return bytearray(status)
-
-        data = __read_challenge()
-        characteristic.value = data
         return data
 
     if __uuid_eq(characteristic.uuid, CHAR_PROVISION_UUID):
@@ -350,8 +227,6 @@ async def init_register_beacon(
     device_id: UUID,
     device_name: str,
     mac_address: str,
-    sign_priv: ed25519.Ed25519PrivateKey,
-    ecdh_priv: x25519.X25519PrivateKey,
     cancel: Optional[threading.Event] = None,
 ) -> None:
     global server, loop, device_context
@@ -372,10 +247,6 @@ async def init_register_beacon(
         "device_id": device_id,
         "device_name": device_name,
         "mac_address": mac_address,
-        "sign_priv": sign_priv,
-        "ecdh_priv": ecdh_priv,
-        "authenticated_session": False,
-        "app_sign_pub": None,
         "stop_beacon": False,
     }
 
@@ -390,14 +261,6 @@ async def init_register_beacon(
         GATTCharacteristicProperties.read,
         None,
         GATTAttributePermissions.readable,
-    )
-
-    await server.add_new_characteristic(
-        SERVICE_UUID,
-        CHAR_CHALLENGE_UUID,
-        GATTCharacteristicProperties.read | GATTCharacteristicProperties.write,
-        None,
-        GATTAttributePermissions.readable | GATTAttributePermissions.writeable,
     )
 
     await server.add_new_characteristic(

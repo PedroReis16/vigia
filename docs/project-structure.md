@@ -210,7 +210,7 @@ vigia/
 
 **Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread, integração FIWARE/MQTT em processo isolado, streaming/clipes via Processes filhos do capture, e control plane (`interface`: BLE, Wi-Fi, LCD, gate da captura) no mesmo instalador; base para o release `onboard`.
 
-**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX. Control plane: asyncio, `cryptography`, `getmac`, `gpiozero`/`RPLCD` (LCD; degradam sem hardware), `bless` só em Linux.
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX. Control plane: asyncio, `getmac`, `gpiozero`/`RPLCD` (LCD; degradam sem hardware), `bless` só em Linux.
 
 **Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make interface` / `python -m interface` é o control plane (BLE, Wi-Fi, LCD, gate). `make run` corre capture + integration + interface em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
@@ -634,6 +634,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Onboard: pareamento BLE sem desafio Ed25519 nem chaves privadas em `identity.json` (`interface/provision/`, `shared/settings.py`)
 - [2026-10-04] Onboard: o stream publica no fps da fonte (`CAP_PROP_FPS`); `FRAME_RATE` fica na classificação (`capture_runner.py`)
 - [2026-10-04] Onboard: instalador Linux ARM64 do serviço único `vigia` com YOLO NCNN no bundle (`vigia-onboard/deploy/`, `Makefile`, `onboard-release.yml`)
 - [2026-10-04] Onboard: em debug local, `WIFI_MOCK` segue `DEBUG` quando não está no `.env` — o interface grava `network.json` e abre o gate da captura (`shared/settings.py`)

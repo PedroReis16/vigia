@@ -66,7 +66,6 @@ hiddenimports += [
     "loguru",
     "lap",
     "getmac",
-    "cryptography",
     "paho.mqtt.client",
     "onnxruntime",
     "gpiozero",

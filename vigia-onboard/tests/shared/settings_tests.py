@@ -89,6 +89,26 @@ def test_resolve_ota_dir_DevLocal(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     assert st.resolve_ota_dir() == tmp_path / "ota"
 
 
+def test_get_device_identity_SemChaves(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    st.get_settings.cache_clear()
+    st.get_device_identity.cache_clear()
+    (tmp_path / "identity.json").write_text(
+        '{"device_id":"dev-1","device_name":"Vigia-test",'
+        '"mac_address":"aa:bb:cc:dd:ee:ff"}',
+        encoding="utf-8",
+    )
+
+    identity = st.get_device_identity()
+
+    assert identity.device_id == "dev-1"
+    assert identity.device_name == "Vigia-test"
+    assert not hasattr(identity, "sign_priv")
+
+
 def test_get_device_identity_Ausente(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
     monkeypatch.setenv("DATA_DIR", str(tmp_path))

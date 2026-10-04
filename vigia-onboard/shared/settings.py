@@ -183,12 +183,10 @@ def resolve_install_root() -> Path:
 
 @dataclass(frozen=True)
 class DeviceIdentity:
-    """Identidade do dispositivo provisionada pelo bootstrap."""
+    """Identidade do dispositivo (device_id e nome)."""
 
     device_id: str
     device_name: str
-    sign_priv: str
-    ecdh_priv: str
 
     @classmethod
     def from_json(cls) -> DeviceIdentity:
@@ -199,8 +197,6 @@ class DeviceIdentity:
         return cls(
             device_id=identity["device_id"],
             device_name=identity["device_name"],
-            sign_priv=identity["sign_priv"],
-            ecdh_priv=identity["ecdh_priv"],
         )
 
 

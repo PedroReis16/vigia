@@ -73,8 +73,6 @@ async def provision_supervisor(cancel: threading.Event) -> None:
                 identity.device_id,
                 identity.device_name,
                 identity.mac_address,
-                identity.sign_priv,
-                identity.ecdh_priv,
                 cancel=cancel,
             )
         else:

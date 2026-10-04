@@ -7,7 +7,6 @@ public class VigiaDbContext : DbContext
     public DbSet<Device> Devices { get; set; } = null!;
     public DbSet<Group> Groups { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
-    public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<FiwareProperties> FiwareProperties { get; set; } = null!;
     public DbSet<GroupInvite> GroupInvites { get; set; } = null!;
     public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
@@ -27,7 +26,6 @@ public class VigiaDbContext : DbContext
         _ = modelBuilder.ApplyConfiguration(new DevicesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new GroupsConfiguration());
         _ = modelBuilder.ApplyConfiguration(new UsersConfiguration());
-        _ = modelBuilder.ApplyConfiguration(new RefreshTokensConfiguration());
         _ = modelBuilder.ApplyConfiguration(new FiwarePropertiesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new GroupInvitesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new UserPushTokensConfiguration());

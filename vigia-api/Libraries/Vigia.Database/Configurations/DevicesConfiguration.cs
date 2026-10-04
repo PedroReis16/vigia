@@ -26,11 +26,6 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.Property(e => e.Room)
             .HasColumnName("room");
 
-        _ = builder.Property(e => e.SignPublicKey)
-            .IsRequired()
-            .HasColumnName("sign_public_key")
-            .HasMaxLength(64);
-
         _ = builder.Property(e => e.IsClipsEnabled)
             .IsRequired()
             .HasColumnName("is_clips_enabled")

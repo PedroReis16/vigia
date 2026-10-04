@@ -68,7 +68,6 @@ internal class DevicesService(
                 Id = newDevice.Id,
                 Name = newDevice.Name,
                 MacAddress = newDevice.MacAddress,
-                SignPublicKey = normalizedSignPublicKey
             };
 
             Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id);

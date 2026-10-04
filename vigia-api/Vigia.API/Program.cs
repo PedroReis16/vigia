@@ -57,7 +57,6 @@ builder.Services.AddCloudServices(builder.Configuration);
 builder.Services.AddFirebasePushNotifications(builder.Configuration);
 
 // Services
-// builder.Services.AddTransient<IUserService, UserService>();
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
@@ -80,7 +79,6 @@ builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>
 builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
 
-builder.Services.AddSingleton<IDeviceSignPublicKeyProvider, DeviceSignPublicKeyProvider>();
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

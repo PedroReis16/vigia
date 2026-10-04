@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Vigia.AMQP.Config;
 using Vigia.AMQP.Configuration;
 using Vigia.AMQP.Contracts;
 using RabbitMQ.Client;
@@ -34,13 +35,7 @@ public abstract class RabbitMQQueueService : IQueueService
         string username = section["Username"] ?? section["username"] ?? "guest";
         string password = section["Password"] ?? section["password"] ?? "guest";
 
-        return new RabbitMQConfiguration
-        {
-            HostName = hostName,
-            Port = port,
-            Username = username,
-            Password = password
-        };
+        return new RabbitMQConfiguration(hostName, username, password, port);
     }
 
     /// <summary>

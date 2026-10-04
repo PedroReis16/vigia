@@ -15,4 +15,8 @@ public interface ISubscriberService : IQueueService
         int deliveryLimit = 3,
         ushort? prefetchCount = null,
         bool prefetchGlobal = false);
+
+    void Ack(ulong deliveryTag);
+
+    void Nack(ulong deliveryTag, bool requeue);
 }

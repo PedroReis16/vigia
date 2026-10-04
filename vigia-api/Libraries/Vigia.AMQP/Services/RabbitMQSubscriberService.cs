@@ -11,6 +11,7 @@ namespace Vigia.AMQP.Services;
 public class RabbitMQSubscriberService(ILogger<RabbitMQQueueService> logger, IConfiguration configuration) : RabbitMQQueueService(logger, configuration), ISubscriberService
 {
     private readonly object _consumerSync = new();
+    private readonly object _ackSync = new();
     private readonly Dictionary<string, string> _consumerTagsByQueue = new(StringComparer.Ordinal);
     private bool _prefetchConfigured;
 
@@ -67,6 +68,22 @@ public class RabbitMQSubscriberService(ILogger<RabbitMQQueueService> logger, ICo
         {
             Logger.LogError(ex, "Erro ao configurar Subscriber no RabbitMQ: {ErrorMessage}", ex.Message);
             throw;
+        }
+    }
+
+    public void Ack(ulong deliveryTag)
+    {
+        lock (_ackSync)
+        {
+            Channel?.BasicAck(deliveryTag, multiple: false);
+        }
+    }
+
+    public void Nack(ulong deliveryTag, bool requeue)
+    {
+        lock (_ackSync)
+        {
+            Channel?.BasicNack(deliveryTag, multiple: false, requeue: requeue);
         }
     }
 

@@ -7,9 +7,13 @@ public static class ExchangeNames
     private const string ExchangeTypeFanout = "fanout";
     private const string ExchangeTypeHeaders = "headers";
 
+    public const string UserSync = "vigia.users.direct_exchange";
+    public const string UserSyncDlq = "vigia.users.dlq.direct_exchange";
+
     private static readonly Dictionary<string, string> ExchangeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-
+        [UserSync] = ExchangeTypeDirect,
+        [UserSyncDlq] = ExchangeTypeDirect,
     };
 
     public static string GetExchangeType(string exchangeName)

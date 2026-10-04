@@ -41,6 +41,8 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
     ports:
       - "8081:8080"
+    volumes:
+      - ./keycloak/themes/vigia:/opt/keycloak/themes/vigia:ro
     depends_on:
       postgres:
         condition: service_healthy

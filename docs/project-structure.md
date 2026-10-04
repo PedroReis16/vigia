@@ -344,6 +344,8 @@ vigia/
 |------|-----|
 | `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
+| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; páginas e campos continuam os do Keycloak |
+| `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -353,7 +355,7 @@ vigia/
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. Realms novos escolhem Login theme `vigia` em Realm settings.
 
 **FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
@@ -601,6 +603,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-04] Tema de login `vigia`: rótulos de lembrar/esqueci/voltar seguem o locale do Keycloak (`themes/vigia/login/messages/`, `footer.ftl`)
+- [2026-10-03] Compose local: tema de login Keycloak `vigia` (cores/logo do auth web e Flutter) (`docker-compose/local/keycloak/`, `docker-compose.yaml`)
 - [2026-10-03] Compose local: Keycloak atrás do Traefik em `/auth` (`docker-compose/local/docker-compose.yaml`)
 - [2026-10-03] Compose local: Keycloak no mesmo Postgres da API, isolado no schema `keycloak` (`docker-compose/local/docker-compose.yaml`, `postgres/init/01-keycloak-schema.sql`)
 - [2026-09-30] Onboard: supervisão de stream/clips sai do loop YOLO (thread + Event); escrita live SHM sem cópia extra (`stream/__init__.py`, `capture_runner.py`, `live_frame_shm.py`)

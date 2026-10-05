@@ -150,7 +150,7 @@ services:
 
   # ─── Minio ────────────────────────────────────────────────────────────────
   minio:
-    image: quay.io/minio/minio:latest
+    image: pedroreis16/minio:latest
     container_name: minio
     ports:
       - "9000:9000"

@@ -88,7 +88,7 @@ vigia/
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
-├── seed-codes/             # Utilitários dev: frame de teste + seed do edge local
+├── seed-codes/             # Utilitários dev: frame de teste, clipe a partir de vídeo, seed do edge local
 ├── edge-data/              # Mock local identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
@@ -345,13 +345,14 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ### seed-codes
 
-**Propósito:** Utilitários de desenvolvimento — frame de teste e mock do edge local (sem Pi/BLE).
+**Propósito:** Utilitários de desenvolvimento — frame de teste, clipe a partir de um vídeo e mock do edge local (sem Pi/BLE).
 
-**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
+**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make publish-clip INPUT=video.mp4` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). Se existir `.venv` na pasta, os alvos usam esse Python. `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
 
 | Script | Função |
 |--------|--------|
 | `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` |
+| `seed-codes/publish_clip.py` | Extrai PNG de um vídeo (ffmpeg) e envia a sessão anônima `POST /devices/{id}/clips` + frames numerados |
 | `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
 | `seed-codes/video_converter.py` | Converte AVI → MP4 via ffmpeg (reencode H.264/AAC ou `--copy`) |
 
@@ -641,6 +642,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-05] seed-codes: o Makefile usa o `.venv` local quando ele existe (`Makefile`)
+- [2026-10-05] seed-codes: `publish_clip.py` extrai frames de um vídeo e envia o clipe para a API (`publish_clip.py`, `Makefile`)
 - [2026-10-04] Clipes: a placa envia a janela de queda em PNG sem perdas e a API monta o MP4 (`DevicesClipController`, `stream/clip_export.py`, `clips_runner.py`)
 - [2026-10-04] Remove a sign key Ed25519 do registro, da identidade edge e do upload de frames (`vigia-api`, `vigia-bootstrap`, `vigia-fall`, `seed-codes`)
 - [2026-10-04] App: pareamento BLE sem desafio Ed25519; registro de device sem `signPublicKey` obrigatória (`vigia_ui`, `DevicesService`)

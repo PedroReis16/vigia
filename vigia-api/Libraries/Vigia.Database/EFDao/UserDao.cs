@@ -57,4 +57,29 @@ internal class UserDao(VigiaDbContext context) : BaseDao<User>(context), IUserDa
         dbSet.Update(existing);
         await Context.SaveChangesAsync();
     }
+
+    public async Task<User?> FindWithGroupsAsync(Guid userId)
+    {
+        if (userId == Guid.Empty)
+            return null;
+
+        return await Context.Set<User>()
+            .Where(u => u.Id == userId && u.DeletedAt == null)
+            .Include(u => u.LinkedGroups)
+            .AsNoTracking()
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<User>> GetUsersByGroupAsync(Guid groupId)
+    {
+        if (groupId == Guid.Empty)
+            return [];
+
+        return await Context.Set<User>()
+            .Where(u =>
+                u.DeletedAt == null &&
+                u.LinkedGroups.Any(g => g.Id == groupId && g.DeletedAt == null))
+            .AsNoTracking()
+            .ToListAsync();
+    }
 }

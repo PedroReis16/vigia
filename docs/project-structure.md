@@ -451,6 +451,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | Classificador de queda: `math` (padrão) ou `gru`; persistido em `classifier.json`; seleção via LCD (guia Modelo); fall lê no start e instancia `FallClassifier`; unlink/clear Wi-Fi não apagam o ficheiro | `vigia-bootstrap/provision/classifier.py`, `ui/menu.py`; `vigia-fall/capture/classifiers/` |
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
+| Listagem de membros do device usa o e-mail como nome: `users` persiste só e-mail e telefone | `UserDao.GetUsersByGroupAsync`, `DeviceUsersService` |
 | Convite expira em **7 dias**; apenas o owner pode gerar | `DeviceShareService` |
 | JWT access token: **10 min**; refresh token: **7 dias** com rotação e revogação | `appsettings.json` (JWT) + `AuthService` |
 | Alerta de queda: subscription Orion `fall_state==fall` → webhook API → push Firebase ao grupo | `appsettings.json` (`Fiware:Subscriptions`) + `AlertService` |
@@ -642,6 +643,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-05] API: consultas de membros do grupo religadas sobre `users` (e-mail e telefone) — alerta, SignalR, claim e listagem (`UserDao`, `AlertService`, `GroupRealtimeNotifier`, `DevicesService`, `DeviceUsersService`)
 - [2026-10-05] seed-codes: o Makefile usa o `.venv` local quando ele existe (`Makefile`)
 - [2026-10-05] seed-codes: `publish_clip.py` extrai frames de um vídeo e envia o clipe para a API (`publish_clip.py`, `Makefile`)
 - [2026-10-04] Clipes: a placa envia a janela de queda em PNG sem perdas e a API monta o MP4 (`DevicesClipController`, `stream/clip_export.py`, `clips_runner.py`)

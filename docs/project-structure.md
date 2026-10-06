@@ -15,7 +15,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ML / Visão:** Ultralytics YOLO pose (ONNX Windows / CoreML macOS / NCNN Linux+bundle), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
-- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`)
+- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`, `clips.json`)
 - **Deploy:** PyInstaller ARM64, systemd
 
 ### Cloud / Infra
@@ -223,11 +223,12 @@ vigia/
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
 | `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `interface/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` / `clips.json` |
 | `capture_gate.py` | `capture.hold` (bloqueia), `capture.restart` (releitura do modelo), `capture.pid` (CPU/RAM e “serviço activo”) |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 | `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`); integration escreve, capture/workers leem |
+| `clips_config.py` | Preferência local `clips.json` (`enabled`); `clips_on`/`clips_off` gravam o ficheiro e o arranque da captura/integração copia-o para o ControlShm |
 | `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips) |
 | `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S * FRAME_RATE`); escrito pelo Process de clips |
 
@@ -265,7 +266,7 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
-| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` e `clips_on`/`off` → ControlShm; espera o provisionamento e não publica com o gate fechado |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` → ControlShm; `clips_on`/`off` → `clips.json` + ControlShm; no arranque aplica `clips.json`; espera o provisionamento e não publica com o gate fechado |
 
 **Módulos principais (`interface/`):** control plane no mesmo instalador (porte do `vigia-bootstrap`). `python -m interface` não exporta YOLO.
 
@@ -634,15 +635,18 @@ flowchart LR
 
 ### 7. Montagem de clipes
 
-1. Com `clips_on`, o processo de clips mantém a janela (`CLIP_WINDOW_S` × `FRAME_RATE`) a partir da live SHM
-2. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas e envia, sem autenticação, `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
-3. A API grava os PNG numerados em disco local. Quando a sequência fecha, ffmpeg decodifica os PNG e gera H.264 CRF 18
-4. O MP4 sobe para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4`) e fica em `GET /devices/{id}/clips` e `GET /devices/{id}/clips/{clipId}`
+1. O update do device com `IsClipsEnabled` diferente envia `clips_on` ou `clips_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
+2. O onboard grava a preferência em `{DATA_DIR}/clips.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
+3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × `FRAME_RATE`) a partir da live SHM
+4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas e envia, sem autenticação, `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
+5. A API grava os PNG numerados em disco local. Quando a sequência fecha, ffmpeg decodifica os PNG e gera H.264 CRF 18
+6. O MP4 sobe para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4`) e fica em `GET /devices/{id}/clips` e `GET /devices/{id}/clips/{clipId}`
 
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-05] Clipes: `IsClipsEnabled` envia `clips_on`/`clips_off`; o onboard persiste `clips.json` e aplica a flag no arranque da captura (`DevicesService`, `clips_config.py`, `integration_runner.py`, `capture_runner.py`)
 - [2026-10-05] API: consultas de membros do grupo religadas sobre `users` (e-mail e telefone) — alerta, SignalR, claim e listagem (`UserDao`, `AlertService`, `GroupRealtimeNotifier`, `DevicesService`, `DeviceUsersService`)
 - [2026-10-05] seed-codes: o Makefile usa o `.venv` local quando ele existe (`Makefile`)
 - [2026-10-05] seed-codes: `publish_clip.py` extrai frames de um vídeo e envia o clipe para a API (`publish_clip.py`, `Makefile`)

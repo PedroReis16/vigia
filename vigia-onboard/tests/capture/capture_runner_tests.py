@@ -53,6 +53,7 @@ def capture_deps():
         patch.object(cr, "save_points"),
         patch.object(cr, "unpack_raw_points", return_value=[]),
         patch.object(cr, "prepare_multiprocessing"),
+        patch.object(cr, "apply_persisted_clips"),
         patch.object(cr, "start_supervisor"),
         patch.object(cr, "stop_supervisor"),
         patch.object(cr, "export_active", return_value=False),

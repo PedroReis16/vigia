@@ -352,11 +352,12 @@ internal class DevicesService(
             string? nextNickname = updatedDevice.Nickname ?? device.Nickname;
             DeviceRooms? nextRoom = updatedDevice.Room ?? device.Room;
             bool nextIsClipsEnabled = updatedDevice.IsClipsEnabled ?? device.IsClipsEnabled;
+            bool clipsChanged = nextIsClipsEnabled != device.IsClipsEnabled;
 
             if (
                 nextNickname == device.Nickname &&
                 nextRoom == device.Room &&
-                nextIsClipsEnabled == device.IsClipsEnabled)
+                !clipsChanged)
             {
                 _logger.LogInformation($"A solicitação de atualização do dispositivo '{deviceId}' foi ignorada pois a solicitação não aplica mudanças efetivas sobre o dispositivo");
                 return;
@@ -374,6 +375,9 @@ internal class DevicesService(
 
             await devicesDao.UpdateAsync(updatedDeviceEntity);
 
+            if (clipsChanged)
+                await TrySendClipsCommandAsync(scope, device.Name, nextIsClipsEnabled);
+
             _logger.LogInformation($"Dispositivo '{deviceId}' atualizado com sucesso");
         }
         catch (EntityValidationException) { throw; }
@@ -383,6 +387,26 @@ internal class DevicesService(
             string errorMsg = $"Houve um erro ao tentar atualizar o dispositivo {deviceId}: {ex.GetFullMessage()}";
             _logger.LogError(errorMsg);
             throw;
+        }
+    }
+
+    private async Task TrySendClipsCommandAsync(IServiceScope scope, string deviceName, bool enabled)
+    {
+        DeviceCommands command = enabled ? DeviceCommands.CLIPS_ON : DeviceCommands.CLIPS_OFF;
+        try
+        {
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+            bool sent = await fiwareService.SendCommandAsync(deviceName, command);
+            if (!sent)
+            {
+                _logger.LogWarning(
+                    $"Falha ao enviar o comando '{command.GetCommandName()}' para o dispositivo '{deviceName}'. A preferência de clipes ficou gravada.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                $"Falha ao enviar o comando de clipes para o dispositivo '{deviceName}': {ex.GetFullMessage()}. A preferência ficou gravada.");
         }
     }
 

@@ -6,7 +6,9 @@ public enum DeviceCommands
     STOP_STREAMING = 2,
     DEVICE_ON = 3,
     DEVICE_OFF = 4,
-    DEVICE_UPDATE = 5
+    DEVICE_UPDATE = 5,
+    CLIPS_ON = 6,
+    CLIPS_OFF = 7
 }
 
 public static class DeviceCommandExtensions
@@ -20,6 +22,8 @@ public static class DeviceCommandExtensions
             DeviceCommands.DEVICE_ON => "device_on",
             DeviceCommands.DEVICE_OFF => "device_off",
             DeviceCommands.DEVICE_UPDATE => "device_update",
+            DeviceCommands.CLIPS_ON => "clips_on",
+            DeviceCommands.CLIPS_OFF => "clips_off",
             _ => throw new ArgumentException("Invalid device command")
         };
     }

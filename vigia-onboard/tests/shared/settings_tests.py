@@ -78,6 +78,7 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.clip_window_s == 30
     assert cfg.clip_slot_count == 450
     assert cfg.data_dir == "/tmp/edge-data"
+    assert st.get_clips_config_path() == Path("/tmp/edge-data/clips.json")
 
 
 def test_resolve_ota_dir_DevLocal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

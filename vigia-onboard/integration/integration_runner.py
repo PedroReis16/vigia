@@ -17,6 +17,7 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from shared.capture_gate import capture_allowed
+from shared.clips_config import apply_persisted_clips, save_clips_enabled
 from shared.event_types import EVENT_FALL_STATE
 from shared.fall_ipc import attach_fall_shm, normalize_fall_state
 from shared.settings import (
@@ -92,8 +93,10 @@ def _on_message(_: mqtt.Client, __: Any, message: mqtt.MQTTMessage) -> None:
             case "stream_off":
                 set_stream_status(False)
             case "clips_on":
+                save_clips_enabled(True)
                 set_clips_enabled(True)
             case "clips_off":
+                save_clips_enabled(False)
                 set_clips_enabled(False)
             case "device_update":
                 _write_ota_pending(value)
@@ -199,6 +202,7 @@ def run_integration() -> None:
     logger.info("Integration running")
 
     identity, network_settings = _wait_for_provision()
+    apply_persisted_clips()
 
     OTA_DIR = resolve_ota_dir()
     PENDING_PATH = OTA_DIR / "pending.json"

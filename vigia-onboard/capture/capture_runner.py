@@ -15,6 +15,7 @@ from shared.capture_gate import (
     restart_pending,
     write_capture_pid,
 )
+from shared.clips_config import apply_persisted_clips
 from shared.live_frame_shm import DEFAULT_MAX_PAYLOAD, LiveFrameShm
 from shared.settings import get_settings
 from core import save_points, start_core_worker, stop_core_worker
@@ -197,6 +198,7 @@ def _run_capture_session() -> str:
         interrupted = False
         start_core_worker()
         if live_shm is not None:
+            apply_persisted_clips()
             start_supervisor(
                 live_shm.name,
                 clip_shm_name=settings.clip_shm_name,

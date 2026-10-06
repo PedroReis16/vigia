@@ -80,6 +80,10 @@ def test_on_message_clips_on_off(
     monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
     monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
     monkeypatch.setattr(runner, "_device_id", "dev1")
+    clips_path = tmp_path / "clips.json"
+    monkeypatch.setattr(
+        "shared.clips_config.get_clips_config_path", lambda: clips_path
+    )
     called: dict[str, bool | None] = {"v": None}
     monkeypatch.setattr(
         runner, "set_clips_enabled", lambda v: called.__setitem__("v", v)
@@ -88,10 +92,12 @@ def test_on_message_clips_on_off(
     msg.payload = b"dev1@clips_on|"
     runner._on_message(None, None, msg)
     assert called["v"] is True
+    assert json.loads(clips_path.read_text(encoding="utf-8")) == {"enabled": True}
 
     msg.payload = b"dev1@clips_off|"
     runner._on_message(None, None, msg)
     assert called["v"] is False
+    assert json.loads(clips_path.read_text(encoding="utf-8")) == {"enabled": False}
 
 
 @pytest.mark.parametrize(
@@ -211,6 +217,7 @@ def test_run_integration_PublicaEventosDaShm(
         ),
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
+    monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: True)
@@ -254,6 +261,7 @@ def test_run_integration_NaoPublicaComGateFechado(
         ),
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
+    monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: False)

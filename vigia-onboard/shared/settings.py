@@ -159,6 +159,11 @@ def get_classifier_path() -> Path:
     return Path(get_settings().data_dir) / "classifier.json"
 
 
+def get_clips_config_path() -> Path:
+    """Caminho de clips.json (preferência de armazenamento de clipes)."""
+    return Path(get_settings().data_dir) / "clips.json"
+
+
 def resolve_ota_dir() -> Path:
     """
     Diretório OTA: VIGIA_OTA_DIR explícito, senão {DATA_DIR}/ota em dev local,

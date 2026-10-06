@@ -203,6 +203,7 @@ def _run_capture_session() -> str:
                 live_shm.name,
                 clip_shm_name=settings.clip_shm_name,
                 live_shm=live_shm,
+                capture_fps=source_fps,
             )
 
         while True:

@@ -69,10 +69,14 @@ class Settings:
     mock_fiware_api_key: str = "VIGIA"
     mock_stream_ingest_url: str = "rtmp://localhost:1935"
 
+    def clip_slots_for(self, fps: int) -> int:
+        """Slots da janela ≈ CLIP_WINDOW_S × fps de captura da câmera."""
+        return max(1, int(self.clip_window_s) * max(1, int(fps)))
+
     @property
     def clip_slot_count(self) -> int:
-        """Slots da janela de clipes ≈ CLIP_WINDOW_S * FRAME_RATE."""
-        return max(1, int(self.clip_window_s) * max(1, int(self.frame_rate)))
+        """Fallback com FRAME_RATE quando o fps da câmera ainda não foi lido."""
+        return self.clip_slots_for(self.frame_rate)
 
     @classmethod
     def from_env(cls) -> Settings:

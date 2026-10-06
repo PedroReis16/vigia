@@ -105,9 +105,14 @@ class ClipFrameRing:
             max_payload if max_payload is not None else settings.clip_max_payload
         )
         try:
-            return cls.attach(name)
+            ring = cls.attach(name)
         except FileNotFoundError:
-            pass
+            ring = None
+        if ring is not None:
+            if ring.slot_count == slots and ring.max_payload == payload:
+                return ring
+            ring.close()
+            _discard_shm(name)
         try:
             return cls.create(slot_count=slots, max_payload=payload, name=name)
         except FileExistsError:
@@ -223,6 +228,20 @@ class ClipFrameRing:
                 self._shm.unlink()
             except FileNotFoundError:
                 pass
+
+
+def _discard_shm(name: str) -> None:
+    """Remove um ring antigo para recriar com outro número de slots."""
+    try:
+        shm = SharedMemory(name=name)
+    except FileNotFoundError:
+        return
+    try:
+        shm.unlink()
+    except FileNotFoundError:
+        pass
+    finally:
+        shm.close()
 
 
 __all__ = [

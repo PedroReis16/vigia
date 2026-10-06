@@ -266,7 +266,12 @@ def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
         cr.run_capture()
 
     live.write.assert_called_once_with("frame", 30)
-    start.assert_called_once()
+    start.assert_called_once_with(
+        "live-test",
+        clip_shm_name="vigia-onboard-clip-test",
+        live_shm=live,
+        capture_fps=30,
+    )
     live.reset_sequence.assert_called_once()
     live.close.assert_called_once()
     live.unlink.assert_called_once()

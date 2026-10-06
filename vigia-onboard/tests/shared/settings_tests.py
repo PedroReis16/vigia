@@ -77,6 +77,7 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.slider_window_size == 20
     assert cfg.clip_window_s == 30
     assert cfg.clip_slot_count == 450
+    assert cfg.clip_slots_for(30) == 900
     assert cfg.data_dir == "/tmp/edge-data"
     assert st.get_clips_config_path() == Path("/tmp/edge-data/clips.json")
 

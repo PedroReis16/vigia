@@ -50,6 +50,74 @@ def test_stream_runner_PublicaEnquantoStreamOn() -> None:
         live.unlink()
 
 
+def test_resolve_clip_fps_PrefereCamera():
+    assert clips_runner._resolve_clip_fps(30, 12) == 30
+    assert clips_runner._resolve_clip_fps(None, 12) == 12
+    assert clips_runner._resolve_clip_fps(0, 12) == 12
+
+
+def test_clips_runner_JanelaEExportNoFpsDaCamera() -> None:
+    live = LiveFrameShm.create(max_payload=64)
+    frame = np.full((2, 2, 3), 3, dtype=np.uint8)
+    live.write(frame, 30)
+    clip = MagicMock()
+    clip.__len__.return_value = 1
+    stored = MagicMock()
+    stored.frame = frame
+    clip.snapshot.return_value = [stored]
+    calls = {"n": 0}
+    exported: dict[str, int] = {}
+
+    def on_then_off():
+        calls["n"] += 1
+        return calls["n"] <= 1
+
+    def capture_export(frames, fps):
+        exported["fps"] = fps
+        exported["n"] = len(frames)
+
+    class _ImmediateThread:
+        def __init__(self, target, args, **kwargs):
+            self._target = target
+            self._args = args
+
+        def start(self) -> None:
+            self._target(*self._args)
+
+        def is_alive(self) -> bool:
+            return False
+
+    try:
+        with (
+            patch.object(clips_runner, "get_clips_enabled", side_effect=on_then_off),
+            patch.object(clips_runner, "get_settings") as settings,
+            patch.object(clips_runner, "_latest_fall_state", return_value="fall"),
+            patch.object(clips_runner, "_export_snapshot", side_effect=capture_export),
+            patch.object(clips_runner.threading, "Thread", _ImmediateThread),
+            patch.object(
+                clips_runner.ClipFrameRing,
+                "open_or_create",
+                return_value=clip,
+            ) as open_ring,
+        ):
+            settings.return_value = MagicMock(
+                clip_shm_name="clip-test",
+                clip_max_payload=64,
+                frame_rate=12,
+                fall_shm_name="fall-test",
+                clip_window_s=30,
+            )
+            settings.return_value.clip_slots_for.side_effect = lambda fps: 30 * int(fps)
+            clips_runner.run_clips_worker(live.name, "clip-test", None, 30)
+
+        assert open_ring.call_args.kwargs["slot_count"] == 900
+        assert exported["fps"] == 30
+        assert exported["n"] == 1
+    finally:
+        live.close()
+        live.unlink()
+
+
 def test_clips_runner_EmpilhaNaJanela() -> None:
     live = LiveFrameShm.create(max_payload=64)
     frame = np.full((2, 2, 3), 7, dtype=np.uint8)
@@ -74,9 +142,11 @@ def test_clips_runner_EmpilhaNaJanela() -> None:
         ):
             settings.return_value = MagicMock(
                 clip_shm_name="clip-test",
-                clip_slot_count=4,
                 clip_max_payload=64,
+                frame_rate=12,
+                fall_shm_name="fall-test",
             )
+            settings.return_value.clip_slots_for.return_value = 4
             clips_runner.run_clips_worker(live.name, "clip-test")
 
         clip.push.assert_called_once()
@@ -121,5 +191,16 @@ def test_supervise_workers_SobeEParaIndependentes() -> None:
             live_shm=live,
         )
         stop_stream.assert_called_once()
-        ensure_clips.assert_called_once_with("live", "clip")
+        ensure_clips.assert_called_once_with("live", "clip", capture_fps=None)
         stop_clips.assert_not_called()
+
+        stream_pkg._clips_task = None
+        stream_pkg.supervise_workers(
+            "live",
+            stream_on=False,
+            clips_enabled=True,
+            clip_shm_name="clip",
+            live_shm=live,
+            capture_fps=30,
+        )
+        ensure_clips.assert_called_with("live", "clip", capture_fps=30)

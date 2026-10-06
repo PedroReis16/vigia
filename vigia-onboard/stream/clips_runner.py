@@ -46,15 +46,24 @@ def _export_snapshot(frames: list, fps: int) -> None:
         logger.warning("Falha ao exportar clipe de queda: %s", error)
 
 
+def _resolve_clip_fps(capture_fps: int | None, fallback: int) -> int:
+    """FPS da câmera para a janela e o MP4. Sem leitura da fonte, usa FRAME_RATE."""
+    if capture_fps is not None and int(capture_fps) > 0:
+        return max(1, int(capture_fps))
+    return max(1, int(fallback))
+
+
 def run_clips_worker(
     live_shm_name: str,
     clip_shm_name: str | None = None,
     run_event: EventType | None = None,
+    capture_fps: int | None = None,
 ) -> None:
     """
     Consome frames da live SHM e empurra para o ClipFrameRing enquanto clips_enabled.
 
-    Na transição para fall, envia a janela numerada para a API sem bloquear o loop.
+    A janela cabe ``CLIP_WINDOW_S`` no fps da câmera (o mesmo do stream). Na
+    transição para fall, envia a janela numerada para a API sem bloquear o loop.
     """
     logging.basicConfig(
         level=logging.INFO,
@@ -62,16 +71,19 @@ def run_clips_worker(
     )
     settings = get_settings()
     clip_name = (clip_shm_name or settings.clip_shm_name).strip() or settings.clip_shm_name
+    playback_fps = _resolve_clip_fps(capture_fps, settings.frame_rate)
+    slot_count = settings.clip_slots_for(playback_fps)
     logger.info(
-        "Clips worker iniciado (live=%s clip=%s slots=%s)",
+        "Clips worker iniciado (live=%s clip=%s slots=%s fps=%s)",
         live_shm_name,
         clip_name,
-        settings.clip_slot_count,
+        slot_count,
+        playback_fps,
     )
     live_shm = LiveFrameShm.attach(live_shm_name)
     clip_shm = ClipFrameRing.open_or_create(
         clip_name,
-        slot_count=settings.clip_slot_count,
+        slot_count=slot_count,
         max_payload=settings.clip_max_payload,
     )
     fall_ring = _attach_fall_ring(settings.fall_shm_name)
@@ -88,6 +100,8 @@ def run_clips_worker(
                 fall_ring = _attach_fall_ring(settings.fall_shm_name)
             item = live_shm.read_latest(timeout=0.2)
             if item is not None:
+                if item.stream_fps > 0:
+                    playback_fps = int(item.stream_fps)
                 clip_shm.push(item.frame, capture_ts=time.monotonic())
 
             busy = export_thread is not None and export_thread.is_alive()
@@ -105,7 +119,7 @@ def run_clips_worker(
                 continue
             export_thread = threading.Thread(
                 target=_export_snapshot,
-                args=(frames, settings.frame_rate),
+                args=(frames, playback_fps),
                 name="clip-export",
                 daemon=True,
             )

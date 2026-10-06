@@ -230,7 +230,7 @@ vigia/
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`); integration escreve, capture/workers leem |
 | `clips_config.py` | Preferência local `clips.json` (`enabled`); `clips_on`/`clips_off` gravam o ficheiro e o arranque da captura/integração copia-o para o ControlShm |
 | `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips) |
-| `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S * FRAME_RATE`); escrito pelo Process de clips |
+| `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S` × fps da câmera; fallback `FRAME_RATE`); escrito pelo Process de clips |
 
 **Módulos principais (`capture/`):**
 
@@ -256,7 +256,7 @@ vigia/
 |--------|--------|
 | `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
 | `stream_runner.py` | Process RTMP: live SHM → FFmpeg → MediaMTX enquanto `stream_on` |
-| `clips_runner.py` | Process janela: live SHM → ClipFrameRing; na entrada em `fall`, dispara o export |
+| `clips_runner.py` | Process janela: live SHM → ClipFrameRing no fps da câmera; na entrada em `fall`, exporta nesse fps |
 | `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
 | `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
 | `mp_compat.py` | `freeze_support` + stop de filhos |
@@ -637,8 +637,8 @@ flowchart LR
 
 1. O update do device com `IsClipsEnabled` diferente envia `clips_on` ou `clips_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
 2. O onboard grava a preferência em `{DATA_DIR}/clips.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
-3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × `FRAME_RATE`) a partir da live SHM
-4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas e envia, sem autenticação, `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
+3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
+4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas e envia, sem autenticação, `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`, com o fps da captura para o MP4 sair no mesmo ritmo
 5. A API grava os PNG numerados em disco local. Quando a sequência fecha, ffmpeg decodifica os PNG e gera H.264 CRF 18
 6. O MP4 sobe para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4`) e fica em `GET /devices/{id}/clips` e `GET /devices/{id}/clips/{clipId}`
 
@@ -646,6 +646,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-05] Onboard: a janela de clipes e o fps do MP4 seguem a taxa da câmera, como o stream (`clips_runner.py`, `capture_runner.py`, `settings.py`)
 - [2026-10-05] Clipes: `IsClipsEnabled` envia `clips_on`/`clips_off`; o onboard persiste `clips.json` e aplica a flag no arranque da captura (`DevicesService`, `clips_config.py`, `integration_runner.py`, `capture_runner.py`)
 - [2026-10-05] API: consultas de membros do grupo religadas sobre `users` (e-mail e telefone) — alerta, SignalR, claim e listagem (`UserDao`, `AlertService`, `GroupRealtimeNotifier`, `DevicesService`, `DeviceUsersService`)
 - [2026-10-05] seed-codes: o Makefile usa o `.venv` local quando ele existe (`Makefile`)

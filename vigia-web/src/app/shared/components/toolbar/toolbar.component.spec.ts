@@ -112,7 +112,7 @@ describe('ToolbarComponent', () => {
     expect(logout.execute).toHaveBeenCalled();
   });
 
-  it('arms logout transition before navigating to login', async () => {
+  it('arms logout transition before ending the session', async () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const toolbar = compiled.querySelector('[data-testid="app-toolbar"]') as HTMLElement;
     const logo = compiled.querySelector('[data-testid="toolbar-logo"] img') as HTMLElement;
@@ -145,11 +145,10 @@ describe('ToolbarComponent', () => {
     });
 
     vi.spyOn(authExitTransition, 'waitForShellExit').mockResolvedValue(undefined);
-    const navigateSpy = vi.spyOn(component['router'], 'navigate').mockResolvedValue(true);
 
     await component.onLogout();
 
     expect(authExitTransition.kind()).toBe('logout');
-    expect(navigateSpy).toHaveBeenCalledWith(['/login']);
+    expect(logout.execute).toHaveBeenCalled();
   });
 });

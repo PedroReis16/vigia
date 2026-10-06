@@ -122,6 +122,24 @@ services:
     networks:
       - vigia-network
 
+  # Reaplica redirects, PKCE e audience do cliente vigia-web: --import-realm ignora realm que já existe.
+  keycloak-web-client:
+    image: vigia-keycloak:local
+    container_name: keycloak-web-client
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-web-client.sh"]
+    volumes:
+      - ./keycloak/apply-web-client.sh:/apply-web-client.sh:ro
+    networks:
+      - vigia-network
+
   # ─── REDIS ────────────────────────────────────────────────────────────────
   redis:
     image: redis:latest

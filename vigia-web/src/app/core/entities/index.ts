@@ -7,4 +7,3 @@ export * from './DTOs/device-user.dto';
 export * from './DTOs/update-device.dto';
 export * from './DTOs/device-share-invite.dto';
 export * from './DTOs/group-membership-changed.dto';
-export * from './DTOs/auth.dto';

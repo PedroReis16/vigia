@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig, inject, provideAppInitializer, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
@@ -15,6 +15,7 @@ import { TranslateHttpLoader } from '@ngx-translate/http-loader';
 import { VigiaTheme } from './shared/theme/vigia.theme';
 import { environment } from '@environments/environment';
 import { ApiBaseUrlInterceptor, AuthInterceptor } from '@core/interceptors';
+import { KeycloakAuthService } from '@core/services/auth/keycloak-auth.service';
 
 export function HttpLoaderFactory(http: HttpClient) {
   return new TranslateHttpLoader(http, './i18n/', '.json');
@@ -23,6 +24,7 @@ export function HttpLoaderFactory(http: HttpClient) {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
+    provideAppInitializer(() => inject(KeycloakAuthService).init()),
     provideRouter(routes),
     provideAnimationsAsync(),
     provideOptimus({

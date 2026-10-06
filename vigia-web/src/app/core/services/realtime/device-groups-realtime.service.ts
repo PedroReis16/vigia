@@ -1,4 +1,3 @@
-import { HttpBackend, HttpClient } from '@angular/common/http';
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import {
   GroupMembershipChangedDto,
@@ -11,15 +10,13 @@ import {
   HubConnectionBuilder,
   HubConnectionState,
 } from '@microsoft/signalr';
-import { AuthTokensDto } from '@core/entities/DTOs/auth.dto';
-import { Subject, firstValueFrom } from 'rxjs';
+import { Subject } from 'rxjs';
 
 @Injectable({
   providedIn: 'root',
 })
 export class DeviceGroupsRealtimeService implements OnDestroy {
   private readonly session = inject(AuthSessionService);
-  private readonly refreshHttp = new HttpClient(inject(HttpBackend));
 
   private connection: HubConnection | null = null;
   private readonly membershipChangedSubject = new Subject<GroupMembershipChangedDto>();
@@ -88,29 +85,6 @@ export class DeviceGroupsRealtimeService implements OnDestroy {
   }
 
   private async ensureAccessToken(): Promise<string> {
-    const current = this.session.getAccessToken();
-    if (current) {
-      return current;
-    }
-
-    const refreshToken = this.session.getRefreshToken();
-    if (!refreshToken) {
-      return '';
-    }
-
-    try {
-      const base = environment.apiUrl.replace(/\/$/, '');
-      const tokens = await firstValueFrom(
-        this.refreshHttp.post<AuthTokensDto>(`${base}/auth/refresh`, { refreshToken }),
-      );
-      if (tokens) {
-        this.session.setSession(tokens);
-        return tokens.accessToken;
-      }
-    } catch {
-      // Fall through.
-    }
-
-    return current ?? '';
+    return (await this.session.ensureFreshAccessToken()) ?? '';
   }
 }

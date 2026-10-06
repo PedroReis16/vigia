@@ -792,10 +792,12 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://www.keycloak.org/app/*"
+        "http://localhost:4200/*",
+        "http://localhost:81/*",
+        "http://localhost/*"
       ],
       "webOrigins": [
-        "https://www.keycloak.org"
+        "+"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -811,6 +813,8 @@
         "realm_client": "false",
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256",
         "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false"
@@ -818,6 +822,21 @@
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
+      "protocolMappers": [
+        {
+          "id": "a4c8e1b2-6f3d-4a91-9c27-1b8e5d0f4a63",
+          "name": "vigia-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "vigia-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",

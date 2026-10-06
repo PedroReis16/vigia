@@ -10,6 +10,11 @@ export const environment = {
   ],
   apiUrl: 'http://localhost:81/vigia',
   streamBaseUrl: 'http://localhost:81',
+  keycloak: {
+    url: 'http://localhost/auth',
+    realm: 'vigia',
+    clientId: 'vigia-web',
+  },
   firebase: {
     apiKey: 'AIzaSyDLv9uHA6xFbRRnwjRmzWaCxadX-v62DvI',
     authDomain: 'vigia-fall-detection.firebaseapp.com',

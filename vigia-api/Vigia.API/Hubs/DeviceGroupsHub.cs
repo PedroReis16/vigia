@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Vigia.API.Hubs;
 
-[Authorize(AuthenticationSchemes = "OAuth")]
+// Default scheme forwards to the local JWT or the Keycloak issuer. Listing both
+// JwtBearer schemes would fail the request when the unused one rejects the token.
+[Authorize]
 public class DeviceGroupsHub : Hub
 {
     public override async Task OnConnectedAsync()

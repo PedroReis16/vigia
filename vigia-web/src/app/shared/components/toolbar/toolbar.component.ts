@@ -1,5 +1,5 @@
 import { Component, computed, inject, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { Avatar } from '@openng/optimus-ui/avatar';
 import { Popover } from '@openng/optimus-ui/popover';
@@ -23,7 +23,6 @@ import moment from 'moment';
 export class ToolbarComponent {
   private readonly authExitTransition = inject(AuthExitTransitionService);
   private readonly logout = inject(LogoutService);
-  private readonly router = inject(Router);
   private readonly messageService = inject(MessageService);
   private readonly notificationStore = inject(NotificationStoreService);
   private readonly navigateToFallAlert = inject(NavigateToFallAlertService);
@@ -134,7 +133,6 @@ export class ToolbarComponent {
 
     await this.logout.execute();
     this.messageService.removeMessage();
-    await this.router.navigate(['/login']);
   }
 
   private prefersReducedMotion(): boolean {

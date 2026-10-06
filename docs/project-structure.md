@@ -38,7 +38,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ORM:** Entity Framework Core + Npgsql (PostgreSQL)
 - **Cache:** Redis + in-memory (`Vigia.Cache`)
 - **Realtime:** SignalR
-- **Auth:** JWT Bearer, tokens efêmeros para frames, service token (dev)
+- **Auth:** JWT Bearer (app) e access token do Keycloak (web), tokens efêmeros para frames, service token (dev)
 - **Push:** Firebase Admin (Android + Web)
 - **Docs API:** Swagger/OpenAPI
 - **Storage:** S3-compatible via `Vigia.Cloud` (MinIO)
@@ -60,12 +60,12 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Framework:** Angular 22
 - **UI:** Optimus UI 2 (fork comunitário MIT do PrimeNG) + Tailwind CSS 4
 - **Tipografia:** Plus Jakarta Sans (Google Fonts, SIL OFL)
-- **Auth:** JWT email/senha (`POST /auth/login|register|refresh|logout`), alinhado ao app Flutter
+- **Auth:** Keycloak (Authorization Code + PKCE, cliente `vigia-web`); o app Flutter continua no JWT da API (`POST /auth/login|register|refresh|logout`)
 - **i18n:** ngx-translate (pt-BR, en-US, es-ES)
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
 - **Push:** Firebase Cloud Messaging (Web + Android; iOS sem push)
-- **Status:** shell autenticado com login/cadastro JWT, listagem de devices, detalhes com stream WHEP, edição, sharing, SignalR e sino de notificações FCM; prod em Cloudflare Pages (`vigiadeteccoes.com.br`)
+- **Status:** shell autenticado via Keycloak (login, cadastro, verificação de e-mail e redefinição de senha nas páginas do realm), listagem de devices, detalhes com stream WHEP, edição, sharing, SignalR e sino de notificações FCM; prod em Cloudflare Pages (`vigiadeteccoes.com.br`) sem issuer de Keycloak configurado
 - **Deploy prod:** Cloudflare Pages (estático); local via Docker/nginx no Traefik `:81`
 
 ### CI/CD
@@ -319,7 +319,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ### vigia-web
 
-**Propósito:** Frontend web Angular — autenticação JWT (login/cadastro), shell autenticado (layout), listagem e detalhes de devices (stream WHEP, edição, usuários/compartilhamento), página home. Camadas `core` / `pages` / `shared` com path aliases.
+**Propósito:** Frontend web Angular — autenticação Keycloak (Authorization Code + PKCE), shell autenticado (layout), listagem e detalhes de devices (stream WHEP, edição, usuários/compartilhamento), página home. Camadas `core` / `pages` / `shared` com path aliases.
 
 **Tecnologias:** Angular 22, Optimus UI 2 (MIT, Community do PrimeNG), Tailwind 4, Plus Jakarta Sans (Google Fonts), ngx-translate, Vitest, pnpm.
 
@@ -331,16 +331,16 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 | Pasta | Responsabilidade |
 |-------|------------------|
-| `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, JWT auth+refresh), entities/DTOs, mappers, services HTTP/sessão, usecases |
-| `src/app/pages/` | Rotas/features: auth unificada (`/login`), layout, devices, home, `main.routes.ts` |
+| `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, Bearer + refresh Keycloak), entities/DTOs, mappers, services HTTP/sessão, usecases |
+| `src/app/pages/` | Rotas/features: redirect Keycloak (`/login`), layout, devices, home, `main.routes.ts` |
 | `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, toolbar superior), preset de tema Optimus UI (`vigia.theme.ts`) |
-| `src/environments/` | `environment.ts` (local `localhost:81`) / `environment.prod.ts` (`services.vigiadeteccoes.com.br`) — `apiUrl`, `streamBaseUrl` absolutos + idiomas |
+| `src/environments/` | `environment.ts` (local `localhost:81`, Keycloak `http://localhost/auth`) / `environment.prod.ts` (`services.vigiadeteccoes.com.br`, Keycloak ainda vazio) — `apiUrl`, `streamBaseUrl`, `keycloak` |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 | `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login` (`guestGuard`, tela unificada login/cadastro estilo Flutter); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite de compartilhamento; `inviteEntryGuard` persiste token e redireciona anônimos ao login); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web.
+**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web.
 
-**Status:** login/cadastro JWT unificado (UI alinhada ao Flutter) e sessão local; listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips stub.
+**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips stub.
 
 ---
 
@@ -376,6 +376,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/local/keycloak/user-profile.json` | Perfil declarativo do usuário: `username`, `email`, `firstName`, `lastName` e `phone` (obrigatório, até 16 caracteres) |
 | `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e aplica `user-profile.json` nos realms `master` e `vigia` |
 | `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, liga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
+| `docker-compose/local/keycloak/apply-web-client.sh` | Reaplica redirects, PKCE S256 e audience `vigia-api` no cliente `vigia-web`; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -385,7 +386,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe.
 
 **MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
 
@@ -419,7 +420,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
-4. **Autenticação multi-esquema** — JWT Bearer para usuários mobile/web; tokens efêmeros para acesso a frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming.
+4. **Autenticação multi-esquema** — JWT simétrico da API para o app Flutter; access token do Keycloak (issuer público, JWKS interno) para o vigia-web; tokens efêmeros para frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer.
 
 5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
@@ -515,7 +516,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **Camadas:** `pages/` (features/rotas) → `core/usecases` → `core/services` → `shared/` (UI reutilizável)
 - **Imports:** path aliases `@core`, `@pages`, `@shared`, `@environments` via barrels `index.ts`
 - **Componentes:** standalone; prefixo `app`
-- **Auth:** JWT via `AuthHttpService` + `AuthSessionService`; use cases `Login`/`Register`/`Logout`; `authGuard`/`guestGuard`; tela unificada `/login` (estilo Flutter); `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + refresh em 401)
+- **Auth:** `keycloak-js` (PKCE) via `KeycloakAuthService`; `AuthSessionService` lê o access token; use cases `BeginKeycloakAuth`/`Logout`; `authGuard`/`guestGuard`; `/login` só redireciona ao realm; `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + `updateToken` em 401)
 - **i18n:** arquivos em `public/i18n/*.json` carregados via `TranslateHttpLoader`
 - **Testes:** Vitest via `@angular/build:unit-test`
 
@@ -534,7 +535,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | vigia_ui | ~14 testes widget/domain/router/push Android-only |
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
-| vigia-web | Vitest: auth HTTP/sessão/use cases/guards/interceptors/validators + devices list/mapper + layout/toolbar/home |
+| vigia-web | Vitest: sessão Keycloak, guards, interceptor, login/logout + devices list/mapper + layout/toolbar/home |
 | vigia-api | unitários em Database (`UserPushTokenDao`), API (`KeycloakUserSyncService`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
@@ -646,6 +647,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] vigia-web autentica com Keycloak (PKCE); a API aceita esse access token além do JWT do app (`keycloak-js`, `OAuthExtension`, `apply-web-client.sh`)
 - [2026-10-05] Clipes: a placa envia os PNG em paralelo e a API reordena a sequência antes do MP4 (`clip_export.py`, `ClipIngestService`, `ClipStaging`, `ClipAssemblyWorker`)
 - [2026-10-05] Onboard: a janela de clipes e o fps do MP4 seguem a taxa da câmera, como o stream (`clips_runner.py`, `capture_runner.py`, `settings.py`)
 - [2026-10-05] Clipes: `IsClipsEnabled` envia `clips_on`/`clips_off`; o onboard persiste `clips.json` e aplica a flag no arranque da captura (`DevicesService`, `clips_config.py`, `integration_runner.py`, `capture_runner.py`)

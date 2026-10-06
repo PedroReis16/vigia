@@ -1,1 +1,1 @@
-export * from './auth-storage.keys';
+export * from './device.constants';

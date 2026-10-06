@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -64,6 +65,36 @@ def test_upload_clip_nao_envia_assinatura(tmp_path: Path) -> None:
     assert session.get_header("X-device-signature") is None
     assert session.get_header("Content-type") == "application/json"
     assert frame_request.get_header("Content-type") == "image/png"
+
+
+def test_upload_clip_envia_frames_em_paralelo(tmp_path: Path) -> None:
+    frames = []
+    for index in range(3):
+        path = tmp_path / f"{index:06d}.png"
+        path.write_bytes(b"\x89PNG\r\n\x1a\n")
+        frames.append(path)
+
+    seen: list[str] = []
+    lock = threading.Lock()
+
+    def opener(request, timeout):  # noqa: ANN001
+        with lock:
+            seen.append(request.get_full_url())
+        response = MagicMock()
+        response.status = 202
+        return response
+
+    clip_export.upload_clip(
+        "http://localhost:8090/vigia",
+        "ca2e7b82-2c24-4f48-918d-6b715db681ba",
+        "11111111-1111-1111-1111-111111111111",
+        30,
+        frames,
+        opener=opener,
+    )
+
+    assert seen[0].endswith("/devices/ca2e7b82-2c24-4f48-918d-6b715db681ba/clips")
+    assert {url.rsplit("/", 1)[-1] for url in seen[1:]} == {"0", "1", "2"}
 
 
 def test_encode_frames_as_png_pede_png_sem_perdas(tmp_path: Path, monkeypatch) -> None:

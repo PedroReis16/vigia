@@ -100,37 +100,78 @@ internal sealed class ClipIngestService(
             throw new HttpResponseException(StatusCodes.Status400BadRequest, "O frame não é um PNG válido", ErrorCodes.INVALID_CLIP_FRAME);
 
         SemaphoreSlim gate = Gates.GetOrAdd(clipId, _ => new SemaphoreSlim(1, 1));
+        string directory;
         await gate.WaitAsync(cancellationToken);
         try
         {
-            DeviceClip? clip = await _clips.FindAsync(clipId, cancellationToken);
-            if (clip == null || clip.DeviceId != deviceId)
-                throw new HttpResponseException(StatusCodes.Status404NotFound, "Sessão de clipe não encontrada", ErrorCodes.CLIP_NOT_FOUND);
-
-            if (clip.Status != ClipStatus.Receiving)
-                throw new HttpResponseException(StatusCodes.Status409Conflict, "A sessão do clipe já foi encerrada", ErrorCodes.CLIP_SESSION_CLOSED);
-
-            if (index < 0 || index >= clip.FrameCount)
-                throw new HttpResponseException(StatusCodes.Status400BadRequest, "O índice do frame está fora da sequência", ErrorCodes.CLIP_FRAME_INDEX_INVALID);
-
-            string directory = ClipStaging.SessionDirectory(_options, deviceId, clipId);
-            Directory.CreateDirectory(directory);
-            string framePath = ClipStaging.FramePath(directory, index);
-            await File.WriteAllBytesAsync(framePath, bytes, cancellationToken);
-
-            if (!ClipStaging.HasAllFrames(directory, clip.FrameCount))
-                return;
-
-            if (!await _clips.TryMarkAssemblingAsync(clipId, cancellationToken))
-                return;
-
-            _queue.Enqueue(new ClipAssemblyJob(deviceId, clipId, clip.Fps, directory));
-            _logger.LogInformation("Clipe {ClipId} completo; montagem enfileirada", clipId);
+            directory = await RequireOpenSessionAsync(deviceId, clipId, index, cancellationToken);
         }
         finally
         {
             gate.Release();
         }
+
+        string? partial = null;
+        try
+        {
+            partial = await ClipStaging.WritePartialAsync(directory, index, bytes, cancellationToken);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                DeviceClip clip = await RequireOpenClipAsync(deviceId, clipId, index, cancellationToken);
+                ClipStaging.CommitFrame(partial, ClipStaging.FramePath(directory, index));
+                partial = null;
+
+                if (!ClipStaging.HasAllFrames(directory, clip.FrameCount))
+                    return;
+
+                if (!await _clips.TryMarkAssemblingAsync(clipId, cancellationToken))
+                    return;
+
+                _queue.Enqueue(new ClipAssemblyJob(deviceId, clipId, clip.Fps, directory, clip.FrameCount));
+                _logger.LogInformation(
+                    "Clipe {ClipId} completo ({FrameCount} frames); reorganização enfileirada",
+                    clipId,
+                    clip.FrameCount);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+        finally
+        {
+            ClipStaging.DeleteFileQuietly(partial);
+        }
+    }
+
+    private async Task<string> RequireOpenSessionAsync(
+        Guid deviceId,
+        Guid clipId,
+        int index,
+        CancellationToken cancellationToken)
+    {
+        await RequireOpenClipAsync(deviceId, clipId, index, cancellationToken);
+        return ClipStaging.SessionDirectory(_options, deviceId, clipId);
+    }
+
+    private async Task<DeviceClip> RequireOpenClipAsync(
+        Guid deviceId,
+        Guid clipId,
+        int index,
+        CancellationToken cancellationToken)
+    {
+        DeviceClip? clip = await _clips.FindAsync(clipId, cancellationToken);
+        if (clip == null || clip.DeviceId != deviceId)
+            throw new HttpResponseException(StatusCodes.Status404NotFound, "Sessão de clipe não encontrada", ErrorCodes.CLIP_NOT_FOUND);
+
+        if (clip.Status != ClipStatus.Receiving)
+            throw new HttpResponseException(StatusCodes.Status409Conflict, "A sessão do clipe já foi encerrada", ErrorCodes.CLIP_SESSION_CLOSED);
+
+        if (index < 0 || index >= clip.FrameCount)
+            throw new HttpResponseException(StatusCodes.Status400BadRequest, "O índice do frame está fora da sequência", ErrorCodes.CLIP_FRAME_INDEX_INVALID);
+
+        return clip;
     }
 
     public async Task<List<DeviceClipDTO>> ListAsync(Guid deviceId, CancellationToken cancellationToken = default)

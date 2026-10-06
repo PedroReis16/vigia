@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import uuid
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
@@ -26,6 +27,7 @@ from stream.rtmp import _ffmpeg_executable, _system_subprocess_env
 logger = logging.getLogger(__name__)
 
 _HTTP_TIMEOUT_S = 30.0
+_UPLOAD_WORKERS = 4
 
 
 def next_clip_export(
@@ -112,7 +114,7 @@ def upload_clip(
     *,
     opener: Callable[..., object] = urlopen,
 ) -> None:
-    """Abre a sessão e envia cada PNG pelo índice, sem cabeçalhos de assinatura."""
+    """Abre a sessão e envia os PNG em paralelo, cada um no seu índice."""
     if not frames:
         return
 
@@ -123,9 +125,16 @@ def upload_clip(
     ).encode("utf-8")
     _post(opener, session_url, session_body, "application/json")
 
-    for index, path in enumerate(frames):
+    def send(item: tuple[int, Path]) -> None:
+        index, path = item
         frame_url = urljoin(base, f"devices/{device_id}/clips/{clip_id}/frames/{index}")
         _post(opener, frame_url, path.read_bytes(), "image/png")
+
+    workers = max(1, min(_UPLOAD_WORKERS, len(frames)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(send, item) for item in enumerate(frames)]
+        for future in futures:
+            future.result()
 
 
 def export_fall_clip(frames: list[np.ndarray], fps: int) -> None:

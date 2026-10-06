@@ -61,6 +61,7 @@ public class ClipIngestServiceTests : IDisposable
         Assert.Single(_queue.Jobs);
         Assert.Equal(clipId, _queue.Jobs[0].ClipId);
         Assert.Equal(12, _queue.Jobs[0].Fps);
+        Assert.Equal(2, _queue.Jobs[0].FrameCount);
         Assert.True(File.Exists(Path.Combine(_queue.Jobs[0].StagingDirectory, "000000.png")));
         Assert.True(File.Exists(Path.Combine(_queue.Jobs[0].StagingDirectory, "000001.png")));
 
@@ -80,6 +81,30 @@ public class ClipIngestServiceTests : IDisposable
         Assert.Equal(StatusCodes.Status400BadRequest, error.StatusCode);
         Assert.Equal(ErrorCodes.CLIP_FRAME_INDEX_INVALID, error.ErrorCode);
         Assert.Empty(_queue.Jobs);
+    }
+
+    [Fact]
+    public void ArrangeSequence_CopiaNaOrdemDoIndice()
+    {
+        string session = Path.Combine(_staging, "arrange");
+        Directory.CreateDirectory(session);
+        File.WriteAllBytes(Path.Combine(session, "000001.png"), [0x01]);
+        File.WriteAllBytes(Path.Combine(session, "000000.png"), [0x00]);
+
+        string ordered = ClipStaging.ArrangeSequence(session, 2);
+
+        Assert.Equal((byte)0x00, File.ReadAllBytes(Path.Combine(ordered, "000000.png"))[0]);
+        Assert.Equal((byte)0x01, File.ReadAllBytes(Path.Combine(ordered, "000001.png"))[0]);
+    }
+
+    [Fact]
+    public void ArrangeSequence_SequenciaIncompleta_Falha()
+    {
+        string session = Path.Combine(_staging, "incomplete");
+        Directory.CreateDirectory(session);
+        File.WriteAllBytes(Path.Combine(session, "000001.png"), Png);
+
+        Assert.Throws<InvalidOperationException>(() => ClipStaging.ArrangeSequence(session, 2));
     }
 
     [Fact]

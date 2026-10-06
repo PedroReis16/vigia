@@ -77,8 +77,9 @@ internal sealed class ClipAssemblyWorker(
         if (string.IsNullOrWhiteSpace(_cloudOptions.PicturesBucketName))
             throw new InvalidOperationException("Cloud:PicturesBucketName não está configurado");
 
+        string framesDirectory = ClipStaging.ArrangeSequence(job.StagingDirectory, job.FrameCount);
         string outputPath = Path.Combine(job.StagingDirectory, "clip.mp4");
-        await _assembler.AssembleAsync(job.StagingDirectory, job.Fps, outputPath, cancellationToken);
+        await _assembler.AssembleAsync(framesDirectory, job.Fps, outputPath, cancellationToken);
 
         string objectKey = ClipObjectKeys.For(job.DeviceId, job.ClipId);
         await using FileStream video = File.OpenRead(outputPath);

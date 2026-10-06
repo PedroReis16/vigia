@@ -204,6 +204,34 @@ class EventShmRing:
 
         return None
 
+    def peek_latest(self) -> EventRecord | None:
+        """Lê o último evento escrito sem consumir a fila do reader."""
+        write_seq, _, _, _ = self._read_header()
+        if write_seq <= 0:
+            return None
+
+        slot_idx = (write_seq - 1) % self._slot_count
+        offset = self._slot_offset(slot_idx)
+        slot_seq, event_type, level, _, person_id, capture_ts, payload_len = (
+            struct.unpack_from(_SLOT_META_FMT, self._shm.buf, offset)
+        )
+        if slot_seq != write_seq:
+            return None
+
+        payload_len = min(payload_len, self._payload_max)
+        raw = bytes(
+            self._shm.buf[
+                offset + _SLOT_META_SIZE : offset + _SLOT_META_SIZE + payload_len
+            ]
+        )
+        return EventRecord(
+            event_type=event_type,
+            level=level,
+            person_id=person_id,
+            capture_ts=capture_ts,
+            payload=raw.decode("utf-8", errors="replace"),
+        )
+
     def reset(self) -> None:
         """Invalida eventos pendentes."""
         write_seq, _, slot_count, payload_max = self._read_header()

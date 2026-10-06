@@ -19,62 +19,28 @@ Deps: pip install -r seed-codes/requirements.txt
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-
 # Espelha Vigia.Models.Seed.TestDeviceSeed
 DEVICE_ID = "b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"
 DEVICE_NAME = "Vigia-a1b2c3d4"
 MAC_ADDRESS = "AA:BB:CC:DD:EE:FF"
-_SIGN_PASSPHRASE = b"vigia-debug-test-device-v1"
-_ECDH_PASSPHRASE = b"vigia-debug-test-device-ecdh-v1"
 DEFAULT_API_BASE_URL = "http://localhost:8090/vigia"
 DEFAULT_FIWARE_API_KEY = "VIGIA"
 DEFAULT_STREAM_INGEST_URL = "rtmp://localhost:1935"
-EXPECTED_SIGN_PUBLIC_KEY = (
-    "10ef4349806050a8e17a82781f188165b70cd19d176c70ec5154c6d9ede4b59d"
-)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = REPO_ROOT / "edge-data"
 
 
-def sign_private_key_hex() -> str:
-    return hashlib.sha256(_SIGN_PASSPHRASE).hexdigest()
-
-
-def ecdh_private_key_hex() -> str:
-    return hashlib.sha256(_ECDH_PASSPHRASE).hexdigest()
-
-
-def sign_public_key_hex(private_key_hex: str | None = None) -> str:
-    seed = private_key_hex or sign_private_key_hex()
-    priv = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed))
-    return priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
-
-
 def build_identity() -> dict[str, str]:
-    sign_priv = sign_private_key_hex()
-    pub = sign_public_key_hex(sign_priv)
-    if pub != EXPECTED_SIGN_PUBLIC_KEY:
-        raise RuntimeError(
-            f"SignPublicKey derivada ({pub}) != TestDeviceSeed ({EXPECTED_SIGN_PUBLIC_KEY})"
-        )
-    # Valida que o seed ECDH é aceito pela lib (clamping interno na carga).
-    X25519PrivateKey.from_private_bytes(bytes.fromhex(ecdh_private_key_hex()))
     return {
         "device_id": DEVICE_ID,
         "device_name": DEVICE_NAME,
         "mac_address": MAC_ADDRESS,
-        "sign_priv": sign_priv,
-        "ecdh_priv": ecdh_private_key_hex(),
     }
 
 
@@ -185,7 +151,6 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     print(f"Device: {DEVICE_NAME} ({DEVICE_ID})")
-    print(f"SignPublicKey: {sign_public_key_hex()}")
     print(f"api_base_url: {args.api_base_url}")
 
     for target in targets:

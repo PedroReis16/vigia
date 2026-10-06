@@ -111,6 +111,64 @@ namespace Vigia.Database.Migrations
                     b.ToTable("devices", (string)null);
                 });
 
+            modelBuilder.Entity("Vigia.Models.Entities.DeviceClip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<int>("Fps")
+                        .HasColumnType("integer")
+                        .HasColumnName("fps");
+
+                    b.Property<int>("FrameCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("frame_count");
+
+                    b.Property<string>("ObjectKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("object_key");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.ToTable("device_clips", (string)null);
+                });
+
             modelBuilder.Entity("Vigia.Models.Entities.FiwareProperties", b =>
                 {
                     b.Property<Guid>("Id")
@@ -406,6 +464,17 @@ namespace Vigia.Database.Migrations
                         .HasForeignKey("GroupId");
 
                     b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.DeviceClip", b =>
+                {
+                    b.HasOne("Vigia.Models.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.GroupInvite", b =>

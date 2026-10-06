@@ -38,6 +38,20 @@ def test_parse_bool():
     assert st._parse_bool("0") is False
 
 
+def test_wifi_mock_segue_debug_quando_ausente(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
+    monkeypatch.delenv("WIFI_MOCK", raising=False)
+    monkeypatch.delenv("DEBUG", raising=False)
+    assert st.Settings.from_env().wifi_mock is True
+
+    monkeypatch.setenv("DEBUG", "false")
+    assert st.Settings.from_env().wifi_mock is False
+
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("WIFI_MOCK", "false")
+    assert st.Settings.from_env().wifi_mock is False
+
+
 def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("CAPTURE_SOURCE", "1")
     monkeypatch.setenv("SHOW_VIDEO", "true")
@@ -63,7 +77,9 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.slider_window_size == 20
     assert cfg.clip_window_s == 30
     assert cfg.clip_slot_count == 450
+    assert cfg.clip_slots_for(30) == 900
     assert cfg.data_dir == "/tmp/edge-data"
+    assert st.get_clips_config_path() == Path("/tmp/edge-data/clips.json")
 
 
 def test_resolve_ota_dir_DevLocal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -73,6 +89,26 @@ def test_resolve_ota_dir_DevLocal(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     st.get_settings.cache_clear()
 
     assert st.resolve_ota_dir() == tmp_path / "ota"
+
+
+def test_get_device_identity_SemChaves(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    monkeypatch.setattr(st, "_load_onboard_env", lambda: None)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    st.get_settings.cache_clear()
+    st.get_device_identity.cache_clear()
+    (tmp_path / "identity.json").write_text(
+        '{"device_id":"dev-1","device_name":"Vigia-test",'
+        '"mac_address":"aa:bb:cc:dd:ee:ff"}',
+        encoding="utf-8",
+    )
+
+    identity = st.get_device_identity()
+
+    assert identity.device_id == "dev-1"
+    assert identity.device_name == "Vigia-test"
+    assert not hasattr(identity, "sign_priv")
 
 
 def test_get_device_identity_Ausente(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

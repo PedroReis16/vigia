@@ -130,40 +130,6 @@ class BlePairingService {
     return DeviceIdentity.fromJson(jsonMap);
   }
 
-  /// Reads a nonce, signs it with [signNonce], writes enroll/auth JSON, expects VALIDATED.
-  Future<void> authenticate(
-    BluetoothDevice device, {
-    required String appSignPubHex,
-    required Future<String> Function(List<int> nonceBytes) signNonce,
-  }) async {
-    final characteristic = await _requireCharacteristic(
-      device,
-      Constants.charChallengeUuid,
-    );
-
-    final nonceHex = utf8.decode(await characteristic.read()).trim();
-    final nonceBytes = _hexToBytes(nonceHex);
-    final signatureHex = await signNonce(nonceBytes);
-
-    // Base64 keeps the auth packet under iOS ATT MTU (~182 B); hex JSON (~207 B)
-    // needs long-write, which BlueZ/bless often mishandles from iPhone centrals.
-    final payload = jsonEncode({
-      'app_sign_pub': base64Encode(_hexToBytes(appSignPubHex)),
-      'signature': base64Encode(_hexToBytes(signatureHex)),
-    });
-
-    await characteristic.write(utf8.encode(payload), withoutResponse: false);
-
-    if (Platform.isIOS) {
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    }
-
-    final status = utf8.decode(await characteristic.read()).trim();
-    if (status != 'VALIDATED') {
-      throw StateError('Desafio BLE rejeitado: $status');
-    }
-  }
-
   /// Writes Wi‑Fi credentials. Device replies with CONNECTING and connects async.
   Future<void> provision(
     BluetoothDevice device, {
@@ -259,18 +225,6 @@ class BlePairingService {
     throw StateError(
       'Characteristic $targetChar não encontrada no serviço Vigia.',
     );
-  }
-
-  List<int> _hexToBytes(String hex) {
-    final normalized = hex.replaceAll(RegExp(r'\s+'), '');
-    if (normalized.length.isOdd) {
-      throw FormatException('Nonce hex inválido: $hex');
-    }
-    final bytes = <int>[];
-    for (var i = 0; i < normalized.length; i += 2) {
-      bytes.add(int.parse(normalized.substring(i, i + 2), radix: 16));
-    }
-    return bytes;
   }
 
   Future<void> _requestPermissions() async {

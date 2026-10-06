@@ -99,13 +99,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Device found. Establishing a connection with Vigia…';
 
   @override
-  String get authenticatingTitle => 'Validating device';
-
-  @override
-  String get authenticatingDescription =>
-      'Confirming Vigia\'s identity and authenticating the app…';
-
-  @override
   String get registeringTitle => 'Registering device';
 
   @override

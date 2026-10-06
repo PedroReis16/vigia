@@ -150,7 +150,7 @@ services:
 
   # ─── Minio ────────────────────────────────────────────────────────────────
   minio:
-    image: quay.io/minio/minio:latest
+    image: pedroreis16/minio:latest
     container_name: minio
     ports:
       - "9000:9000"
@@ -366,6 +366,13 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_AUTOCAST=true
       - IOTA_PROVIDER_URL=http://iot-agent:4041
+      - IOTA_AMQP_DISABLED=true
+    healthcheck:
+      test: ["CMD", "node", "/opt/iotaul/bin/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/iot`)"

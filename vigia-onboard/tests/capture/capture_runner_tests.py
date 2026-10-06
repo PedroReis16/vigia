@@ -53,10 +53,16 @@ def capture_deps():
         patch.object(cr, "save_points"),
         patch.object(cr, "unpack_raw_points", return_value=[]),
         patch.object(cr, "prepare_multiprocessing"),
+        patch.object(cr, "apply_persisted_clips"),
         patch.object(cr, "start_supervisor"),
         patch.object(cr, "stop_supervisor"),
         patch.object(cr, "export_active", return_value=False),
         patch.object(cr, "_open_live_shm", return_value=None),
+        patch.object(cr, "capture_allowed", return_value=True),
+        patch.object(cr, "restart_pending", return_value=False),
+        patch.object(cr, "write_capture_pid"),
+        patch.object(cr, "clear_capture_pid"),
+        patch.object(cr, "consume_capture_restart"),
     ):
         yield SimpleNamespace(
             cap=cap,
@@ -70,12 +76,61 @@ def test_source_label_CameraEVideo():
     assert "clip.mp4" in cr._source_label("/tmp/clip.mp4")
 
 
+def test_source_fps_UsaFonteOuFrameRate():
+    cap = MagicMock()
+    cap.get.return_value = 29.97
+    assert cr._source_fps(cap, 12) == 30
+
+    cap.get.return_value = 0
+    assert cr._source_fps(cap, 12) == 12
+
+    cap.get.side_effect = TypeError
+    assert cr._source_fps(cap, 12) == 12
+
+
 def test_should_restart_stream_SoArquivoComLoopEFrames():
     assert cr._should_restart_stream("/tmp/clip.mp4", True, True, False)
     assert not cr._should_restart_stream(0, True, True, False)
     assert not cr._should_restart_stream("/tmp/clip.mp4", False, True, False)
     assert not cr._should_restart_stream("/tmp/clip.mp4", True, False, False)
     assert not cr._should_restart_stream("/tmp/clip.mp4", True, True, True)
+
+
+def test_run_capture_GateFechado_NaoAbreCamera(capture_deps, monkeypatch):
+    monkeypatch.setattr(cr, "capture_allowed", lambda: False)
+
+    def _sleep(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cr.time, "sleep", _sleep)
+    with pytest.raises(KeyboardInterrupt):
+        cr.run_capture()
+    capture_deps.model.track.assert_not_called()
+
+
+def test_run_capture_Restart_AbreNovaSessao(capture_deps, monkeypatch):
+    flag = {"on": False}
+    monkeypatch.setattr(cr, "restart_pending", lambda: flag["on"])
+
+    def _consume() -> bool:
+        flag["on"] = False
+        return True
+
+    monkeypatch.setattr(cr, "consume_capture_restart", _consume)
+
+    saves = {"n": 0}
+
+    def _save(_points) -> None:
+        saves["n"] += 1
+        if saves["n"] == 1:
+            flag["on"] = True
+
+    monkeypatch.setattr(cr, "save_points", _save)
+    capture_deps.model.track.side_effect = [iter([_result("a")]), iter([_result("b")])]
+
+    cr.run_capture()
+
+    assert capture_deps.model.track.call_count == 2
 
 
 def test_run_capture_FonteFechada_Levanta(capture_deps):
@@ -200,6 +255,7 @@ def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
     live.name = "live-test"
     result = _result()
     capture_deps.model.track.return_value = iter([result])
+    capture_deps.cap.get.return_value = 30
 
     with (
         patch.object(cr, "get_settings", return_value=_settings()),
@@ -209,8 +265,13 @@ def test_run_capture_ComStreamOn_EscreveLiveShm(capture_deps):
     ):
         cr.run_capture()
 
-    live.write.assert_called_once_with("frame", 12)
-    start.assert_called_once()
+    live.write.assert_called_once_with("frame", 30)
+    start.assert_called_once_with(
+        "live-test",
+        clip_shm_name="vigia-onboard-clip-test",
+        live_shm=live,
+        capture_fps=30,
+    )
     live.reset_sequence.assert_called_once()
     live.close.assert_called_once()
     live.unlink.assert_called_once()

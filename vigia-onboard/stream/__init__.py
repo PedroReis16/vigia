@@ -28,6 +28,7 @@ _clips_run: Event | None = None
 _stream_backoff_until = 0.0
 _clips_backoff_until = 0.0
 _export_live = False
+_capture_fps: int | None = None
 _supervisor: threading.Thread | None = None
 _supervisor_stop = threading.Event()
 
@@ -91,6 +92,8 @@ def ensure_stream_worker(live_shm_name: str) -> Process:
 def ensure_clips_worker(
     live_shm_name: str,
     clip_shm_name: str | None = None,
+    *,
+    capture_fps: int | None = None,
 ) -> Process:
     """Garante um Process de clips vivo; devolve a tarefa."""
     global _clips_task, _clips_run
@@ -105,7 +108,7 @@ def ensure_clips_worker(
     _clips_run.set()
     task = Process(
         target=run_clips_worker,
-        args=(live_shm_name, clip_shm_name, _clips_run),
+        args=(live_shm_name, clip_shm_name, _clips_run, capture_fps),
         name="clips",
         daemon=True,
     )
@@ -135,12 +138,13 @@ def stop_clips_worker(*, join_timeout: float = 5.0) -> None:
 
 def stop_all_workers(*, join_timeout: float = 5.0) -> None:
     """Para stream e clips."""
-    global _stream_backoff_until, _clips_backoff_until, _export_live
+    global _stream_backoff_until, _clips_backoff_until, _export_live, _capture_fps
     stop_stream_worker(join_timeout=join_timeout)
     stop_clips_worker(join_timeout=join_timeout)
     _stream_backoff_until = 0.0
     _clips_backoff_until = 0.0
     _export_live = False
+    _capture_fps = None
 
 
 def supervise_workers(
@@ -150,6 +154,7 @@ def supervise_workers(
     clips_enabled: bool,
     clip_shm_name: str | None = None,
     live_shm: Any | None = None,
+    capture_fps: int | None = None,
 ) -> None:
     """
     Sobe/para Processes conforme flags (chamado periodicamente pelo capture).
@@ -182,7 +187,11 @@ def supervise_workers(
         if now >= _clips_backoff_until:
             if _clips_task is not None:
                 _clips_backoff_until = now + _RESTART_BACKOFF_S
-            ensure_clips_worker(live_shm_name, clip_shm_name)
+            ensure_clips_worker(
+                live_shm_name,
+                clip_shm_name,
+                capture_fps=capture_fps,
+            )
     elif not clips_enabled and clips_alive:
         stop_clips_worker()
         _clips_backoff_until = 0.0
@@ -194,9 +203,12 @@ def start_supervisor(
     live_shm_name: str,
     clip_shm_name: str | None = None,
     live_shm: Any | None = None,
+    capture_fps: int | None = None,
 ) -> None:
     """Thread que espelha ControlShm e sobe/para os Processes fora do loop YOLO."""
-    global _supervisor
+    global _supervisor, _capture_fps
+    if capture_fps is not None and int(capture_fps) > 0:
+        _capture_fps = max(1, int(capture_fps))
     if _supervisor is not None and _supervisor.is_alive():
         return
 
@@ -213,6 +225,7 @@ def start_supervisor(
                     clips_enabled=get_clips_enabled(),
                     clip_shm_name=clip_shm_name,
                     live_shm=live_shm,
+                    capture_fps=_capture_fps,
                 )
             except Exception:
                 logger.exception("Falha ao supervisionar stream/clips")

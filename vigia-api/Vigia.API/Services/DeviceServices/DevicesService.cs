@@ -55,14 +55,6 @@ internal class DevicesService(
             if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
                 throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
 
-            if (string.IsNullOrWhiteSpace(newDevice.SignPublicKey))
-                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
-
-            if (!Validators.IsValidEd25519PublicKeyHex(newDevice.SignPublicKey))
-                throw new EntityValidationException(nameof(newDevice.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
-
-            string normalizedSignPublicKey = newDevice.SignPublicKey.ToLowerInvariant();
-
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
@@ -120,9 +112,6 @@ internal class DevicesService(
                 throw new Exception(errorMsg);
             }
 
-            IDeviceSignPublicKeyProvider signPublicKeyProvider = scope.ServiceProvider.GetRequiredService<IDeviceSignPublicKeyProvider>();
-            signPublicKeyProvider.SetSignPublicKey(newDevice.Id, normalizedSignPublicKey);
-
             _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
         }
         catch (EntityValidationException) { throw; }
@@ -160,93 +149,91 @@ internal class DevicesService(
 
     public async Task TrackDeviceUserAsync(Guid deviceId, Guid userId)
     {
-        // try
-        // {
-        //     using IServiceScope scope = _scopeFactory.CreateScope();
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
 
-        //     IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
+            IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
 
-        //     Device? device = await devicesDao.FindAsync(deviceId);
+            Device? device = await devicesDao.FindAsync(deviceId);
 
-        //     if (device == null)
-        //         throw new EntityValidationException(nameof(Device), "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
+            if (device == null)
+                throw new EntityValidationException(nameof(Device), "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
 
+            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
+            User? deviceOwner = await userDao.FindWithGroupsAsync(userId);
 
-        //     // IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
-        //     // User? deviceOwner = await userDao.FindAsync(userId);
+            if (deviceOwner == null)
+                throw new EntityValidationException(nameof(User), "Usuário não encontrado", ErrorCodes.USER_NOT_FOUND);
 
-        //     if (deviceOwner == null)
-        //         throw new EntityValidationException(nameof(User), "Usuário não encontrado", ErrorCodes.USER_NOT_FOUND);
+            if (device.Group != null && device.Group.OwnerId != userId)
+                throw new EntityValidationException(nameof(Device), "O dispositivo já esta vinculado a outro usuário", ErrorCodes.DEVICE_ALREADY_IN_USE);
 
-        //     if (device.Group != null && device.Group.OwnerId != userId)
-        //         throw new EntityValidationException(nameof(Device), "O dispositivo já esta vinculado a outro usuário", ErrorCodes.DEVICE_ALREADY_IN_USE);
+            if (device.Group != null && device.Group.OwnerId == userId)
+            {
+                _logger.LogInformation($"Dispositivo {deviceId} já estava vinculado ao usuário {userId}");
+                return;
+            }
 
-        //     // Idempotent: already claimed by this user.
-        //     if (device.Group != null && device.Group.OwnerId == userId)
-        //     {
-        //         _logger.LogInformation($"Dispositivo {deviceId} já estava vinculado ao usuário {userId}");
-        //         return;
-        //     }
+            Group? userGroup = deviceOwner.LinkedGroups?
+                .FirstOrDefault(g => g.OwnerId == userId && g.DeletedAt == null);
 
-        //     Group? userGroup = deviceOwner.LinkedGroups?
-        //         .FirstOrDefault(g => g.OwnerId == userId);
+            if (userGroup == null)
+                throw new EntityValidationException(nameof(Group), "Grupo do usuário não encontrado", ErrorCodes.GROUP_NOT_FOUND);
 
-        //     if (userGroup == null)
-        //         throw new EntityValidationException(nameof(Group), "Grupo do usuário não encontrado", ErrorCodes.GROUP_NOT_FOUND);
+            device.Group = userGroup;
 
-        //     device.Group = userGroup;
+            await devicesDao.UpdateDeviceGroupAsync(device);
 
-        //     await devicesDao.UpdateDeviceGroupAsync(device);
-
-        //     _logger.LogInformation($"Dispositivo {deviceId} vinculado ao usuário {userId} com sucesso");
-        // }
-        // catch (EntityValidationException) { throw; }
-        // catch (Exception ex)
-        // {
-        //     string errorMsg = $"Houve um erro ao tentar vincular o dispositivo {deviceId} ao usuário {userId}: {ex.GetFullMessage()}";
-        //     _logger.LogError(errorMsg);
-        //     throw;
-        // }
+            _logger.LogInformation($"Dispositivo {deviceId} vinculado ao usuário {userId} com sucesso");
+        }
+        catch (EntityValidationException) { throw; }
+        catch (Exception ex)
+        {
+            string errorMsg = $"Houve um erro ao tentar vincular o dispositivo {deviceId} ao usuário {userId}: {ex.GetFullMessage()}";
+            _logger.LogError(errorMsg);
+            throw;
+        }
     }
 
     public async Task UntrackedDeviceUserAsync(Guid deviceId, Guid userId)
     {
-        // try
-        // {
-        //     using IServiceScope scope = _scopeFactory.CreateScope();
+        try
+        {
+            using IServiceScope scope = _scopeFactory.CreateScope();
 
-        //     Device? device = await GetDeviceAsync(scope, deviceId);
+            Device? device = await GetDeviceAsync(scope, deviceId);
 
-        //     if (device == null)
-        //         throw new EntityValidationException(nameof(Device), "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
+            if (device == null)
+                throw new EntityValidationException(nameof(Device), "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
 
-        //     if (device.Group == null)
-        //     {
-        //         _logger.LogWarning($"O dispositivo {deviceId} não esta vinculado a nenhum usuário. Etapa de desvinculação sendo ignorada");
-        //         return;
-        //     }
+            if (device.Group == null)
+            {
+                _logger.LogWarning($"O dispositivo {deviceId} não esta vinculado a nenhum usuário. Etapa de desvinculação sendo ignorada");
+                return;
+            }
 
-        //     if (device.Group.OwnerId != userId)
-        //     {
-        //         _logger.LogWarning($"Tentativa de desvincular o dispositivo '{deviceId}' de um usuário diferente do proprietário do dispositivo ");
-        //         throw new UnauthorizedAccessException($"Somente o proprietário do dispositivo '{deviceId}' pode remove-lo");
-        //     }
+            if (device.Group.OwnerId != userId)
+            {
+                _logger.LogWarning($"Tentativa de desvincular o dispositivo '{deviceId}' de um usuário diferente do proprietário do dispositivo ");
+                throw new UnauthorizedAccessException($"Somente o proprietário do dispositivo '{deviceId}' pode remove-lo");
+            }
 
-        //     device.Group = null;
+            device.Group = null;
 
-        //     IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
-        //     await devicesDao.UpdateDeviceGroupAsync(device);
+            IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
+            await devicesDao.UpdateDeviceGroupAsync(device);
 
-        //     _logger.LogInformation($"Dispositivo'{deviceId}' desvinculado do usuário '{userId}' com sucesso");
-        // }
-        // catch (EntityValidationException) { throw; }
-        // catch (UnauthorizedAccessException) { throw; }
-        // catch (Exception ex)
-        // {
-        //     string errorMsg = $"Houve um erro ao tentar desvincular o dispositivo {deviceId} do usuário {userId}: {ex.GetFullMessage()}";
-        //     _logger.LogError(errorMsg);
-        //     throw;
-        // }
+            _logger.LogInformation($"Dispositivo'{deviceId}' desvinculado do usuário '{userId}' com sucesso");
+        }
+        catch (EntityValidationException) { throw; }
+        catch (UnauthorizedAccessException) { throw; }
+        catch (Exception ex)
+        {
+            string errorMsg = $"Houve um erro ao tentar desvincular o dispositivo {deviceId} do usuário {userId}: {ex.GetFullMessage()}";
+            _logger.LogError(errorMsg);
+            throw;
+        }
     }
 
     private async Task<Device?> GetDeviceAsync(IServiceScope scope, Guid deviceId)
@@ -365,11 +352,12 @@ internal class DevicesService(
             string? nextNickname = updatedDevice.Nickname ?? device.Nickname;
             DeviceRooms? nextRoom = updatedDevice.Room ?? device.Room;
             bool nextIsClipsEnabled = updatedDevice.IsClipsEnabled ?? device.IsClipsEnabled;
+            bool clipsChanged = nextIsClipsEnabled != device.IsClipsEnabled;
 
             if (
                 nextNickname == device.Nickname &&
                 nextRoom == device.Room &&
-                nextIsClipsEnabled == device.IsClipsEnabled)
+                !clipsChanged)
             {
                 _logger.LogInformation($"A solicitação de atualização do dispositivo '{deviceId}' foi ignorada pois a solicitação não aplica mudanças efetivas sobre o dispositivo");
                 return;
@@ -387,6 +375,9 @@ internal class DevicesService(
 
             await devicesDao.UpdateAsync(updatedDeviceEntity);
 
+            if (clipsChanged)
+                await TrySendClipsCommandAsync(scope, device.Name, nextIsClipsEnabled);
+
             _logger.LogInformation($"Dispositivo '{deviceId}' atualizado com sucesso");
         }
         catch (EntityValidationException) { throw; }
@@ -396,6 +387,26 @@ internal class DevicesService(
             string errorMsg = $"Houve um erro ao tentar atualizar o dispositivo {deviceId}: {ex.GetFullMessage()}";
             _logger.LogError(errorMsg);
             throw;
+        }
+    }
+
+    private async Task TrySendClipsCommandAsync(IServiceScope scope, string deviceName, bool enabled)
+    {
+        DeviceCommands command = enabled ? DeviceCommands.CLIPS_ON : DeviceCommands.CLIPS_OFF;
+        try
+        {
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+            bool sent = await fiwareService.SendCommandAsync(deviceName, command);
+            if (!sent)
+            {
+                _logger.LogWarning(
+                    $"Falha ao enviar o comando '{command.GetCommandName()}' para o dispositivo '{deviceName}'. A preferência de clipes ficou gravada.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                $"Falha ao enviar o comando de clipes para o dispositivo '{deviceName}': {ex.GetFullMessage()}. A preferência ficou gravada.");
         }
     }
 

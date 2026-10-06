@@ -1,19 +1,11 @@
 """
 Envia frames JPEG periódicos à API como thumbnail do dispositivo.
 
-POST /devices/{deviceId}/frame com DeviceSignature (Ed25519), alinhado a
-seed-codes/publish_frame.py e DeviceSignatureAuthentication.
-
-Canonical (API DeviceSignatureAuthenticationHandler):
-  POST\\n/devices/{deviceId}/frame\\n{unix_ts}\\n{sha256_hex(raw_body)}
-
-Path assinado é sem PathBase (/vigia). Em DEBUG, identity do device seedado
-deve usar shared.test_device_seed.SIGN_PRIVATE_KEY (derivada; ver get_device_identity).
+POST /devices/{deviceId}/frame
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import threading
 import time
@@ -24,7 +16,6 @@ from urllib.request import Request, urlopen
 
 import cv2  # pyright: ignore[reportMissingImports]
 import numpy as np
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from shared import (
     get_device_identity,
@@ -78,14 +69,8 @@ def _encode_jpeg(frame: np.ndarray) -> bytes | None:
     return encoded.tobytes()
 
 
-def _sign_and_post(device_id: str, sign_priv_hex: str, api_base_url: str, jpeg: bytes) -> None:
-    private_key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(sign_priv_hex))
+def _post_frame(device_id: str, api_base_url: str, jpeg: bytes) -> None:
     body, content_type = _build_multipart(jpeg)
-
-    timestamp = int(time.time())
-    body_hash = hashlib.sha256(body).hexdigest()
-    canonical = f"POST\n/devices/{device_id}/frame\n{timestamp}\n{body_hash}"
-    signature_hex = private_key.sign(canonical.encode("utf-8")).hex()
 
     url = urljoin(_normalize_api_base(api_base_url), f"devices/{device_id}/frame")
     request = Request(
@@ -94,8 +79,6 @@ def _sign_and_post(device_id: str, sign_priv_hex: str, api_base_url: str, jpeg: 
         method="POST",
         headers={
             "Content-Type": content_type,
-            "X-Device-Timestamp": str(timestamp),
-            "X-Device-Signature": signature_hex,
         },
     )
 
@@ -122,9 +105,8 @@ def _upload_worker(frame: np.ndarray) -> None:
 
         identity = get_device_identity()
         network = get_network_settings()
-        _sign_and_post(
+        _post_frame(
             identity.device_id,
-            identity.sign_priv,
             network.api_base_url,
             jpeg,
         )

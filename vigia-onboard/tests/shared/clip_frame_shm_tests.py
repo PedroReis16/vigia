@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 
 from shared.clip_frame_shm import ClipFrameRing
@@ -42,6 +44,19 @@ def test_push_MaiorQueBuffer_RetornaFalse() -> None:
     try:
         assert ring.push(np.zeros((4, 4, 3), dtype=np.uint8)) is False
         assert len(ring) == 0
+    finally:
+        ring.close()
+        ring.unlink()
+
+
+def test_open_or_create_RecriaQuandoSlotsDiferem() -> None:
+    name = f"vigia-clip-{os.getpid()}"
+    small = ClipFrameRing.create(slot_count=2, max_payload=64, name=name)
+    small.close()
+    ring = ClipFrameRing.open_or_create(name, slot_count=4, max_payload=64)
+    try:
+        assert ring.slot_count == 4
+        assert ring.push(np.zeros((2, 2, 3), dtype=np.uint8)) is True
     finally:
         ring.close()
         ring.unlink()

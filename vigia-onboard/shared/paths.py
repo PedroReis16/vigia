@@ -26,6 +26,11 @@ def integration_root() -> Path:
     return onboard_root() / "integration"
 
 
+def interface_root() -> Path:
+    """Raiz do control plane (`interface/`)."""
+    return onboard_root() / "interface"
+
+
 def venv_dir() -> Path:
     """Virtualenv partilhado do onboard (`.venv` na raiz)."""
     return onboard_root() / ".venv"

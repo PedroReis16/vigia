@@ -27,6 +27,14 @@ def _parse_bool(raw: str) -> bool:
     return raw.strip().lower() in ("1", "true", "t", "yes", "y")
 
 
+def _wifi_mock_from_env(debug: bool) -> bool:
+    """Sem WIFI_MOCK explícito, o mock segue o DEBUG (dev local ligado, placa desligada)."""
+    raw = os.getenv("WIFI_MOCK")
+    if raw is None or raw.strip() == "":
+        return debug
+    return _parse_bool(raw)
+
+
 def _load_onboard_env() -> None:
     load_dotenv(onboard_root() / ".env")
 
@@ -51,11 +59,24 @@ class Settings:
     clip_window_s: int = 30
     clip_max_payload: int = 640 * 480 * 3
     data_dir: str = PROD_DATA_DIR
+    debug: bool = True
+    ble_enabled: bool = True
+    wifi_mock: bool = True
+    wifi_mock_result: str = "success"
+    mock_wifi_ssid: str = "local-mock"
+    mock_wifi_password: str = "unused"
+    mock_api_base_url: str = "http://localhost:8090/vigia"
+    mock_fiware_api_key: str = "VIGIA"
+    mock_stream_ingest_url: str = "rtmp://localhost:1935"
+
+    def clip_slots_for(self, fps: int) -> int:
+        """Slots da janela ≈ CLIP_WINDOW_S × fps de captura da câmera."""
+        return max(1, int(self.clip_window_s) * max(1, int(fps)))
 
     @property
     def clip_slot_count(self) -> int:
-        """Slots da janela de clipes ≈ CLIP_WINDOW_S * FRAME_RATE."""
-        return max(1, int(self.clip_window_s) * max(1, int(self.frame_rate)))
+        """Fallback com FRAME_RATE quando o fps da câmera ainda não foi lido."""
+        return self.clip_slots_for(self.frame_rate)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -64,6 +85,7 @@ class Settings:
         classifier = os.getenv("CLASSIFIER", "math").strip().lower()
         if classifier not in ("math", "gru"):
             classifier = "math"
+        debug = _parse_bool(os.getenv("DEBUG", "true"))
         return cls(
             capture_source=_parse_capture_source(os.getenv("CAPTURE_SOURCE", "0")),
             show_video=_parse_bool(os.getenv("SHOW_VIDEO", "false")),
@@ -93,6 +115,30 @@ class Settings:
                 1, int(os.getenv("CLIP_MAX_PAYLOAD", str(640 * 480 * 3)))
             ),
             data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
+            debug=debug,
+            ble_enabled=_parse_bool(os.getenv("BLE_ENABLED", "true")),
+            wifi_mock=_wifi_mock_from_env(debug),
+            wifi_mock_result=os.getenv("WIFI_MOCK_RESULT", "success").strip().lower()
+            or "success",
+            mock_wifi_ssid=os.getenv("MOCK_WIFI_SSID", "local-mock").strip()
+            or "local-mock",
+            mock_wifi_password=os.getenv("MOCK_WIFI_PASSWORD", "unused"),
+            mock_api_base_url=(
+                os.getenv("MOCK_API_BASE_URL")
+                or os.getenv("VIGIA_API_BASE_URL")
+                or "http://localhost:8090/vigia"
+            ).rstrip("/"),
+            mock_fiware_api_key=(
+                os.getenv("MOCK_FIWARE_API_KEY")
+                or os.getenv("VIGIA_FIWARE_API_KEY")
+                or "VIGIA"
+            ).strip()
+            or "VIGIA",
+            mock_stream_ingest_url=(
+                os.getenv("MOCK_STREAM_INGEST_URL")
+                or os.getenv("VIGIA_STREAM_INGEST_URL")
+                or "rtmp://localhost:1935"
+            ).rstrip("/"),
         )
 
 
@@ -108,8 +154,18 @@ def get_identity_path() -> Path:
 
 
 def get_network_path() -> Path:
-    """Caminho de network.json (bootstrap / seed local)."""
+    """Caminho de network.json (interface / seed local)."""
     return Path(get_settings().data_dir) / "network.json"
+
+
+def get_classifier_path() -> Path:
+    """Caminho de classifier.json (preferência math|gru)."""
+    return Path(get_settings().data_dir) / "classifier.json"
+
+
+def get_clips_config_path() -> Path:
+    """Caminho de clips.json (preferência de armazenamento de clipes)."""
+    return Path(get_settings().data_dir) / "clips.json"
 
 
 def resolve_ota_dir() -> Path:
@@ -126,14 +182,20 @@ def resolve_ota_dir() -> Path:
     return Path(PROD_OTA_DIR)
 
 
+def resolve_install_root() -> Path:
+    """Raiz de instalação do onboard: VIGIA_INSTALL_ROOT ou DATA_DIR."""
+    explicit = (os.getenv("VIGIA_INSTALL_ROOT") or "").strip()
+    if explicit:
+        return Path(explicit)
+    return Path(get_settings().data_dir or PROD_DATA_DIR)
+
+
 @dataclass(frozen=True)
 class DeviceIdentity:
-    """Identidade do dispositivo provisionada pelo bootstrap."""
+    """Identidade do dispositivo (device_id e nome)."""
 
     device_id: str
     device_name: str
-    sign_priv: str
-    ecdh_priv: str
 
     @classmethod
     def from_json(cls) -> DeviceIdentity:
@@ -144,8 +206,6 @@ class DeviceIdentity:
         return cls(
             device_id=identity["device_id"],
             device_name=identity["device_name"],
-            sign_priv=identity["sign_priv"],
-            ecdh_priv=identity["ecdh_priv"],
         )
 
 

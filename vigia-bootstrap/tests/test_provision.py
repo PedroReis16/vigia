@@ -38,8 +38,8 @@ def test_load_or_create_identity_persiste_e_reutiliza(tmp_path, monkeypatch) -> 
     data = json.loads((tmp_path / "identity.json").read_text())
     assert data["mac_address"] == "aa:bb:cc:dd:ee:ff"
     assert data["device_name"] == first.device_name
-    assert "sign_priv" in data
-    assert "ecdh_priv" in data
+    assert "sign_priv" not in data
+    assert "ecdh_priv" not in data
 
 
 def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> None:
@@ -129,8 +129,6 @@ def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
                 "device_id": "11111111-1111-1111-1111-111111111111",
                 "device_name": "Vigia-test",
                 "mac_address": "aa:bb:cc:dd:ee:ff",
-                "sign_priv": "11" * 32,
-                "ecdh_priv": "22" * 32,
             }
         )
     )

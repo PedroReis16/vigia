@@ -12,6 +12,7 @@ internal class AlertService(
     ILogger<AlertService> logger,
     IOptionsSnapshot<SubscriptionSchemaOptions> subscriptionOptions,
     IDevicesDao devicesDao,
+    IUserDao userDao,
     IUserPushTokenDao pushTokenDao,
     IPushNotificationService pushNotificationService) : IAlertService
 {
@@ -20,7 +21,7 @@ internal class AlertService(
     private readonly ILogger<AlertService> _logger = logger;
     private readonly SubscriptionSchemaOptions _subscriptions = subscriptionOptions.Value;
     private readonly IDevicesDao _devicesDao = devicesDao;
-    // private readonly IUserDao _userDao = userDao;
+    private readonly IUserDao _userDao = userDao;
     private readonly IUserPushTokenDao _pushTokenDao = pushTokenDao;
     private readonly IPushNotificationService _pushNotificationService = pushNotificationService;
 
@@ -81,8 +82,7 @@ internal class AlertService(
             return;
         }
 
-        // List<User> groupUsers = await _userDao.GetUsersByGroupAsync(device.Group.Id);
-        List<User> groupUsers = new();
+        List<User> groupUsers = await _userDao.GetUsersByGroupAsync(device.Group.Id);
         if (groupUsers.Count == 0)
         {
             _logger.LogWarning(

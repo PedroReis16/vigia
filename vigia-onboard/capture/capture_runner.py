@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import cv2  # type: ignore
 
+from shared.capture_gate import (
+    capture_allowed,
+    clear_capture_pid,
+    consume_capture_restart,
+    restart_pending,
+    write_capture_pid,
+)
+from shared.clips_config import apply_persisted_clips
 from shared.live_frame_shm import DEFAULT_MAX_PAYLOAD, LiveFrameShm
 from shared.settings import get_settings
 from core import save_points, start_core_worker, stop_core_worker
@@ -17,6 +26,7 @@ from .yolo_model import get_yolo_model
 
 logger = logging.getLogger(__name__)
 
+_GATE_POLL_S = 0.2
 _BLUR_KSIZE = 51
 _YOLO_STREAM_KWARGS: dict[str, Any] = {
     "stream": True,
@@ -39,6 +49,30 @@ def _source_label(source: int | str) -> str:
     if _is_file_source(source):
         return f"vídeo {source}"
     return f"câmera {source}"
+
+
+def _read_fps(cap: Any) -> float | None:
+    try:
+        raw = float(cap.get(cv2.CAP_PROP_FPS))
+    except (TypeError, ValueError):
+        return None
+    if raw != raw or raw < 1:
+        return None
+    return raw
+
+
+def _source_fps(cap: Any, fallback: int) -> int:
+    """FPS da fonte para o stream. Sem valor válido, usa ``FRAME_RATE``."""
+    raw = _read_fps(cap)
+    if raw is None:
+        try:
+            cap.read()
+        except Exception:
+            return fallback
+        raw = _read_fps(cap)
+    if raw is None:
+        return fallback
+    return max(1, int(round(raw)))
 
 
 def _opencv_has_gui() -> bool:
@@ -102,11 +136,27 @@ def _open_live_shm(settings) -> LiveFrameShm | None:
         return None
 
 
-def run_capture() -> None:
-    """Loop principal: lê a fonte em stream YOLO e mostra preview se pedido."""
+def _wait_until_allowed() -> None:
+    """Bloqueia até identity.json, network.json e ausência de capture.hold."""
+    announced = False
+    while not capture_allowed():
+        if not announced:
+            logger.info(
+                "Captura bloqueada até o provisionamento (identity, network, sem hold)"
+            )
+            announced = True
+        time.sleep(_GATE_POLL_S)
+
+
+def _run_capture_session() -> str:
+    """Uma sessão de câmera. Devolve done, hold ou restart."""
+    if restart_pending():
+        consume_capture_restart()
+
     show_video = False
     cap = None
     live_shm: LiveFrameShm | None = None
+    write_capture_pid()
 
     try:
         prepare_multiprocessing()
@@ -114,7 +164,7 @@ def run_capture() -> None:
         source = settings.capture_source
         show_video = settings.show_video
         capture_loop = settings.capture_loop
-        stream_fps = max(1, int(settings.frame_rate))
+        fallback_fps = max(1, int(settings.frame_rate))
         yolo_model = get_yolo_model()
         logger.info(
             "YOLO carregado: %s",
@@ -135,23 +185,34 @@ def run_capture() -> None:
             raise ValueError(
                 f"Não foi possível abrir a fonte de captura ({_source_label(source)})"
             )
+        source_fps = _source_fps(cap, fallback_fps)
         # O loader do YOLO reabre a fonte; libertar para não bloquear a câmara.
         cap.release()
         cap = None
 
-        logger.info("Captura iniciada (%s)", _source_label(source))
+        logger.info(
+            "Captura iniciada (%s, stream %s fps)",
+            _source_label(source),
+            source_fps,
+        )
         interrupted = False
         start_core_worker()
         if live_shm is not None:
+            apply_persisted_clips()
             start_supervisor(
                 live_shm.name,
                 clip_shm_name=settings.clip_shm_name,
                 live_shm=live_shm,
+                capture_fps=source_fps,
             )
 
         while True:
             had_frame = False
             for result in _stream_results(yolo_model, source):
+                if not capture_allowed():
+                    return "hold"
+                if restart_pending():
+                    return "restart"
                 had_frame = True
                 if show_video and cv2.waitKey(1) & 0xFF == ord("q"):
                     interrupted = True
@@ -165,22 +226,27 @@ def run_capture() -> None:
                 )
 
                 if live_shm is not None and export_active():
-                    live_shm.write(preview, stream_fps)
+                    live_shm.write(preview, source_fps)
 
                 preview = result.plot(img=preview) if settings.show_plot else preview
 
                 if show_video:
                     cv2.imshow("Preview movimentos", preview)
 
+            if not capture_allowed():
+                return "hold"
+            if restart_pending():
+                return "restart"
             if not _should_restart_stream(
                 source, capture_loop, had_frame, interrupted
             ):
-                break
+                return "done"
 
     except Exception as exc:
         logger.error("Erro ao executar a captura: %s", exc)
         raise
     finally:
+        clear_capture_pid()
         stop_supervisor()
         stop_core_worker()
         if live_shm is not None:
@@ -192,3 +258,12 @@ def run_capture() -> None:
         if cap is not None:
             cap.release()
         logger.info("Captura encerrada")
+
+
+def run_capture() -> None:
+    """Espera o gate e corre sessões até a fonte terminar sem restart nem hold."""
+    while True:
+        _wait_until_allowed()
+        reason = _run_capture_session()
+        if reason == "done":
+            return

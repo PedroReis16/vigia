@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.OpenApi;
 using Vigia.API.Config;
 using Vigia.API.Contracts;
+using Vigia.API.Contracts.Clips;
 using Vigia.API.Hubs;
 using Vigia.API.Services;
+using Vigia.API.Services.Clips;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
 using Vigia.API.Contracts.CacheServices;
@@ -71,6 +73,12 @@ builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
 builder.Services.AddTransient<IVersionService, VersionService>();
 builder.Services.AddTransient<IAlertService, AlertService>();
+builder.Services.Configure<ClipOptions>(builder.Configuration.GetSection(ClipOptions.SectionName));
+builder.Services.AddSingleton<ClipAssemblyQueue>();
+builder.Services.AddSingleton<IClipAssemblyQueue>(sp => sp.GetRequiredService<ClipAssemblyQueue>());
+builder.Services.AddSingleton<IClipAssembler, FfmpegClipAssembler>();
+builder.Services.AddTransient<IClipIngestService, ClipIngestService>();
+builder.Services.AddHostedService<ClipAssemblyWorker>();
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
@@ -81,7 +89,6 @@ builder.Services.AddRepositoryServices();
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
-builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
 
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();

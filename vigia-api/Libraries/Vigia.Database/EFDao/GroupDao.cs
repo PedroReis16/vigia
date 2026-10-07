@@ -104,4 +104,36 @@ internal class GroupDao(VigiaDbContext context, IGroupDaoCache? cache = null) : 
         Cache?.RemoveEntity(group);
         await Context.SaveChangesAsync();
     }
+
+    public async Task EnsureOwnerMembershipAsync(Guid userId)
+    {
+        if (userId == Guid.Empty)
+            return;
+
+        User? user = await Context.Set<User>()
+            .FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null);
+
+        if (user == null)
+            return;
+
+        List<Group> owned = await Context.Set<Group>()
+            .Where(g => g.OwnerId == userId && g.DeletedAt == null)
+            .Include(g => g.LinkedUsers)
+            .ToListAsync();
+
+        bool changed = false;
+        foreach (Group group in owned)
+        {
+            if (group.LinkedUsers.Any(u => u.Id == userId))
+                continue;
+
+            group.LinkedUsers.Add(user);
+            group.UpdatedAt = DateTime.UtcNow;
+            Cache?.RemoveEntity(group);
+            changed = true;
+        }
+
+        if (changed)
+            await Context.SaveChangesAsync();
+    }
 }

@@ -377,6 +377,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e aplica `user-profile.json` nos realms `master` e `vigia` |
 | `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, liga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-web-client.sh` | Reaplica redirects, PKCE S256 e audience `vigia-api` no cliente `vigia-web`; o compose roda uma vez após o Keycloak subir |
+| `docker-compose/local/keycloak/apply-realm-admin.sh` | Garante o usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`) e liga os eventos de sync; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -386,11 +387,11 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe. `keycloak-realm-admin` garante o usuário `admin` desse realm (mesmo UUID do antigo super usuário da API, papel Keycloak `realm-admin`) e liga o listener `vigia-webhook` no realm `vigia`.
 
 **MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
 
-**RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens.
+**RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens. No upsert, o usuário entra nos grupos dos quais já é `owner`.
 
 **FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
@@ -466,7 +467,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
 | OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
-| Device de teste em DEBUG: `Vigia-a1b2c3d4` | `Vigia.Models/Seed/TestDeviceSeed.cs` |
+| Device de teste em DEBUG: `Vigia-a1b2c3d4`, já no grupo do usuário `admin` | `TestDeviceSeed` + `TestDeviceLocalSeed` |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Landing web de convite: `https://vigiadeteccoes.com.br/invite/{token}` | `appsettings.json` (`Invite:WebInviteBase`); link "Continuar na web" em `InviteRedirectController` |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
@@ -474,6 +475,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | Token FCM: plataformas `android`, `ios`, `web` | `UserPushTokenService` |
 | Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
 | Usuário local usa o UUID do Keycloak; cadastro, login e alteração de perfil fazem upsert, exclusão faz soft-delete e desativa push tokens | Fila `vigia.users.sync` + `KeycloakUserSyncService` |
+| Realm local `vigia` já traz o usuário `admin` com o UUID do antigo super usuário; no startup DEBUG e no upsert ele é membro do grupo do device de teste | `TestDeviceLocalSeed`, `realm-export.json`, `GroupDao.EnsureOwnerMembershipAsync` |
 
 **Referência detalhada FIWARE:** tutorial operacional de schema (adicionar comandos/atributos, env vars, verificação MongoDB) permanece em [`README.md`](../README.md) seção FIWARE.
 
@@ -647,6 +649,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] DEBUG: o startup vincula o usuário `admin` ao device de teste `Vigia-a1b2c3d4` (`TestDeviceLocalSeed`)
+- [2026-10-06] Keycloak local: usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`); o upsert o vincula ao grupo que já possui (`realm-export.json`, `apply-realm-admin.sh`, `KeycloakUserSyncService`)
 - [2026-10-06] Onboard: stream em CRF 18 no processo RTMP; clips guardam JPEG na resolução da câmera, fora do ciclo do YOLO (`rtmp.py`, `clips_runner.py`, `clip_frame_shm.py`)
 - [2026-10-06] Onboard: o processo de clips reduz o frame ao vivo para caber em `CLIP_MAX_PAYLOAD` antes do ring (`clips_runner.py`, `clip_frame_shm.py`)
 - [2026-10-06] vigia-web autentica com Keycloak (PKCE); a API aceita esse access token além do JWT do app (`keycloak-js`, `OAuthExtension`, `apply-web-client.sh`)

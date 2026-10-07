@@ -140,6 +140,24 @@ services:
     networks:
       - vigia-network
 
+  # Garante o usuário admin do realm vigia: --import-realm ignora realm que já existe.
+  keycloak-realm-admin:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-admin
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-realm-admin.sh"]
+    volumes:
+      - ./keycloak/apply-realm-admin.sh:/apply-realm-admin.sh:ro
+    networks:
+      - vigia-network
+
   # ─── REDIS ────────────────────────────────────────────────────────────────
   redis:
     image: redis:latest

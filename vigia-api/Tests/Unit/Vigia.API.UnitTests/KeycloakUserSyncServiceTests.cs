@@ -72,7 +72,7 @@ public class KeycloakUserSyncServiceTests
     {
         await using VigiaDbContext context = CreateContext();
         UserPushTokenDao pushTokenDao = new(context);
-        KeycloakUserSyncService service = new(new UserDao(context), pushTokenDao);
+        KeycloakUserSyncService service = new(new UserDao(context), pushTokenDao, new GroupDao(context));
         Guid userId = Guid.NewGuid();
 
         await service.ApplyAsync(new KeycloakUserSyncMessage
@@ -95,9 +95,28 @@ public class KeycloakUserSyncServiceTests
         Assert.Empty(await pushTokenDao.GetTokensByUserIdsAsync([userId]));
     }
 
+    [Fact]
+    public async Task ApplyAsync_Upsert_LinksOwnerToTheirGroup()
+    {
+        await using VigiaDbContext context = CreateContext();
+        KeycloakUserSyncService service = CreateService(context);
+        Guid adminId = new("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b");
+
+        await service.ApplyAsync(new KeycloakUserSyncMessage
+        {
+            Operation = "upsert",
+            Id = adminId,
+            Email = "admin@vigia.local",
+            Phone = "11999999999",
+        });
+
+        User user = await context.Users.Include(u => u.LinkedGroups).SingleAsync(u => u.Id == adminId);
+        Assert.Contains(user.LinkedGroups, group => group.Id == new Guid("80eed123-8e77-47a3-8fae-cedb1ab3eef7"));
+    }
+
     private static KeycloakUserSyncService CreateService(VigiaDbContext context)
     {
-        return new KeycloakUserSyncService(new UserDao(context), new UserPushTokenDao(context));
+        return new KeycloakUserSyncService(new UserDao(context), new UserPushTokenDao(context), new GroupDao(context));
     }
 
     private static VigiaDbContext CreateContext()

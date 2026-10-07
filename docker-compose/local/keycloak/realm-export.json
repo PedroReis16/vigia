@@ -854,6 +854,34 @@
       ]
     }
   ],
+  "users": [
+    {
+      "id": "05ae0d5a-5ef8-44c4-a6de-df0725cdd39b",
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Super",
+      "lastName": "Admin",
+      "email": "admin@vigia.local",
+      "attributes": {
+        "phone": ["11999999999"]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-vigia"],
+      "clientRoles": {
+        "realm-management": ["realm-admin"]
+      },
+      "requiredActions": [],
+      "notBefore": 0,
+      "totp": false
+    }
+  ],
   "clientScopes": [
     {
       "id": "7317d0fb-5f93-46cd-b40e-9ff3f8394a3b",
@@ -1517,12 +1545,19 @@
   "accountTheme": "",
   "adminTheme": "",
   "emailTheme": "",
-  "eventsEnabled": false,
+  "eventsEnabled": true,
   "eventsListeners": [
-    "jboss-logging"
+    "jboss-logging",
+    "vigia-webhook"
   ],
-  "enabledEventTypes": [],
-  "adminEventsEnabled": false,
+  "enabledEventTypes": [
+    "REGISTER",
+    "LOGIN",
+    "UPDATE_PROFILE",
+    "UPDATE_EMAIL",
+    "DELETE_ACCOUNT"
+  ],
+  "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
   "identityProviders": [],
   "identityProviderMappers": [],

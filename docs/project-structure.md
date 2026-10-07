@@ -378,6 +378,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, liga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-web-client.sh` | Reaplica redirects, PKCE S256 e audience `vigia-api` no cliente `vigia-web`; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-realm-admin.sh` | Garante o usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`) e liga os eventos de sync; o compose roda uma vez após o Keycloak subir |
+| `docker-compose/local/keycloak/apply-locales.sh` | Liga `en` e `pt-BR` no realm `vigia`, com padrão `pt-BR`; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/default.env` | Variáveis de ambiente da API em dev |
 | `docker-compose/deploy/docker-compose.yaml` | Deploy mínimo — `vigia-api` com Traefik TLS (web em Cloudflare Pages) |
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
@@ -387,7 +388,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
-**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe. `keycloak-realm-admin` garante o usuário `admin` desse realm (mesmo UUID do antigo super usuário da API, papel Keycloak `realm-admin`) e liga o listener `vigia-webhook` no realm `vigia`.
+**Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe. `keycloak-realm-admin` garante o usuário `admin` desse realm (mesmo UUID do antigo super usuário da API, papel Keycloak `realm-admin`) e liga o listener `vigia-webhook` no realm `vigia`. `keycloak-realm-locales` liga os locales `en` e `pt-BR` (padrão `pt-BR`) quando o realm já existe.
 
 **MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
 
@@ -649,6 +650,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] Keycloak local: realm `vigia` com locales `en` e `pt-BR`, padrão `pt-BR` (`realm-export.json`, `apply-locales.sh`)
 - [2026-10-06] DEBUG: o startup vincula o usuário `admin` ao device de teste `Vigia-a1b2c3d4` (`TestDeviceLocalSeed`)
 - [2026-10-06] Keycloak local: usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`); o upsert o vincula ao grupo que já possui (`realm-export.json`, `apply-realm-admin.sh`, `KeycloakUserSyncService`)
 - [2026-10-06] Onboard: stream em CRF 18 no processo RTMP; clips guardam JPEG na resolução da câmera, fora do ciclo do YOLO (`rtmp.py`, `clips_runner.py`, `clip_frame_shm.py`)

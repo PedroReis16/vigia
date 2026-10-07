@@ -255,8 +255,8 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
-| `stream_runner.py` | Process RTMP: live SHM → FFmpeg → MediaMTX enquanto `stream_on` |
-| `clips_runner.py` | Process janela: live SHM → ClipFrameRing no fps da câmera; na entrada em `fall`, exporta nesse fps |
+| `stream_runner.py` | Process RTMP: live SHM (frame nativo) → FFmpeg CRF 18 / `veryfast` → MediaMTX enquanto `stream_on` |
+| `clips_runner.py` | Process janela: live SHM → JPEG na resolução da câmera (slot `CLIP_MAX_PAYLOAD`, default 2 MiB) no fps da câmera; na entrada em `fall`, exporta nesse fps |
 | `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
 | `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
 | `mp_compat.py` | `freeze_support` + stop de filhos |
@@ -647,6 +647,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] Onboard: stream em CRF 18 no processo RTMP; clips guardam JPEG na resolução da câmera, fora do ciclo do YOLO (`rtmp.py`, `clips_runner.py`, `clip_frame_shm.py`)
+- [2026-10-06] Onboard: o processo de clips reduz o frame ao vivo para caber em `CLIP_MAX_PAYLOAD` antes do ring (`clips_runner.py`, `clip_frame_shm.py`)
 - [2026-10-06] vigia-web autentica com Keycloak (PKCE); a API aceita esse access token além do JWT do app (`keycloak-js`, `OAuthExtension`, `apply-web-client.sh`)
 - [2026-10-05] Clipes: a placa envia os PNG em paralelo e a API reordena a sequência antes do MP4 (`clip_export.py`, `ClipIngestService`, `ClipStaging`, `ClipAssemblyWorker`)
 - [2026-10-05] Onboard: a janela de clipes e o fps do MP4 seguem a taxa da câmera, como o stream (`clips_runner.py`, `capture_runner.py`, `settings.py`)

@@ -17,7 +17,8 @@ _HEADER_FMT = "<QII"
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 _SLOT_META_FMT = "<QdIIII"
 _SLOT_META_SIZE = struct.calcsize(_SLOT_META_FMT)
-DEFAULT_MAX_PAYLOAD = 640 * 480 * 3
+DEFAULT_MAX_PAYLOAD = 2 * 1024 * 1024
+_JPEG_CHANNELS = 0
 
 
 class ClipFrame(NamedTuple):
@@ -132,13 +133,37 @@ class ClipFrameRing:
         if frame is None or getattr(frame, "size", 0) == 0:
             return False
 
+        height, width = int(frame.shape[0]), int(frame.shape[1])
+        channels = 1 if frame.ndim == 2 else int(frame.shape[2])
+        if height * width * channels > self._max_payload:
+            return False
+
         stored = np.ascontiguousarray(frame.copy() if copy else frame)
-        height, width = stored.shape[:2]
-        channels = 1 if stored.ndim == 2 else stored.shape[2]
         payload = stored.tobytes()
         if len(payload) > self._max_payload:
             return False
+        return self._commit(payload, width, height, channels, capture_ts)
 
+    def push_jpeg(
+        self,
+        payload: bytes,
+        width: int,
+        height: int,
+        capture_ts: float | None = None,
+    ) -> bool:
+        """Empilha um JPEG na resolução original (``channels == 0``)."""
+        if not payload or width < 1 or height < 1 or len(payload) > self._max_payload:
+            return False
+        return self._commit(payload, width, height, _JPEG_CHANNELS, capture_ts)
+
+    def _commit(
+        self,
+        payload: bytes,
+        width: int,
+        height: int,
+        channels: int,
+        capture_ts: float | None,
+    ) -> bool:
         write_seq, slot_count, max_payload = struct.unpack_from(
             _HEADER_FMT, self._shm.buf, 0
         )
@@ -195,7 +220,14 @@ class ClipFrameRing:
                     offset + _SLOT_META_SIZE : offset + _SLOT_META_SIZE + payload_len
                 ]
             )
-            if channels == 1:
+            if channels == _JPEG_CHANNELS:
+                import cv2
+
+                decoded = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
+                if decoded is None:
+                    continue
+                frame = np.ascontiguousarray(decoded)
+            elif channels == 1:
                 frame = np.frombuffer(raw, dtype=np.uint8).reshape((height, width)).copy()
             else:
                 frame = (

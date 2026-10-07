@@ -10,6 +10,7 @@ import logging
 import threading
 import time
 
+import numpy as np
 from multiprocessing.synchronize import Event as EventType
 
 from shared.clip_frame_shm import ClipFrameRing
@@ -44,6 +45,69 @@ def _export_snapshot(frames: list, fps: int) -> None:
         export_fall_clip(frames, fps)
     except Exception as error:
         logger.warning("Falha ao exportar clipe de queda: %s", error)
+
+
+def clip_frame_size(
+    height: int, width: int, channels: int, max_payload: int
+) -> tuple[int, int]:
+    """Tamanho (altura, largura) que cabe em ``max_payload`` bytes."""
+    if height < 1 or width < 1 or channels < 1 or max_payload < channels:
+        return height, width
+    if height * width * channels <= max_payload:
+        return height, width
+
+    scale = (max_payload / (height * width * channels)) ** 0.5
+    new_w = max(1, int(width * scale))
+    new_h = max(1, int(height * scale))
+    while new_w * new_h * channels > max_payload and (new_w > 1 or new_h > 1):
+        if new_w >= new_h and new_w > 1:
+            new_w -= 1
+        elif new_h > 1:
+            new_h -= 1
+        else:
+            break
+    return new_h, new_w
+
+
+def encode_clip_jpeg(frame: np.ndarray, max_payload: int) -> bytes | None:
+    """JPEG na resolução da câmera. Qualidade 100; só baixa se não couber no slot."""
+    import cv2
+
+    for quality in (100, 95, 90, 85, 80, 70):
+        ok, buf = cv2.imencode(".jpg", frame, [1, quality])
+        if not ok:
+            continue
+        payload = buf.tobytes()
+        if len(payload) <= max_payload:
+            return payload
+    return None
+
+
+def _store_clip_frame(clip_shm: ClipFrameRing, frame: np.ndarray) -> None:
+    """Guarda o frame no ring. JPEG no processo de clips se o cru não cabe."""
+    limit = clip_shm.max_payload
+    if not isinstance(limit, int) or frame.nbytes <= limit:
+        clip_shm.push(frame, capture_ts=time.monotonic())
+        return
+    encoded = encode_clip_jpeg(frame, limit)
+    if encoded is not None:
+        height, width = int(frame.shape[0]), int(frame.shape[1])
+        clip_shm.push_jpeg(encoded, width, height, capture_ts=time.monotonic())
+        return
+    clip_shm.push(fit_frame_to_payload(frame, limit), capture_ts=time.monotonic())
+
+
+def fit_frame_to_payload(frame: np.ndarray, max_payload: int) -> np.ndarray:
+    """Reduz o frame até caber em ``max_payload`` bytes, mantendo a proporção."""
+    height, width = int(frame.shape[0]), int(frame.shape[1])
+    channels = 1 if frame.ndim == 2 else int(frame.shape[2])
+    new_h, new_w = clip_frame_size(height, width, channels, max_payload)
+    if new_h == height and new_w == width:
+        return frame
+
+    import cv2
+
+    return cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
 
 def _resolve_clip_fps(capture_fps: int | None, fallback: int) -> int:
@@ -102,7 +166,7 @@ def run_clips_worker(
             if item is not None:
                 if item.stream_fps > 0:
                     playback_fps = int(item.stream_fps)
-                clip_shm.push(item.frame, capture_ts=time.monotonic())
+                _store_clip_frame(clip_shm, item.frame)
 
             busy = export_thread is not None and export_thread.is_alive()
             export, in_episode = next_clip_export(

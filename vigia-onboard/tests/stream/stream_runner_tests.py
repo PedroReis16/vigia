@@ -50,6 +50,49 @@ def test_stream_runner_PublicaEnquantoStreamOn() -> None:
         live.unlink()
 
 
+def test_clip_frame_size_Reduz1080pParaCabarNoRing() -> None:
+    height, width = clips_runner.clip_frame_size(1080, 1920, 3, 640 * 480 * 3)
+    assert height * width * 3 <= 640 * 480 * 3
+    assert height < 1080
+    assert width < 1920
+    assert abs((width / height) - (1920 / 1080)) < 0.05
+
+
+def test_fit_frame_to_payload_MantemFrameQueCabe() -> None:
+    frame = np.full((2, 2, 3), 7, dtype=np.uint8)
+    fitted = clips_runner.fit_frame_to_payload(frame, 64)
+    np.testing.assert_array_equal(fitted, frame)
+
+
+def test_encode_clip_jpeg_BaixaQualidadeSoSeNaoCabir() -> None:
+    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    seen: list[int] = []
+
+    def imencode(_ext, image, params):
+        assert image.shape == frame.shape
+        quality = int(params[1])
+        seen.append(quality)
+        payload = b"a" * (10 if quality < 100 else 50)
+        return True, np.frombuffer(payload, dtype=np.uint8)
+
+    import cv2
+
+    cv2.imencode = imencode
+    encoded = clips_runner.encode_clip_jpeg(frame, 20)
+    assert seen[0] == 100
+    assert encoded == b"a" * 10
+
+
+def test_store_clip_frame_JpegNaResolucaoOriginal() -> None:
+    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    ring = MagicMock()
+    ring.max_payload = 32
+    with patch.object(clips_runner, "encode_clip_jpeg", return_value=b"jpeg"):
+        clips_runner._store_clip_frame(ring, frame)
+    ring.push.assert_not_called()
+    ring.push_jpeg.assert_called_once_with(b"jpeg", 8, 8, capture_ts=ring.push_jpeg.call_args.kwargs["capture_ts"])
+
+
 def test_resolve_clip_fps_PrefereCamera():
     assert clips_runner._resolve_clip_fps(30, 12) == 30
     assert clips_runner._resolve_clip_fps(None, 12) == 12

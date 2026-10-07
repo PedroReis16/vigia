@@ -57,7 +57,9 @@ class Settings:
     live_shm_name: str = "vigia-onboard-live"
     clip_shm_name: str = "vigia-onboard-clip"
     clip_window_s: int = 30
-    clip_max_payload: int = 640 * 480 * 3
+    # JPEG 1080p em qualidade máxima cabe aqui. O slot não reserva o frame cru
+    # (1920×1080×3), para a janela não competir com o YOLO por RAM.
+    clip_max_payload: int = 2 * 1024 * 1024
     data_dir: str = PROD_DATA_DIR
     debug: bool = True
     ble_enabled: bool = True
@@ -112,7 +114,7 @@ class Settings:
             or "vigia-onboard-clip",
             clip_window_s=max(1, int(os.getenv("CLIP_WINDOW_S", "30"))),
             clip_max_payload=max(
-                1, int(os.getenv("CLIP_MAX_PAYLOAD", str(640 * 480 * 3)))
+                1, int(os.getenv("CLIP_MAX_PAYLOAD", str(2 * 1024 * 1024)))
             ),
             data_dir=os.getenv("DATA_DIR", PROD_DATA_DIR) or PROD_DATA_DIR,
             debug=debug,

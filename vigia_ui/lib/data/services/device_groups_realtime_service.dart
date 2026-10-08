@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:signalr_netcore/signalr_client.dart';
+import 'package:vigia_ui/data/services/keycloak_auth_client.dart';
 import 'package:vigia_ui/data/services/token_storage_service.dart';
 import 'package:vigia_ui/domain/DTOs/group_membership_changed.dart';
 import 'package:vigia_ui/domain/environments.dart';
@@ -14,11 +14,11 @@ typedef GroupMembershipHandler = void Function(GroupMembershipChanged event);
 class DeviceGroupsRealtimeService {
   DeviceGroupsRealtimeService({
     required this._tokenStorage,
-    required this._refreshDio,
+    required this._keycloak,
   });
 
   final TokenStorageService _tokenStorage;
-  final Dio _refreshDio;
+  final KeycloakAuthClient _keycloak;
   static const _hubPath = '/hubs/device-groups';
   static const _membershipChangedEvent = 'GroupMembershipChanged';
   HubConnection? _connection;
@@ -98,14 +98,12 @@ class DeviceGroupsRealtimeService {
     }
 
     try {
-      final response = await _refreshDio.post(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
+      final credentials = await _keycloak.refresh(refreshToken);
+      await _tokenStorage.saveUserTokens(
+        credentials.accessToken,
+        credentials.refreshToken,
       );
-      final newAccess = response.data['accessToken'] as String;
-      final newRefresh = response.data['refreshToken'] as String;
-      await _tokenStorage.saveUserTokens(newAccess, newRefresh);
-      return newAccess;
+      return credentials.accessToken;
     } catch (e) {
       debugPrint('[SignalR] token refresh failed: $e');
       return current ?? '';

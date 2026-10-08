@@ -26,7 +26,6 @@ dependencies:
   # Local fork with Swift Package Manager support (upstream lacks Package.swift).
   wifi_scan:
     path: packages/wifi_scan
-  rxdart: ^0.28.0
   skeletonizer: ^2.1.3
   flutter_dotenv: ^6.0.1
   jwt_decoder: ^2.0.1
@@ -39,6 +38,8 @@ dependencies:
   firebase_messaging: ^16.5.0
   flutter_local_notifications: ^22.3.0
   device_info_plus: ^12.4.0
+  crypto: ^3.0.6
+  webview_flutter: ^4.13.0
 
 # Keep FCM out of iPhone/SPM: published FlutterFire packages declare iOS and pull
 # firebase-ios-sdk. These path packages keep the Dart API + Android natives only.

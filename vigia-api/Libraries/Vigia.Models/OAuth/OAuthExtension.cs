@@ -30,6 +30,12 @@ public static class OAuthExtension
         string? keycloakMetadata = configuration.GetValue<string>("Keycloak:MetadataAddress");
         string? keycloakIssuer = configuration.GetValue<string>("Keycloak:ValidIssuer");
         string? keycloakAudience = configuration.GetValue<string>("Keycloak:Audience");
+        string[] additionalIssuers = (configuration
+                .GetSection("Keycloak:AdditionalValidIssuers")
+                .Get<string[]>() ?? [])
+            .Where(issuer => !string.IsNullOrWhiteSpace(issuer))
+            .Select(issuer => issuer.Trim())
+            .ToArray();
         bool keycloakEnabled = !string.IsNullOrWhiteSpace(keycloakMetadata)
             && !string.IsNullOrWhiteSpace(keycloakIssuer)
             && !string.IsNullOrWhiteSpace(keycloakAudience);
@@ -85,10 +91,13 @@ public static class OAuthExtension
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = JwtRegisteredClaimNames.Sub,
-                    // Discovery inside Docker reports the internal issuer. Accept only the public one.
+                    // Discovery inside Docker reports the internal issuer.
+                    // Accept the public issuer and, in dev, the LAN hosts listed
+                    // in Keycloak:AdditionalValidIssuers.
                     IssuerValidator = (tokenIssuer, _, _) =>
                     {
-                        if (string.Equals(tokenIssuer, keycloakIssuer, StringComparison.Ordinal))
+                        if (string.Equals(tokenIssuer, keycloakIssuer, StringComparison.Ordinal)
+                            || additionalIssuers.Contains(tokenIssuer, StringComparer.Ordinal))
                             return tokenIssuer;
 
                         throw new SecurityTokenInvalidIssuerException(
@@ -124,7 +133,8 @@ public static class OAuthExtension
                 return BearerSchemeSelector.Select(
                     context.Request.Headers.Authorization.ToString(),
                     hubAccessToken,
-                    keycloakEnabled ? keycloakIssuer : null);
+                    keycloakEnabled ? keycloakIssuer : null,
+                    keycloakEnabled ? additionalIssuers : null);
             };
         });
 

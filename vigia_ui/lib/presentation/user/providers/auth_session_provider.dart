@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/push_notification_provider.dart';
 import 'package:vigia_ui/core/providers/repository_providers/auth_repository_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
@@ -52,5 +53,9 @@ class AuthSession extends _$AuthSession {
         await authRepository.logout(refreshToken);
       } catch (_) {}
     }
+
+    try {
+      await ref.read(keycloakBrowserSessionProvider).clear();
+    } catch (_) {}
   }
 }

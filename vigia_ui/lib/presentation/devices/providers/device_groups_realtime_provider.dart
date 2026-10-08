@@ -1,12 +1,11 @@
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
 import 'package:vigia_ui/data/services/device_groups_realtime_service.dart';
 import 'package:vigia_ui/domain/DTOs/group_membership_changed.dart';
-import 'package:vigia_ui/domain/environments.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_details_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
@@ -15,11 +14,9 @@ part 'device_groups_realtime_provider.g.dart';
 
 @Riverpod(keepAlive: true)
 DeviceGroupsRealtimeService deviceGroupsRealtimeService(Ref ref) {
-  // Dedicated Dio without auth interceptor — refresh endpoint is public.
-  final refreshDio = Dio(BaseOptions(baseUrl: Environments.apiUrl));
   final service = DeviceGroupsRealtimeService(
     tokenStorage: ref.watch(tokenStorageProvider),
-    refreshDio: refreshDio,
+    keycloak: ref.watch(keycloakAuthClientProvider),
   );
   ref.onDispose(() {
     unawaited(service.disconnect());

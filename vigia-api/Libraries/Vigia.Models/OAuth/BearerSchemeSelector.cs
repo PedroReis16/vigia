@@ -11,17 +11,60 @@ public static class BearerSchemeSelector
     public const string KeycloakScheme = "Keycloak";
     public const string LocalJwtScheme = "OAuth";
 
-    public static string Select(string? authorizationHeader, string? accessTokenQuery, string? keycloakIssuer)
+    public static string Select(
+        string? authorizationHeader,
+        string? accessTokenQuery,
+        string? keycloakIssuer,
+        IEnumerable<string>? additionalKeycloakIssuers = null)
     {
-        if (string.IsNullOrWhiteSpace(keycloakIssuer))
+        if (string.IsNullOrWhiteSpace(keycloakIssuer)
+            && !HasIssuer(additionalKeycloakIssuers))
             return LocalJwtScheme;
 
         string? token = ReadBearerToken(authorizationHeader) ?? NullIfBlank(accessTokenQuery);
         string? issuer = TryReadIssuer(token);
-        if (string.Equals(issuer, keycloakIssuer, StringComparison.Ordinal))
+        if (IsKeycloakIssuer(issuer, keycloakIssuer, additionalKeycloakIssuers))
             return KeycloakScheme;
 
         return LocalJwtScheme;
+    }
+
+    private static bool IsKeycloakIssuer(
+        string? issuer,
+        string? keycloakIssuer,
+        IEnumerable<string>? additionalKeycloakIssuers)
+    {
+        if (string.IsNullOrWhiteSpace(issuer))
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(keycloakIssuer)
+            && string.Equals(issuer, keycloakIssuer, StringComparison.Ordinal))
+            return true;
+
+        if (additionalKeycloakIssuers == null)
+            return false;
+
+        foreach (string candidate in additionalKeycloakIssuers)
+        {
+            if (string.Equals(issuer, candidate, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool HasIssuer(IEnumerable<string>? issuers)
+    {
+        if (issuers == null)
+            return false;
+
+        foreach (string issuer in issuers)
+        {
+            if (!string.IsNullOrWhiteSpace(issuer))
+                return true;
+        }
+
+        return false;
     }
 
     public static string? TryReadIssuer(string? jwt)

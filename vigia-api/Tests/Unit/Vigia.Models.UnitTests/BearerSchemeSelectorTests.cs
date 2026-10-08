@@ -47,6 +47,21 @@ public class BearerSchemeSelectorTests
         Assert.Equal(BearerSchemeSelector.LocalJwtScheme, scheme);
     }
 
+    [Fact]
+    public void Select_UsesKeycloakScheme_WhenAdditionalIssuerMatches()
+    {
+        const string lanIssuer = "http://10.0.0.55/auth/realms/vigia";
+        string token = JwtWithIssuer(lanIssuer);
+
+        string scheme = BearerSchemeSelector.Select(
+            $"Bearer {token}",
+            null,
+            KeycloakIssuer,
+            [lanIssuer]);
+
+        Assert.Equal(BearerSchemeSelector.KeycloakScheme, scheme);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

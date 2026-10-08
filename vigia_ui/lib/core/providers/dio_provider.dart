@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
 import 'package:vigia_ui/data/interceptors/auth_interceptor.dart';
 import 'package:vigia_ui/domain/environments.dart';
@@ -10,13 +11,13 @@ part 'dio_provider.g.dart';
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
+  final keycloak = ref.watch(keycloakAuthClientProvider);
   final dio = Dio(BaseOptions(baseUrl: Environments.apiUrl));
-  final refreshDio = Dio(BaseOptions(baseUrl: Environments.apiUrl));
 
   dio.interceptors.add(
     AuthInterceptor(
       dio: dio,
-      refreshDio: refreshDio,
+      keycloak: keycloak,
       tokenStorage: tokenStorage,
       onRefreshFailed: () =>
           ref.read(authSessionProvider.notifier).clearSession(),

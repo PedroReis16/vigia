@@ -369,7 +369,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |------|-----|
 | `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, MailHog, RabbitMQ, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
-| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; páginas e campos continuam os do Keycloak |
+| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak |
 | `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
@@ -650,6 +650,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] Tema de login `vigia`: seletor de idioma oculto no login, cadastro e redefinição de senha; o realm continua com `en` e `pt-BR` (`vigia.css`, `vigia-fields.js`)
 - [2026-10-06] Keycloak local: realm `vigia` com locales `en` e `pt-BR`, padrão `pt-BR` (`realm-export.json`, `apply-locales.sh`)
 - [2026-10-06] DEBUG: o startup vincula o usuário `admin` ao device de teste `Vigia-a1b2c3d4` (`TestDeviceLocalSeed`)
 - [2026-10-06] Keycloak local: usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`); o upsert o vincula ao grupo que já possui (`realm-export.json`, `apply-realm-admin.sh`, `KeycloakUserSyncService`)

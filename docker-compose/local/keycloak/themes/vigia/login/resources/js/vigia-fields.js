@@ -92,6 +92,7 @@
     var box = document.createElement("div");
     if (!card) return box;
     card.querySelectorAll("a[href]").forEach(function (link) {
+      if (link.closest("#kc-locale")) return;
       if (!kindFromUrl(link.href)) return;
       if (link.closest("#kc-form-login") && kindFromUrl(link.href) === "reset") return;
       var row = linkRow(link);

@@ -113,7 +113,12 @@ html.login-pf body {
   display: none;
 }
 
-.login-pf-page .login-pf-header:not(:has(#kc-locale)) {
+/* O realm tem en e pt-BR, mas o login não oferece troca de idioma. */
+.login-pf-page #kc-locale {
+  display: none;
+}
+
+.login-pf-page .login-pf-header:not(:has(#kc-username)) {
   display: none;
 }
 
@@ -586,11 +591,6 @@ html.login-pf body {
 .login-pf-page .login-pf-signup {
   color: #ffffff;
   font-size: 0.9375rem;
-}
-
-.login-pf-page #kc-locale-dropdown button,
-.login-pf-page #kc-locale-dropdown a {
-  color: #ffffff;
 }
 
 .login-pf-page #kc-form-options,

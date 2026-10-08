@@ -1,6 +1,7 @@
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
+  DeviceClipDto,
   DeviceDto,
   DeviceShareInviteDto,
   DeviceUserDto,
@@ -45,6 +46,12 @@ export class DevicesService {
     return this.http.get<DeviceUserDto[]>(`${this.basePath}/${deviceId}/users`);
   }
 
+  listClips(deviceId: string): Observable<DeviceClipDto[]> {
+    return this.http
+      .get<DeviceClipDto[] | null>(`${this.basePath}/${deviceId}/clips`, { observe: 'response' })
+      .pipe(map((response) => this.normalizeListResponse(response)));
+  }
+
   generateShareLink(deviceId: string): Observable<DeviceShareInviteDto> {
     return this.http.get<DeviceShareInviteDto>(`${this.basePath}/${deviceId}/share/generate`);
   }
@@ -57,7 +64,7 @@ export class DevicesService {
     return this.http.post<void>(`${this.basePath}/share/accept`, { token });
   }
 
-  private normalizeListResponse(response: HttpResponse<DeviceDto[] | null>): DeviceDto[] {
+  private normalizeListResponse<T>(response: HttpResponse<T[] | null>): T[] {
     if (response.status === 204 || response.body == null) {
       return [];
     }

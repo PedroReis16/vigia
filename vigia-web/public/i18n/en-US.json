@@ -57,6 +57,7 @@
       "NOT_FOUND": "Device not found.",
       "UPDATE": "Could not update the device.",
       "USERS": "Could not load users.",
+      "CLIPS": "Could not load clips.",
       "SHARE": "Could not generate the share link.",
       "REMOVE_USER": "Could not remove the user.",
       "STREAM_COMMAND": "Could not start streaming."
@@ -111,9 +112,19 @@
     "CLIPS": {
       "TITLE": "Clips",
       "DESCRIPTION": "Review device recordings",
-      "WEB_SOON": "Coming soon on web",
       "VIEW": "View clips",
-      "STUB": "Clips playback is not available on the web yet."
+      "ENABLED": "Storage on",
+      "DISABLED": "Storage off",
+      "STORAGE_OFF": "Clip storage is off. Turn it on in device settings to record new falls.",
+      "EMPTY": "No fall clips yet.",
+      "LOADING": "Loading clips…",
+      "PLAY_ERROR": "Could not play the clip.",
+      "STATUS": {
+        "Receiving": "Receiving",
+        "Assembling": "Assembling",
+        "Ready": "Ready",
+        "Failed": "Failed"
+      }
     },
     "ROOMS": {
       "Bedroom": "Bedroom",

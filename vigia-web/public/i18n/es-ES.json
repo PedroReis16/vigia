@@ -57,6 +57,7 @@
       "NOT_FOUND": "Dispositivo no encontrado.",
       "UPDATE": "No se pudo actualizar el dispositivo.",
       "USERS": "No se pudieron cargar los usuarios.",
+      "CLIPS": "No se pudieron cargar los clips.",
       "SHARE": "No se pudo generar el enlace de compartición.",
       "REMOVE_USER": "No se pudo eliminar el usuario.",
       "STREAM_COMMAND": "No se pudo iniciar la transmisión."
@@ -111,9 +112,19 @@
     "CLIPS": {
       "TITLE": "Clips",
       "DESCRIPTION": "Revisa las grabaciones del dispositivo",
-      "WEB_SOON": "Próximamente en la web",
       "VIEW": "Ver clips",
-      "STUB": "La reproducción de clips aún no está disponible en la web."
+      "ENABLED": "Almacenamiento activado",
+      "DISABLED": "Almacenamiento desactivado",
+      "STORAGE_OFF": "El almacenamiento de clips está desactivado. Actívalo al editar el dispositivo para grabar nuevas caídas.",
+      "EMPTY": "Aún no hay clips de caída.",
+      "LOADING": "Cargando clips…",
+      "PLAY_ERROR": "No se pudo reproducir el clip.",
+      "STATUS": {
+        "Receiving": "Recibiendo",
+        "Assembling": "Montando",
+        "Ready": "Listo",
+        "Failed": "Falló"
+      }
     },
     "ROOMS": {
       "Bedroom": "Dormitorio",

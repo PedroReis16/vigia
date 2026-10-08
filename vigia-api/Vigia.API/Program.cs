@@ -90,8 +90,10 @@ builder.Services.AddRepositoryServices();
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
+builder.Services.AddSingleton<IClipAccessCacheService, ClipAccessCacheService>();
 
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
+builder.Services.AddSingleton<IClipAccessTokenProvider, ClipAccessTokenProvider>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

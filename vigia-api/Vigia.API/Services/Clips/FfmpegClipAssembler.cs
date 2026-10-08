@@ -10,11 +10,83 @@ internal sealed class FfmpegClipAssembler(IOptions<ClipOptions> options, ILogger
     private readonly ClipOptions _options = options.Value;
     private readonly ILogger<FfmpegClipAssembler> _logger = logger;
 
-    public async Task AssembleAsync(string framesDirectory, int fps, string outputPath, CancellationToken cancellationToken = default)
+    public Task AssembleAsync(string framesDirectory, int fps, string outputPath, CancellationToken cancellationToken = default)
+    {
+        string pattern = Path.Combine(framesDirectory, "%06d.png");
+        return RunAsync(
+            [
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-framerate",
+                Math.Max(1, fps).ToString(),
+                "-start_number",
+                "0",
+                "-i",
+                pattern,
+                "-c:v",
+                "libx264",
+                "-crf",
+                "18",
+                "-preset",
+                "slow",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                outputPath,
+            ],
+            cancellationToken);
+    }
+
+    public Task WritePosterAsync(string sourceFramePath, string outputPath, CancellationToken cancellationToken = default)
+    {
+        return RunAsync(
+            [
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                sourceFramePath,
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale='min(480,iw)':-2",
+                "-q:v",
+                "5",
+                outputPath,
+            ],
+            cancellationToken);
+    }
+
+    public Task WritePosterFromVideoAsync(string videoPath, string outputPath, CancellationToken cancellationToken = default)
+    {
+        return RunAsync(
+            [
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-ss",
+                "0",
+                "-i",
+                videoPath,
+                "-frames:v",
+                "1",
+                "-vf",
+                "scale='min(480,iw)':-2",
+                "-q:v",
+                "5",
+                outputPath,
+            ],
+            cancellationToken);
+    }
+
+    private async Task RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         string ffmpeg = string.IsNullOrWhiteSpace(_options.FfmpegPath) ? "ffmpeg" : _options.FfmpegPath;
-        string pattern = Path.Combine(framesDirectory, "%06d.png");
-
         ProcessStartInfo startInfo = new()
         {
             FileName = ffmpeg,
@@ -24,27 +96,8 @@ internal sealed class FfmpegClipAssembler(IOptions<ClipOptions> options, ILogger
             CreateNoWindow = true,
         };
 
-        startInfo.ArgumentList.Add("-y");
-        startInfo.ArgumentList.Add("-hide_banner");
-        startInfo.ArgumentList.Add("-loglevel");
-        startInfo.ArgumentList.Add("error");
-        startInfo.ArgumentList.Add("-framerate");
-        startInfo.ArgumentList.Add(Math.Max(1, fps).ToString());
-        startInfo.ArgumentList.Add("-start_number");
-        startInfo.ArgumentList.Add("0");
-        startInfo.ArgumentList.Add("-i");
-        startInfo.ArgumentList.Add(pattern);
-        startInfo.ArgumentList.Add("-c:v");
-        startInfo.ArgumentList.Add("libx264");
-        startInfo.ArgumentList.Add("-crf");
-        startInfo.ArgumentList.Add("18");
-        startInfo.ArgumentList.Add("-preset");
-        startInfo.ArgumentList.Add("slow");
-        startInfo.ArgumentList.Add("-pix_fmt");
-        startInfo.ArgumentList.Add("yuv420p");
-        startInfo.ArgumentList.Add("-movflags");
-        startInfo.ArgumentList.Add("+faststart");
-        startInfo.ArgumentList.Add(outputPath);
+        foreach (string argument in arguments)
+            startInfo.ArgumentList.Add(argument);
 
         using Process process = new() { StartInfo = startInfo };
         if (!process.Start())

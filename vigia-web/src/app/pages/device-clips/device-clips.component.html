@@ -1,13 +1,118 @@
 <section class="device-clips" data-testid="device-clips-page">
   <header class="device-clips__header">
-    <a [routerLink]="['/devices', deviceId]" class="device-clips__back">
-      <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    <a
+      [routerLink]="['/devices', deviceId]"
+      class="device-clips__back"
+      [attr.aria-label]="'DEVICES.DETAIL.BACK' | translate"
+    >
+      <i class="pi pi-chevron-left" aria-hidden="true"></i>
     </a>
-    <h1>{{ 'DEVICES.CLIPS.TITLE' | translate }}</h1>
+    <div class="min-w-0">
+      <h1>{{ 'DEVICES.CLIPS.TITLE' | translate }}</h1>
+      @if (device(); as device) {
+        <p class="device-clips__device">{{ device.displayName }}</p>
+      }
+    </div>
   </header>
 
-  <p class="device-clips__stub">{{ 'DEVICES.CLIPS.STUB' | translate }}</p>
   @if (device(); as device) {
-    <p class="device-clips__device">{{ device.displayName }} · {{ device.id }}</p>
+    @if (!device.isClipsEnabled) {
+      <p class="device-clips__notice" data-testid="device-clips-disabled">
+        {{ 'DEVICES.CLIPS.STORAGE_OFF' | translate }}
+      </p>
+    }
   }
+
+  <p-card styleClass="device-clips__card">
+    <ng-template #content>
+      @if (loading()) {
+        <div
+          class="flex min-h-32 flex-col items-center justify-center gap-3 py-4 text-center text-surface-600"
+          data-testid="device-clips-loading"
+        >
+          <i class="pi pi-spin pi-spinner text-2xl" aria-hidden="true"></i>
+          <p class="m-0 text-sm">{{ 'DEVICES.CLIPS.LOADING' | translate }}</p>
+        </div>
+      } @else if (error()) {
+        <div
+          class="flex min-h-32 flex-col items-center justify-center gap-4 py-4 text-center"
+          data-testid="device-clips-error"
+        >
+          <p class="m-0 text-sm text-surface-600">{{ 'DEVICES.ERRORS.CLIPS' | translate }}</p>
+          <p-button
+            [label]="'DEVICES.RETRY' | translate"
+            icon="pi pi-refresh"
+            severity="secondary"
+            data-testid="device-clips-retry"
+            (onClick)="onRetry()"
+          />
+        </div>
+      } @else {
+        @if (videoUrl(); as url) {
+          <video
+            #player
+            class="device-clips__player"
+            [src]="url"
+            [poster]="posterUrl()"
+            controls
+            playsinline
+            data-testid="device-clips-player"
+            (error)="onVideoError()"
+          ></video>
+        }
+
+        @if (videoError()) {
+          <p class="device-clips__play-error" data-testid="device-clips-play-error">
+            {{ 'DEVICES.CLIPS.PLAY_ERROR' | translate }}
+          </p>
+        }
+
+        @if (clips().length === 0) {
+          <div
+            class="flex min-h-32 items-center justify-center py-4 text-center"
+            data-testid="device-clips-empty"
+          >
+            <p class="m-0 text-sm text-surface-600">{{ 'DEVICES.CLIPS.EMPTY' | translate }}</p>
+          </div>
+        } @else {
+          <ul class="device-clips__list">
+            @for (clip of clips(); track clip.id) {
+              <li>
+                <button
+                  type="button"
+                  class="device-clips__item"
+                  [class.device-clips__item--active]="playingId() === clip.id"
+                  [disabled]="!clip.isReady"
+                  [attr.data-testid]="'device-clip-' + clip.id"
+                  (click)="play(clip)"
+                >
+                  <span class="device-clips__thumb" aria-hidden="true">
+                    @if (clip.thumbnailUrl) {
+                      <img
+                        [src]="clip.thumbnailUrl"
+                        alt=""
+                        [attr.data-testid]="'device-clip-thumb-' + clip.id"
+                      />
+                    } @else {
+                      <i
+                        class="pi pi-video"
+                        [attr.data-testid]="'device-clip-thumb-fallback-' + clip.id"
+                      ></i>
+                    }
+                  </span>
+                  <span class="device-clips__item-main">
+                    <span class="device-clips__item-date">{{ formatCreatedAt(clip) }}</span>
+                    @if (clip.durationLabel) {
+                      <span class="device-clips__item-duration">{{ clip.durationLabel }}</span>
+                    }
+                  </span>
+                  <span class="device-clips__item-status">{{ clip.statusKey | translate }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </ng-template>
+  </p-card>
 </section>

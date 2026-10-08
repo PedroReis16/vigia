@@ -42,6 +42,8 @@ public static class OAuthExtension
                 AllowAnonymousDefaults.AllowAnonymousScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, FrameAccessTokenAuthenticationHandler>(
                 FrameAccessTokenDefaults.AuthenticationScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, ClipAccessTokenAuthenticationHandler>(
+                ClipAccessTokenDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, MediaMtxTokenAuthenticationHandler>(
                 MediaMtxTokenDefaults.AuthenticationScheme, _ => { })
             .AddJwtBearer(BearerSchemeSelector.LocalJwtScheme, options =>

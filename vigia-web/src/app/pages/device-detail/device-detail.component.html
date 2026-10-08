@@ -139,7 +139,12 @@
                   icon="pi pi-video"
                   title="DEVICES.CLIPS.VIEW"
                   description="DEVICES.CLIPS.DESCRIPTION"
-                  [meta]="'DEVICES.CLIPS.WEB_SOON' | translate"
+                  [meta]="
+                    (detailDevice.isClipsEnabled
+                      ? 'DEVICES.CLIPS.ENABLED'
+                      : 'DEVICES.CLIPS.DISABLED'
+                    ) | translate
+                  "
                   [routerLink]="['/devices', detailDevice.id, 'clips']"
                   testId="device-clips-desktop-action"
                 />

@@ -118,7 +118,10 @@
             icon="pi pi-video"
             title="DEVICES.CLIPS.VIEW"
             description="DEVICES.CLIPS.DESCRIPTION"
-            [meta]="'DEVICES.CLIPS.WEB_SOON' | translate"
+            [meta]="
+              (device().isClipsEnabled ? 'DEVICES.CLIPS.ENABLED' : 'DEVICES.CLIPS.DISABLED')
+                | translate
+            "
             [routerLink]="['/devices', device().id, 'clips']"
             testId="device-clips-mobile-action"
           />

@@ -128,7 +128,7 @@ vigia/
 | `DevicesController` | CRUD e registro de devices |
 | `DevicesCommandController` | Comandos FIWARE para devices |
 | `DevicesFrameController` | Upload e acesso a frames |
-| `DevicesClipController` | Recebe frames PNG numerados, monta o MP4 do clipe e serve o vídeo (`AllowAnonymous`) |
+| `DevicesClipController` | POST anônimo dos frames PNG e montagem do MP4 com poster JPEG; GET da lista exige usuário autenticado; thumbnail e playback usam token efêmero e o vídeo responde `Range` |
 | `DeviceShareController` | Convites e compartilhamento de grupos |
 | `DevicesUsersController` | Membros do grupo / associação user-device |
 | `DeviceUpdatesController` | OTA — upload e distribuição de versões |
@@ -340,9 +340,9 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 | `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak some com o formulário e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site) e `sessionStorage` na volta do logout.
+**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak some com o formulário e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site) e `sessionStorage` na volta do logout.
 
-**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips stub.
+**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips de queda (thumbnail na lista; playback por faixas HTTP).
 
 ---
 
@@ -424,7 +424,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
-4. **Autenticação multi-esquema** — JWT simétrico da API para o app Flutter; access token do Keycloak (issuer público, JWKS interno) para o vigia-web; tokens efêmeros para frames; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer.
+4. **Autenticação multi-esquema** — JWT simétrico da API para o app Flutter; access token do Keycloak (issuer público, JWKS interno) para o vigia-web; tokens efêmeros para frames e para mídia de clipes; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer.
 
 5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
@@ -645,15 +645,18 @@ flowchart LR
 2. O onboard grava a preferência em `{DATA_DIR}/clips.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
 3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
 4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4), sem autenticação, em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
-5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps
-6. O MP4 sobe para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4`) e fica em `GET /devices/{id}/clips` e `GET /devices/{id}/clips/{clipId}`
+5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps, mais um JPEG do último frame (largura máxima 480)
+6. O MP4 e o JPEG sobem para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4` e `.jpg`). `GET /devices/{id}/clips` exige usuário autenticado e, no clipe pronto, devolve `thumbnailUrl` e `playbackUrl` com token efêmero de 1 h. A web mostra o JPEG e, ao escolher o clipe, pede o MP4 por faixas (`Range` / `206`). Clipe antigo sem JPEG ganha o poster na primeira leitura do thumbnail, extraído do MP4
 
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-08] Clipes: thumbnail e playback saem na lista do clipe pronto; poster ausente é gerado a partir do MP4 na primeira leitura (`ClipIngestService`, `device-clips`)
+- [2026-10-08] Clipes: poster JPEG na montagem; a lista devolve thumbnail e playback com token efêmero; o MP4 sai por faixas HTTP (`DevicesClipController`, `device-clips`)
 - [2026-10-08] Onboard: thumbnail sai do loop YOLO e vira Process filho, como stream e clips (`thumbs_runner.py`, `stream/__init__.py`)
 - [2026-10-06] Thumbnails: a captura volta a enviar o JPEG a cada 60s; POST do frame é anônimo e o GET usa o token efêmero (`frame_uploader.py`, `capture_runner.py`, `DevicesFrameController`)
+- [2026-10-06] vigia-web: lista e reprodução dos clipes de queda no detalhe; GET de clips autenticado (`DevicesClipController`, `device-clips`)
 - [2026-10-06] vigia-web ↔ Keycloak: morph de login (callback arma o véu) e logout (tema revela o formulário); cookie `vigia_auth_handoff` (`auth-page-handoff`, `index.html`, `themes/vigia/login`)
 - [2026-10-06] Tema de login `vigia`: seletor de idioma oculto no login, cadastro e redefinição de senha; o realm continua com `en` e `pt-BR` (`vigia.css`, `vigia-fields.js`)
 - [2026-10-06] Keycloak local: realm `vigia` com locales `en` e `pt-BR`, padrão `pt-BR` (`realm-export.json`, `apply-locales.sh`)

@@ -183,4 +183,51 @@ describe('DevicesService', () => {
     expect(req.request.body).toEqual({ token: 'invite-token' });
     req.flush(null);
   });
+
+  it('lists clips from the relative device route without Skip-Auth', () => {
+    let response: unknown;
+
+    service.listClips('device-1').subscribe((value) => {
+      response = value;
+    });
+
+    const req = httpMock.expectOne('/devices/device-1/clips');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.headers.has('Skip-Auth')).toBe(false);
+    req.flush([
+      {
+        id: 'clip-1',
+        deviceId: 'device-1',
+        status: 'Ready',
+        frameCount: 30,
+        fps: 15,
+        createdAt: '2026-10-06T00:00:00Z',
+        thumbnailUrl: 'devices/device-1/clips/clip-1/thumbnail?accessToken=tok',
+        playbackUrl: 'devices/device-1/clips/clip-1?accessToken=tok',
+      },
+    ]);
+
+    expect(response).toEqual([
+      expect.objectContaining({
+        id: 'clip-1',
+        status: 'Ready',
+        frameCount: 30,
+        thumbnailUrl: 'devices/device-1/clips/clip-1/thumbnail?accessToken=tok',
+        playbackUrl: 'devices/device-1/clips/clip-1?accessToken=tok',
+      }),
+    ]);
+  });
+
+  it('returns an empty clip list on 204', () => {
+    let response: unknown;
+
+    service.listClips('device-1').subscribe((value) => {
+      response = value;
+    });
+
+    const req = httpMock.expectOne('/devices/device-1/clips');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(response).toEqual([]);
+  });
 });

@@ -207,11 +207,13 @@ def test_supervise_workers_SobeEParaIndependentes() -> None:
     with (
         patch.object(stream_pkg, "ensure_stream_worker") as ensure_stream,
         patch.object(stream_pkg, "ensure_clips_worker") as ensure_clips,
+        patch.object(stream_pkg, "ensure_thumbs_worker") as ensure_thumbs,
         patch.object(stream_pkg, "stop_stream_worker") as stop_stream,
         patch.object(stream_pkg, "stop_clips_worker") as stop_clips,
     ):
         stream_pkg._stream_task = None
         stream_pkg._clips_task = None
+        stream_pkg._thumbs_task = None
 
         stream_pkg.supervise_workers(
             "live",
@@ -221,6 +223,8 @@ def test_supervise_workers_SobeEParaIndependentes() -> None:
         )
         ensure_stream.assert_called_once_with("live")
         ensure_clips.assert_not_called()
+        ensure_thumbs.assert_called_once_with("live")
+        assert stream_pkg.export_active() is True
 
         fake_stream = MagicMock()
         fake_stream.is_alive.return_value = True

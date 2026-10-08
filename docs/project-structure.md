@@ -211,7 +211,7 @@ vigia/
 
 **Propósito:** Pacote edge de onboard — captura de câmera/vídeo com YOLO pose (export on-demand), classificação em thread, integração FIWARE/MQTT em processo isolado, streaming/clipes via Processes filhos do capture, e control plane (`interface`: BLE, Wi-Fi, LCD, gate da captura) no mesmo instalador; base para o release `onboard`.
 
-**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips), FFmpeg → MediaMTX. Control plane: asyncio, `getmac`, `gpiozero`/`RPLCD` (LCD; degradam sem hardware), `bless` só em Linux.
+**Tecnologias:** Python 3.12+, Ultralytics YOLO + `lap` (track/BoT-SORT), OpenCV, python-dotenv, onnx + onnxslim (export; `onnxruntime` para inferência GRU), `paho-mqtt` (WebSocket Ultralight), threading (core), multiprocessing (stream RTMP + janela de clips + thumbnail), FFmpeg → MediaMTX. Control plane: asyncio, `getmac`, `gpiozero`/`RPLCD` (LCD; degradam sem hardware), `bless` só em Linux.
 
 **Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make interface` / `python -m interface` é o control plane (BLE, Wi-Fi, LCD, gate). `make run` corre capture + integration + interface em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
@@ -229,7 +229,7 @@ vigia/
 | `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`); integration escreve, capture/workers leem |
 | `clips_config.py` | Preferência local `clips.json` (`enabled`); `clips_on`/`clips_off` gravam o ficheiro e o arranque da captura/integração copia-o para o ControlShm |
-| `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips) |
+| `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips + thumbnail) |
 | `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S` × fps da câmera; fallback `FRAME_RATE`); escrito pelo Process de clips |
 
 **Módulos principais (`capture/`):**
@@ -237,7 +237,7 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m capture`: runtime + (opcional) YOLO + `run_capture` |
-| `capture_runner.py` | Loop YOLO pose + preview; blur → live SHM se export activo (fps da fonte, fallback `FRAME_RATE`); supervisão dos workers `stream/` numa thread à parte |
+| `capture_runner.py` | Loop YOLO pose + preview; blur → live SHM enquanto o supervisor está ativo (fps da fonte, fallback `FRAME_RATE`); supervisão dos workers `stream/` numa thread à parte |
 | `pose_extract.py` | Cópia `person_id` + keypoints `(17, 3)` + timestamp (sem imagem) |
 | `yolo_model.py` | Carrega o YOLO pose exportado (singleton) |
 
@@ -254,8 +254,9 @@ vigia/
 
 | Módulo | Função |
 |--------|--------|
-| `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
+| `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO; thumbnail fica ligada na sessão |
 | `stream_runner.py` | Process RTMP: live SHM (frame nativo) → FFmpeg CRF 18 / `veryfast` → MediaMTX enquanto `stream_on` |
+| `thumbs_runner.py` | Process thumbnail: live SHM → JPEG a cada 60s |
 | `frame_uploader.py` | POST anônimo do JPEG (`frameFile`) em `/devices/{id}/frame` |
 | `clips_runner.py` | Process janela: live SHM → JPEG na resolução da câmera (slot `CLIP_MAX_PAYLOAD`, default 2 MiB) no fps da câmera; na entrada em `fall`, exporta nesse fps |
 | `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
@@ -277,7 +278,7 @@ vigia/
 | `provision/` | BLE, Wi-Fi, identidade, `classifier.json`, estado de pareamento, OTA do pacote `onboard/`, gate (hold/release/restart) no lugar de `systemctl` do fall |
 | `ui/` | LCD 16x2, menu (CPU/RAM, Wi-Fi, serviço, modelo, OTA), GPIO; sem hardware degrada para no-op |
 
-**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. O processo de clips só observa o último `fall_state` (`peek_latest`, sem consumir a fila). Capture escreve LiveFrameShm; Processes filhos de `stream/` consomem (RTMP e janela de clips). Flags FIWARE via ControlShm. Na entrada em `fall`, com clips ativos, o snapshot da janela segue em PNG para `POST /devices/{id}/clips`.
+**IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. O processo de clips só observa o último `fall_state` (`peek_latest`, sem consumir a fila). Capture escreve LiveFrameShm enquanto o supervisor está ativo; Processes filhos de `stream/` consomem (RTMP, janela de clips e thumbnail). Flags FIWARE via ControlShm. Na entrada em `fall`, com clips ativos, o snapshot da janela segue em PNG para `POST /devices/{id}/clips`.
 
 **Testes:** `tests/shared/`, `tests/capture/`, `tests/core/`, `tests/integration/`, `tests/stream/`, `tests/interface/` — pytest na raiz (`pythonpath` = `.`).
 
@@ -634,7 +635,7 @@ flowchart LR
 
 ### 6. Upload de frames
 
-1. A captura envia um JPEG a cada 60s. No fall-detection isso ocorre no loop de captura
+1. No onboard, um Process filho lê o último frame da live SHM e envia um JPEG a cada 60s. O fall-detection envia no próprio loop de captura
 2. POST anônimo para `/devices/{id}/frame`
 3. A API guarda o JPEG em cache (TTL 120s). A listagem devolve `thumbnailUrl` com token efêmero; o GET do frame exige esse token
 
@@ -651,6 +652,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-08] Onboard: thumbnail sai do loop YOLO e vira Process filho, como stream e clips (`thumbs_runner.py`, `stream/__init__.py`)
 - [2026-10-06] Thumbnails: a captura volta a enviar o JPEG a cada 60s; POST do frame é anônimo e o GET usa o token efêmero (`frame_uploader.py`, `capture_runner.py`, `DevicesFrameController`)
 - [2026-10-06] vigia-web ↔ Keycloak: morph de login (callback arma o véu) e logout (tema revela o formulário); cookie `vigia_auth_handoff` (`auth-page-handoff`, `index.html`, `themes/vigia/login`)
 - [2026-10-06] Tema de login `vigia`: seletor de idioma oculto no login, cadastro e redefinição de senha; o realm continua com `en` e `pt-BR` (`vigia.css`, `vigia-fields.js`)

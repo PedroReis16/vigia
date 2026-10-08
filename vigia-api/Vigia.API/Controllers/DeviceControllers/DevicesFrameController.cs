@@ -12,9 +12,11 @@ public class DevicesFrameController(IDevicesService devicesService) : Controller
     private readonly IDevicesService _devicesService = devicesService;
 
     /// <summary>
-    /// Enviar um frame atual do dispositivo
+    /// Enviar um frame atual do dispositivo.
+    /// A placa envia sem token de usuário.
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -27,9 +29,11 @@ public class DevicesFrameController(IDevicesService devicesService) : Controller
     }
 
     /// <summary>
-    /// Obter o último frame enviado do dispositivo
+    /// Obter o último frame enviado do dispositivo.
+    /// O acesso usa o token efêmero emitido em thumbnailUrl.
     /// </summary>
     [HttpGet]
+    [Authorize(AuthenticationSchemes = FrameAccessTokenDefaults.AuthenticationScheme)]
     [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

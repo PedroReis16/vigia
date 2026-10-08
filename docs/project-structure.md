@@ -256,6 +256,7 @@ vigia/
 |--------|--------|
 | `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO |
 | `stream_runner.py` | Process RTMP: live SHM (frame nativo) → FFmpeg CRF 18 / `veryfast` → MediaMTX enquanto `stream_on` |
+| `frame_uploader.py` | POST anônimo do JPEG (`frameFile`) em `/devices/{id}/frame` |
 | `clips_runner.py` | Process janela: live SHM → JPEG na resolução da câmera (slot `CLIP_MAX_PAYLOAD`, default 2 MiB) no fps da câmera; na entrada em `fall`, exporta nesse fps |
 | `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
 | `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
@@ -633,9 +634,9 @@ flowchart LR
 
 ### 6. Upload de frames
 
-1. Fall-detection captura frame JPEG
-2. POST para `/devices/{id}/frame`
-3. API armazena o frame (`vigia-pictures`)
+1. A captura envia um JPEG a cada 60s. No fall-detection isso ocorre no loop de captura
+2. POST anônimo para `/devices/{id}/frame`
+3. A API guarda o JPEG em cache (TTL 120s). A listagem devolve `thumbnailUrl` com token efêmero; o GET do frame exige esse token
 
 ### 7. Montagem de clipes
 
@@ -650,6 +651,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] Thumbnails: a captura volta a enviar o JPEG a cada 60s; POST do frame é anônimo e o GET usa o token efêmero (`frame_uploader.py`, `capture_runner.py`, `DevicesFrameController`)
 - [2026-10-06] vigia-web ↔ Keycloak: morph de login (callback arma o véu) e logout (tema revela o formulário); cookie `vigia_auth_handoff` (`auth-page-handoff`, `index.html`, `themes/vigia/login`)
 - [2026-10-06] Tema de login `vigia`: seletor de idioma oculto no login, cadastro e redefinição de senha; o realm continua com `en` e `pt-BR` (`vigia.css`, `vigia-fields.js`)
 - [2026-10-06] Keycloak local: realm `vigia` com locales `en` e `pt-BR`, padrão `pt-BR` (`realm-export.json`, `apply-locales.sh`)

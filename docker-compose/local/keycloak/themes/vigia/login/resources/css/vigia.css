@@ -704,6 +704,39 @@ html.login-pf body {
   outline: none;
 }
 
+/* Handoff com o vigia-web: o formulário some antes do redirect e reaparece no logout. */
+html.vigia-auth-leave .login-pf-page > .card-pf,
+html.vigia-auth-leave .vigia-slide-viewport,
+html.vigia-auth-leave .vigia-auth-links,
+html.vigia-auth-reveal .login-pf-page > .card-pf,
+html.vigia-auth-reveal .vigia-slide-viewport,
+html.vigia-auth-reveal .vigia-auth-links,
+html.vigia-auth-reveal #kc-header-wrapper {
+  opacity: 0;
+}
+
+html.vigia-auth-leave .login-pf-page > .card-pf,
+html.vigia-auth-leave .vigia-slide-viewport,
+html.vigia-auth-leave .vigia-auth-links {
+  transition: opacity 160ms ease;
+}
+
+html.vigia-auth-reveal.vigia-auth-revealed .login-pf-page > .card-pf,
+html.vigia-auth-reveal.vigia-auth-revealed .vigia-slide-viewport,
+html.vigia-auth-reveal.vigia-auth-revealed .vigia-auth-links {
+  opacity: 1;
+  transition: opacity 420ms ease;
+}
+
+.vigia-handoff-logo {
+  position: fixed;
+  z-index: 30;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
+}
+
 @media (max-width: 767px) {
   html.login-pf body {
     background: #669cee none;

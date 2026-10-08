@@ -1,7 +1,133 @@
 (function () {
+  var HANDOFF_COOKIE = "vigia_auth_handoff";
   var ORDER = { login: 0, reset: 1, register: 2 };
   var SLIDE_MS = 320;
+  var LEAVE_MS = 180;
+  var REVEAL_MS = 420;
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var pendingExit = "";
+
+  function readHandoffCookie() {
+    var match = document.cookie.match(new RegExp("(?:^|; )" + HANDOFF_COOKIE + "=([^;]*)"));
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function writeHandoffCookie(value) {
+    document.cookie = HANDOFF_COOKIE + "=" + encodeURIComponent(value) + "; Path=/; Max-Age=45; SameSite=Lax";
+  }
+
+  function clearHandoffCookie() {
+    document.cookie = HANDOFF_COOKIE + "=; Path=/; Max-Age=0; SameSite=Lax";
+  }
+
+  function round1(value) {
+    return Math.round(value * 10) / 10;
+  }
+
+  function visualLogoBox(element) {
+    var rect = element.getBoundingClientRect();
+    var size = Math.min(rect.width, rect.height);
+    return {
+      top: rect.top + (rect.height - size) / 2,
+      left: rect.left + (rect.width - size) / 2,
+      width: size,
+      height: size
+    };
+  }
+
+  function formatBox(box) {
+    return [box.top, box.left, box.width, box.height].map(round1).join(",");
+  }
+
+  function parseBox(value) {
+    var parts = value.split(",").map(Number);
+    if (parts.length < 4 || parts.slice(0, 4).some(function (part) { return !isFinite(part); })) return null;
+    if (parts[2] <= 0 || parts[3] <= 0) return null;
+    return { top: parts[0], left: parts[1], width: parts[2], height: parts[3] };
+  }
+
+  function stampEnterCookie(form) {
+    var header = document.getElementById("kc-header-wrapper");
+    if (!header) return;
+    var mode = form && form.id === "kc-register-form" ? "register" : "login";
+    writeHandoffCookie(
+      "enter," + formatBox(visualLogoBox(header)) + "," + window.innerWidth + "," + window.innerHeight + "," + mode
+    );
+  }
+
+  function authSubmitForm(form) {
+    return form && (form.id === "kc-form-login" || form.id === "kc-register-form");
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function revealAuthHandoff() {
+    if (!pendingExit || reduceMotion) return;
+    var box = parseBox(pendingExit.slice(5));
+    var header = document.getElementById("kc-header-wrapper");
+    clearHandoffCookie();
+    pendingExit = "";
+    if (!box || !header) {
+      document.documentElement.classList.remove("vigia-auth-reveal");
+      return;
+    }
+
+    var fly = document.createElement("div");
+    fly.className = "vigia-handoff-logo";
+    fly.setAttribute("aria-hidden", "true");
+    fly.style.top = box.top + "px";
+    fly.style.left = box.left + "px";
+    fly.style.width = box.width + "px";
+    fly.style.height = box.height + "px";
+    fly.style.backgroundImage = getComputedStyle(header).backgroundImage;
+    document.body.appendChild(fly);
+
+    var target = visualLogoBox(header);
+    var delta = Math.abs(target.top - box.top) + Math.abs(target.left - box.left)
+      + Math.abs(target.width - box.width) + Math.abs(target.height - box.height);
+
+    function finish() {
+      document.documentElement.classList.remove("vigia-auth-reveal", "vigia-auth-revealed");
+      fly.remove();
+    }
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.documentElement.classList.add("vigia-auth-revealed");
+        if (delta < 2) {
+          window.setTimeout(finish, REVEAL_MS);
+          return;
+        }
+        var start = performance.now();
+        function tick(now) {
+          var raw = Math.min(1, (now - start) / REVEAL_MS);
+          var t = easeInOutCubic(raw);
+          fly.style.top = (box.top + (target.top - box.top) * t) + "px";
+          fly.style.left = (box.left + (target.left - box.left) * t) + "px";
+          fly.style.width = (box.width + (target.width - box.width) * t) + "px";
+          fly.style.height = (box.height + (target.height - box.height) * t) + "px";
+          if (raw < 1) requestAnimationFrame(tick);
+          else finish();
+        }
+        requestAnimationFrame(tick);
+      });
+    });
+  }
+
+  (function captureExitHandoff() {
+    var cookie = readHandoffCookie();
+    if (cookie.indexOf("enter,") === 0) clearHandoffCookie();
+    if (reduceMotion) {
+      if (cookie.indexOf("exit,") === 0) clearHandoffCookie();
+      return;
+    }
+    if (cookie.indexOf("exit,") === 0) {
+      pendingExit = cookie;
+      document.documentElement.classList.add("vigia-auth-reveal");
+    }
+  })();
 
   function kindFromUrl(href) {
     if (!href) return "";
@@ -471,6 +597,7 @@
     syncSubmit(document);
     softenLinks();
     bindPageSlides();
+    revealAuthHandoff();
   }
 
   document.addEventListener("input", function (event) {
@@ -480,13 +607,28 @@
     syncSubmit(form);
   });
 
+  var leavingAuth = false;
+
   document.addEventListener("submit", function (event) {
     var form = event.target;
     if (!form || !form.closest || !form.closest(".login-pf-page")) return;
     mirrorRegisterUsername(form);
     syncSubmit(form);
     var button = submitButton(form);
-    if (button && button.disabled) event.preventDefault();
+    if (button && button.disabled) {
+      event.preventDefault();
+      return;
+    }
+    if (!authSubmitForm(form)) return;
+    if (reduceMotion || leavingAuth) {
+      stampEnterCookie(form);
+      return;
+    }
+    event.preventDefault();
+    leavingAuth = true;
+    stampEnterCookie(form);
+    document.documentElement.classList.add("vigia-auth-leave");
+    window.setTimeout(function () { form.submit(); }, LEAVE_MS);
   }, true);
 
   if (document.readyState === "loading") {

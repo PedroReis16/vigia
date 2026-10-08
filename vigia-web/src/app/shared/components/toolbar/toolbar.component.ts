@@ -4,7 +4,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { Avatar } from '@openng/optimus-ui/avatar';
 import { Popover } from '@openng/optimus-ui/popover';
 import { FallNotification } from '@core/entities';
-import { captureToolbarHeight, captureToolbarLogoBounds } from '@core/helpers';
+import { captureToolbarHeight, captureToolbarLogoBounds, stageAppExit } from '@core/helpers';
 import {
   AuthExitTransitionService,
   MessageService,
@@ -128,6 +128,15 @@ export class ToolbarComponent {
       if (logo && toolbarHeight) {
         this.authExitTransition.armLogout(logo, toolbarHeight);
         await this.authExitTransition.waitForShellExit();
+        const handoff = this.authExitTransition.handoffLogo();
+        if (handoff) {
+          stageAppExit({
+            top: handoff.top,
+            left: handoff.left,
+            width: handoff.height,
+            height: handoff.height,
+          });
+        }
       }
     }
 

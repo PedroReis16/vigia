@@ -41,6 +41,18 @@ describe('AuthExitTransitionService', () => {
     expect(service.settled()).toBe(false);
   });
 
+  it('holds the bridge without replaying the logout morph', () => {
+    service.holdBridge();
+
+    expect(service.kind()).toBe('idle');
+    expect(service.bridgeActive()).toBe(true);
+    expect(service.settled()).toBe(false);
+
+    service.complete();
+    expect(service.bridgeActive()).toBe(false);
+    expect(service.settled()).toBe(true);
+  });
+
   it('isLogoutHandoff when bridge covers logout navigation', () => {
     service.armLogout(null, 80);
     service.activateLogoutBridge();

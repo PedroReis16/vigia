@@ -67,6 +67,12 @@ export class AuthExitTransitionService {
     this.bridgeActive.set(true);
   }
 
+  /** Cover the shell while logout bounces back through the app toward Keycloak. */
+  holdBridge(): void {
+    this.bridgeActive.set(true);
+    this.settled.set(false);
+  }
+
   setHandoffLogo(logo: HandoffLogoBounds): void {
     this.handoffLogo.set(logo);
     this.authHandoffReleased.set(false);

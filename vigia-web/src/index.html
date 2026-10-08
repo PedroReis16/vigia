@@ -7,6 +7,63 @@
   <base href="/" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <style>
+    html.auth-transition-bridge,
+    html.auth-transition-bridge body {
+      background: #669cee;
+    }
+
+    #vigia-auth-boot-logo {
+      display: none;
+      position: fixed;
+      z-index: 1102;
+      width: auto;
+      pointer-events: none;
+    }
+
+    html.auth-transition-logo #vigia-auth-boot-logo {
+      display: block;
+    }
+  </style>
+  <script>
+    (function () {
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try {
+        if (!reduce) {
+          var params = new URLSearchParams(location.search);
+          var callback = params.has('code') && params.has('state');
+          if (!callback) {
+            sessionStorage.removeItem('vigia.auth.enter');
+          }
+          var exitHold = sessionStorage.getItem('vigia.auth.exit');
+          var enter = '';
+          if (callback) {
+            sessionStorage.removeItem('vigia.auth.exit');
+            var match = document.cookie.match(/(?:^|; )vigia_auth_handoff=([^;]*)/);
+            var cookie = match ? decodeURIComponent(match[1]) : '';
+            document.cookie = 'vigia_auth_handoff=; Path=/; Max-Age=0; SameSite=Lax';
+            enter = cookie.indexOf('enter,') === 0 ? cookie.slice(6) : 'fallback';
+            sessionStorage.setItem('vigia.auth.enter', enter);
+          }
+          if (callback || exitHold) {
+            document.documentElement.classList.add('auth-transition-bridge');
+            var raw = callback ? enter : exitHold;
+            var parts = (raw || '').split(',');
+            if (parts.length >= 4 && parts[0] !== 'fallback') {
+              var root = document.documentElement;
+              root.classList.add('auth-transition-logo');
+              root.style.setProperty('--vigia-boot-top', parts[0] + 'px');
+              root.style.setProperty('--vigia-boot-left', parts[1] + 'px');
+              root.style.setProperty('--vigia-boot-height', parts[3] + 'px');
+            }
+          }
+        } else {
+          sessionStorage.removeItem('vigia.auth.enter');
+          sessionStorage.removeItem('vigia.auth.exit');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -16,6 +73,13 @@
 </head>
 
 <body>
+  <img
+    id="vigia-auth-boot-logo"
+    src="images/vigia-logo-dark.png"
+    alt=""
+    aria-hidden="true"
+    style="top: var(--vigia-boot-top); left: var(--vigia-boot-left); height: var(--vigia-boot-height)"
+  />
   <app-root></app-root>
 </body>
 

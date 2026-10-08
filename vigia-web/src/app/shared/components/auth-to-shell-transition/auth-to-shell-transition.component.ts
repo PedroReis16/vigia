@@ -9,10 +9,8 @@ import {
   signal,
 } from '@angular/core';
 import { AuthExitTransitionService } from '@core/services';
-import {
-  AuthLogoBounds,
-  measureAuthHandoffLayout,
-} from '@core/helpers/auth-logo-bounds.helper';
+import { AuthLogoBounds } from '@core/helpers/auth-logo-bounds.helper';
+import { dismissAuthBootLogo, resolveLogoutLogoTarget } from '@core/helpers/auth-page-handoff';
 
 const DURATION_MS = 780;
 const TOOLBAR_LOGO_HEIGHT = 56;
@@ -88,6 +86,7 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
     }
 
     if (this.prefersReducedMotion()) {
+      dismissAuthBootLogo();
       if (shouldPlayExit) {
         this.transition.notifyShellExitReady();
       } else {
@@ -107,6 +106,7 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
 
     this.prepareEnterFrame();
     requestAnimationFrame(() => {
+      dismissAuthBootLogo();
       requestAnimationFrame(() => {
         this.startEnterAnimation();
       });
@@ -370,12 +370,12 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
   }
 
   private measureLogoutLogoTarget(viewportHeight: number): LogoTarget {
-    const layout = measureAuthHandoffLayout(viewportHeight);
+    const logo = resolveLogoutLogoTarget(window.innerWidth, viewportHeight);
 
     return {
-      top: layout.logoTop,
-      centerX: layout.logoCenterX,
-      height: layout.logoHeight,
+      top: logo.top,
+      centerX: logo.left + logo.width / 2,
+      height: logo.height,
     };
   }
 

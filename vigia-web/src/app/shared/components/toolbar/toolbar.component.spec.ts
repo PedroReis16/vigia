@@ -151,4 +151,35 @@ describe('ToolbarComponent', () => {
     expect(authExitTransition.kind()).toBe('logout');
     expect(logout.execute).toHaveBeenCalled();
   });
+
+  it('stores the flying logo so the next page can meet Keycloak', async () => {
+    sessionStorage.removeItem('vigia.auth.exit');
+    const compiled = fixture.nativeElement as HTMLElement;
+    const toolbar = compiled.querySelector('[data-testid="app-toolbar"]') as HTMLElement;
+    const logo = compiled.querySelector('[data-testid="toolbar-logo"] img') as HTMLElement;
+    const bounds = {
+      top: 0,
+      left: 0,
+      width: 800,
+      height: 80,
+      right: 800,
+      bottom: 80,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    };
+
+    Object.defineProperty(toolbar, 'getBoundingClientRect', { value: () => bounds });
+    Object.defineProperty(logo, 'getBoundingClientRect', {
+      value: () => ({ ...bounds, top: 12, left: 20, width: 56, height: 56, right: 76, bottom: 68 }),
+    });
+    vi.spyOn(authExitTransition, 'waitForShellExit').mockImplementation(async () => {
+      authExitTransition.setHandoffLogo({ top: 180, left: 300, height: 225 });
+    });
+
+    await component.onLogout();
+
+    expect(sessionStorage.getItem('vigia.auth.exit')).toBe('180,300,225,225');
+    sessionStorage.removeItem('vigia.auth.exit');
+  });
 });

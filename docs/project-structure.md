@@ -338,7 +338,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 | `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web.
+**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (stub); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak some com o formulário e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site) e `sessionStorage` na volta do logout.
 
 **Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips stub.
 
@@ -369,7 +369,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |------|-----|
 | `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, MailHog, RabbitMQ, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
-| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak |
+| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak. No submit o formulário some e grava o logo; no logout o formulário entra a partir desse ponto |
 | `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
@@ -650,6 +650,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-06] vigia-web ↔ Keycloak: morph de login (callback arma o véu) e logout (tema revela o formulário); cookie `vigia_auth_handoff` (`auth-page-handoff`, `index.html`, `themes/vigia/login`)
 - [2026-10-06] Tema de login `vigia`: seletor de idioma oculto no login, cadastro e redefinição de senha; o realm continua com `en` e `pt-BR` (`vigia.css`, `vigia-fields.js`)
 - [2026-10-06] Keycloak local: realm `vigia` com locales `en` e `pt-BR`, padrão `pt-BR` (`realm-export.json`, `apply-locales.sh`)
 - [2026-10-06] DEBUG: o startup vincula o usuário `admin` ao device de teste `Vigia-a1b2c3d4` (`TestDeviceLocalSeed`)

@@ -8,7 +8,6 @@ from typing import Any
 
 import cv2  # type: ignore
 
-from shared.blur_config import apply_persisted_blur
 from shared.capture_gate import (
     capture_allowed,
     clear_capture_pid,
@@ -16,8 +15,8 @@ from shared.capture_gate import (
     restart_pending,
     write_capture_pid,
 )
-from shared.clips_config import apply_persisted_clips
 from shared.live_frame_shm import DEFAULT_MAX_PAYLOAD, LiveFrameShm
+from shared.options_config import apply_persisted_blur, apply_persisted_clips
 from shared.settings import get_settings
 from shared.stream_control import get_blur_enabled
 from core import save_points, start_core_worker, stop_core_worker

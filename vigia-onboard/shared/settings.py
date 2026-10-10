@@ -98,7 +98,7 @@ class Settings:
             ),  # TODO: Adicionar essa propriedade como um valor dinâmico
             blur_video=_parse_bool(
                 os.getenv("BLUR_VIDEO", "false")
-            ),  # default só enquanto blur.json não existe
+            ),  # default só enquanto options.json não tem blur
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
             classifier=classifier,
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
@@ -165,14 +165,9 @@ def get_classifier_path() -> Path:
     return Path(get_settings().data_dir) / "classifier.json"
 
 
-def get_clips_config_path() -> Path:
-    """Caminho de clips.json (preferência de armazenamento de clipes)."""
-    return Path(get_settings().data_dir) / "clips.json"
-
-
-def get_blur_config_path() -> Path:
-    """Caminho de blur.json (preferência de blur nas capturas)."""
-    return Path(get_settings().data_dir) / "blur.json"
+def get_options_path() -> Path:
+    """Caminho de options.json (clipes, blur e as próximas preferências do device)."""
+    return Path(get_settings().data_dir) / "options.json"
 
 
 def resolve_ota_dir() -> Path:

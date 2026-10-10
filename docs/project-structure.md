@@ -15,7 +15,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ML / Visão:** Ultralytics YOLO pose (ONNX Windows / CoreML macOS / NCNN Linux+bundle), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
-- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`, `clips.json`, `blur.json`)
+- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`, `options.json`)
 - **Deploy:** PyInstaller ARM64, systemd
 
 ### Cloud / Infra
@@ -223,13 +223,12 @@ vigia/
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
 | `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `interface/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` / `clips.json` / `blur.json` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` / `options.json` |
 | `capture_gate.py` | `capture.hold` (bloqueia), `capture.restart` (releitura do modelo), `capture.pid` (CPU/RAM e “serviço activo”) |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 | `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`, `blur_enabled`); integration escreve, capture/workers leem |
-| `clips_config.py` | Preferência local `clips.json` (`enabled`); `clips_on`/`clips_off` gravam o ficheiro e o arranque da captura/integração copia-o para o ControlShm |
-| `blur_config.py` | Preferência local `blur.json` (`enabled`); sem ficheiro vale `BLUR_VIDEO`; `blur_on`/`blur_off` gravam o ficheiro e o arranque copia-o para o ControlShm |
+| `options_config.py` | Preferências em `options.json` (`clips`, `blur`); cada comando grava só a sua chave. Sem ficheiro, clipes ficam desligados e o blur segue `BLUR_VIDEO`. `clips.json` e `blur.json` antigos ainda são lidos até o primeiro comando criar `options.json` |
 | `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips + thumbnail) |
 | `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S` × fps da câmera; fallback `FRAME_RATE`); escrito pelo Process de clips |
 
@@ -269,7 +268,7 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
-| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` → ControlShm; `clips_on`/`off` → `clips.json` + ControlShm; `blur_on`/`off` → `blur.json` + ControlShm; no arranque aplica `clips.json` e `blur.json`; espera o provisionamento e não publica com o gate fechado |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` → ControlShm; `clips_on`/`off` e `blur_on`/`off` → `options.json` + ControlShm; no arranque aplica `options.json`; espera o provisionamento e não publica com o gate fechado |
 
 **Módulos principais (`interface/`):** control plane no mesmo instalador (porte do `vigia-bootstrap`). `python -m interface` não exporta YOLO.
 
@@ -645,7 +644,7 @@ flowchart LR
 ### 7. Montagem de clipes
 
 1. O update do device com `IsClipsEnabled` diferente envia `clips_on` ou `clips_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
-2. O onboard grava a preferência em `{DATA_DIR}/clips.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
+2. O onboard grava a chave `clips` em `{DATA_DIR}/options.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
 3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
 4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4), sem autenticação, em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
 5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps, mais um JPEG do último frame (largura máxima 480)
@@ -654,14 +653,14 @@ flowchart LR
 ### 8. Blur nas capturas
 
 1. O update do device com `IsBlurEnabled` diferente envia `blur_on` ou `blur_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
-2. O onboard grava a preferência em `{DATA_DIR}/blur.json` e espelha-a no ControlShm. Sem ficheiro, vale `BLUR_VIDEO`. No arranque da captura e da integração a flag volta ao ControlShm
+2. O onboard grava a chave `blur` em `{DATA_DIR}/options.json` e espelha-a no ControlShm. Sem a chave, vale `BLUR_VIDEO`. No arranque da captura e da integração a flag volta ao ControlShm
 3. Com a flag ligada, o loop de captura borra as caixas de pessoa antes de escrever a live SHM, por isso stream, clipes e thumbnail saem desfocados
 
 ---
 
 ## 9. Changelog Técnico
 
-- [2026-10-09] Blur opcional: `IsBlurEnabled` envia `blur_on`/`blur_off`; o onboard persiste `blur.json` e aplica o blur na live SHM (`DevicesService`, `blur_config.py`, `stream_control.py`, `capture_runner.py`, vigia-web, vigia_ui)
+- [2026-10-09] Blur opcional: `IsBlurEnabled` envia `blur_on`/`blur_off`; clipes e blur ficam em `options.json` e o blur aplica-se na live SHM (`DevicesService`, `options_config.py`, `stream_control.py`, `capture_runner.py`, vigia-web, vigia_ui)
 - [2026-10-08] App Flutter autentica no Keycloak (cliente `vigia-app`, PKCE na WebView); refresh e logout saem da API (`vigia_ui`, `apply-app-client.sh`, `OAuthExtension`)
 - [2026-10-08] Clipes: thumbnail e playback saem na lista do clipe pronto; poster ausente é gerado a partir do MP4 na primeira leitura (`ClipIngestService`, `device-clips`)
 - [2026-10-08] Clipes: poster JPEG na montagem; a lista devolve thumbnail e playback com token efêmero; o MP4 sai por faixas HTTP (`DevicesClipController`, `device-clips`)

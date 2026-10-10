@@ -17,10 +17,14 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from shared.capture_gate import capture_allowed
-from shared.blur_config import apply_persisted_blur, save_blur_enabled
-from shared.clips_config import apply_persisted_clips, save_clips_enabled
 from shared.event_types import EVENT_FALL_STATE
 from shared.fall_ipc import attach_fall_shm, normalize_fall_state
+from shared.options_config import (
+    apply_persisted_blur,
+    apply_persisted_clips,
+    save_blur_enabled,
+    save_clips_enabled,
+)
 from shared.settings import (
     get_device_identity,
     get_network_settings,

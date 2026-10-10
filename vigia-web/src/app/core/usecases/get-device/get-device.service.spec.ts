@@ -22,6 +22,7 @@ describe('GetDeviceService', () => {
     thumbnailUrl: null,
     isRunning: true,
     isClipsEnabled: false,
+    isBlurEnabled: false,
   };
 
   beforeEach(() => {

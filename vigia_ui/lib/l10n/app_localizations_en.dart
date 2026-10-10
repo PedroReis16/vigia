@@ -288,6 +288,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'When enabled, Vigia will store short video clips for later analysis of possible fall situations.';
 
   @override
+  String get blurPeople => 'Blur people';
+
+  @override
+  String get whatIsBlur => 'What is blur?';
+
+  @override
+  String get whenEnabledPeopleAppearBlurred =>
+      'When enabled, people appear blurred in the stream, clips, and thumbnail.';
+
+  @override
   String get saveChanges => 'Save changes';
 
   @override

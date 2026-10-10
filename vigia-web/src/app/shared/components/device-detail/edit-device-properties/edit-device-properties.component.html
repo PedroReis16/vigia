@@ -67,6 +67,29 @@
           </p>
         }
 
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-surface-600">
+              {{ 'DEVICES.EDIT.BLUR_CAPTURES' | translate }}
+            </span>
+            <button
+              type="button"
+              class="edit-device-properties__info-btn"
+              [title]="'DEVICES.EDIT.BLUR_INFO' | translate"
+              (click)="blurInfoVisible = !blurInfoVisible"
+            >
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p-toggleswitch formControlName="isBlurEnabled" />
+        </div>
+
+        @if (blurInfoVisible) {
+          <p class="m-0 text-sm text-surface-600">
+            {{ 'DEVICES.EDIT.BLUR_INFO' | translate }}
+          </p>
+        }
+
         <p-button
           type="submit"
           [label]="'DEVICES.EDIT.SAVE' | translate"

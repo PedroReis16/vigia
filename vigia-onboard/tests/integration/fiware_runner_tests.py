@@ -100,6 +100,32 @@ def test_on_message_clips_on_off(
     assert json.loads(clips_path.read_text(encoding="utf-8")) == {"enabled": False}
 
 
+def test_on_message_blur_on_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
+    monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
+    monkeypatch.setattr(runner, "_device_id", "dev1")
+    blur_path = tmp_path / "blur.json"
+    monkeypatch.setattr(
+        "shared.blur_config.get_blur_config_path", lambda: blur_path
+    )
+    called: dict[str, bool | None] = {"v": None}
+    monkeypatch.setattr(
+        runner, "set_blur_enabled", lambda v: called.__setitem__("v", v)
+    )
+    msg = MagicMock()
+    msg.payload = b"dev1@blur_on|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is True
+    assert json.loads(blur_path.read_text(encoding="utf-8")) == {"enabled": True}
+
+    msg.payload = b"dev1@blur_off|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is False
+    assert json.loads(blur_path.read_text(encoding="utf-8")) == {"enabled": False}
+
+
 @pytest.mark.parametrize(
     ("api_base_url", "expected"),
     [
@@ -218,6 +244,7 @@ def test_run_integration_PublicaEventosDaShm(
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
     monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
+    monkeypatch.setattr(runner, "apply_persisted_blur", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: True)
@@ -262,6 +289,7 @@ def test_run_integration_NaoPublicaComGateFechado(
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
     monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
+    monkeypatch.setattr(runner, "apply_persisted_blur", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: False)

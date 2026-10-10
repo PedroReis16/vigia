@@ -192,6 +192,7 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         trackedDevice.Nickname = updatedDevice.Nickname ?? trackedDevice.Nickname;
         trackedDevice.Room = updatedDevice.Room ?? trackedDevice.Room;
         trackedDevice.IsClipsEnabled = updatedDevice.IsClipsEnabled;
+        trackedDevice.IsBlurEnabled = updatedDevice.IsBlurEnabled;
         trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
 
         dbSet.Update(trackedDevice);

@@ -38,6 +38,7 @@ describe('GetDevicesService', () => {
           thumbnailUrl: null,
           isRunning: true,
           isClipsEnabled: false,
+          isBlurEnabled: false,
         },
       ]),
     );

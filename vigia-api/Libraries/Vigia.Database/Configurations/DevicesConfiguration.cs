@@ -31,6 +31,11 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasColumnName("is_clips_enabled")
             .HasDefaultValue(false);
 
+        _ = builder.Property(e => e.IsBlurEnabled)
+            .IsRequired()
+            .HasColumnName("is_blur_enabled")
+            .HasDefaultValue(false);
+
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices)
             .HasForeignKey(e => e.GroupId);
@@ -40,5 +45,6 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.HasIndex(e => e.MacAddress);
         _ = builder.HasIndex(e => e.Room);
         _ = builder.HasIndex(e => e.IsClipsEnabled);
+        _ = builder.HasIndex(e => e.IsBlurEnabled);
     }
 }

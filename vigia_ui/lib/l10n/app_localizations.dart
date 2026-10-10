@@ -616,6 +616,24 @@ abstract class AppLocalizations {
   /// **'Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda'**
   String get whenEnabledClipsWillStoreClipsForAnalysis;
 
+  /// No description provided for @blurPeople.
+  ///
+  /// In pt, this message translates to:
+  /// **'Desfocar pessoas'**
+  String get blurPeople;
+
+  /// No description provided for @whatIsBlur.
+  ///
+  /// In pt, this message translates to:
+  /// **'O que é o desfoque?'**
+  String get whatIsBlur;
+
+  /// No description provided for @whenEnabledPeopleAppearBlurred.
+  ///
+  /// In pt, this message translates to:
+  /// **'Quando ativo, as pessoas aparecem desfocadas no stream, nos clipes e na miniatura.'**
+  String get whenEnabledPeopleAppearBlurred;
+
   /// No description provided for @saveChanges.
   ///
   /// In pt, this message translates to:

@@ -292,6 +292,16 @@ class AppLocalizationsEs extends AppLocalizations {
       'Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.';
 
   @override
+  String get blurPeople => 'Desenfocar personas';
+
+  @override
+  String get whatIsBlur => '¿Qué es el desenfoque?';
+
+  @override
+  String get whenEnabledPeopleAppearBlurred =>
+      'Cuando está activado, las personas aparecen desenfocadas en el stream, los clips y la miniatura.';
+
+  @override
   String get saveChanges => 'Guardar cambios';
 
   @override

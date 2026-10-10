@@ -26,6 +26,7 @@ describe('DeviceClipsComponent', () => {
     null,
     true,
     false,
+    false,
   );
 
   const readyClip = new DeviceClip(

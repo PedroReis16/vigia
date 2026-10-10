@@ -15,6 +15,7 @@ describe('DeviceMapper', () => {
       thumbnailUrl: 'pictures/frame.jpg',
       isRunning: true,
       isClipsEnabled: false,
+      isBlurEnabled: false,
     });
 
     expect(device.id).toBe('b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c');
@@ -23,6 +24,7 @@ describe('DeviceMapper', () => {
     expect(device.displayName).toBe('Câmera Teste');
     expect(device.room).toBe(DeviceRooms.LivingRoom);
     expect(device.isRunning).toBe(true);
+    expect(device.isBlurEnabled).toBe(false);
     const apiBase = environment.apiUrl.replace(/\/$/, '');
     expect(device.thumbnailUrl).toBe(`${apiBase}/pictures/frame.jpg`);
   });
@@ -37,6 +39,7 @@ describe('DeviceMapper', () => {
       thumbnailUrl: null,
       isRunning: false,
       isClipsEnabled: false,
+      isBlurEnabled: false,
     });
 
     expect(device.displayName).toBe('Vigia-deadbeef');

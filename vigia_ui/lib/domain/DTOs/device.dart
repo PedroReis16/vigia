@@ -9,6 +9,7 @@ class Device {
   final DeviceRooms? room;
   final bool isRunning;
   final bool isClipsEnabled;
+  final bool isBlurEnabled;
 
   Device({
     required this.id,
@@ -19,6 +20,7 @@ class Device {
     this.thumbnailUrl,
     this.isRunning = false,
     this.isClipsEnabled = false,
+    this.isBlurEnabled = false,
   });
 
   factory Device.fromJson(Map<String, dynamic> json) {
@@ -31,6 +33,7 @@ class Device {
       room: DeviceRoomsExtension.fromString(json['room'] as String?),
       isRunning: json['isRunning'] as bool? ?? false,
       isClipsEnabled: json['isClipsEnabled'] as bool? ?? false,
+      isBlurEnabled: json['isBlurEnabled'] as bool? ?? false,
     );
   }
 }

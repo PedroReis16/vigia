@@ -43,6 +43,7 @@ export class EditDevicePropertiesComponent implements OnInit {
 
   readonly saving = signal(false);
   clipsInfoVisible = false;
+  blurInfoVisible = false;
 
   readonly roomOptions = Object.values(DeviceRooms).map((room) => ({
     label: room,
@@ -53,6 +54,7 @@ export class EditDevicePropertiesComponent implements OnInit {
     nickname: new FormControl('', { nonNullable: true }),
     room: new FormControl<DeviceRooms | null>(null),
     isClipsEnabled: new FormControl(false, { nonNullable: true }),
+    isBlurEnabled: new FormControl(false, { nonNullable: true }),
   });
 
   ngOnInit(): void {
@@ -61,6 +63,7 @@ export class EditDevicePropertiesComponent implements OnInit {
       nickname: device.nickname ?? '',
       room: device.room,
       isClipsEnabled: device.isClipsEnabled,
+      isBlurEnabled: device.isBlurEnabled,
     });
   }
 
@@ -72,7 +75,8 @@ export class EditDevicePropertiesComponent implements OnInit {
     return (
       nickname !== originalNickname ||
       value.room !== device.room ||
-      value.isClipsEnabled !== device.isClipsEnabled
+      value.isClipsEnabled !== device.isClipsEnabled ||
+      value.isBlurEnabled !== device.isBlurEnabled
     );
   }
 
@@ -113,6 +117,7 @@ export class EditDevicePropertiesComponent implements OnInit {
         nickname: nickname || null,
         room: value.room,
         isClipsEnabled: value.isClipsEnabled,
+        isBlurEnabled: value.isBlurEnabled,
       });
       this.messageService.addMessage({
         message: this.translate.instant('DEVICES.EDIT.SUCCESS'),

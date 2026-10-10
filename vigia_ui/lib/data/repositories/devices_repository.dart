@@ -225,6 +225,7 @@ class DevicesRepository {
     String? nickname,
     DeviceRooms? room,
     bool? isClipsEnabled,
+    bool? isBlurEnabled,
   }) async {
     try {
       await dio.put(
@@ -233,6 +234,7 @@ class DevicesRepository {
           "nickname": nickname,
           "room": room?.toApiString(),
           "isClipsEnabled": isClipsEnabled,
+          "isBlurEnabled": isBlurEnabled,
         },
       );
     } on DioException catch (e) {

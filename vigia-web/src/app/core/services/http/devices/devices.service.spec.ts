@@ -41,6 +41,7 @@ describe('DevicesService', () => {
         thumbnailUrl: 'pictures/1.jpg',
         isRunning: true,
         isClipsEnabled: false,
+        isBlurEnabled: false,
       },
     ]);
 
@@ -93,6 +94,7 @@ describe('DevicesService', () => {
       macAddress: 'AA:BB',
       isRunning: true,
       isClipsEnabled: false,
+      isBlurEnabled: false,
     });
 
     expect(response).toEqual(expect.objectContaining({ id: 'device-1', nickname: 'Quarto' }));

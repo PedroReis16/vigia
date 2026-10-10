@@ -326,7 +326,8 @@ internal class DevicesService(
             MacAddress = device.MacAddress,
             Room = device.Room,
             OwnerId = device.Group?.OwnerId,
-            IsClipsEnabled = device.IsClipsEnabled
+            IsClipsEnabled = device.IsClipsEnabled,
+            IsBlurEnabled = device.IsBlurEnabled
         };
     }
 
@@ -353,11 +354,14 @@ internal class DevicesService(
             DeviceRooms? nextRoom = updatedDevice.Room ?? device.Room;
             bool nextIsClipsEnabled = updatedDevice.IsClipsEnabled ?? device.IsClipsEnabled;
             bool clipsChanged = nextIsClipsEnabled != device.IsClipsEnabled;
+            bool nextIsBlurEnabled = updatedDevice.IsBlurEnabled ?? device.IsBlurEnabled;
+            bool blurChanged = nextIsBlurEnabled != device.IsBlurEnabled;
 
             if (
                 nextNickname == device.Nickname &&
                 nextRoom == device.Room &&
-                !clipsChanged)
+                !clipsChanged &&
+                !blurChanged)
             {
                 _logger.LogInformation($"A solicitação de atualização do dispositivo '{deviceId}' foi ignorada pois a solicitação não aplica mudanças efetivas sobre o dispositivo");
                 return;
@@ -368,7 +372,8 @@ internal class DevicesService(
                 Id = deviceId,
                 Nickname = nextNickname,
                 Room = nextRoom,
-                IsClipsEnabled = nextIsClipsEnabled
+                IsClipsEnabled = nextIsClipsEnabled,
+                IsBlurEnabled = nextIsBlurEnabled
             };
 
             //TODO: Criar log com as alterações de antes e depois do dispositivo
@@ -377,6 +382,9 @@ internal class DevicesService(
 
             if (clipsChanged)
                 await TrySendClipsCommandAsync(scope, device.Name, nextIsClipsEnabled);
+
+            if (blurChanged)
+                await TrySendBlurCommandAsync(scope, device.Name, nextIsBlurEnabled);
 
             _logger.LogInformation($"Dispositivo '{deviceId}' atualizado com sucesso");
         }
@@ -387,6 +395,26 @@ internal class DevicesService(
             string errorMsg = $"Houve um erro ao tentar atualizar o dispositivo {deviceId}: {ex.GetFullMessage()}";
             _logger.LogError(errorMsg);
             throw;
+        }
+    }
+
+    private async Task TrySendBlurCommandAsync(IServiceScope scope, string deviceName, bool enabled)
+    {
+        DeviceCommands command = enabled ? DeviceCommands.BLUR_ON : DeviceCommands.BLUR_OFF;
+        try
+        {
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+            bool sent = await fiwareService.SendCommandAsync(deviceName, command);
+            if (!sent)
+            {
+                _logger.LogWarning(
+                    $"Falha ao enviar o comando '{command.GetCommandName()}' para o dispositivo '{deviceName}'. A preferência de blur ficou gravada.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                $"Falha ao enviar o comando de blur para o dispositivo '{deviceName}': {ex.GetFullMessage()}. A preferência ficou gravada.");
         }
     }
 

@@ -8,6 +8,7 @@ from typing import Any
 
 import cv2  # type: ignore
 
+from shared.blur_config import apply_persisted_blur
 from shared.capture_gate import (
     capture_allowed,
     clear_capture_pid,
@@ -18,6 +19,7 @@ from shared.capture_gate import (
 from shared.clips_config import apply_persisted_clips
 from shared.live_frame_shm import DEFAULT_MAX_PAYLOAD, LiveFrameShm
 from shared.settings import get_settings
+from shared.stream_control import get_blur_enabled
 from core import save_points, start_core_worker, stop_core_worker
 from stream import export_active, prepare_multiprocessing, start_supervisor, stop_supervisor
 
@@ -199,6 +201,7 @@ def _run_capture_session() -> str:
         start_core_worker()
         if live_shm is not None:
             apply_persisted_clips()
+            apply_persisted_blur()
             start_supervisor(
                 live_shm.name,
                 clip_shm_name=settings.clip_shm_name,
@@ -222,7 +225,7 @@ def _run_capture_session() -> str:
 
                 frame = result.orig_img
                 preview = (
-                    _blur_boxes(frame, result) if settings.blur_video else frame
+                    _blur_boxes(frame, result) if get_blur_enabled() else frame
                 )
 
                 if live_shm is not None and export_active():

@@ -73,9 +73,11 @@
     },
     "EDIT": {
       "TITLE": "Editar dispositivo",
-      "DESCRIPTION": "Nombre, habitación y grabación de clips",
+      "DESCRIPTION": "Nombre, habitación, clips y desenfoque",
       "SAVE_CLIPS": "Guardar clips",
       "CLIPS_INFO": "Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.",
+      "BLUR_CAPTURES": "Desenfocar personas",
+      "BLUR_INFO": "Cuando está activado, las personas aparecen desenfocadas en el stream, los clips y la miniatura.",
       "SAVE": "Guardar cambios",
       "SUCCESS": "Dispositivo actualizado con éxito",
       "ERROR": "No se pudo actualizar el dispositivo",

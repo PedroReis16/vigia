@@ -15,6 +15,7 @@ export class DeviceMapper {
       resolveApiAssetUrl(dto.thumbnailUrl),
       dto.isRunning ?? false,
       dto.isClipsEnabled ?? false,
+      dto.isBlurEnabled ?? false,
     );
   }
 

@@ -28,6 +28,7 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
   late final TextEditingController _nicknameController;
   DeviceRooms? _selectedRoom;
   late bool _isClipsEnabled = false;
+  late bool _isBlurEnabled = false;
   bool _isSaving = false;
 
   @override
@@ -37,6 +38,7 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
     _nicknameController.addListener(_onFormChanged);
     _selectedRoom = widget.device.room;
     _isClipsEnabled = widget.device.isClipsEnabled;
+    _isBlurEnabled = widget.device.isBlurEnabled;
   }
 
   @override
@@ -55,7 +57,8 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
     final originalNickname = (widget.device.nickname ?? '').trim();
     return nickname != originalNickname ||
         _selectedRoom != widget.device.room ||
-        _isClipsEnabled != widget.device.isClipsEnabled;
+        _isClipsEnabled != widget.device.isClipsEnabled ||
+        _isBlurEnabled != widget.device.isBlurEnabled;
   }
 
   bool get _canSave => !_isSaving && _hasUnsavedChanges;
@@ -76,6 +79,7 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
             nickname: nickname.isEmpty ? null : nickname,
             room: _selectedRoom,
             isClipsEnabled: _isClipsEnabled,
+            isBlurEnabled: _isBlurEnabled,
           );
 
       if (!mounted) return;
@@ -259,6 +263,67 @@ class _EditDevicePropertiesState extends ConsumerState<EditDeviceProperties> {
                         : (value) {
                             setState(() {
                               _isClipsEnabled = value;
+                            });
+                          },
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(t.blurPeople),
+                        IconButton(
+                          onPressed: () {
+                            _dismissKeyboard();
+                            showModalBottomSheet(
+                              context: context,
+                              builder: (context) => SizedBox(
+                                width: double.infinity,
+                                height: 200,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            t.whatIsBlur,
+                                            style: theme.textTheme.titleMedium,
+                                          ),
+                                          IconButton(
+                                            onPressed: () =>
+                                                Navigator.pop(context),
+                                            icon: const Icon(Icons.close),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Expanded(
+                                        child: Text(
+                                          t.whenEnabledPeopleAppearBlurred,
+                                          textAlign: TextAlign.justify,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.info_outline),
+                        ),
+                      ],
+                    ),
+                    value: _isBlurEnabled,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _isBlurEnabled = value;
                             });
                           },
                   ),

@@ -1,4 +1,4 @@
-"""Testes do ControlShm (stream_on / clips_enabled)."""
+"""Testes do ControlShm (stream_on / clips_enabled / blur_enabled)."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ def _unique_control_name(monkeypatch: pytest.MonkeyPatch):
 def test_flags_default_false(_unique_control_name: str) -> None:
     assert sc.get_stream_on() is False
     assert sc.get_clips_enabled() is False
+    assert sc.get_blur_enabled() is False
 
 
 def test_set_stream_preserva_clips(_unique_control_name: str) -> None:
@@ -44,3 +45,36 @@ def test_set_clips_preserva_stream(_unique_control_name: str) -> None:
     sc.set_clips_enabled(False)
     assert sc.get_stream_on() is True
     assert sc.get_clips_enabled() is False
+
+
+def test_set_blur_preserva_stream_e_clips(_unique_control_name: str) -> None:
+    sc.set_stream_status(True)
+    sc.set_clips_enabled(True)
+    sc.set_blur_enabled(True)
+    sc.set_stream_status(False)
+    sc.set_clips_enabled(False)
+    assert sc.get_blur_enabled() is True
+    sc.set_blur_enabled(False)
+    assert sc.get_stream_on() is False
+    assert sc.get_clips_enabled() is False
+    assert sc.get_blur_enabled() is False
+
+
+def test_recria_segmento_menor_que_o_cabecalho(_unique_control_name: str) -> None:
+    from multiprocessing.shared_memory import SharedMemory
+
+    stale = SharedMemory(name=_unique_control_name, create=True, size=2)
+    reported = stale.size
+    stale.buf[0] = 1
+    stale.buf[1] = 1
+    stale.close()
+
+    assert sc.get_blur_enabled() is False
+    sc.set_blur_enabled(True)
+    assert sc.get_blur_enabled() is True
+    if reported < sc._HEADER_SIZE:
+        assert sc.get_stream_on() is False
+        assert sc.get_clips_enabled() is False
+    else:
+        assert sc.get_stream_on() is True
+        assert sc.get_clips_enabled() is True

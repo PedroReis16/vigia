@@ -1,5 +1,5 @@
 """
-Flags de controlo stream/clips via shared memory nomeada.
+Flags de controlo stream/clips/blur via shared memory nomeada.
 
 Integration escreve; capture e os Processes filhos leem. Processos Make
 não partilham ``multiprocessing.Event``.
@@ -15,14 +15,32 @@ from shared.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
-_HEADER_FMT = "<BB"
+_HEADER_FMT = "<BBB"
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 
 _control: "StreamControlShm | None" = None
 
 
+def _open_existing(name: str) -> SharedMemory | None:
+    try:
+        return SharedMemory(name=name)
+    except FileNotFoundError:
+        return None
+
+
+def _unlink_name(name: str) -> None:
+    stale = _open_existing(name)
+    if stale is None:
+        return
+    try:
+        stale.close()
+        stale.unlink()
+    except FileNotFoundError:
+        pass
+
+
 class StreamControlShm:
-    """Bloco mínimo: ``stream_on`` e ``clips_enabled`` (1 byte cada)."""
+    """Bloco mínimo: ``stream_on``, ``clips_enabled`` e ``blur_enabled`` (1 byte cada)."""
 
     def __init__(self, shm: SharedMemory, *, owns_shm: bool) -> None:
         self._shm = shm
@@ -37,26 +55,32 @@ class StreamControlShm:
         name = (shm_name or get_settings().stream_control_shm_name).strip() or (
             get_settings().stream_control_shm_name
         )
-        try:
-            shm = SharedMemory(name=name)
-            return cls(shm, owns_shm=False)
-        except FileNotFoundError:
-            pass
+        existing = _open_existing(name)
+        if existing is not None and existing.size >= _HEADER_SIZE:
+            return cls(existing, owns_shm=False)
+        if existing is not None:
+            existing.close()
+            _unlink_name(name)
         try:
             shm = SharedMemory(name=name, create=True, size=_HEADER_SIZE)
-            shm.buf[:_HEADER_SIZE] = struct.pack(_HEADER_FMT, 0, 0)
+            shm.buf[:_HEADER_SIZE] = struct.pack(_HEADER_FMT, 0, 0, 0)
             return cls(shm, owns_shm=True)
         except FileExistsError:
             shm = SharedMemory(name=name)
             return cls(shm, owns_shm=False)
 
-    def _read(self) -> tuple[bool, bool]:
-        stream_on, clips_enabled = struct.unpack_from(_HEADER_FMT, self._shm.buf, 0)
-        return bool(stream_on), bool(clips_enabled)
+    def _read(self) -> tuple[bool, bool, bool]:
+        stream_on, clips_enabled, blur_enabled = struct.unpack_from(
+            _HEADER_FMT, self._shm.buf, 0
+        )
+        return bool(stream_on), bool(clips_enabled), bool(blur_enabled)
 
-    def _write(self, stream_on: bool, clips_enabled: bool) -> None:
+    def _write(self, stream_on: bool, clips_enabled: bool, blur_enabled: bool) -> None:
         self._shm.buf[:_HEADER_SIZE] = struct.pack(
-            _HEADER_FMT, 1 if stream_on else 0, 1 if clips_enabled else 0
+            _HEADER_FMT,
+            1 if stream_on else 0,
+            1 if clips_enabled else 0,
+            1 if blur_enabled else 0,
         )
 
     @property
@@ -67,13 +91,21 @@ class StreamControlShm:
     def clips_enabled(self) -> bool:
         return self._read()[1]
 
+    @property
+    def blur_enabled(self) -> bool:
+        return self._read()[2]
+
     def set_stream_on(self, enabled: bool) -> None:
-        _, clips = self._read()
-        self._write(bool(enabled), clips)
+        _, clips, blur = self._read()
+        self._write(bool(enabled), clips, blur)
 
     def set_clips_enabled(self, enabled: bool) -> None:
-        stream_on, _ = self._read()
-        self._write(stream_on, bool(enabled))
+        stream_on, _, blur = self._read()
+        self._write(stream_on, bool(enabled), blur)
+
+    def set_blur_enabled(self, enabled: bool) -> None:
+        stream_on, clips, _ = self._read()
+        self._write(stream_on, clips, bool(enabled))
 
     def close(self) -> None:
         self._shm.close()
@@ -110,8 +142,14 @@ def get_clips_enabled() -> bool:
     return False if ctrl is None else ctrl.clips_enabled
 
 
+def get_blur_enabled() -> bool:
+    """True se o blur das capturas está ativo."""
+    ctrl = _ensure_control()
+    return False if ctrl is None else ctrl.blur_enabled
+
+
 def set_stream_status(enabled: bool) -> None:
-    """Atualiza só a flag stream_on (preserva clips_enabled)."""
+    """Atualiza só a flag stream_on (preserva clips e blur)."""
     ctrl = _ensure_control()
     if ctrl is None:
         logger.info("stream_status=%s (sem ControlShm)", enabled)
@@ -121,13 +159,23 @@ def set_stream_status(enabled: bool) -> None:
 
 
 def set_clips_enabled(enabled: bool) -> None:
-    """Atualiza só a flag clips_enabled (preserva stream_on)."""
+    """Atualiza só a flag clips_enabled (preserva stream e blur)."""
     ctrl = _ensure_control()
     if ctrl is None:
         logger.info("clips_enabled=%s (sem ControlShm)", enabled)
         return
     ctrl.set_clips_enabled(bool(enabled))
     logger.info("clips_enabled=%s", enabled)
+
+
+def set_blur_enabled(enabled: bool) -> None:
+    """Atualiza só a flag blur_enabled (preserva stream e clips)."""
+    ctrl = _ensure_control()
+    if ctrl is None:
+        logger.info("blur_enabled=%s (sem ControlShm)", enabled)
+        return
+    ctrl.set_blur_enabled(bool(enabled))
+    logger.info("blur_enabled=%s", enabled)
 
 
 def reset_stream_control_for_tests() -> None:
@@ -141,9 +189,11 @@ def reset_stream_control_for_tests() -> None:
 
 __all__ = [
     "StreamControlShm",
+    "get_blur_enabled",
     "get_clips_enabled",
     "get_stream_on",
     "reset_stream_control_for_tests",
+    "set_blur_enabled",
     "set_clips_enabled",
     "set_stream_status",
 ]

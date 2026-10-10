@@ -8,7 +8,9 @@ public enum DeviceCommands
     DEVICE_OFF = 4,
     DEVICE_UPDATE = 5,
     CLIPS_ON = 6,
-    CLIPS_OFF = 7
+    CLIPS_OFF = 7,
+    BLUR_ON = 8,
+    BLUR_OFF = 9
 }
 
 public static class DeviceCommandExtensions
@@ -24,6 +26,8 @@ public static class DeviceCommandExtensions
             DeviceCommands.DEVICE_UPDATE => "device_update",
             DeviceCommands.CLIPS_ON => "clips_on",
             DeviceCommands.CLIPS_OFF => "clips_off",
+            DeviceCommands.BLUR_ON => "blur_on",
+            DeviceCommands.BLUR_OFF => "blur_off",
             _ => throw new ArgumentException("Invalid device command")
         };
     }

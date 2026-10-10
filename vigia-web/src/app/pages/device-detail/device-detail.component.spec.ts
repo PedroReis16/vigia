@@ -33,6 +33,7 @@ describe('DeviceDetailComponent', () => {
     null,
     true,
     false,
+    false,
   );
 
   beforeEach(async () => {

@@ -36,13 +36,17 @@ internal class FirebasePushNotificationService(
             ? request.DeviceName
             : request.Nickname;
 
+        string title = "Alerta de queda";
+        string body = $"Queda detectada em {displayName}";
+        string collapseKey = $"fall-{request.DeviceId:D}";
+
         MulticastMessage message = new()
         {
             Tokens = request.Tokens.ToList(),
             Notification = new Notification
             {
-                Title = "Alerta de queda",
-                Body = $"Queda detectada em {displayName}",
+                Title = title,
+                Body = body,
             },
             Data = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -50,14 +54,17 @@ internal class FirebasePushNotificationService(
                 ["deviceId"] = request.DeviceId.ToString(),
                 ["deviceName"] = request.DeviceName,
                 ["nickname"] = request.Nickname ?? string.Empty,
+                ["alertId"] = request.AlertId.ToString(),
             },
             Android = new AndroidConfig
             {
                 Priority = Priority.High,
+                CollapseKey = collapseKey,
                 Notification = new AndroidNotification
                 {
                     ChannelId = "vigia_fall_alerts",
                     Priority = NotificationPriority.HIGH,
+                    Tag = collapseKey,
                 },
             },
             Apns = new ApnsConfig
@@ -71,8 +78,9 @@ internal class FirebasePushNotificationService(
             {
                 Notification = new WebpushNotification
                 {
-                    Title = "Alerta de queda",
-                    Body = $"Queda detectada em {displayName}",
+                    Title = title,
+                    Body = body,
+                    Tag = collapseKey,
                 },
                 FcmOptions = new WebpushFcmOptions
                 {
@@ -96,15 +104,17 @@ internal class FirebasePushNotificationService(
 
             _logger.LogWarning(
                 sendResponse.Exception,
-                "Falha ao enviar push FCM. Device={DeviceId} TokenIndex={TokenIndex} ErrorCode={ErrorCode}",
+                "Falha ao enviar push FCM. Device={DeviceId} AlertId={AlertId} TokenIndex={TokenIndex} ErrorCode={ErrorCode}",
                 request.DeviceId,
+                request.AlertId,
                 index,
                 errorCode);
         }
 
         _logger.LogInformation(
-            "Push FCM de queda enviado. Device={DeviceId} Success={SuccessCount} Failure={FailureCount}",
+            "Push FCM de queda enviado. Device={DeviceId} AlertId={AlertId} Success={SuccessCount} Failure={FailureCount}",
             request.DeviceId,
+            request.AlertId,
             response.SuccessCount,
             response.FailureCount);
 

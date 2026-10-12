@@ -36,6 +36,8 @@ public static class ConnectionExtension
         services.AddTransient<IUserPushTokenDao, UserPushTokenDao>();
         services.AddTransient<IUserDao, UserDao>();
         services.AddTransient<IDeviceClipDao, DeviceClipDao>();
+        services.AddTransient<IFallAlertEpisodeDao, FallAlertEpisodeDao>();
+        services.AddTransient<IUserNotificationDao, UserNotificationDao>();
 
         // Cache Services
         services.AddTransient<IDevicesDaoCache, DevicesDaoCache>();

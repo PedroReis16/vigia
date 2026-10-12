@@ -14,3 +14,7 @@ export * from './register-push-token/register-push-token.service';
 export * from './unregister-push-token/unregister-push-token.service';
 export * from './sync-push-notifications/sync-push-notifications.service';
 export * from './navigate-to-fall-alert/navigate-to-fall-alert.service';
+export * from './load-notifications/load-notifications.service';
+export * from './mark-notification-read/mark-notification-read.service';
+export * from './mark-all-notifications-read/mark-all-notifications-read.service';
+export * from './acknowledge-device-alerts/acknowledge-device-alerts.service';

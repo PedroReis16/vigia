@@ -10,7 +10,14 @@ import {
   MessageService,
   NotificationStoreService,
 } from '@core/services';
-import { LogoutService, NavigateToFallAlertService, SyncPushNotificationsService } from '@core/usecases';
+import {
+  LoadNotificationsService,
+  LogoutService,
+  MarkAllNotificationsReadService,
+  MarkNotificationReadService,
+  NavigateToFallAlertService,
+  SyncPushNotificationsService,
+} from '@core/usecases';
 import moment from 'moment';
 
 @Component({
@@ -27,6 +34,9 @@ export class ToolbarComponent {
   private readonly notificationStore = inject(NotificationStoreService);
   private readonly navigateToFallAlert = inject(NavigateToFallAlertService);
   private readonly syncPushNotifications = inject(SyncPushNotificationsService);
+  private readonly loadNotifications = inject(LoadNotificationsService);
+  private readonly markNotificationRead = inject(MarkNotificationReadService);
+  private readonly markAllNotificationsRead = inject(MarkAllNotificationsReadService);
 
   readonly userMenu = viewChild.required<Popover>('userMenu');
   readonly notificationsMenu = viewChild.required<Popover>('notificationsMenu');
@@ -59,7 +69,10 @@ export class ToolbarComponent {
 
   toggleNotifications(event: Event): void {
     this.userMenu().hide();
-    void this.syncPushNotifications.execute().finally(() => {
+    void Promise.all([
+      this.syncPushNotifications.execute(),
+      this.loadNotifications.execute().catch(() => undefined),
+    ]).finally(() => {
       this.notificationsMenu().toggle(event);
     });
   }
@@ -105,16 +118,17 @@ export class ToolbarComponent {
   }
 
   async onNotificationClick(notification: FallNotification): Promise<void> {
-    this.notificationStore.markRead(notification.id);
+    await this.markNotificationRead.execute(notification.id);
     this.notificationsMenu().hide();
     await this.navigateToFallAlert.execute({
       type: 'fall',
       deviceId: notification.deviceId,
+      alertId: notification.episodeId,
     });
   }
 
   onMarkAllRead(): void {
-    this.notificationStore.markAllRead();
+    void this.markAllNotificationsRead.execute();
   }
 
   async onLogout(): Promise<void> {
@@ -140,8 +154,13 @@ export class ToolbarComponent {
       }
     }
 
-    await this.logout.execute();
-    this.messageService.removeMessage();
+    try {
+      await this.logout.execute();
+      this.messageService.removeMessage();
+    } catch {
+      // API/Keycloak refused — cancel morph and stay authenticated.
+      this.authExitTransition.complete();
+    }
   }
 
   private prefersReducedMotion(): boolean {

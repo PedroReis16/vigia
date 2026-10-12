@@ -6,6 +6,7 @@ import {
   FirebaseMessagingService,
   IncomingFallAlertMessage,
 } from '@core/services/push/firebase-messaging.service';
+import { LoadNotificationsService } from '@core/usecases/load-notifications/load-notifications.service';
 import { NavigateToFallAlertService } from '@core/usecases/navigate-to-fall-alert/navigate-to-fall-alert.service';
 import { RegisterPushTokenService } from '@core/usecases/register-push-token/register-push-token.service';
 
@@ -18,11 +19,13 @@ export class PushNotificationCoordinatorService {
   private readonly notificationStore = inject(NotificationStoreService);
   private readonly registerPushToken = inject(RegisterPushTokenService);
   private readonly navigateToFallAlert = inject(NavigateToFallAlertService);
+  private readonly loadNotifications = inject(LoadNotificationsService);
 
   private listenersReady = false;
 
   initialize(): void {
     this.ensureListeners();
+    void this.refreshInbox();
 
     if (this.firebaseMessaging.getNotificationPermission() === 'granted') {
       void this.syncPushToken();
@@ -44,6 +47,14 @@ export class PushNotificationCoordinatorService {
     } catch (error) {
       console.warn('[Vigia Push] Falha ao registrar token na API.', error);
       return false;
+    }
+  }
+
+  async refreshInbox(): Promise<void> {
+    try {
+      await this.loadNotifications.execute();
+    } catch (error) {
+      console.warn('[Vigia Notifications] Falha ao carregar inbox.', error);
     }
   }
 
@@ -81,8 +92,9 @@ export class PushNotificationCoordinatorService {
       return;
     }
 
-    this.notificationStore.add(notification);
+    this.notificationStore.upsert(notification);
     this.showForegroundSystemNotification(notification.title, notification.body);
+    void this.refreshInbox();
   }
 
   private showForegroundSystemNotification(title: string, body: string): void {

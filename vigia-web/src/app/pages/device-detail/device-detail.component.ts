@@ -28,6 +28,7 @@ import {
 } from '@core/helpers/device-card-bounds.helper';
 import { ElementBounds } from '@core/helpers/element-bounds.helper';
 import {
+  AcknowledgeDeviceAlertsService,
   GetDeviceService,
   GetDeviceUsersService,
   StartDeviceStreamingService,
@@ -60,6 +61,7 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly getDevice = inject(GetDeviceService);
   private readonly getDeviceUsers = inject(GetDeviceUsersService);
   private readonly startStreaming = inject(StartDeviceStreamingService);
+  private readonly acknowledgeDeviceAlerts = inject(AcknowledgeDeviceAlertsService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
   private readonly authSession = inject(AuthSessionService);
   private readonly transition = inject(DeviceDetailTransitionService);
@@ -144,6 +146,7 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       const device = await this.getDevice.execute(this.deviceId);
       this.device.set(device);
       this.state.set('ready');
+      void this.acknowledgeDeviceAlerts.execute(this.deviceId);
       void this.startLive();
     } catch (error: unknown) {
       if (error instanceof DevicesUseCaseError && error.message === 'DEVICES.ERRORS.NOT_FOUND') {

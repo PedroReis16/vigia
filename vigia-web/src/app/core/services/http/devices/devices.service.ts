@@ -64,6 +64,10 @@ export class DevicesService {
     return this.http.post<void>(`${this.basePath}/share/accept`, { token });
   }
 
+  acknowledgeAlerts(deviceId: string): Observable<void> {
+    return this.http.post<void>(`${this.basePath}/${deviceId}/alerts/acknowledge`, {});
+  }
+
   private normalizeListResponse<T>(response: HttpResponse<T[] | null>): T[] {
     if (response.status === 204 || response.body == null) {
       return [];

@@ -3,6 +3,7 @@ import {
   FallAlertPayload,
   FallNotification,
 } from '@core/entities/classes/fall-notification';
+import { UserNotificationDto } from '@core/services/http/notifications/notifications-http.service';
 
 export function parseFallAlertPayload(
   data: FallAlertPayload,
@@ -20,9 +21,11 @@ export function parseFallAlertPayload(
   const deviceName = data.deviceName?.trim() ?? '';
   const nickname = data.nickname?.trim() ?? '';
   const displayName = nickname || deviceName || deviceId;
+  const alertId = data.alertId?.trim();
 
   return {
-    id: `${deviceId}-${Date.now()}`,
+    id: alertId || `${deviceId}-${Date.now()}`,
+    episodeId: alertId,
     type: 'fall',
     deviceId,
     deviceName,
@@ -31,6 +34,21 @@ export function parseFallAlertPayload(
     body: notification?.body?.trim() || `Queda detectada em ${displayName}`,
     receivedAt: new Date().toISOString(),
     read: false,
+  };
+}
+
+export function mapUserNotificationDto(dto: UserNotificationDto): FallNotification {
+  return {
+    id: dto.id,
+    episodeId: dto.episodeId,
+    type: 'fall',
+    deviceId: dto.deviceId,
+    deviceName: '',
+    nickname: '',
+    title: dto.title,
+    body: dto.body,
+    receivedAt: dto.createdAt,
+    read: dto.read,
   };
 }
 

@@ -1,5 +1,6 @@
 export interface FallNotification {
   id: string;
+  episodeId?: string;
   type: 'fall';
   deviceId: string;
   deviceName: string;
@@ -15,6 +16,7 @@ export interface FallAlertPayload {
   deviceId?: string;
   deviceName?: string;
   nickname?: string;
+  alertId?: string;
 }
 
 export interface FallAlertNotificationContent {

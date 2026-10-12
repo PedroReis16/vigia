@@ -8,11 +8,14 @@ describe('fall-alert-payload.helper', () => {
         deviceId: 'device-1',
         deviceName: 'Vigia-abc',
         nickname: 'Sala',
+        alertId: 'episode-1',
       },
       { title: 'Alerta de queda', body: 'Queda detectada em Sala' },
     );
 
     expect(result).toMatchObject({
+      id: 'episode-1',
+      episodeId: 'episode-1',
       type: 'fall',
       deviceId: 'device-1',
       deviceName: 'Vigia-abc',

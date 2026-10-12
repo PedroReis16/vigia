@@ -181,6 +181,20 @@ def _publish_fall_state(client: mqtt.Client, topic: str, state: str) -> None:
     logger.info("fall_state=%s", state)
 
 
+def apply_fall_label(
+    client: mqtt.Client,
+    topic: str,
+    label: str,
+    last_state: str | None,
+) -> str | None:
+    """Publica fall_state só se o valor canónico mudou."""
+    state = normalize_fall_state(label)
+    if state == last_state:
+        return last_state
+    _publish_fall_state(client, topic, state)
+    return state
+
+
 def _reset_provision_cache() -> None:
     for fn in (get_device_identity, get_network_settings):
         clear = getattr(fn, "cache_clear", None)
@@ -233,6 +247,7 @@ def run_integration() -> None:
 
     fall_shm = attach_fall_shm()
     try:
+        last_state: str | None = None
         while True:
             if not capture_allowed():
                 time.sleep(0.05)
@@ -242,8 +257,9 @@ def run_integration() -> None:
                 continue
             if event.event_type != EVENT_FALL_STATE:
                 continue
-            state = normalize_fall_state(event.payload)
-            _publish_fall_state(client, topic_attrs, state)
+            last_state = apply_fall_label(
+                client, topic_attrs, event.payload, last_state
+            )
     except KeyboardInterrupt:
         logger.info("Integration stopped")
     finally:

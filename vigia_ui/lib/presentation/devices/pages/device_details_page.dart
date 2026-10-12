@@ -7,10 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/data/services/whep_live_session.dart';
 import 'package:vigia_ui/domain/ui_models/device_ui.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
+import 'package:vigia_ui/core/providers/repository_providers/notifications_repository_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_live_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_details_widgets/device_details.dart';
 import 'package:vigia_ui/presentation/devices/widgets/device_video_player.dart';
+import 'package:vigia_ui/presentation/notifications/providers/notifications_provider.dart';
 
 class DeviceDetailsPage extends ConsumerStatefulWidget {
   const DeviceDetailsPage({super.key, required this.deviceId, this.device});
@@ -35,7 +37,21 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
     WidgetsBinding.instance.addObserver(this);
     _session = WhepLiveSession(whepUrl: deviceWhepUrl(widget.deviceId));
     _session.addListener(_onSessionUpdate);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startLive());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_acknowledgeAlerts());
+      unawaited(_startLive());
+    });
+  }
+
+  Future<void> _acknowledgeAlerts() async {
+    try {
+      await ref
+          .read(notificationsRepositoryProvider)
+          .acknowledgeDeviceAlerts(widget.deviceId);
+      await ref.read(notificationsInboxProvider.notifier).refresh();
+    } catch (_) {
+      // Ack is best-effort; opening the device still works without it.
+    }
   }
 
   @override

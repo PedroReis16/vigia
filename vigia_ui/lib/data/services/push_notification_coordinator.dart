@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/core/providers/repository_providers/push_token_repository_provider.dart';
+import 'package:vigia_ui/presentation/notifications/providers/notifications_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
 
 /// Push is Android-only: iPhone (simulator or device) must not init FCM/APNs.
@@ -97,17 +98,20 @@ class PushNotificationCoordinator {
       await _registerToken(token);
     });
 
-    _foregroundMessageSub = FirebaseMessaging.onMessage.listen(
-      _displayForegroundNotification,
-    );
+    _foregroundMessageSub = FirebaseMessaging.onMessage.listen((message) {
+      unawaited(_displayForegroundNotification(message));
+      unawaited(_refreshInbox());
+    });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       _navigateToFallAlert(router, message.data);
+      unawaited(_refreshInbox());
     });
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       _navigateToFallAlert(router, initialMessage.data);
+      unawaited(_refreshInbox());
     }
 
     _ref.listen<AsyncValue<bool>>(authSessionProvider, (previous, next) {
@@ -116,13 +120,28 @@ class PushNotificationCoordinator {
 
       if (!wasAuthenticated && isAuthenticated) {
         unawaited(_syncTokenIfAuthenticated());
+        unawaited(_refreshInbox());
       } else if (wasAuthenticated && !isAuthenticated) {
         _currentToken = null;
       }
     });
   }
 
+  Future<void> _refreshInbox() async {
+    try {
+      await _ref.read(notificationsInboxProvider.notifier).refresh();
+    } catch (error, stackTrace) {
+      debugPrint('Failed to refresh notifications inbox: $error\n$stackTrace');
+    }
+  }
+
   Future<void> syncAfterLogin() => _syncTokenIfAuthenticated();
+
+  String? get currentPushToken => _currentToken;
+
+  void clearLocalToken() {
+    _currentToken = null;
+  }
 
   Future<void> unregisterCurrentToken() async {
     if (!arePushNotificationsEnabled) return;

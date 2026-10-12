@@ -82,6 +82,11 @@ class SettingsPage extends ConsumerWidget {
     await AuthTransitionWarmUp.precacheLogos(context);
     if (!context.mounted) return;
     ref.read(authExitTransitionProvider.notifier).armLogout();
-    ref.read(authSessionProvider.notifier).signOut();
+    try {
+      await ref.read(authSessionProvider.notifier).signOut();
+    } catch (_) {
+      // API/Keycloak refused — keep session and cancel logout morph.
+      ref.read(authExitTransitionProvider.notifier).disarm();
+    }
   }
 }

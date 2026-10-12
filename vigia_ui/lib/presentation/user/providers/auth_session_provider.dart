@@ -32,27 +32,28 @@ class AuthSession extends _$AuthSession {
     state = const AsyncData(false);
   }
 
+  /// Ends the Keycloak session via the API; only clears local state on success.
   Future<void> signOut() async {
     final tokenStorage = ref.read(tokenStorageProvider);
     final authRepository = ref.read(authRepositoryProvider);
     final refreshToken = await tokenStorage.getRefreshToken();
 
-    // Remove push token while the access token is still available.
-    try {
-      await ref
-          .read(pushNotificationCoordinatorProvider)
-          .unregisterCurrentToken();
-    } catch (_) {}
-
-    // Clear locally first so GoRouter redirect runs immediately.
-    await clearSession();
-
-    // Best-effort server revoke; failures must not block/undo local logout.
-    if (refreshToken != null) {
-      try {
-        await authRepository.logout(refreshToken);
-      } catch (_) {}
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await clearSession();
+      return;
     }
+
+    final pushCoordinator = ref.read(pushNotificationCoordinatorProvider);
+    final pushToken = pushCoordinator.currentPushToken;
+
+    // Access token must still be valid for Authorization on POST /users/logout.
+    await authRepository.logout(
+      refreshToken: refreshToken,
+      pushToken: pushToken,
+    );
+
+    pushCoordinator.clearLocalToken();
+    await clearSession();
 
     try {
       await ref.read(keycloakBrowserSessionProvider).clear();

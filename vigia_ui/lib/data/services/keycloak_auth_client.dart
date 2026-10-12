@@ -33,13 +33,6 @@ class KeycloakAuthClient {
     return _credentials(data, fallbackRefresh: refreshToken);
   }
 
-  Future<void> logout(String refreshToken) async {
-    await _post('/realms/$realm/protocol/openid-connect/logout', {
-      'client_id': clientId,
-      'refresh_token': refreshToken,
-    });
-  }
-
   Future<Map<String, dynamic>> _post(
     String path,
     Map<String, String> body,

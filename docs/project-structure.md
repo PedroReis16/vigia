@@ -38,7 +38,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ORM:** Entity Framework Core + Npgsql (PostgreSQL)
 - **Cache:** Redis + in-memory (`Vigia.Cache`)
 - **Realtime:** SignalR
-- **Auth:** access token do Keycloak (web e app Flutter) e JWT da API ainda emitido em `/auth/*`; tokens efêmeros para frames, service token (dev)
+- **Auth:** access token do Keycloak (web e app Flutter); logout orquestrado em `POST /users/logout`; tokens efêmeros para frames, service token (dev)
 - **Push:** Firebase Admin (Android + Web)
 - **Docs API:** Swagger/OpenAPI
 - **Storage:** S3-compatible via `Vigia.Cloud` (MinIO)
@@ -123,8 +123,7 @@ vigia/
 
 | Controller | Responsabilidade |
 |------------|------------------|
-| `AuthController` | Login, refresh token, logout |
-| `UserController` | Push tokens do usuário |
+| `UserController` | Push tokens FCM (`PUT`/`DELETE /users/push-token`) e logout orquestrado (`POST /users/logout`) |
 | `DevicesController` | CRUD e registro de devices |
 | `DevicesCommandController` | Comandos FIWARE para devices |
 | `DevicesFrameController` | Upload e acesso a frames |
@@ -133,6 +132,8 @@ vigia/
 | `DevicesUsersController` | Membros do grupo / associação user-device |
 | `DeviceUpdatesController` | OTA — upload e distribuição de versões |
 | `AlertController` | Webhook de alertas FIWARE (queda) |
+| `DevicesAlertController` | `POST /devices/{id}/alerts/acknowledge` — para reenvios e marca lidas do usuário |
+| `NotificationsController` | Inbox server-side: listar, mark-read, mark-all-read |
 | `InviteRedirectController` | Redirect público de convites |
 | `HealthCheckController` | Health check |
 
@@ -294,7 +295,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ### vigia_ui
 
-**Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push notifications.
+**Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push FCM (Android) e inbox server-side (sino + lista).
 
 **Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, permission_handler, device_info_plus, flutter_webrtc, signalr_netcore, Firebase (Android only).
 
@@ -342,7 +343,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak fixa o logo, some com o formulário (POST com submitter `login`) e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms; bridge só cai após o véu pintar). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site / origin `:81`) e `sessionStorage` na volta do logout. `login-page-expired` do tema auto-segue “continuar” quando possível.
 
-**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips de queda (thumbnail na lista; playback por faixas HTTP).
+**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + inbox server-side via `/notifications`); clips de queda (thumbnail na lista; playback por faixas HTTP).
 
 ---
 
@@ -425,7 +426,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
-4. **Autenticação multi-esquema** — Access token do Keycloak (issuer público, JWKS interno) para o vigia-web (`vigia-web`) e para o app Flutter (`vigia-app`, PKCE na WebView). A API ainda emite JWT simétrico em `/auth/*`. Tokens efêmeros para frames e para mídia de clipes; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer. No dev, `Keycloak:AdditionalValidIssuers` aceita o host da LAN usado pelo app.
+4. **Autenticação multi-esquema** — Access token do Keycloak (issuer público, JWKS interno) para o vigia-web (`vigia-web`) e para o app Flutter (`vigia-app`, PKCE na WebView). Logout via `POST /users/logout` (API revoga refresh no Keycloak e remove o push token do aparelho). Tokens efêmeros para frames e para mídia de clipes; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer. No dev, `Keycloak:AdditionalValidIssuers` aceita o host da LAN usado pelo app.
 
 5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
@@ -433,8 +434,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda device de teste via `TestDeviceSeed`.
 
-8. **Push notifications Android-only** — Firebase/FCM só no Android: `dependency_overrides` apontam para `packages/firebase_*_android` (sem plataforma iOS), bootstrap/coordenador com guard `Platform.isAndroid`; iOS não liga firebase-ios-sdk.
-8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Web: service worker `firebase-messaging-sw.js`, token via `PUT /users/push-token`, inbox local no sino da toolbar.
+8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Inbox server-side (`GET /notifications`) sincroniza lidas entre clientes; FCM continua como entrega. Web: service worker + sino; Flutter Android: tray + sino no AppBar.
 
 9. **Ultralight + MQTT** — Comandos entregues via MQTT, não poll. Collection `commands` vazia no MongoDB do IoT Agent é comportamento esperado.
 
@@ -461,7 +461,9 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | Listagem de membros do device usa o e-mail como nome: `users` persiste só e-mail e telefone | `UserDao.GetUsersByGroupAsync`, `DeviceUsersService` |
 | Convite expira em **7 dias**; apenas o owner pode gerar | `DeviceShareService` |
 | JWT access token: **10 min**; refresh token: **7 dias** com rotação e revogação | `appsettings.json` (JWT) + `AuthService` |
-| Alerta de queda: subscription Orion `fall_state==fall` → webhook API → push Firebase ao grupo | `appsettings.json` (`Fiware:Subscriptions`) + `AlertService` |
+| Alerta de queda: subscription Orion `fall_state==fall` → webhook API → 1 episódio Active + inbox por membro + 1 FCM; webhooks repetidos enquanto Active são ignorados; reenvio via `FallAlertRetryWorker` até ack/expire | `AlertService`, `FallAlertEpisode`, `UserNotification`, `Alerts:*` |
+| Ack de queda: abrir detalhe do device (`POST .../alerts/acknowledge`) por membro do grupo para o episódio e marca lidas só desse usuário | `NotificationInboxService`, web `AcknowledgeDeviceAlertsService`, Flutter `device_details_page` |
+| Inbox de notificações sincronizado na API (histórico + lido por usuário); web e mobile consomem `GET /notifications` | `NotificationsController`, vigia-web store/use cases, vigia_ui `NotificationsInbox` |
 | Comandos FIWARE: `stream_on`, `stream_off`, `device_on`, `device_off`, `device_update` | `appsettings.json` + enum `DeviceCommands` |
 | Comando FIWARE falhou (entidade ausente ou registration apontando para o path Traefik `/iot` em vez de `:4041`) → HTTP 502 `FIWARE_COMMAND_FAILED` | `DeviceCommandsService` + `Fiware:ProviderUrl` |
 | Provisionamento FIWARE falhou no registro → HTTP 502 `FIWARE_PROVISION_FAILED` (não persiste no Postgres) | `DevicesService.RegisterDeviceAsync` |
@@ -478,6 +480,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | Códigos de erro espelhados entre API e Flutter | `ErrorCodes.cs` ↔ `error_codes.dart` |
 | Token FCM: plataformas `android`, `ios`, `web` | `UserPushTokenService` |
 | Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
+| Logout: cliente chama `POST /users/logout` (refresh + push opcional); a API revoga no Keycloak e só então soft-delete do push token daquele aparelho; web pode receber `endSessionUrl` para limpar SSO | `UserLogoutService`, `KeycloakSessionClient` |
 | Usuário local usa o UUID do Keycloak; cadastro, login e alteração de perfil fazem upsert, exclusão faz soft-delete e desativa push tokens | Fila `vigia.users.sync` + `KeycloakUserSyncService` |
 | Realm local `vigia` já traz o usuário `admin` com o UUID do antigo super usuário; no startup DEBUG e no upsert ele é membro do grupo do device de teste | `TestDeviceLocalSeed`, `realm-export.json`, `GroupDao.EnsureOwnerMembershipAsync` |
 
@@ -515,7 +518,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
-- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView. Refresh e logout usam o token endpoint do Keycloak
+- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView. Refresh no token endpoint do Keycloak; logout via `POST /users/logout` na API
 - **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
@@ -523,7 +526,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **Camadas:** `pages/` (features/rotas) → `core/usecases` → `core/services` → `shared/` (UI reutilizável)
 - **Imports:** path aliases `@core`, `@pages`, `@shared`, `@environments` via barrels `index.ts`
 - **Componentes:** standalone; prefixo `app`
-- **Auth:** `keycloak-js` (PKCE) via `KeycloakAuthService`; `AuthSessionService` lê o access token; use cases `BeginKeycloakAuth`/`Logout`; `authGuard`/`guestGuard`; `/login` só redireciona ao realm; `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + `updateToken` em 401)
+- **Auth:** `keycloak-js` (PKCE) via `KeycloakAuthService`; `AuthSessionService` lê o access token; use cases `BeginKeycloakAuth`/`Logout` (`LogoutSession` → `POST /users/logout`, depois `endSessionUrl` ou `keycloak.logout` para SSO); `authGuard`/`guestGuard`; `/login` só redireciona ao realm; `ApiBaseUrlInterceptor` + `AuthInterceptor` (Bearer + `updateToken` em 401)
 - **i18n:** arquivos em `public/i18n/*.json` carregados via `TranslateHttpLoader`
 - **Testes:** Vitest via `@angular/build:unit-test`
 
@@ -543,7 +546,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | vigia_ui | ~13 testes widget/domain/router |
 | vigia-api | projetos scaffold — placeholders, sem cobertura significativa |
 | vigia-web | Vitest: sessão Keycloak, guards, interceptor, login/logout + devices list/mapper + layout/toolbar/home |
-| vigia-api | unitários em Database (`UserPushTokenDao`), API (`KeycloakUserSyncService`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
+| vigia-api | unitários em Database (`UserPushTokenDao`), API (`KeycloakUserSyncService`, `UserLogoutService`) e Fiware (`OrionRegistrationSync`); demais projetos ainda scaffold |
 | vigia-web | boilerplate em camadas; Vitest configurado; stubs de auth/layout |
 
 ---
@@ -598,15 +601,11 @@ flowchart LR
 1. Câmera/vídeo: leitura **full-rate** (`cap.read()` sem throttle)
 2. Subsample ~`FRAME_RATE` com **backpressure**: só enfileira quando `FrameWorker` está livre (`try_insert_raw_frame`, fila max 2, skip sem drop-oldest); um `frame.copy()` por tick de classificação alimenta archive + YOLO
 3. YOLO pose (`extract_poses`): `YOLO_IMGSZ` (default 320), tracker `bytetrack.yaml` → `FallClassifier` (`math` ou `gru`); warmup loga `p{id}=k/N` (preenchimento real da janela); métricas periódicas `yolo_ms`, `enqueue_fps`, `window_fps`, `queue_skips`
-4. O FrameWorker escreve **toda** classificação em `EventShmRing` (fall) a cada decisão; o processo FIWARE publica cada evento da SHM como UltraLight `fall|{normal|suspect|fall|…}` via MQTT persistente (poll 50 ms); logs de decisão vão para SHM separado e são drenados pelo supervisor
-5. Orion detecta `fall_state` (subscription configurada)
+4. O FrameWorker escreve classificações em `EventShmRing` (fall); o processo FIWARE publica UltraLight `fall|{state}` **só em mudança de estado** (`apply_fall_label`); logs de decisão vão para SHM separado
+5. Orion detecta `fall_state==fall` (subscription configurada)
 6. Webhook POST para `/vigia/devices/alert`
-7. API notifica membros do grupo via Firebase push + SignalR
-1. Câmera captura frames → YOLO pose inference → fall detector avalia postura
-2. Edge publica atributo `fall_state` via MQTT Ultralight
-3. Orion detecta `fall_state==fall` (subscription configurada)
-4. Webhook POST para `/vigia/devices/alert`
-5. API notifica membros do grupo via Firebase push (Android + Web)
+7. API cria `FallAlertEpisode` Active (idempotente), `UserNotification` por membro do grupo e envia **1** FCM multicast (`alertId` + collapse key); `FallAlertRetryWorker` reenvia até ack/expire
+8. Abrir `/devices/:id` (web ou app) chama acknowledge: para reenvios e marca lidas do usuário que abriu
 
 ### 3. Streaming ao vivo
 
@@ -660,6 +659,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-12] Keycloak local: `ValidIssuer` = `localhost:81`; `LogoutRealmBaseUrl` + Host do iss para revoke no Docker; `:80`/LAN em `AdditionalValidIssuers` (`default.env`, `KeycloakSessionClient`)
+- [2026-10-12] Logout orquestrado na API (`POST /users/logout`): revoga refresh no Keycloak e só então remove o push token do aparelho; restaura `PUT`/`DELETE /users/push-token` (`UserController`, `UserLogoutService`, vigia-web, vigia_ui)
+- [2026-10-12] Alertas: 1 FCM por episódio de queda, reenvio até abrir o device, inbox server-side sincronizado (edge `apply_fall_label`, `FallAlertEpisode`/`UserNotification`, `FallAlertRetryWorker`, web + Flutter)
 - [2026-10-12] Tema Keycloak `vigia`: remove prefetch hover de login-actions (evita page-expired em `reset-credentials` após login) e reinicia o fluxo OIDC nesse caso (`vigia-fields.js`)
 - [2026-10-12] vigia-web: morph enter pinta o véu antes de soltar o bridge (`afterNextRender` + sem `display:contents`); handoff também em `sessionStorage` no tema Keycloak (`auth-to-shell-transition`, `index.html`, `vigia-fields.js`)
 - [2026-10-12] vigia-web ↔ Keycloak: leave/submit sem double-POST, logo pinado no leave, morph enter sem flash de bridge, issuer local em `:81/auth`; override `login-page-expired` com auto-continue (`vigia-fields.js`, `auth-to-shell-transition`, `environment.ts`, tema `vigia`)

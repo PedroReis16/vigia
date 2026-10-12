@@ -10,6 +10,7 @@ export * from './remove-device-user/remove-device-user.service';
 export * from './devices-use-case.error';
 export * from './begin-keycloak-auth/begin-keycloak-auth.service';
 export * from './logout/logout.service';
+export * from './logout-session/logout-session.service';
 export * from './register-push-token/register-push-token.service';
 export * from './unregister-push-token/unregister-push-token.service';
 export * from './sync-push-notifications/sync-push-notifications.service';

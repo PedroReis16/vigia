@@ -3,7 +3,7 @@ import { AuthSessionService } from '@core/services/auth/auth-session.service';
 import { KeycloakAuthService } from '@core/services/auth/keycloak-auth.service';
 import { FirebaseMessagingService } from '@core/services/push/firebase-messaging.service';
 import { NotificationStoreService } from '@core/services/notifications/notification-store.service';
-import { UnregisterPushTokenService } from '@core/usecases/unregister-push-token/unregister-push-token.service';
+import { LogoutSessionService } from '@core/usecases/logout-session/logout-session.service';
 
 @Injectable({
   providedIn: 'root',
@@ -11,24 +11,44 @@ import { UnregisterPushTokenService } from '@core/usecases/unregister-push-token
 export class LogoutService {
   private readonly keycloak = inject(KeycloakAuthService);
   private readonly session = inject(AuthSessionService);
-  private readonly unregisterPushToken = inject(UnregisterPushTokenService);
+  private readonly logoutSession = inject(LogoutSessionService);
   private readonly firebaseMessaging = inject(FirebaseMessagingService);
   private readonly notificationStore = inject(NotificationStoreService);
 
   async execute(): Promise<void> {
-    const pushToken = this.firebaseMessaging.getCurrentToken();
-
-    await this.unregisterPushToken.execute(pushToken);
-    this.firebaseMessaging.clearToken();
-    this.notificationStore.clearForLogout();
+    const refreshToken = this.keycloak.refreshToken;
+    if (!refreshToken?.trim()) {
+      this.session.clearSession();
+      this.keycloak.clearToken();
+      return;
+    }
 
     const redirectUri =
       typeof window === 'undefined' ? undefined : `${window.location.origin}/`;
+    const pushToken = this.firebaseMessaging.getCurrentToken();
+
+    const result = await this.logoutSession.execute({
+      refreshToken,
+      pushToken,
+      idToken: this.keycloak.idToken,
+      postLogoutRedirectUri: redirectUri,
+    });
+
+    this.firebaseMessaging.clearToken();
+    this.notificationStore.clearForLogout();
+
+    if (result.endSessionUrl && typeof window !== 'undefined') {
+      this.keycloak.clearToken();
+      this.session.clearSession();
+      window.location.assign(result.endSessionUrl);
+      return;
+    }
 
     try {
       await this.keycloak.logout(redirectUri);
     } catch {
       this.session.clearSession();
+      this.keycloak.clearToken();
     }
   }
 }

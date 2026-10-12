@@ -9,6 +9,7 @@ export * from './invite/pending-invite.service';
 export * from './message/message.service';
 export * from './http/devices/devices.service';
 export * from './http/push-token/push-token-http.service';
+export * from './http/session/session-http.service';
 export * from './http/notifications/notifications-http.service';
 export * from './notifications/notification-store.service';
 export * from './push/firebase-messaging.service';

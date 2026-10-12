@@ -22,6 +22,14 @@ export class KeycloakAuthService {
     return this.instance?.token ?? null;
   }
 
+  get refreshToken(): string | null {
+    return this.instance?.refreshToken ?? null;
+  }
+
+  get idToken(): string | null {
+    return this.instance?.idToken ?? null;
+  }
+
   get userId(): string | null {
     const subject = this.instance?.tokenParsed?.sub;
     return typeof subject === 'string' && subject.length > 0 ? subject : null;

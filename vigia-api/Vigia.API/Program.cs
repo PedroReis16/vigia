@@ -64,7 +64,10 @@ builder.Services.AddScoped<IKeycloakUserSyncService, KeycloakUserSyncService>();
 builder.Services.AddHostedService<KeycloakUserSyncConsumer>();
 
 // Services
+builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetSection(KeycloakOptions.SectionName));
+builder.Services.AddHttpClient<IKeycloakSessionClient, KeycloakSessionClient>();
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();
+builder.Services.AddTransient<IUserLogoutService, UserLogoutService>();
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IDeviceShareService, DeviceShareService>();

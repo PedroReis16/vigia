@@ -31,4 +31,11 @@ public static class ClaimsPrincipalExtensions
 
         return DateTime.UnixEpoch.AddSeconds(exp);
     }
+
+    /// <summary>Authorized party (OIDC client id) from the access token.</summary>
+    public static string? GetAuthorizedParty(this ClaimsPrincipal user)
+    {
+        string? azp = user.FindFirstValue("azp");
+        return string.IsNullOrWhiteSpace(azp) ? null : azp.Trim();
+    }
 }

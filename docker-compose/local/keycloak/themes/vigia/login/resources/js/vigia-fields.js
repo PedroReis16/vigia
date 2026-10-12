@@ -46,17 +46,59 @@
     return { top: parts[0], left: parts[1], width: parts[2], height: parts[3] };
   }
 
-  function stampEnterCookie(form) {
+  function stampEnterCookie(form, logoBox) {
     var header = document.getElementById("kc-header-wrapper");
-    if (!header) return;
+    var box = logoBox || (header ? visualLogoBox(header) : null);
+    if (!box) return;
     var mode = form && form.id === "kc-register-form" ? "register" : "login";
-    writeHandoffCookie(
-      "enter," + formatBox(visualLogoBox(header)) + "," + window.innerWidth + "," + window.innerHeight + "," + mode
-    );
+    var payload =
+      formatBox(box) + "," + window.innerWidth + "," + window.innerHeight + "," + mode;
+    writeHandoffCookie("enter," + payload);
+    // Same-origin SPA (:81) can read this even if the cookie is dropped on redirect.
+    try {
+      sessionStorage.setItem("vigia.auth.enter", payload);
+    } catch (e) {}
   }
 
   function authSubmitForm(form) {
     return form && (form.id === "kc-form-login" || form.id === "kc-register-form");
+  }
+
+  /** Freeze the logo in place so the SPA boot bridge meets the same bounds. */
+  function pinLeaveLogo() {
+    var header = document.getElementById("kc-header-wrapper");
+    if (!header) return null;
+    var box = visualLogoBox(header);
+    var fly = document.createElement("div");
+    fly.className = "vigia-handoff-logo";
+    fly.setAttribute("aria-hidden", "true");
+    fly.style.top = box.top + "px";
+    fly.style.left = box.left + "px";
+    fly.style.width = box.width + "px";
+    fly.style.height = box.height + "px";
+    fly.style.backgroundImage = getComputedStyle(header).backgroundImage;
+    document.body.appendChild(fly);
+    document.documentElement.classList.add("vigia-auth-leave-logo");
+    return box;
+  }
+
+  /**
+   * Programmatic submit after leave animation.
+   * Must use form.submit() (no submit event) so our listener does not re-enter;
+   * copy the CTA name/value so Keycloak still receives `login` / register submitter.
+   */
+  function submitAuthForm(form, button) {
+    if (button && button.name) {
+      var existing = form.querySelector('input[data-vigia-submitter="1"]');
+      if (existing) existing.remove();
+      var hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = button.name;
+      hidden.value = button.value || "";
+      hidden.setAttribute("data-vigia-submitter", "1");
+      form.appendChild(hidden);
+    }
+    HTMLFormElement.prototype.submit.call(form);
   }
 
   function easeInOutCubic(t) {
@@ -118,7 +160,7 @@
 
   (function captureExitHandoff() {
     var cookie = readHandoffCookie();
-    if (cookie.indexOf("enter,") === 0) clearHandoffCookie();
+    // Keep enter,* for the SPA callback; only consume exit,* here.
     if (reduceMotion) {
       if (cookie.indexOf("exit,") === 0) clearHandoffCookie();
       return;
@@ -380,8 +422,9 @@
       var direction = slideDir(currentKind(), kindFromUrl(link.href));
       if (!direction) return;
       link.dataset.vigiaSlide = "1";
-      link.addEventListener("pointerenter", function () { loadPage(link.href); });
-      link.addEventListener("pointerdown", function () { loadPage(link.href); });
+      // Never prefetch login-actions: a credentials-bearing GET to
+      // reset-credentials/registration advances the auth session while the
+      // login form is still visible, so submit then lands on page-expired.
       link.addEventListener("click", function (event) {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         if (document.documentElement.classList.contains("vigia-sliding")) {
@@ -620,16 +663,54 @@
       return;
     }
     if (!authSubmitForm(form)) return;
-    if (reduceMotion || leavingAuth) {
+
+    // Block double-POST (second click / requestSubmit re-entry) that causes page-expired.
+    if (leavingAuth) {
+      event.preventDefault();
+      return;
+    }
+
+    if (reduceMotion) {
       stampEnterCookie(form);
       return;
     }
+
     event.preventDefault();
     leavingAuth = true;
-    stampEnterCookie(form);
+    var logoBox = pinLeaveLogo();
+    stampEnterCookie(form, logoBox);
     document.documentElement.classList.add("vigia-auth-leave");
-    window.setTimeout(function () { form.submit(); }, LEAVE_MS);
+    window.setTimeout(function () {
+      submitAuthForm(form, button);
+    }, LEAVE_MS);
   }, true);
+
+  // Recover from login-page-expired. Prefer restart when stranded on
+  // reset-credentials (poisoned session from a forgot-password GET) so we
+  // resume the original OIDC login instead of the reset flow.
+  (function autoContinueExpiredLogin() {
+    if (reduceMotion) return;
+    var continueLink = document.getElementById("loginContinueLink");
+    var restartLink = document.getElementById("loginRestartLink");
+    if (!continueLink && !restartLink) return;
+
+    var onReset = location.pathname.indexOf("reset-credentials") !== -1;
+    var target = onReset
+      ? (restartLink && restartLink.href) || (continueLink && continueLink.href)
+      : (continueLink && continueLink.href) || (restartLink && restartLink.href);
+    if (!target) return;
+
+    // Seed a fallback enter handoff so the SPA still morphs after continue.
+    var header = document.getElementById("kc-header-wrapper");
+    if (header) {
+      stampEnterCookie(null, visualLogoBox(header));
+    }
+
+    document.documentElement.classList.add("vigia-auth-expired");
+    window.setTimeout(function () {
+      window.location.href = target;
+    }, 120);
+  })();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

@@ -8,6 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
   <style>
+    html,
+    body,
+    app-root {
+      height: 100%;
+    }
+
     html.auth-transition-bridge,
     html.auth-transition-bridge body {
       background: #669cee;
@@ -28,6 +34,25 @@
   <script>
     (function () {
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function keycloakLogoBox(viewportWidth, viewportHeight) {
+        var mobile = viewportWidth <= 767;
+        var boxWidth = Math.min(300, viewportWidth * 0.6875);
+        var boxHeight = mobile ? 175 : 225;
+        var size = Math.min(boxWidth, boxHeight);
+        var contentBelow = 248;
+        var padding = 24;
+        var column = boxHeight + 4 + contentBelow;
+        var available = Math.max(0, viewportHeight - padding * 2);
+        var columnTop = padding + Math.max(0, (available - column) / 2);
+        return {
+          top: columnTop + (boxHeight - size) / 2,
+          left: (viewportWidth - size) / 2,
+          width: size,
+          height: size,
+        };
+      }
+
       try {
         if (!reduce) {
           var params = new URLSearchParams(location.search);
@@ -39,15 +64,23 @@
           var enter = '';
           if (callback) {
             sessionStorage.removeItem('vigia.auth.exit');
+            // Prefer sessionStorage stamped by the Keycloak theme (same origin on :81).
+            enter = sessionStorage.getItem('vigia.auth.enter') || '';
             var match = document.cookie.match(/(?:^|; )vigia_auth_handoff=([^;]*)/);
             var cookie = match ? decodeURIComponent(match[1]) : '';
             document.cookie = 'vigia_auth_handoff=; Path=/; Max-Age=0; SameSite=Lax';
-            enter = cookie.indexOf('enter,') === 0 ? cookie.slice(6) : 'fallback';
+            if (!enter || enter === 'fallback') {
+              enter = cookie.indexOf('enter,') === 0 ? cookie.slice(6) : 'fallback';
+            }
             sessionStorage.setItem('vigia.auth.enter', enter);
           }
           if (callback || exitHold) {
             document.documentElement.classList.add('auth-transition-bridge');
             var raw = callback ? enter : exitHold;
+            if (raw === 'fallback') {
+              var box = keycloakLogoBox(window.innerWidth, window.innerHeight);
+              raw = [box.top, box.left, box.width, box.height].join(',');
+            }
             var parts = (raw || '').split(',');
             if (parts.length >= 4 && parts[0] !== 'fallback') {
               var root = document.documentElement;

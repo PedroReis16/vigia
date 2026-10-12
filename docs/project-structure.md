@@ -336,11 +336,11 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `src/app/core/` | Guards, interceptors (`ApiBaseUrl`, Bearer + refresh Keycloak), entities/DTOs, mappers, services HTTP/sessão, usecases |
 | `src/app/pages/` | Rotas/features: redirect Keycloak (`/login`), layout, devices, home, `main.routes.ts` |
 | `src/app/shared/` | Componentes reutilizáveis (input, message, device-card, toolbar superior), preset de tema Optimus UI (`vigia.theme.ts`) |
-| `src/environments/` | `environment.ts` (local `localhost:81`, Keycloak `http://localhost/auth`) / `environment.prod.ts` (`services.vigiadeteccoes.com.br`, Keycloak ainda vazio) — `apiUrl`, `streamBaseUrl`, `keycloak` |
+| `src/environments/` | `environment.ts` (local `localhost:81`, Keycloak `http://localhost:81/auth`) / `environment.prod.ts` (`services.vigiadeteccoes.com.br`, Keycloak ainda vazio) — `apiUrl`, `streamBaseUrl`, `keycloak` |
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 | `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak some com o formulário e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site) e `sessionStorage` na volta do logout.
+**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak fixa o logo, some com o formulário (POST com submitter `login`) e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms; bridge só cai após o véu pintar). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site / origin `:81`) e `sessionStorage` na volta do logout. `login-page-expired` do tema auto-segue “continuar” quando possível.
 
 **Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + histórico local); clips de queda (thumbnail na lista; playback por faixas HTTP).
 
@@ -371,7 +371,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |------|-----|
 | `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, MailHog, RabbitMQ, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
-| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak. No submit o formulário some e grava o logo; no logout o formulário entra a partir desse ponto |
+| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak. No submit o logo é pinado, o formulário some e o cookie `enter` é gravado (POST com submitter); no logout o formulário entra a partir desse ponto; sem prefetch de login-actions (GET em `reset-credentials` invalida a sessão); `login-page-expired` reinicia o fluxo OIDC se a URL for `reset-credentials`, senão auto-continua |
 | `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
@@ -660,6 +660,9 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-12] Tema Keycloak `vigia`: remove prefetch hover de login-actions (evita page-expired em `reset-credentials` após login) e reinicia o fluxo OIDC nesse caso (`vigia-fields.js`)
+- [2026-10-12] vigia-web: morph enter pinta o véu antes de soltar o bridge (`afterNextRender` + sem `display:contents`); handoff também em `sessionStorage` no tema Keycloak (`auth-to-shell-transition`, `index.html`, `vigia-fields.js`)
+- [2026-10-12] vigia-web ↔ Keycloak: leave/submit sem double-POST, logo pinado no leave, morph enter sem flash de bridge, issuer local em `:81/auth`; override `login-page-expired` com auto-continue (`vigia-fields.js`, `auth-to-shell-transition`, `environment.ts`, tema `vigia`)
 - [2026-10-09] Blur opcional: `IsBlurEnabled` envia `blur_on`/`blur_off`; clipes e blur ficam em `options.json` e o blur aplica-se na live SHM (`DevicesService`, `options_config.py`, `stream_control.py`, `capture_runner.py`, vigia-web, vigia_ui)
 - [2026-10-08] App Flutter autentica no Keycloak (cliente `vigia-app`, PKCE na WebView); refresh e logout saem da API (`vigia_ui`, `apply-app-client.sh`, `OAuthExtension`)
 - [2026-10-08] Clipes: thumbnail e playback saem na lista do clipe pronto; poster ausente é gerado a partir do MP4 na primeira leitura (`ClipIngestService`, `device-clips`)

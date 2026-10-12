@@ -11,7 +11,7 @@ export const environment = {
   apiUrl: 'http://localhost:81/vigia',
   streamBaseUrl: 'http://localhost:81',
   keycloak: {
-    url: 'http://localhost/auth',
+    url: 'http://localhost:81/auth',
     realm: 'vigia',
     clientId: 'vigia-web',
   },

@@ -1,10 +1,14 @@
 import {
+  afterNextRender,
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   effect,
   inject,
+  Injector,
   input,
+  NgZone,
   OnDestroy,
   signal,
 } from '@angular/core';
@@ -36,6 +40,9 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
 
   private readonly transition = inject(AuthExitTransitionService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
+  private readonly injector = inject(Injector);
 
   private animationFrame = 0;
   private animationStart = 0;
@@ -100,17 +107,23 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
 
     if (shouldPlayExit) {
       this.prepareExitFrame();
+      this.cdr.detectChanges();
       requestAnimationFrame(() => this.startReverseAnimation());
       return;
     }
 
     this.prepareEnterFrame();
-    requestAnimationFrame(() => {
-      dismissAuthBootLogo();
-      requestAnimationFrame(() => {
-        this.startEnterAnimation();
-      });
-    });
+    // Flush the veil into the DOM before dropping the boot bridge — otherwise the
+    // full-screen blue cover vanishes and the shell flashes in (looks like a hard cut).
+    this.cdr.detectChanges();
+    afterNextRender(
+      () => {
+        requestAnimationFrame(() => {
+          this.ngZone.run(() => this.startEnterAnimation());
+        });
+      },
+      { injector: this.injector },
+    );
   }
 
   private prepareEnterFrame(): void {
@@ -156,6 +169,14 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
   }
 
   private startEnterAnimation(): void {
+    if (!this.overlayIsPainted()) {
+      // One more frame if the veil node is still mounting.
+      this.animationFrame = requestAnimationFrame(() => {
+        this.ngZone.run(() => this.startEnterAnimation());
+      });
+      return;
+    }
+
     const origin = this.transition.logoOrigin();
     const target = this.measureToolbarLogoTarget();
     const viewportHeight = window.innerHeight;
@@ -185,6 +206,7 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
     toolbarHeight: number,
   ): void {
     if (!this.enterBridgeReleased) {
+      dismissAuthBootLogo();
       this.enterBridgeReleased = true;
       this.transition.beginPlayback();
     }
@@ -207,7 +229,9 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
     }
 
     this.animationFrame = requestAnimationFrame(() =>
-      this.tickEnter(origin, target, viewportHeight, toolbarHeight),
+      this.ngZone.run(() =>
+        this.tickEnter(origin, target, viewportHeight, toolbarHeight),
+      ),
     );
   }
 
@@ -233,7 +257,9 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
     }
 
     this.animationFrame = requestAnimationFrame(() =>
-      this.tickReverse(origin, target, viewportHeight, toolbarHeight),
+      this.ngZone.run(() =>
+        this.tickReverse(origin, target, viewportHeight, toolbarHeight),
+      ),
     );
   }
 
@@ -322,9 +348,11 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
     this.transition.activateLogoutBridge();
 
     requestAnimationFrame(() => {
-      this.overlayActive.set(false);
-      this.playbackStarted = false;
-      this.transition.notifyShellExitReady();
+      this.ngZone.run(() => {
+        this.overlayActive.set(false);
+        this.playbackStarted = false;
+        this.transition.notifyShellExitReady();
+      });
     });
   }
 
@@ -333,6 +361,11 @@ export class AuthToShellTransitionComponent implements AfterViewInit, OnDestroy 
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = 0;
     }
+  }
+
+  private overlayIsPainted(): boolean {
+    const veil = document.querySelector('[data-testid="auth-shell-veil"]');
+    return veil instanceof HTMLElement;
   }
 
   private measureToolbarHeight(): number | null {

@@ -708,6 +708,7 @@ html.login-pf body {
 html.vigia-auth-leave .login-pf-page > .card-pf,
 html.vigia-auth-leave .vigia-slide-viewport,
 html.vigia-auth-leave .vigia-auth-links,
+html.vigia-auth-leave-logo #kc-header-wrapper,
 html.vigia-auth-reveal .login-pf-page > .card-pf,
 html.vigia-auth-reveal .vigia-slide-viewport,
 html.vigia-auth-reveal .vigia-auth-links,
@@ -719,6 +720,34 @@ html.vigia-auth-leave .login-pf-page > .card-pf,
 html.vigia-auth-leave .vigia-slide-viewport,
 html.vigia-auth-leave .vigia-auth-links {
   transition: opacity 160ms ease;
+}
+
+/* login-page-expired: keep brand logo; hide instruction flash before auto-continue. */
+html.vigia-auth-expired #kc-content-wrapper,
+html.vigia-auth-expired .card-pf,
+html.vigia-auth-expired .vigia-auth-links {
+  opacity: 0;
+}
+
+.vigia-page-expired {
+  text-align: center;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 28rem;
+  margin: 1.5rem auto 0;
+}
+
+.vigia-page-expired a {
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.vigia-page-expired a:hover,
+.vigia-page-expired a:focus-visible {
+  color: #e8f0fc;
+  outline: none;
 }
 
 html.vigia-auth-reveal.vigia-auth-revealed .login-pf-page > .card-pf,

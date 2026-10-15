@@ -15,7 +15,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ML / Visão:** Ultralytics YOLO pose (ONNX Windows / CoreML macOS / NCNN Linux+bundle), OpenCV, ONNX Runtime (classificador GRU)
 - **Comunicação:** BLE (`bless`), MQTT Ultralight (`paho-mqtt`), RTMP para MediaMTX
 - **Periféricos:** LCD 16x2 (RPLCD), GPIO (gpiozero/lgpio), Wi-Fi via NetworkManager
-- **Persistência local:** SQLite (fall-detection), JSON (`identity.json`, `network.json`, `classifier.json`, `options.json`)
+- **Persistência local:** SQLite (fall-detection); onboard em `device.json` (identity, network, classifier, options); bootstrap/fall mantêm `identity.json`, `network.json` e `classifier.json`
 - **Deploy:** PyInstaller ARM64, systemd
 
 ### Cloud / Infra
@@ -89,7 +89,7 @@ vigia/
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
 ├── .github/workflows/      # CI/CD e pipelines de release
 ├── seed-codes/             # Utilitários dev: frame de teste, clipe a partir de vídeo, seed do edge local
-├── edge-data/              # Mock local identity/network/classifier (gerado; gitignored)
+├── edge-data/              # Mock local device.json + identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
 ├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
@@ -216,7 +216,7 @@ vigia/
 
 **Ponto de entrada (dev):** na raiz, `Makefile` + `.env`. `make capture` / `python -m capture` sobe YOLO, a thread de classificação (`core/`) e, sob demanda, Processes filhos de stream/clips. `make integration` / `python -m integration` é processo à parte (MQTT + poll SHM + cmds). `make interface` / `python -m interface` é o control plane (BLE, Wi-Fi, LCD, gate). `make run` corre capture + integration + interface em paralelo. Só setup: `SETUP_ONLY=1`. Python >= 3.12 (no macOS evita o `python3` 3.9 do Xcode; no Windows o launcher `py`, ou `HOST_PYTHON=python`). O Makefile é portátil: GNU Make nativo no Windows (`cmd.exe`) e make no macOS/Linux (`sh`). Configuração partilhada no `.env` da raiz. `shared/__init__.py` exporta settings/provisionamento em lazy load para o host não precisar de `python-dotenv` antes do reexec.
 
-**Pré-requisito:** `identity.json` + `network.json` em `DATA_DIR` (placa `/opt/vigia`; debug `../edge-data` via seed) e ausência de `capture.hold`. Capture e integration esperam esses ficheiros; o interface escreve-os (BLE ou `WIFI_MOCK`) e abre o gate. Em debug local, `WIFI_MOCK` ligado (default quando `DEBUG=true` e a chave falta no `.env`) grava `network.json` mock e liberta a captura, como o bootstrap fazia. Na placa o unit força `DEBUG=false` e `WIFI_MOCK=false`. Com seed já presente e sem hold, `make capture` segue. Streaming RTMP exige `stream_ingest_url` em `network.json`. `classifier.json` (`math`|`gru`) é a preferência de modelo; sem ficheiro, vale `CLASSIFIER` do ambiente.
+**Pré-requisito:** secções `identity` e `network` em `{DATA_DIR}/device.json` (placa `/opt/vigia`; debug `../edge-data` via seed) e ausência de `capture.hold`. Na primeira leitura, `identity.json`, `network.json`, `classifier.json` e `options.json` (ou `clips.json`/`blur.json`) são importados para `device.json` e apagados. Capture e integration esperam essas secções; o interface escreve-as (BLE ou `WIFI_MOCK`) e abre o gate. Em debug local, `WIFI_MOCK` ligado (default quando `DEBUG=true` e a chave falta no `.env`) grava a secção `network` mock e liberta a captura. Na placa o unit força `DEBUG=false` e `WIFI_MOCK=false`. Com seed já presente e sem hold, `make capture` segue. Streaming RTMP exige `stream_ingest_url` na secção `network`. A chave `classifier` (`math`|`gru`) é a preferência de modelo; sem chave, vale `CLASSIFIER` do ambiente.
 
 **Módulos principais (`shared/`):**
 
@@ -224,12 +224,13 @@ vigia/
 |--------|--------|
 | `runtime.py` | Venv na raiz, deps, Python >= 3.12, reexec por módulo; export YOLO opcional |
 | `paths.py` | Raiz do onboard, `capture/`, `core/`, `integration/`, `interface/`, `.venv` e `requirements.txt` |
-| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `classifier.json` / `options.json` |
+| `settings.py` | `CAPTURE_*` / `SHOW_*` / `YOLO_*` / `CLASSIFIER` / `DATA_DIR` / `FALL_SHM_NAME` / `STREAM_*` / `CLIP_*` / `BLE_ENABLED` / `WIFI_MOCK`; `DeviceIdentity` / `NetworkSettings` / `resolve_ota_dir` / `resolve_install_root` / `device.json` |
 | `capture_gate.py` | `capture.hold` (bloqueia), `capture.restart` (releitura do modelo), `capture.pid` (CPU/RAM e “serviço activo”) |
 | `yolo_export.py` | Resolve/exporta ONNX (Win) / CoreML (macOS, fallback ONNX) / NCNN (Linux) em `capture/models/yolo/` |
 | `event_shm.py` / `fall_ipc.py` | Ring SHM de `fall_state` (core → integration); `enqueue` / `attach_fall_shm` + aliases canónicos |
 | `stream_control.py` | ControlShm named (`stream_on`, `clips_enabled`, `blur_enabled`); integration escreve, capture/workers leem |
-| `options_config.py` | Preferências em `options.json` (`clips`, `blur`); cada comando grava só a sua chave. Sem ficheiro, clipes ficam desligados e o blur segue `BLUR_VIDEO`. `clips.json` e `blur.json` antigos ainda são lidos até o primeiro comando criar `options.json` |
+| `device_config.py` | `{DATA_DIR}/device.json`: secções `identity`, `network`, `classifier` e `options`. Escrita com lock e replace atómico; leitura sem lock. Migra os JSON legados uma vez |
+| `options_config.py` | Preferências na secção `options` (`clips`, `blur`); cada comando grava só a sua chave. Sem a chave, clipes ficam desligados e o blur segue `BLUR_VIDEO` |
 | `live_frame_shm.py` | LiveFrameShm latest-only (capture → stream + clips + thumbnail) |
 | `clip_frame_shm.py` | ClipFrameRing multi-slot (~`CLIP_WINDOW_S` × fps da câmera; fallback `FRAME_RATE`); escrito pelo Process de clips |
 
@@ -248,7 +249,7 @@ vigia/
 |--------|--------|
 | `frame_worker.py` | `save_points` (fila) + worker: filtra/valida → classifica → enqueue `fall_state` |
 | `frame_queue.py` | Fila in-process (`FRAME_RATE`, max 2, backpressure) |
-| `classifiers/` | `math` (default) e `gru`; lê `classifier.json` no arranque da sessão (fallback `CLASSIFIER` se o ficheiro não existir); restart via `capture.restart`, sem hot-swap |
+| `classifiers/` | `math` (default) e `gru`; lê a chave `classifier` de `device.json` no arranque da sessão (fallback `CLASSIFIER` se a chave não existir); restart via `capture.restart`, sem hot-swap |
 | `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU |
 
 **Módulos principais (`stream/`):** biblioteca do capture (não é serviço Make).
@@ -269,14 +270,14 @@ vigia/
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` | `python -m integration`: runtime (sem YOLO) + `run_integration` |
-| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` → ControlShm; `clips_on`/`off` e `blur_on`/`off` → `options.json` + ControlShm; no arranque aplica `options.json`; espera o provisionamento e não publica com o gate fechado |
+| `integration_runner.py` | MQTT persistente (attrs `fall\|{state}` + cmds); poll SHM; `device_update` → OTA pending; `stream_on`/`off` → ControlShm; `clips_on`/`off` e `blur_on`/`off` → secção `options` de `device.json` + ControlShm; no arranque aplica essa secção; espera o provisionamento e não publica com o gate fechado |
 
 **Módulos principais (`interface/`):** control plane no mesmo instalador (porte do `vigia-bootstrap`). `python -m interface` não exporta YOLO.
 
 | Módulo | Função |
 |--------|--------|
 | `__main__.py` / `interface_runner.py` | Runtime + loop asyncio: LCD e supervisor de provisionamento |
-| `provision/` | BLE, Wi-Fi, identidade, `classifier.json`, estado de pareamento, OTA do pacote `onboard/`, gate (hold/release/restart) no lugar de `systemctl` do fall |
+| `provision/` | BLE, Wi-Fi, identidade, chave `classifier` em `device.json`, estado de pareamento, OTA do pacote `onboard/`, gate (hold/release/restart) no lugar de `systemctl` do fall |
 | `ui/` | LCD 16x2, menu (CPU/RAM, Wi-Fi, serviço, modelo, OTA), GPIO; sem hardware degrada para no-op |
 
 **IPC:** core escreve `EventShmRing` nomeado (`FALL_SHM_NAME`); integration anexa/cria o ring e publica cada evento no Mosquitto. O processo de clips só observa o último `fall_state` (`peek_latest`, sem consumir a fila). Capture escreve LiveFrameShm enquanto o supervisor está ativo; Processes filhos de `stream/` consomem (RTMP, janela de clips e thumbnail). Flags FIWARE via ControlShm. Na entrada em `fall`, com clips ativos, o snapshot da janela segue em PNG para `POST /devices/{id}/clips`.
@@ -357,7 +358,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |--------|--------|
 | `seed-codes/publish_frame.py` | POST de JPEG de teste em `/devices/{id}/frame` |
 | `seed-codes/publish_clip.py` | Extrai PNG de um vídeo (ffmpeg) e envia a sessão anônima `POST /devices/{id}/clips` + frames numerados |
-| `seed-codes/seed_local_edge.py` | Gera `identity.json` + `network.json` + `classifier.json` em `edge-data/` alinhados ao device DEBUG da API |
+| `seed-codes/seed_local_edge.py` | Gera `device.json` (onboard) e `identity.json` + `network.json` + `classifier.json` (bootstrap/fall) em `edge-data/`, alinhados ao device DEBUG da API |
 | `seed-codes/video_converter.py` | Converte AVI → MP4 via ffmpeg (reencode H.264/AAC ou `--copy`) |
 
 **Edge mock local:** `edge-data/` (gitignored exceto README). Bootstrap/fall usam `DATA_DIR=../edge-data`. Device: `Vigia-a1b2c3d4` / admin group. Login app: `admin` / `admin123`.
@@ -643,7 +644,7 @@ flowchart LR
 ### 7. Montagem de clipes
 
 1. O update do device com `IsClipsEnabled` diferente envia `clips_on` ou `clips_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
-2. O onboard grava a chave `clips` em `{DATA_DIR}/options.json` e espelha-a no ControlShm. No arranque da captura (e da integração) o ficheiro volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
+2. O onboard grava a chave `clips` na secção `options` de `{DATA_DIR}/device.json` e espelha-a no ControlShm. No arranque da captura (e da integração) a secção volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
 3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
 4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4), sem autenticação, em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
 5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps, mais um JPEG do último frame (largura máxima 480)
@@ -652,13 +653,14 @@ flowchart LR
 ### 8. Blur nas capturas
 
 1. O update do device com `IsBlurEnabled` diferente envia `blur_on` ou `blur_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
-2. O onboard grava a chave `blur` em `{DATA_DIR}/options.json` e espelha-a no ControlShm. Sem a chave, vale `BLUR_VIDEO`. No arranque da captura e da integração a flag volta ao ControlShm
+2. O onboard grava a chave `blur` na secção `options` de `{DATA_DIR}/device.json` e espelha-a no ControlShm. Sem a chave, vale `BLUR_VIDEO`. No arranque da captura e da integração a flag volta ao ControlShm
 3. Com a flag ligada, o loop de captura borra as caixas de pessoa antes de escrever a live SHM, por isso stream, clipes e thumbnail saem desfocados
 
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-14] Onboard: identity, network, classifier e options num só `{DATA_DIR}/device.json`; JSON legados migram na primeira leitura (`shared/device_config.py`, seed `device.json`)
 - [2026-10-12] Keycloak local: `ValidIssuer` = `localhost:81`; `LogoutRealmBaseUrl` + Host do iss para revoke no Docker; `:80`/LAN em `AdditionalValidIssuers` (`default.env`, `KeycloakSessionClient`)
 - [2026-10-12] Logout orquestrado na API (`POST /users/logout`): revoga refresh no Keycloak e só então remove o push token do aparelho; restaura `PUT`/`DELETE /users/push-token` (`UserController`, `UserLogoutService`, vigia-web, vigia_ui)
 - [2026-10-12] Alertas: 1 FCM por episódio de queda, reenvio até abrir o device, inbox server-side sincronizado (edge `apply_fall_label`, `FallAlertEpisode`/`UserNotification`, `FallAlertRetryWorker`, web + Flutter)

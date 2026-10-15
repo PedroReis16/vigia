@@ -22,8 +22,10 @@ from pathlib import Path
 from typing import Callable
 from urllib.request import Request, urlopen
 
+from shared.device_config import read_section
+
 from .actions import capture_is_active, restart_capture, stop_capture
-from .settings import get_network_path, resolve_install_root, resolve_ota_dir
+from .settings import resolve_install_root, resolve_ota_dir
 from .sysenv import system_subprocess_env
 
 log = logging.getLogger(__name__)
@@ -118,13 +120,12 @@ def _normalize_api_base(api_base_url: str) -> str:
 
 
 def load_api_base_url() -> str:
-    path = get_network_path()
-    if not path.is_file():
-        raise FileNotFoundError("network.json não encontrado")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = read_section("network")
+    if not isinstance(data, dict):
+        raise FileNotFoundError("network em falta em device.json")
     base = str(data.get("api_base_url") or "").strip()
     if not base:
-        raise ValueError("api_base_url em falta em network.json")
+        raise ValueError("api_base_url em falta em device.json")
     return _normalize_api_base(base)
 
 

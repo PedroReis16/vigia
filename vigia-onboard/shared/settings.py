@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -98,7 +97,7 @@ class Settings:
             ),  # TODO: Adicionar essa propriedade como um valor dinâmico
             blur_video=_parse_bool(
                 os.getenv("BLUR_VIDEO", "false")
-            ),  # default só enquanto options.json não tem blur
+            ),  # default só enquanto device.json não tem blur
             frame_rate=int(os.getenv("FRAME_RATE", "12")),
             classifier=classifier,
             slider_window_size=int(os.getenv("SLIDER_WINDOW", "30")),
@@ -150,24 +149,9 @@ def get_settings() -> Settings:
     return Settings.from_env()
 
 
-def get_identity_path() -> Path:
-    """Caminho de identity.json (bootstrap / seed local)."""
-    return Path(get_settings().data_dir) / "identity.json"
-
-
-def get_network_path() -> Path:
-    """Caminho de network.json (interface / seed local)."""
-    return Path(get_settings().data_dir) / "network.json"
-
-
-def get_classifier_path() -> Path:
-    """Caminho de classifier.json (preferência math|gru)."""
-    return Path(get_settings().data_dir) / "classifier.json"
-
-
-def get_options_path() -> Path:
-    """Caminho de options.json (clipes, blur e as próximas preferências do device)."""
-    return Path(get_settings().data_dir) / "options.json"
+def get_device_config_path() -> Path:
+    """Caminho de device.json (identity, network, classifier e options)."""
+    return Path(get_settings().data_dir) / "device.json"
 
 
 def resolve_ota_dir() -> Path:
@@ -201,10 +185,12 @@ class DeviceIdentity:
 
     @classmethod
     def from_json(cls) -> DeviceIdentity:
-        identity_path = get_identity_path()
-        if not identity_path.exists():
-            raise FileNotFoundError(f"Identity file not found: {identity_path}")
-        identity = json.loads(identity_path.read_text(encoding="utf-8"))
+        from shared.device_config import read_section
+
+        identity = read_section("identity")
+        if not isinstance(identity, dict):
+            path = get_device_config_path()
+            raise FileNotFoundError(f"Identity file not found: {path}")
         return cls(
             device_id=identity["device_id"],
             device_name=identity["device_name"],
@@ -229,10 +215,12 @@ class NetworkSettings:
 
     @classmethod
     def from_json(cls) -> NetworkSettings:
-        network_path = get_network_path()
-        if not network_path.exists():
-            raise FileNotFoundError(f"Network file not found: {network_path}")
-        network = json.loads(network_path.read_text(encoding="utf-8"))
+        from shared.device_config import read_section
+
+        network = read_section("network")
+        if not isinstance(network, dict):
+            path = get_device_config_path()
+            raise FileNotFoundError(f"Network file not found: {path}")
         return cls(
             ssid=network["ssid"],
             password=network["password"],

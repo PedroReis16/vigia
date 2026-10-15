@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 async def _wait_pairing_without_ble(cancel: threading.Event) -> None:
     """Mantém o supervisor vivo em debug sem stack BLE (menu/UI continuam)."""
     log.warning(
-        "%s — UI/menu continuam; use identity+network.json ou active BLE no deploy",
+        "%s — UI/menu continuam; use device.json (identity+network) ou active BLE no deploy",
         ble_unavailable_reason(),
     )
     while not cancel.is_set() and not is_provisioned():

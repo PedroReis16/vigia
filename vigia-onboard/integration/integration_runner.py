@@ -203,7 +203,7 @@ def _reset_provision_cache() -> None:
 
 
 def _wait_for_provision():
-    """Espera identity.json e network.json. Não liga o MQTT antes disso."""
+    """Espera identity e network em device.json. Não liga o MQTT antes disso."""
     announced = False
     while True:
         _reset_provision_cache()
@@ -212,7 +212,7 @@ def _wait_for_provision():
         except FileNotFoundError:
             if not announced:
                 logger.info(
-                    "Integração à espera de identity.json e network.json"
+                    "Integração à espera de identity e network em device.json"
                 )
                 announced = True
             time.sleep(0.5)

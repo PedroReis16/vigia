@@ -15,10 +15,9 @@ from urllib.request import Request, urlopen
 import cv2  # type: ignore
 import numpy as np
 
+from shared.device_config import is_provisioned
 from shared.settings import (
     get_device_identity,
-    get_identity_path,
-    get_network_path,
     get_network_settings,
 )
 
@@ -90,7 +89,7 @@ def upload_thumbnail(frame: np.ndarray) -> bool:
     if frame is None or frame.size == 0:
         return False
 
-    if not get_identity_path().exists() or not get_network_path().exists():
+    if not is_provisioned():
         return False
 
     try:

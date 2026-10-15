@@ -37,9 +37,13 @@ class SeedLocalEdgeTests(unittest.TestCase):
             identity = json.loads(paths["identity"].read_text())
             network = json.loads(paths["network"].read_text())
             classifier = json.loads(paths["classifier"].read_text())
+            device = json.loads(paths["device"].read_text())
             self.assertEqual(identity["device_name"], "Vigia-a1b2c3d4")
             self.assertEqual(network["ssid"], "local-mock")
             self.assertEqual(classifier["classifier"], "math")
+            self.assertEqual(device["identity"]["device_name"], "Vigia-a1b2c3d4")
+            self.assertEqual(device["network"]["ssid"], "local-mock")
+            self.assertEqual(device["classifier"], "math")
             self.assertTrue((root / "ota").is_dir())
 
 

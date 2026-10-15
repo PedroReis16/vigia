@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from shared.capture_gate import capture_is_active, read_capture_pid
 from interface.provision.classifier import ClassifierId, get_classifier
 from interface.provision.identity import is_provisioned
-from interface.provision.settings import get_network_path
 from interface.provision.state import get_pairing_stage, get_phase
+from shared.capture_gate import capture_is_active, read_capture_pid
+from shared.device_config import read_section
 
 log = logging.getLogger(__name__)
 
@@ -393,16 +392,11 @@ def fall_rss_mib(control_group: str, pids: list[int]) -> int:
 
 
 def _ssid_from_file() -> str | None:
-    path = get_network_path()
-    if not path.exists():
+    data = read_section("network")
+    if not isinstance(data, dict):
         return None
-    try:
-        data = json.loads(path.read_text())
-        ssid = data.get("ssid")
-        return str(ssid) if ssid else None
-    except (OSError, json.JSONDecodeError) as exc:
-        log.warning("Falha a ler SSID: %s", exc)
-        return None
+    ssid = data.get("ssid")
+    return str(ssid) if ssid else None
 
 
 def _read_board_temp_c() -> int | None:

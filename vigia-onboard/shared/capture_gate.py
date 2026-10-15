@@ -1,7 +1,7 @@
 """Gate em ficheiro para a captura, partilhado entre processos.
 
 ``capture.hold`` bloqueia o loop. ``capture.restart`` pede uma sessão nova
-(releitura de ``classifier.json``). ``capture.pid`` indica o processo activo.
+(releitura do classificador em ``device.json``). ``capture.pid`` indica o processo activo.
 """
 
 from __future__ import annotations
@@ -10,7 +10,8 @@ import os
 import sys
 from pathlib import Path
 
-from shared.settings import get_identity_path, get_network_path, get_settings
+from shared.device_config import is_provisioned as _config_is_provisioned
+from shared.settings import get_settings
 
 HOLD_NAME = "capture.hold"
 RESTART_NAME = "capture.restart"
@@ -40,8 +41,8 @@ def pid_path() -> Path:
 
 
 def is_provisioned() -> bool:
-    """True quando identity.json e network.json existem."""
-    return get_identity_path().is_file() and get_network_path().is_file()
+    """True quando device.json tem as secções identity e network."""
+    return _config_is_provisioned()
 
 
 def capture_allowed() -> bool:

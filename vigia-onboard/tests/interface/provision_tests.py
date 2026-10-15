@@ -11,23 +11,34 @@ from interface.provision import identity, settings
 from interface.provision.runner import provision_supervisor
 
 
+def _write_device(tmp_path, document: dict):
+    path = tmp_path / "device.json"
+    path.write_text(json.dumps(document))
+    return path
+
+
+def _read_device(tmp_path) -> dict:
+    return json.loads((tmp_path / "device.json").read_text())
+
+
 def test_load_or_create_identity_descarta_chaves_legadas(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     settings.get_settings.cache_clear()
-    (tmp_path / "identity.json").write_text(
-        json.dumps(
-            {
+    _write_device(
+        tmp_path,
+        {
+            "identity": {
                 "device_id": "11111111-1111-1111-1111-111111111111",
                 "device_name": "Vigia-test",
                 "mac_address": "aa:bb:cc:dd:ee:ff",
                 "sign_priv": "11" * 32,
                 "ecdh_priv": "22" * 32,
             }
-        )
+        },
     )
 
     loaded = identity.load_or_create_identity()
-    data = json.loads((tmp_path / "identity.json").read_text())
+    data = _read_device(tmp_path)["identity"]
 
     assert loaded.device_name == "Vigia-test"
     assert "sign_priv" not in data
@@ -44,8 +55,7 @@ def test_is_provisioned_false_sem_ficheiros(tmp_path, monkeypatch) -> None:
 def test_is_provisioned_true_com_identity_e_network(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     settings.get_settings.cache_clear()
-    (tmp_path / "identity.json").write_text("{}")
-    (tmp_path / "network.json").write_text("{}")
+    _write_device(tmp_path, {"identity": {}, "network": {}})
     assert identity.is_provisioned() is True
 
 
@@ -59,7 +69,7 @@ def test_load_or_create_identity_persiste_e_reutiliza(tmp_path, monkeypatch) -> 
 
     assert first.device_id == second.device_id
     assert isinstance(first.device_id, UUID)
-    data = json.loads((tmp_path / "identity.json").read_text())
+    data = _read_device(tmp_path)["identity"]
     assert data["mac_address"] == "aa:bb:cc:dd:ee:ff"
     assert data["device_name"] == first.device_name
     assert "sign_priv" not in data
@@ -72,16 +82,17 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
     from interface.provision import state as pairing_state
 
     pairing_state.clear_force_pairing()
-    (tmp_path / "identity.json").write_text("{}")
-    (tmp_path / "network.json").write_text(
-        json.dumps(
-            {
+    _write_device(
+        tmp_path,
+        {
+            "identity": {},
+            "network": {
                 "ssid": "test",
                 "password": "x",
                 "api_base_url": "http://localhost",
                 "fiware_api_key": "k",
-            }
-        )
+            },
+        },
     )
 
     called = {"start": 0}
@@ -102,9 +113,9 @@ def test_supervisor_skips_ble_quando_ja_provisionado(tmp_path, monkeypatch) -> N
 
     asyncio.run(run())
     assert called["start"] >= 1
-    path = tmp_path / "classifier.json"
-    assert path.exists()
-    assert json.loads(path.read_text()) == {"classifier": "math"}
+    data = _read_device(tmp_path)
+    assert data["classifier"] == "math"
+    assert "network" in data
 
 
 def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:
@@ -113,10 +124,8 @@ def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:
     from interface.provision import actions, state as pairing_state
 
     pairing_state.clear_force_pairing()
-    identity = tmp_path / "identity.json"
-    network = tmp_path / "network.json"
-    identity.write_text('{"device_id":"x"}')
-    network.write_text('{"ssid":"casa"}')
+    payload = {"identity": {"device_id": "x"}, "network": {"ssid": "casa"}}
+    _write_device(tmp_path, payload)
     fall_data = tmp_path / "fall-detection" / "data"
     fall_data.mkdir(parents=True)
     (fall_data / "cache.bin").write_text("x")
@@ -130,8 +139,7 @@ def test_unlink_preserva_identity_e_network(tmp_path, monkeypatch) -> None:
 
     actions.unlink_user()
 
-    assert identity.exists()
-    assert network.read_text() == '{"ssid":"casa"}'
+    assert _read_device(tmp_path) == payload
     assert not fall_data.exists()
     assert not (tmp_path / "DB").exists()
     assert pairing_state.is_force_pairing() is True
@@ -147,16 +155,17 @@ def test_supervisor_abre_ble_apos_force_pairing(tmp_path, monkeypatch) -> None:
     from interface.provision import state as pairing_state
 
     pairing_state.clear_force_pairing()
-    (tmp_path / "identity.json").write_text(
-        json.dumps(
-            {
+    _write_device(
+        tmp_path,
+        {
+            "identity": {
                 "device_id": "11111111-1111-1111-1111-111111111111",
                 "device_name": "Vigia-test",
                 "mac_address": "aa:bb:cc:dd:ee:ff",
-            }
-        )
+            },
+            "network": {"ssid": "casa"},
+        },
     )
-    (tmp_path / "network.json").write_text('{"ssid":"casa"}')
 
     called = {"ble": 0, "start": 0}
 
@@ -240,7 +249,7 @@ def test_ensure_mock_network_cria_network_json(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("MOCK_API_BASE_URL", "http://api.test/vigia")
     monkeypatch.setenv("MOCK_STREAM_INGEST_URL", "rtmp://ingest.test:1935")
     settings.get_settings.cache_clear()
-    (tmp_path / "identity.json").write_text("{}")
+    _write_device(tmp_path, {"identity": {"device_id": "x"}})
 
     async def run() -> None:
         from interface.provision.wifi import ensure_mock_network
@@ -248,10 +257,11 @@ def test_ensure_mock_network_cria_network_json(tmp_path, monkeypatch) -> None:
         assert await ensure_mock_network() is True
 
     asyncio.run(run())
-    data = json.loads((tmp_path / "network.json").read_text())
-    assert data["ssid"] == "local-mock"
-    assert data["api_base_url"] == "http://api.test/vigia"
-    assert data["stream_ingest_url"] == "rtmp://ingest.test:1935"
+    data = _read_device(tmp_path)
+    assert data["identity"] == {"device_id": "x"}
+    assert data["network"]["ssid"] == "local-mock"
+    assert data["network"]["api_base_url"] == "http://api.test/vigia"
+    assert data["network"]["stream_ingest_url"] == "rtmp://ingest.test:1935"
     settings.get_settings.cache_clear()
 
 
@@ -281,7 +291,7 @@ def test_supervisor_provisiona_via_mock_sem_ble(tmp_path, monkeypatch) -> None:
             pass
 
     asyncio.run(run())
-    assert (tmp_path / "network.json").exists()
+    assert "network" in _read_device(tmp_path)
     assert called["start"] >= 1
     settings.get_settings.cache_clear()
 
@@ -323,7 +333,7 @@ def test_wifi_fail_nao_persiste_network(tmp_path, monkeypatch) -> None:
         raise AssertionError("esperava RuntimeError")
     except RuntimeError:
         pass
-    assert not (tmp_path / "network.json").exists()
+    assert not (tmp_path / "device.json").exists()
     settings.get_settings.cache_clear()
 
 
@@ -348,7 +358,7 @@ def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
         )
 
     asyncio.run(run())
-    data = json.loads((tmp_path / "network.json").read_text())
+    data = _read_device(tmp_path)["network"]
     assert data["ssid"] == "casa"
     assert data["password"] == "segredo"
     assert data["stream_ingest_url"] == "rtmps://ingest.example:8443"
@@ -358,16 +368,18 @@ def test_wifi_ok_persiste_network(tmp_path, monkeypatch) -> None:
 def test_switch_network_falha_nao_persiste(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     settings.get_settings.cache_clear()
-    (tmp_path / "network.json").write_text(
-        json.dumps(
-            {
+    _write_device(
+        tmp_path,
+        {
+            "identity": {"device_id": "x"},
+            "network": {
                 "ssid": "casa",
                 "password": "old",
                 "api_base_url": "http://api",
                 "fiware_api_key": "k",
                 "stream_ingest_url": "rtmps://ingest.example:8443",
-            }
-        )
+            },
+        },
     )
     restored = {"n": 0}
 
@@ -384,8 +396,9 @@ def test_switch_network_falha_nao_persiste(tmp_path, monkeypatch) -> None:
         assert ok is False
 
     asyncio.run(run())
-    data = json.loads((tmp_path / "network.json").read_text())
-    assert data["ssid"] == "casa"
+    data = _read_device(tmp_path)
+    assert data["identity"] == {"device_id": "x"}
+    assert data["network"]["ssid"] == "casa"
     assert restored["n"] == 1
     settings.get_settings.cache_clear()
 
@@ -393,16 +406,18 @@ def test_switch_network_falha_nao_persiste(tmp_path, monkeypatch) -> None:
 def test_switch_network_ok_persiste(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     settings.get_settings.cache_clear()
-    (tmp_path / "network.json").write_text(
-        json.dumps(
-            {
+    _write_device(
+        tmp_path,
+        {
+            "identity": {"device_id": "x"},
+            "network": {
                 "ssid": "casa",
                 "password": "old",
                 "api_base_url": "http://api",
                 "fiware_api_key": "k",
                 "stream_ingest_url": "rtmps://ingest.example:8443",
-            }
-        )
+            },
+        },
     )
 
     class OkWifi:
@@ -416,11 +431,40 @@ def test_switch_network_ok_persiste(tmp_path, monkeypatch) -> None:
         assert ok is True
 
     asyncio.run(run())
-    data = json.loads((tmp_path / "network.json").read_text())
-    assert data["ssid"] == "nova"
-    assert data["password"] == "segredo"
-    assert data["api_base_url"] == "http://api"
-    assert data["stream_ingest_url"] == "rtmps://ingest.example:8443"
+    data = _read_device(tmp_path)
+    assert data["identity"] == {"device_id": "x"}
+    assert data["network"]["ssid"] == "nova"
+    assert data["network"]["password"] == "segredo"
+    assert data["network"]["api_base_url"] == "http://api"
+    assert data["network"]["stream_ingest_url"] == "rtmps://ingest.example:8443"
+    settings.get_settings.cache_clear()
+
+
+def test_clear_wifi_remove_so_a_rede(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    settings.get_settings.cache_clear()
+    from interface.provision import actions, state as pairing_state
+
+    pairing_state.clear_force_pairing()
+    _write_device(
+        tmp_path,
+        {
+            "identity": {"device_id": "x"},
+            "network": {"ssid": "casa", "password": "old"},
+            "options": {"clips": True},
+        },
+    )
+    monkeypatch.setenv("VIGIA_RESET_WIFI_SCRIPT", str(tmp_path / "missing-script"))
+    monkeypatch.setattr(actions, "stop_capture", lambda: None)
+
+    actions.clear_wifi()
+
+    data = _read_device(tmp_path)
+    assert data["identity"] == {"device_id": "x"}
+    assert "network" not in data
+    assert data["options"] == {"clips": True}
+    assert identity.is_provisioned() is False
+    pairing_state.clear_force_pairing()
     settings.get_settings.cache_clear()
 
 

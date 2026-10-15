@@ -3,7 +3,8 @@
 Seed local do edge (bootstrap + fall) alinhado ao TestDeviceSeed da API (DEBUG).
 
 Gera identity.json / network.json / classifier.json em ``edge-data/`` (default),
-para rodar Vigia.Bootstrap e Vigia.Fall no Mac sem BLE, Pi, LCD ou Wi‑Fi real.
+mais ``device.json`` para o vigia-onboard. Bootstrap e fall continuam a ler os
+três ficheiros separados. Serve para rodar no Mac sem BLE, Pi, LCD ou Wi‑Fi real.
 
 Pré-requisito: stack ``docker-compose/local`` com API em Debug (seed do device
 no Postgres + FIWARE). Login admin: admin / admin123.
@@ -90,10 +91,20 @@ def seed_data_dir(
         "identity": data_dir / "identity.json",
         "network": data_dir / "network.json",
         "classifier": data_dir / "classifier.json",
+        "device": data_dir / "device.json",
     }
     write_json(paths["identity"], identity, mode=0o600)
     write_json(paths["network"], network, mode=0o644)
     write_json(paths["classifier"], classifier_doc, mode=0o644)
+    write_json(
+        paths["device"],
+        {
+            "identity": identity,
+            "network": network,
+            "classifier": classifier,
+        },
+        mode=0o600,
+    )
     (data_dir / "ota").mkdir(parents=True, exist_ok=True)
     return paths
 

@@ -1,15 +1,15 @@
-"""Identidade persistida em identity.json (sem SQLite)."""
+"""Identidade persistida na secção identity de device.json (sem SQLite)."""
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from getmac import get_mac_address
 
-from .settings import get_identity_path, get_network_path
+from shared.device_config import is_provisioned as _config_is_provisioned
+from shared.device_config import read_section, replace_section
 
 log = logging.getLogger(__name__)
 
@@ -29,28 +29,23 @@ def _mac_address() -> str:
 
 
 def _write_identity(identity: DeviceIdentity) -> None:
-    path = get_identity_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(
-            {
-                "device_id": str(identity.device_id),
-                "device_name": identity.device_name,
-                "mac_address": identity.mac_address,
-            }
-        )
+    replace_section(
+        "identity",
+        {
+            "device_id": str(identity.device_id),
+            "device_name": identity.device_name,
+            "mac_address": identity.mac_address,
+        },
     )
-    path.chmod(0o600)
 
 
 def is_provisioned() -> bool:
-    return get_identity_path().exists() and get_network_path().exists()
+    return _config_is_provisioned()
 
 
 def load_or_create_identity() -> DeviceIdentity:
-    path = get_identity_path()
-    if path.exists():
-        data = json.loads(path.read_text())
+    data = read_section("identity")
+    if isinstance(data, dict) and "device_id" in data and "device_name" in data:
         mac = data.get("mac_address") or _mac_address()
         identity = DeviceIdentity(
             device_id=UUID(data["device_id"]),

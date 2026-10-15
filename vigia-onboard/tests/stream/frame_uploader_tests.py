@@ -54,16 +54,7 @@ def test_upload_thumbnail_posta_jpeg_sem_assinatura(monkeypatch) -> None:
         return response
 
     monkeypatch.setattr(frame_uploader, "urlopen", opener)
-    monkeypatch.setattr(
-        frame_uploader,
-        "get_identity_path",
-        lambda: MagicMock(exists=lambda: True),
-    )
-    monkeypatch.setattr(
-        frame_uploader,
-        "get_network_path",
-        lambda: MagicMock(exists=lambda: True),
-    )
+    monkeypatch.setattr(frame_uploader, "is_provisioned", lambda: True)
     monkeypatch.setattr(
         frame_uploader,
         "get_device_identity",

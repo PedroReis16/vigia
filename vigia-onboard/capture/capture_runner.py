@@ -138,7 +138,7 @@ def _open_live_shm(settings) -> LiveFrameShm | None:
 
 
 def _wait_until_allowed() -> None:
-    """Bloqueia até identity.json, network.json e ausência de capture.hold."""
+    """Bloqueia até identity e network em device.json, e ausência de capture.hold."""
     announced = False
     while not capture_allowed():
         if not announced:

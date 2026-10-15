@@ -3,7 +3,7 @@
 #   sudo ./install.sh /path/to/vigia-onboard-linux-arm64.tar.gz
 #
 # Um único processo pai arranca captura, integração e interface.
-# O interface provisiona a placa (identity.json / network.json); a captura
+# O interface provisiona a placa (device.json: identity / network); a captura
 # fica em espera no gate até o pareamento.
 
 [Unit]

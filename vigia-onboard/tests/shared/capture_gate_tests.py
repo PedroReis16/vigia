@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -21,9 +22,13 @@ def _data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path):
 
 def test_capture_allowed_ExigeIdentityNetworkESemHold(tmp_path):
     assert gate.capture_allowed() is False
-    (tmp_path / "identity.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "device.json").write_text(
+        json.dumps({"identity": {}}), encoding="utf-8"
+    )
     assert gate.capture_allowed() is False
-    (tmp_path / "network.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "device.json").write_text(
+        json.dumps({"identity": {}, "network": {}}), encoding="utf-8"
+    )
     assert gate.capture_allowed() is True
     gate.hold_capture()
     assert gate.capture_allowed() is False

@@ -75,9 +75,9 @@ def test_on_message_clips_on_off(
     monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
     monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
     monkeypatch.setattr(runner, "_device_id", "dev1")
-    options_path = tmp_path / "options.json"
+    device_path = tmp_path / "device.json"
     monkeypatch.setattr(
-        "shared.options_config.get_options_path", lambda: options_path
+        "shared.device_config.get_device_config_path", lambda: device_path
     )
     called: dict[str, bool | None] = {"v": None}
     monkeypatch.setattr(
@@ -87,12 +87,16 @@ def test_on_message_clips_on_off(
     msg.payload = b"dev1@clips_on|"
     runner._on_message(None, None, msg)
     assert called["v"] is True
-    assert json.loads(options_path.read_text(encoding="utf-8")) == {"clips": True}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"clips": True}
+    }
 
     msg.payload = b"dev1@clips_off|"
     runner._on_message(None, None, msg)
     assert called["v"] is False
-    assert json.loads(options_path.read_text(encoding="utf-8")) == {"clips": False}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"clips": False}
+    }
 
 
 def test_on_message_blur_on_off(
@@ -101,9 +105,9 @@ def test_on_message_blur_on_off(
     monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
     monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
     monkeypatch.setattr(runner, "_device_id", "dev1")
-    options_path = tmp_path / "options.json"
+    device_path = tmp_path / "device.json"
     monkeypatch.setattr(
-        "shared.options_config.get_options_path", lambda: options_path
+        "shared.device_config.get_device_config_path", lambda: device_path
     )
     called: dict[str, bool | None] = {"v": None}
     monkeypatch.setattr(
@@ -113,12 +117,16 @@ def test_on_message_blur_on_off(
     msg.payload = b"dev1@blur_on|"
     runner._on_message(None, None, msg)
     assert called["v"] is True
-    assert json.loads(options_path.read_text(encoding="utf-8")) == {"blur": True}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"blur": True}
+    }
 
     msg.payload = b"dev1@blur_off|"
     runner._on_message(None, None, msg)
     assert called["v"] is False
-    assert json.loads(options_path.read_text(encoding="utf-8")) == {"blur": False}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"blur": False}
+    }
 
 
 @pytest.mark.parametrize(

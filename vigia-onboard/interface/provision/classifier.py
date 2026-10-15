@@ -1,12 +1,11 @@
-"""Classificador de queda persistido em classifier.json."""
+"""Classificador de queda persistido na chave classifier de device.json."""
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Literal
 
-from .settings import get_classifier_path
+from shared.device_config import read_document, replace_section
 
 log = logging.getLogger(__name__)
 
@@ -39,43 +38,24 @@ def _normalize(value: object) -> ClassifierId:
 
 def get_classifier() -> ClassifierId:
     """Lê o classificador persistido; ausente/inválido → math."""
-    path = get_classifier_path()
-    if not path.exists():
-        return DEFAULT_CLASSIFIER
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return DEFAULT_CLASSIFIER
-    if not isinstance(data, dict):
+    data = read_document()
+    if "classifier" not in data:
         return DEFAULT_CLASSIFIER
     return _normalize(data.get("classifier"))
 
 
 def set_classifier(classifier: ClassifierId) -> None:
-    """Grava classifier.json com chmod 600."""
-    normalized = _normalize(classifier)
-    path = get_classifier_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"classifier": normalized}))
-    path.chmod(0o600)
+    """Grava a chave classifier em device.json (chmod 600)."""
+    replace_section("classifier", _normalize(classifier))
 
 
 def ensure_classifier_config() -> ClassifierId:
-    """Materializa classifier.json válido (default math) se ausente ou inválido."""
-    path = get_classifier_path()
+    """Materializa classifier válido (default math) se ausente ou inválido."""
+    data = read_document()
     current = get_classifier()
-    needs_write = not path.exists()
-    if not needs_write:
-        try:
-            data = json.loads(path.read_text())
-            if (
-                not isinstance(data, dict)
-                or data.get("classifier") not in VALID_CLASSIFIERS
-            ):
-                needs_write = True
-        except (OSError, json.JSONDecodeError):
-            needs_write = True
+    stored = data.get("classifier")
+    needs_write = "classifier" not in data or stored not in VALID_CLASSIFIERS
     if needs_write:
         set_classifier(current)
-        log.info("classifier.json materializado: %s", current)
+        log.info("classifier materializado em device.json: %s", current)
     return current

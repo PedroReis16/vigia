@@ -16,7 +16,7 @@ for arg in "$@"; do
     --purge-data) PURGE_DATA=1 ;;
     -h|--help)
       echo "Uso: sudo $0 [--purge-data]"
-      echo "  --purge-data  remove identity.json, network.json, classifier.json,"
+      echo "  --purge-data  remove device.json (e os JSON legados ainda não migrados),"
       echo "                /opt/vigia/.env e /var/lib/vigia/ota"
       exit 0
       ;;
@@ -62,9 +62,14 @@ rm -rf "${STATE_DIR}"
 if [[ "${PURGE_DATA}" -eq 1 ]]; then
   echo "→ A remover dados de utilizador em ${INSTALL_ROOT}..."
   rm -f "${INSTALL_ROOT}/.env"
+  rm -f "${INSTALL_ROOT}/device.json"
+  rm -f "${INSTALL_ROOT}/.device.json.lock"
   rm -f "${INSTALL_ROOT}/identity.json"
   rm -f "${INSTALL_ROOT}/network.json"
   rm -f "${INSTALL_ROOT}/classifier.json"
+  rm -f "${INSTALL_ROOT}/options.json"
+  rm -f "${INSTALL_ROOT}/clips.json"
+  rm -f "${INSTALL_ROOT}/blur.json"
   rm -rf /var/lib/vigia/ota
 fi
 

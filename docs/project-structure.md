@@ -26,7 +26,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Cache:** Redis
 - **Mensageria:** RabbitMQ (sincronização de usuários do Keycloak)
 - **Identidade local:** Keycloak 26
-- **E-mail local:** MailHog (SMTP do Keycloak: verificação de e-mail e redefinição de senha)
+- **E-mail local:** MailHog (SMTP do Keycloak: redefinição de senha; confirmação de e-mail desligada)
 - **Object storage:** MinIO (buckets `vigia-pictures`, `vigia-versions`, `vigia-releases`)
 - **FIWARE:** Orion 3.11, IoT Agent Ultralight, Mosquitto, STH-Comet, MongoDB (histórico + interno)
 - **Streaming:** MediaMTX (RTMP, WebRTC/WHEP, webhooks)
@@ -65,7 +65,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **Testes:** Vitest (`@angular/build:unit-test`)
 - **Package manager:** pnpm
 - **Push:** Firebase Cloud Messaging (Web + Android; iOS sem push)
-- **Status:** shell autenticado via Keycloak (login, cadastro, verificação de e-mail e redefinição de senha nas páginas do realm), listagem de devices, detalhes com stream WHEP, edição, sharing, SignalR e sino de notificações FCM; prod em Cloudflare Pages (`vigiadeteccoes.com.br`) sem issuer de Keycloak configurado
+- **Status:** shell autenticado via Keycloak (login, cadastro e redefinição de senha nas páginas do realm), listagem de devices, detalhes com stream WHEP, edição, sharing, SignalR e sino de notificações FCM; prod em Cloudflare Pages (`vigiadeteccoes.com.br`) sem issuer de Keycloak configurado
 - **Deploy prod:** Cloudflare Pages (estático); local via Docker/nginx no Traefik `:81`
 
 ### CI/CD
@@ -379,7 +379,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
 | `docker-compose/local/keycloak/user-profile.json` | Perfil declarativo do usuário: `username`, `email`, `firstName`, `lastName` e `phone` (obrigatório, até 16 caracteres) |
 | `docker-compose/local/keycloak/apply-user-events.sh` | Liga eventos no realm `master`, registra o listener `vigia-webhook` e aplica `user-profile.json` nos realms `master` e `vigia` |
-| `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, liga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
+| `docker-compose/local/keycloak/apply-smtp.sh` | Aponta o SMTP do realm `vigia` para o MailHog, desliga `verifyEmail` e reaplica o perfil de usuário; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-web-client.sh` | Reaplica redirects, PKCE S256 e audience `vigia-api` no cliente `vigia-web`; o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-app-client.sh` | Cria ou reaplica o cliente público `vigia-app` (redirect `vigia://auth/callback`, PKCE S256, audience `vigia-api`); o compose roda uma vez após o Keycloak subir |
 | `docker-compose/local/keycloak/apply-realm-admin.sh` | Garante o usuário `admin` do realm `vigia` (UUID do antigo super usuário, papel `realm-admin`) e liga os eventos de sync; o compose roda uma vez após o Keycloak subir |
@@ -395,7 +395,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Postgres local:** um único `postgres:15`, database `vigia`. A API usa o schema `public` (usuário `vigia`). O Keycloak usa o role e o schema `keycloak` (`postgres/init/01-keycloak-schema.sql`); UI via Traefik em `http://localhost/auth` (também `:81`) e direto em `http://localhost:8081/auth`. O tema de login `vigia` é montado em `/opt/keycloak/themes/vigia`; `keycloak/apply-login-theme.sh` grava esse tema no realm `master`. O realm `vigia` entra por `realm-export.json` montado em `/opt/keycloak/data/import/vigia-realm.json` e `start-dev --import-realm` (só na primeira vez; realm já existente é ignorado). A imagem local `vigia-keycloak` inclui o provider `vigia-webhook`. `apply-user-events.sh` liga o listener no realm `master`. `keycloak-web-client` reaplica o cliente público `vigia-web` (redirects locais, PKCE e audience `vigia-api`) quando o realm já existe. `keycloak-app-client` cria ou reaplica o cliente público `vigia-app` (redirect `vigia://auth/callback`) no mesmo caso. `keycloak-realm-admin` garante o usuário `admin` desse realm (mesmo UUID do antigo super usuário da API, papel Keycloak `realm-admin`) e liga o listener `vigia-webhook` no realm `vigia`. `keycloak-realm-locales` liga os locales `en` e `pt-BR` (padrão `pt-BR`) quando o realm já existe.
 
-**MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia verificação de e-mail e redefinição de senha para `mailhog:1025`, sem autenticação nem TLS. O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config (e `verifyEmail`) e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
+**MailHog local:** `mailhog/mailhog` na rede `vigia-network` (SMTP `1025`, UI `http://localhost:8025`). O realm `vigia` envia a redefinição de senha para `mailhog:1025`, sem autenticação nem TLS; a confirmação de e-mail fica desligada (`verifyEmail` e a required action `VERIFY_EMAIL`). O SMTP está no `realm-export.json`; `keycloak-realm-smtp` reaplica essa config e o perfil de usuário com o atributo `phone` quando o realm já existe. O cadastro do tema `vigia` exibe o telefone entre o e-mail e a senha.
 
 **RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens. No upsert, o usuário entra nos grupos dos quais já é `owner`.
 
@@ -667,6 +667,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] Keycloak local: confirmação de e-mail desligada no realm `vigia` (`realm-export.json`, `apply-smtp.sh`)
 - [2026-10-18] Prévia do plano no perfil separa Plano ativo e Editar meu plano (`vigia-web /profile`)
 - [2026-10-18] Perfil web ganha prévia do plano com pacotes, uso e pagamentos de exemplo (`vigia-web /profile`)
 - [2026-10-18] Streaming: MediaMTX `runOnDemand` pede `stream_on` e `runOnUnDemand` pede `stream_off` após 10s sem leitores (`mediamtx.yml`, `command/demand`)

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Aponta o realm vigia para o MailHog, liga verificação de e-mail e aplica o
-# perfil de usuário (atributo phone). O compose roda este script uma vez, depois
-# que o Keycloak sobe.
+# Aponta o realm vigia para o MailHog (redefinição de senha), desliga a
+# confirmação de e-mail e aplica o perfil de usuário (atributo phone). O compose
+# roda este script uma vez, depois que o Keycloak sobe.
 set -eu
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080/auth}"
@@ -26,7 +26,7 @@ done
 
 cat > /tmp/realm-smtp.json <<'EOF'
 {
-  "verifyEmail": true,
+  "verifyEmail": false,
   "resetPasswordAllowed": true,
   "smtpServer": {
     "host": "mailhog",
@@ -52,6 +52,22 @@ do
 done
 
 echo "SMTP do realm $REALM apontado para mailhog:1025"
+
+i=0
+until /opt/keycloak/bin/kcadm.sh update "authentication/required-actions/VERIFY_EMAIL" \
+  -r "$REALM" \
+  -s enabled=false \
+  -s defaultAction=false
+do
+  i=$((i + 1))
+  if [ "$i" -gt 20 ]; then
+    echo "Não foi possível desligar VERIFY_EMAIL no realm $REALM" >&2
+    exit 1
+  fi
+  sleep 3
+done
+
+echo "Confirmação de e-mail desligada no realm $REALM"
 
 i=0
 until /opt/keycloak/bin/kcadm.sh update users/profile -r "$REALM" -f /user-profile.json

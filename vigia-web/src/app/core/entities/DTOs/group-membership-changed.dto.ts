@@ -31,3 +31,42 @@ export function parseGroupMembershipChanged(raw: unknown): GroupMembershipChange
     deviceIds,
   };
 }
+
+export function sameId(left: string | null | undefined, right: string | null | undefined): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  return left.localeCompare(right, undefined, { sensitivity: 'accent' }) === 0;
+}
+
+export function eventIncludesDevice(event: GroupMembershipChangedDto, deviceId: string): boolean {
+  return event.deviceIds.some((id) => sameId(id, deviceId));
+}
+
+export function currentUserLostDevice(
+  event: GroupMembershipChangedDto,
+  currentUserId: string | null | undefined,
+  deviceId: string,
+): boolean {
+  return event.changeType === 'removed'
+    && sameId(event.affectedUserId, currentUserId)
+    && eventIncludesDevice(event, deviceId);
+}
+
+export function membershipEventKey(event: GroupMembershipChangedDto): string {
+  return `${event.groupId}|${event.affectedUserId}|${event.changeType}|${event.deviceIds.join(',')}`;
+}
+
+export function isDuplicateMembershipEvent(
+  previous: { key: string; at: number } | null,
+  event: GroupMembershipChangedDto,
+  now: number,
+  windowMs = 1000,
+): boolean {
+  if (!previous) {
+    return false;
+  }
+
+  return previous.key === membershipEventKey(event) && now - previous.at < windowMs;
+}

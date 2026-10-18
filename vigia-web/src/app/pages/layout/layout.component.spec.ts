@@ -1,18 +1,20 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { vi } from 'vitest';
-import { DeviceGroupsRealtimeService, MessageService, PushNotificationCoordinatorService } from '@core/services';
+import { GroupMembershipChangedDto } from '@core/entities';
+import { AuthSessionService, DeviceGroupsRealtimeService, MessageService, PushNotificationCoordinatorService } from '@core/services';
 import { LogoutService } from '@core/usecases';
-import { NEVER } from 'rxjs';
+import { Subject } from 'rxjs';
 import { LayoutComponent } from '@pages';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
 
 describe('LayoutComponent', () => {
   let component: LayoutComponent;
   let fixture: ComponentFixture<LayoutComponent>;
+  const membershipChanged$ = new Subject<GroupMembershipChangedDto>();
 
   beforeEach(async () => {
     Object.defineProperty(window, 'matchMedia', {
@@ -35,10 +37,14 @@ describe('LayoutComponent', () => {
         {
           provide: DeviceGroupsRealtimeService,
           useValue: {
-            membershipChanged$: NEVER,
+            membershipChanged$: membershipChanged$.asObservable(),
             connect: vi.fn().mockResolvedValue(undefined),
             disconnect: vi.fn().mockResolvedValue(undefined),
           },
+        },
+        {
+          provide: AuthSessionService,
+          useValue: { getUserId: () => 'user-1' },
         },
         {
           provide: PushNotificationCoordinatorService,
@@ -59,6 +65,21 @@ describe('LayoutComponent', () => {
     fixture = TestBed.createComponent(LayoutComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('returns the removed user to the device list', () => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'url', 'get').mockReturnValue('/devices/device-1/clips');
+    const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    membershipChanged$.next({
+      groupId: 'g',
+      affectedUserId: 'USER-1',
+      changeType: 'removed',
+      deviceIds: ['DEVICE-1'],
+    });
+
+    expect(navigate).toHaveBeenCalledWith('/devices');
   });
 
   it('should create', () => {

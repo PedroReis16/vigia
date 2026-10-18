@@ -8,8 +8,10 @@ import {
   MessageComponent,
   ToolbarComponent,
 } from '@shared/components';
+import { currentUserLostDevice, GroupMembershipChangedDto } from '@core/entities';
 import {
   AuthExitTransitionService,
+  AuthSessionService,
   DeviceGroupsRealtimeService,
   PushNotificationCoordinatorService,
 } from '@core/services';
@@ -32,6 +34,7 @@ const MOBILE_MAX_WIDTH = '(max-width: 767px)';
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   private readonly authExitTransition = inject(AuthExitTransitionService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
   private readonly pushCoordinator = inject(PushNotificationCoordinatorService);
   private readonly router = inject(Router);
@@ -60,6 +63,9 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     void this.realtime.connect();
+    this.realtime.membershipChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => this.leaveRemovedDevice(event));
     this.pushCoordinator.initialize();
     this.updateMobileDeviceDetailLayout();
 
@@ -79,6 +85,21 @@ export class LayoutComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     void this.realtime.disconnect();
     this.mediaQuery?.removeEventListener('change', this.onMediaQueryChange);
+  }
+
+  private leaveRemovedDevice(event: GroupMembershipChangedDto): void {
+    const path = this.router.url.split('?')[0] ?? '';
+    const match = path.match(/^\/devices\/([^/]+)(?:\/clips)?$/);
+    if (!match) {
+      return;
+    }
+
+    const deviceId = decodeURIComponent(match[1]);
+    if (!currentUserLostDevice(event, this.authSession.getUserId(), deviceId)) {
+      return;
+    }
+
+    void this.router.navigateByUrl('/devices');
   }
 
   private updateMobileDeviceDetailLayout(): void {

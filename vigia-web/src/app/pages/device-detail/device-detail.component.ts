@@ -14,7 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
-import { Device, DeviceUser } from '@core/entities';
+import { currentUserLostDevice, Device, DeviceUser, eventIncludesDevice } from '@core/entities';
 import { deviceWhepUrl } from '@core/helpers';
 import {
   DeviceGroupsRealtimeService,
@@ -208,17 +208,19 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.realtime.membershipChanged$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
-        if (!event.deviceIds.includes(this.deviceId)) {
+        if (!eventIncludesDevice(event, this.deviceId)) {
           return;
         }
 
-        const currentUserId = this.authSession.getUserId();
-        if (event.changeType === 'removed' && event.affectedUserId === currentUserId) {
+        if (currentUserLostDevice(event, this.authSession.getUserId(), this.deviceId)) {
           void this.leave('/devices');
           return;
         }
 
-        void this.loadDevice();
+        if (event.changeType === 'devices_changed') {
+          void this.loadDevice();
+        }
+
         void this.loadUsers();
       });
   }

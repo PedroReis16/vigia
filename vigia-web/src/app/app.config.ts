@@ -1,5 +1,5 @@
 import { ApplicationConfig, inject, provideAppInitializer, provideZoneChangeDetection } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withViewTransitions } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
 import { routes } from './app.routes';
@@ -17,6 +17,7 @@ import { environment } from '@environments/environment';
 import { ApiBaseUrlInterceptor, AuthInterceptor } from '@core/interceptors';
 import { KeycloakAuthService } from '@core/services/auth/keycloak-auth.service';
 import { AuthExitTransitionService } from '@core/services/auth/auth-exit-transition.service';
+import { DevicePageTransitionService } from '@core/services/navigation/device-page-transition.service';
 import {
   clearExitHold,
   dismissAuthBootLogo,
@@ -80,7 +81,18 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideAppInitializer(() => bootstrapAuthPageHandoff()),
-    provideRouter(routes),
+    provideAppInitializer(() => {
+      inject(DevicePageTransitionService).install();
+    }),
+    provideRouter(
+      routes,
+      withViewTransitions({
+        skipInitialTransition: true,
+        onViewTransitionCreated: ({ transition, from, to }) => {
+          inject(DevicePageTransitionService).onCreated(transition, from, to);
+        },
+      }),
+    ),
     provideAnimationsAsync(),
     provideOptimus({
       theme: {

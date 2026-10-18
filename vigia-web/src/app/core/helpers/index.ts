@@ -7,5 +7,6 @@ export * from './auth-logo-bounds.helper';
 export * from './auth-page-handoff';
 export * from './element-bounds.helper';
 export * from './device-card-bounds.helper';
+export * from './device-page-transition.helper';
 export * from './profile-initials.helper';
 export * from './plan-view.helper';

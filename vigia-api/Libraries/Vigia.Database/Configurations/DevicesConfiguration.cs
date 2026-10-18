@@ -36,6 +36,11 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasColumnName("is_blur_enabled")
             .HasDefaultValue(false);
 
+        _ = builder.Property(e => e.LastHeartbeatAt)
+            .HasColumnName("last_heartbeat_at")
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices)
             .HasForeignKey(e => e.GroupId);
@@ -46,5 +51,6 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.HasIndex(e => e.Room);
         _ = builder.HasIndex(e => e.IsClipsEnabled);
         _ = builder.HasIndex(e => e.IsBlurEnabled);
+        _ = builder.HasIndex(e => e.LastHeartbeatAt);
     }
 }

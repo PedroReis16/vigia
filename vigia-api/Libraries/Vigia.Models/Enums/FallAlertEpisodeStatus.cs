@@ -5,4 +5,5 @@ public enum FallAlertEpisodeStatus
     Active,
     Acknowledged,
     Expired,
+    Recovered,
 }

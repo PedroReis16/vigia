@@ -15,21 +15,29 @@ internal class FallAlertEpisodeDao(VigiaDbContext context) : IFallAlertEpisodeDa
             .FirstOrDefaultAsync(e => e.Id == id && e.DeletedAt == null, cancellationToken);
     }
 
-    public Task<FallAlertEpisode?> FindActiveByDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    public Task<FallAlertEpisode?> FindActiveByDeviceAsync(
+        Guid deviceId,
+        AlertEpisodeKind kind = AlertEpisodeKind.Fall,
+        CancellationToken cancellationToken = default)
     {
         return _context.FallAlertEpisodes
             .FirstOrDefaultAsync(
                 e => e.DeviceId == deviceId
                     && e.DeletedAt == null
+                    && e.Kind == kind
                     && e.Status == FallAlertEpisodeStatus.Active,
                 cancellationToken);
     }
 
-    public Task<List<FallAlertEpisode>> ListActiveByDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    public Task<List<FallAlertEpisode>> ListActiveByDeviceAsync(
+        Guid deviceId,
+        AlertEpisodeKind kind = AlertEpisodeKind.Fall,
+        CancellationToken cancellationToken = default)
     {
         return _context.FallAlertEpisodes
             .Where(e => e.DeviceId == deviceId
                 && e.DeletedAt == null
+                && e.Kind == kind
                 && e.Status == FallAlertEpisodeStatus.Active)
             .ToListAsync(cancellationToken);
     }
@@ -52,6 +60,7 @@ internal class FallAlertEpisodeDao(VigiaDbContext context) : IFallAlertEpisodeDa
         return _context.FallAlertEpisodes
             .Include(e => e.Device)
             .Where(e => e.DeletedAt == null
+                && e.Kind == AlertEpisodeKind.Fall
                 && e.Status == FallAlertEpisodeStatus.Active
                 && e.NextRetryAt != null
                 && e.NextRetryAt <= utcNow)

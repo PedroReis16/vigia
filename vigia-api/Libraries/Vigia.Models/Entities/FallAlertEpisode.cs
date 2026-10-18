@@ -10,6 +10,8 @@ public class FallAlertEpisode : BaseEntity
     public Guid GroupId { get; set; }
     public Group? Group { get; set; }
 
+    public AlertEpisodeKind Kind { get; set; } = AlertEpisodeKind.Fall;
+
     public FallAlertEpisodeStatus Status { get; set; } = FallAlertEpisodeStatus.Active;
 
     public DateTime FirstDetectedAt { get; set; } = DateTime.UtcNow;

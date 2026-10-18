@@ -134,6 +134,36 @@ public class FallAlertInboxDaoTests
         Assert.Equal(deviceId, due[0].DeviceId);
     }
 
+    [Fact]
+    public async Task ActiveLookup_SeparatesFallFromDeviceOffline()
+    {
+        await using VigiaDbContext context = CreateContext();
+        FallAlertEpisodeDao dao = new(context);
+        Guid deviceId = Guid.NewGuid();
+        Guid groupId = Guid.NewGuid();
+        DateTime now = DateTime.UtcNow;
+
+        await dao.AddAsync(new FallAlertEpisode
+        {
+            DeviceId = deviceId,
+            GroupId = groupId,
+            Kind = AlertEpisodeKind.DeviceOffline,
+            Status = FallAlertEpisodeStatus.Active,
+            FirstDetectedAt = now.AddMinutes(-2),
+            LastNotifiedAt = now.AddMinutes(-2),
+            NotifyCount = 1,
+            NextRetryAt = now.AddMinutes(-1),
+        });
+
+        Assert.Null(await dao.FindActiveByDeviceAsync(deviceId));
+        Assert.Empty(await dao.ListActiveByDeviceAsync(deviceId));
+        Assert.Empty(await dao.ListDueForRetryAsync(now));
+
+        FallAlertEpisode? offline = await dao.FindActiveByDeviceAsync(deviceId, AlertEpisodeKind.DeviceOffline);
+        Assert.NotNull(offline);
+        Assert.Equal(AlertEpisodeKind.DeviceOffline, offline!.Kind);
+    }
+
     private static VigiaDbContext CreateContext()
     {
         DbContextOptions<VigiaDbContext> options = new DbContextOptionsBuilder<VigiaDbContext>()

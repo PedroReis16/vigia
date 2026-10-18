@@ -17,6 +17,7 @@ import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart'
 bool get arePushNotificationsEnabled => Platform.isAndroid;
 
 const androidFallAlertChannelId = 'vigia_fall_alerts';
+const androidDeviceStatusChannelId = 'vigia_device_status';
 
 const _androidFallAlertChannel = AndroidNotificationChannel(
   androidFallAlertChannelId,
@@ -24,6 +25,22 @@ const _androidFallAlertChannel = AndroidNotificationChannel(
   description: 'Notificações quando uma queda é detectada',
   importance: Importance.high,
 );
+
+const _androidDeviceStatusChannel = AndroidNotificationChannel(
+  androidDeviceStatusChannelId,
+  'Status do dispositivo',
+  description: 'Notificações quando um dispositivo para de funcionar',
+  importance: Importance.high,
+);
+
+bool isDeviceAlertType(String? type) => type == 'fall' || type == 'device_offline';
+
+String? deviceIdFromAlertData(Map<String, dynamic> data) {
+  if (!isDeviceAlertType(data['type']?.toString())) return null;
+  final deviceId = data['deviceId']?.toString();
+  if (deviceId == null || deviceId.isEmpty) return null;
+  return deviceId;
+}
 
 final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
@@ -53,13 +70,16 @@ Future<void> initializeLocalNotifications() async {
         AndroidFlutterLocalNotificationsPlugin
       >()
       ?.createNotificationChannel(_androidFallAlertChannel);
+  await _localNotifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(_androidDeviceStatusChannel);
 }
 
 void _navigateToFallAlert(GoRouter router, Map<String, dynamic> data) {
-  if (data['type'] != 'fall') return;
-
-  final deviceId = data['deviceId']?.toString();
-  if (deviceId == null || deviceId.isEmpty) return;
+  final deviceId = deviceIdFromAlertData(data);
+  if (deviceId == null) return;
 
   router.go('${AppRoutes.devicesPage}/$deviceId');
 }
@@ -209,15 +229,19 @@ class PushNotificationCoordinator {
     final notification = message.notification;
     if (notification == null) return;
 
+    final channel = message.data['type'] == 'device_offline'
+        ? _androidDeviceStatusChannel
+        : _androidFallAlertChannel;
+
     await _localNotifications.show(
       id: notification.hashCode,
       title: notification.title,
       body: notification.body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          _androidFallAlertChannel.id,
-          _androidFallAlertChannel.name,
-          channelDescription: _androidFallAlertChannel.description,
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
           importance: Importance.high,
           priority: Priority.high,
         ),

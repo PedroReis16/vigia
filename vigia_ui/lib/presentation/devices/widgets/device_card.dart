@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:vigia_ui/core/theme/theme_colors.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
 import 'package:vigia_ui/domain/environments.dart';
 import 'package:vigia_ui/domain/helpers/converters.dart';
 import 'package:vigia_ui/domain/ui_models/device_ui.dart';
-import 'package:vigia_ui/l10n/l10n_extension.dart';
 
 class DeviceCard extends StatelessWidget {
   final DeviceUIModel device;
@@ -39,24 +37,16 @@ class DeviceCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      Row(
-                        spacing: 4,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            Converters.translateDeviceRoom(
-                              context,
-                              device.room ?? DeviceRooms.notDefined,
-                            ),
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          _buildRunningStatus(context, device.isRunning),
-                        ],
+                      Text(
+                        Converters.translateDeviceRoom(
+                          context,
+                          device.room ?? DeviceRooms.notDefined,
+                        ),
+                        style: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -90,31 +80,6 @@ class DeviceCard extends StatelessWidget {
       tag: 'device-thumb-${device.id}',
       createRectTween: (begin, end) => RectTween(begin: begin, end: end),
       child: Material(type: MaterialType.transparency, child: child),
-    );
-  }
-
-  Widget _buildRunningStatus(BuildContext context, bool isRunning) {
-    return Wrap(
-      spacing: 4,
-      runAlignment: WrapAlignment.center,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        Text(
-          isRunning
-              ? context.translations.online
-              : context.translations.offline,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Icon(
-          Icons.circle,
-          color: isRunning
-              ? context.appColors.success
-              : context.appColors.error,
-          size: 8,
-        ),
-      ],
     );
   }
 }

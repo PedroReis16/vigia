@@ -4,18 +4,6 @@
       <section class="device-details-panel__page">
         <header class="device-details-panel__header">
           <h2 class="device-details-panel__title">{{ device().displayName }}</h2>
-          <span
-            class="device-details-panel__status"
-            data-testid="device-status-badge"
-          >
-            {{ (device().isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
-            <span
-              class="device-details-panel__status-dot"
-              [class.device-details-panel__status-dot--online]="device().isRunning"
-              [class.device-details-panel__status-dot--offline]="!device().isRunning"
-              aria-hidden="true"
-            ></span>
-          </span>
         </header>
 
         <p-card styleClass="device-details-panel__card">

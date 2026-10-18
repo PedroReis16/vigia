@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Vigia.Models.Entities;
+using Vigia.Models.Enums;
 
 namespace Vigia.Database.Configurations;
 
@@ -16,6 +17,13 @@ internal class FallAlertEpisodesConfiguration : BaseConfiguration<FallAlertEpiso
 
         _ = builder.Property(e => e.GroupId)
             .HasColumnName("group_id")
+            .IsRequired();
+
+        _ = builder.Property(e => e.Kind)
+            .HasConversion<string>()
+            .HasColumnName("kind")
+            .HasMaxLength(32)
+            .HasDefaultValue(AlertEpisodeKind.Fall)
             .IsRequired();
 
         _ = builder.Property(e => e.Status)
@@ -60,6 +68,7 @@ internal class FallAlertEpisodesConfiguration : BaseConfiguration<FallAlertEpiso
             .OnDelete(DeleteBehavior.Cascade);
 
         _ = builder.HasIndex(e => new { e.DeviceId, e.Status });
+        _ = builder.HasIndex(e => new { e.DeviceId, e.Kind, e.Status });
         _ = builder.HasIndex(e => e.NextRetryAt);
         _ = builder.HasIndex(e => e.Status);
     }

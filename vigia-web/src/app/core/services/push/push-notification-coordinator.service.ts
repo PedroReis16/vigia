@@ -1,6 +1,6 @@
 import { DestroyRef, inject, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { parseFallAlertPayload } from '@core/helpers/fall-alert-payload.helper';
+import { isDeviceAlertType, parseFallAlertPayload } from '@core/helpers/fall-alert-payload.helper';
 import { NotificationStoreService } from '@core/services/notifications/notification-store.service';
 import {
   FirebaseMessagingService,
@@ -77,7 +77,7 @@ export class PushNotificationCoordinatorService {
 
   private async handleIncomingMessage(message: IncomingFallAlertMessage): Promise<void> {
     const isNotificationClick =
-      message.payload['type'] === 'fall' &&
+      isDeviceAlertType(message.payload['type']) &&
       Boolean(message.payload['deviceId']) &&
       !message.notification &&
       !message.payload['deviceName'];

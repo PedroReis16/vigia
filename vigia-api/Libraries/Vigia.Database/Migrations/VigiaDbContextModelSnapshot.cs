@@ -70,6 +70,10 @@ namespace Vigia.Database.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_clips_enabled");
 
+                    b.Property<DateTime?>("LastHeartbeatAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("last_heartbeat_at");
+
                     b.Property<string>("MacAddress")
                         .IsRequired()
                         .HasColumnType("text")
@@ -105,6 +109,8 @@ namespace Vigia.Database.Migrations
                     b.HasIndex("IsBlurEnabled");
 
                     b.HasIndex("IsClipsEnabled");
+
+                    b.HasIndex("LastHeartbeatAt");
 
                     b.HasIndex("MacAddress");
 
@@ -214,6 +220,14 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("group_id");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Fall")
+                        .HasColumnName("kind");
+
                     b.Property<DateTime>("LastNotifiedAt")
                         .HasColumnType("timestamp without time zone")
                         .HasColumnName("last_notified_at");
@@ -251,6 +265,8 @@ namespace Vigia.Database.Migrations
                     b.HasIndex("UpdatedAt");
 
                     b.HasIndex("DeviceId", "Status");
+
+                    b.HasIndex("DeviceId", "Kind", "Status");
 
                     b.ToTable("fall_alert_episodes", (string)null);
                 });

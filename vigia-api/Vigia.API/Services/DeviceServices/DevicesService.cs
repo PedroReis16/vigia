@@ -327,7 +327,8 @@ internal class DevicesService(
             Room = device.Room,
             OwnerId = device.Group?.OwnerId,
             IsClipsEnabled = device.IsClipsEnabled,
-            IsBlurEnabled = device.IsBlurEnabled
+            IsBlurEnabled = device.IsBlurEnabled,
+            IsRunning = false,
         };
     }
 

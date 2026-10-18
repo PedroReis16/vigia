@@ -13,6 +13,8 @@ public class Device : BaseEntity
 
     public bool IsBlurEnabled { get; set; }
 
+    public DateTime? LastHeartbeatAt { get; set; }
+
     public Guid? GroupId { get; set; }
     public Group? Group { get; set; } = null;   // Group != null -> Dispositivo vinculado a um grupo de usuários
 }

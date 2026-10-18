@@ -31,6 +31,8 @@ export class DeviceClipsComponent implements OnInit {
   readonly videoUrl = signal<string | null>(null);
   readonly posterUrl = signal<string | null>(null);
   readonly videoError = signal(false);
+  readonly failedThumbs = signal<ReadonlySet<string>>(new Set());
+  readonly skeletonSlots = [0, 1, 2];
 
   deviceId = '';
 
@@ -48,6 +50,7 @@ export class DeviceClipsComponent implements OnInit {
       }
 
       video.load();
+      video.scrollIntoView?.({ block: 'nearest' });
       const playback = video.play?.();
       void playback?.catch(() => undefined);
     });
@@ -64,6 +67,18 @@ export class DeviceClipsComponent implements OnInit {
 
   onRetry(): void {
     void this.load();
+  }
+
+  onThumbError(clipId: string): void {
+    this.failedThumbs.update((current) => {
+      if (current.has(clipId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(clipId);
+      return next;
+    });
   }
 
   onVideoError(): void {

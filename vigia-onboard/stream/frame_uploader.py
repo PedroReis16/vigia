@@ -10,11 +10,12 @@ import logging
 import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import cv2  # type: ignore
 import numpy as np
 
+from shared.api_tls import open_request as urlopen
 from shared.device_config import is_provisioned
 from shared.settings import (
     get_device_identity,

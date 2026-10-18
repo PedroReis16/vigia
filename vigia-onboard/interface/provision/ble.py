@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import urlparse
 from uuid import UUID
 
+from shared.client_cert import store_client_certificate
+
 from . import state
 from .settings import get_settings
 from .wifi import connect_and_persist
@@ -117,8 +119,11 @@ async def __provision_wifi_async(
     fiware_api_key: str,
     stream_ingest_url: str,
     characteristic: Optional["BlessGATTCharacteristic"],
+    client_cert: str | None = None,
+    client_key: str | None = None,
 ) -> None:
     try:
+        store_client_certificate(client_cert, client_key)
         await connect_and_persist(
             ssid,
             password,
@@ -154,6 +159,8 @@ def __write_request(characteristic: "BlessGATTCharacteristic", value: Any):
             )
             fiware_api_key = payload.get("fiware_api_key") or payload.get("fiware")
             stream_ingest_url = str(payload.get("stream_ingest_url") or "").strip()
+            client_cert = payload.get("client_cert")
+            client_key = payload.get("client_key")
             if not stream_ingest_url:
                 stream_ingest_url = _legacy_stream_ingest_url(api_base_url)
                 log.warning(
@@ -188,6 +195,8 @@ def __write_request(characteristic: "BlessGATTCharacteristic", value: Any):
                     fiware_api_key,
                     stream_ingest_url,
                     characteristic,
+                    str(client_cert) if client_cert else None,
+                    str(client_key) if client_key else None,
                 )
             )
         except Exception as exc:

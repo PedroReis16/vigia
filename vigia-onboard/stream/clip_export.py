@@ -16,10 +16,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 import numpy as np
 
+from shared.api_tls import open_request
 from shared.fall_ipc import normalize_fall_state
 from shared.settings import get_device_identity, get_network_settings
 from stream.rtmp import _ffmpeg_executable, _system_subprocess_env
@@ -112,7 +113,7 @@ def upload_clip(
     fps: int,
     frames: list[Path],
     *,
-    opener: Callable[..., object] = urlopen,
+    opener: Callable[..., object] = open_request,
 ) -> None:
     """Abre a sessão e envia os PNG em paralelo, cada um no seu índice."""
     if not frames:

@@ -152,6 +152,35 @@ public class KeycloakUserSyncServiceTests
         Assert.Contains(user.LinkedGroups, group => group.Id == new Guid("80eed123-8e77-47a3-8fae-cedb1ab3eef7"));
     }
 
+    [Fact]
+    public async Task ApplyAsync_Upsert_CreatesOwnerGroupForNewUser()
+    {
+        await using VigiaDbContext context = CreateContext();
+        KeycloakUserSyncService service = CreateService(context);
+        Guid userId = Guid.NewGuid();
+
+        await service.ApplyAsync(new KeycloakUserSyncMessage
+        {
+            Operation = "upsert",
+            Id = userId,
+            Email = "ana@vigia.test",
+            Phone = "11999990000",
+        });
+
+        Group group = await context.Groups.Include(item => item.LinkedUsers).SingleAsync(item => item.OwnerId == userId);
+        Assert.Contains(group.LinkedUsers, user => user.Id == userId);
+
+        await service.ApplyAsync(new KeycloakUserSyncMessage
+        {
+            Operation = "upsert",
+            Id = userId,
+            Email = "ana@vigia.test",
+            Phone = "11999990000",
+        });
+
+        Assert.Equal(1, await context.Groups.CountAsync(item => item.OwnerId == userId && item.DeletedAt == null));
+    }
+
     private static KeycloakUserSyncService CreateService(VigiaDbContext context, IUserPictureCleaner? cleaner = null)
     {
         return new KeycloakUserSyncService(

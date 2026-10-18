@@ -121,6 +121,18 @@ internal class GroupDao(VigiaDbContext context, IGroupDaoCache? cache = null) : 
             .Include(g => g.LinkedUsers)
             .ToListAsync();
 
+        if (owned.Count == 0)
+        {
+            Group created = new()
+            {
+                OwnerId = userId,
+                LinkedUsers = new List<User> { user },
+                Devices = [],
+            };
+            await AddAsync(created);
+            return;
+        }
+
         bool changed = false;
         foreach (Group group in owned)
         {

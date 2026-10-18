@@ -466,11 +466,28 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("email");
 
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_name");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("phone");
+
+                    b.Property<string>("PictureKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("picture_key");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone")

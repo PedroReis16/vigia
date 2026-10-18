@@ -31,6 +31,8 @@ internal class UserDao(VigiaDbContext context) : BaseDao<User>(context), IUserDa
         }
         else
         {
+            existing.FirstName = user.FirstName;
+            existing.LastName = user.LastName;
             existing.Email = user.Email;
             existing.Phone = user.Phone;
             existing.DeletedAt = null;
@@ -38,6 +40,40 @@ internal class UserDao(VigiaDbContext context) : BaseDao<User>(context), IUserDa
             dbSet.Update(existing);
         }
 
+        await Context.SaveChangesAsync();
+    }
+
+    public async Task SetPictureKeyAsync(Guid userId, string? pictureKey)
+    {
+        if (userId == Guid.Empty)
+            throw new EntityValidationException(nameof(userId), "O ID do usuário é obrigatório", ErrorCodes.USER_ID_REQUIRED);
+
+        DbSet<User> dbSet = Context.Set<User>();
+        User? existing = await dbSet.FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null);
+        if (existing is null)
+            throw new EntityValidationException(nameof(User), "Usuário não encontrado", ErrorCodes.USER_NOT_FOUND);
+
+        existing.PictureKey = pictureKey;
+        existing.UpdatedAt = DateTime.UtcNow;
+        dbSet.Update(existing);
+        await Context.SaveChangesAsync();
+    }
+
+    public async Task UpdateProfileAsync(Guid userId, string firstName, string lastName, string phone)
+    {
+        if (userId == Guid.Empty)
+            throw new EntityValidationException(nameof(userId), "O ID do usuário é obrigatório", ErrorCodes.USER_ID_REQUIRED);
+
+        DbSet<User> dbSet = Context.Set<User>();
+        User? existing = await dbSet.FirstOrDefaultAsync(u => u.Id == userId && u.DeletedAt == null);
+        if (existing is null)
+            throw new EntityValidationException(nameof(User), "Usuário não encontrado", ErrorCodes.USER_NOT_FOUND);
+
+        existing.FirstName = firstName;
+        existing.LastName = lastName;
+        existing.Phone = phone;
+        existing.UpdatedAt = DateTime.UtcNow;
+        dbSet.Update(existing);
         await Context.SaveChangesAsync();
     }
 

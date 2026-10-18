@@ -96,6 +96,41 @@ public class KeycloakUserSyncServiceTests
     }
 
     [Fact]
+    public async Task ApplyAsync_Upsert_StoresNamesAndKeepsThePicture()
+    {
+        await using VigiaDbContext context = CreateContext();
+        KeycloakUserSyncService service = CreateService(context);
+        Guid userId = Guid.NewGuid();
+
+        await service.ApplyAsync(new KeycloakUserSyncMessage
+        {
+            Operation = "upsert",
+            Id = userId,
+            FirstName = "  Ana  ",
+            LastName = "Lima",
+            Email = "ana@vigia.test",
+            Phone = "11999990000",
+        });
+        await new UserDao(context).SetPictureKeyAsync(userId, $"users/{userId:D}/avatar");
+
+        await service.ApplyAsync(new KeycloakUserSyncMessage
+        {
+            Operation = "upsert",
+            Id = userId,
+            FirstName = "Ana",
+            LastName = "Maria Lima",
+            Email = "ana.maria@vigia.test",
+            Phone = "11988880000",
+        });
+
+        User user = await context.Users.SingleAsync(u => u.Id == userId);
+        Assert.Equal("Ana", user.FirstName);
+        Assert.Equal("Maria Lima", user.LastName);
+        Assert.Equal("ana.maria@vigia.test", user.Email);
+        Assert.Equal($"users/{userId:D}/avatar", user.PictureKey);
+    }
+
+    [Fact]
     public async Task ApplyAsync_Upsert_LinksOwnerToTheirGroup()
     {
         await using VigiaDbContext context = CreateContext();

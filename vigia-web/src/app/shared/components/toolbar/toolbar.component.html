@@ -89,8 +89,10 @@
       aria-label="User"
       (click)="toggleUserMenu($event)"
     >
-      @if (userPictureUrl) {
-        <p-avatar [image]="userPictureUrl" shape="circle" size="large" />
+      @if (userPictureUrl(); as pictureUrl) {
+        <p-avatar [image]="pictureUrl" shape="circle" size="large" />
+      } @else if (userInitials()) {
+        <p-avatar [label]="userInitials()" shape="circle" size="large" />
       } @else {
         <p-avatar icon="pi pi-user" shape="circle" size="large" />
       }
@@ -103,6 +105,21 @@
       (onShow)="alignUserMenuToRight()"
     >
       <div class="toolbar__menu">
+        @if (profile(); as current) {
+          <div class="toolbar__menu-profile" data-testid="user-menu-profile">
+            <p class="toolbar__menu-name">{{ current.name }}</p>
+            <p class="toolbar__menu-email">{{ current.email }}</p>
+          </div>
+        }
+        <a
+          routerLink="/profile"
+          class="toolbar__menu-item"
+          data-testid="profile-link"
+          (click)="userMenu.hide()"
+        >
+          <i class="pi pi-user" aria-hidden="true"></i>
+          <span>{{ 'PROFILE.MENU' | translate }}</span>
+        </a>
         <button
           type="button"
           class="toolbar__menu-item"

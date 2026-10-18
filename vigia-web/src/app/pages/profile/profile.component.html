@@ -1,0 +1,220 @@
+<p-confirmDialog />
+
+<div class="profile flex min-h-full flex-col gap-4" data-testid="profile-page">
+  <header class="flex items-center gap-2">
+    <button
+      type="button"
+      class="profile__back"
+      data-testid="profile-back"
+      [attr.aria-label]="'PROFILE.BACK' | translate"
+      (click)="onBack()"
+    >
+      <i class="pi pi-chevron-left" aria-hidden="true"></i>
+    </button>
+    <h2 class="m-0 flex-1 text-xl font-semibold">{{ 'PROFILE.TITLE' | translate }}</h2>
+    @if (profile()) {
+      @if (editing()) {
+        <p-button
+          type="button"
+          [text]="true"
+          [label]="'COMMON.CANCEL' | translate"
+          [disabled]="saving()"
+          data-testid="profile-cancel"
+          (onClick)="onCancelEdit()"
+        />
+      } @else {
+        <p-button
+          type="button"
+          [text]="true"
+          [label]="'PROFILE.EDIT' | translate"
+          [disabled]="saving()"
+          data-testid="profile-edit"
+          (onClick)="onEdit()"
+        />
+      }
+    }
+  </header>
+
+  @if (profile(); as current) {
+    <p-card styleClass="profile__card">
+      <ng-template #content>
+        <div class="flex flex-col gap-6">
+          <div class="profile__layout">
+            <div class="profile__identity">
+              @if (editing()) {
+                <button
+                  type="button"
+                  class="profile__avatar"
+                  data-testid="profile-picture-button"
+                  [disabled]="saving()"
+                  [attr.aria-label]="'PROFILE.CHANGE_PICTURE' | translate"
+                  (click)="pictureInput.click()"
+                >
+                  <ng-container *ngTemplateOutlet="avatar" />
+                  <span class="profile__avatar-overlay" aria-hidden="true">
+                    <i class="pi pi-camera"></i>
+                  </span>
+                </button>
+                <input
+                  #pictureInput
+                  class="profile__file"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+                  data-testid="profile-picture-input"
+                  (change)="onFileSelected($event)"
+                />
+              } @else {
+                <div class="profile__avatar profile__avatar--static">
+                  <ng-container *ngTemplateOutlet="avatar" />
+                </div>
+              }
+
+              <div class="flex min-w-0 flex-col gap-1">
+                <p class="m-0 text-base font-semibold" data-testid="profile-name">
+                  {{ current.name }}
+                </p>
+                @if (editing() && current.pictureUrl) {
+                  <p-button
+                    type="button"
+                    [text]="true"
+                    severity="danger"
+                    [label]="'PROFILE.REMOVE_PICTURE' | translate"
+                    [disabled]="saving()"
+                    data-testid="profile-remove-picture"
+                    (onClick)="onRemovePicture()"
+                  />
+                }
+              </div>
+            </div>
+
+            @if (editing()) {
+              <form class="profile__fields" [formGroup]="form" (ngSubmit)="onSave()">
+                <label class="flex flex-col gap-2">
+                  <span class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.FIRST_NAME' | translate }}
+                  </span>
+                  <input
+                    pInputText
+                    formControlName="firstName"
+                    class="w-full"
+                    autocomplete="given-name"
+                    data-testid="profile-first-name"
+                  />
+                </label>
+
+                <label class="flex flex-col gap-2">
+                  <span class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.LAST_NAME' | translate }}
+                  </span>
+                  <input
+                    pInputText
+                    formControlName="lastName"
+                    class="w-full"
+                    autocomplete="family-name"
+                    data-testid="profile-last-name"
+                  />
+                </label>
+
+                <label class="flex flex-col gap-2">
+                  <span class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.PHONE' | translate }}
+                  </span>
+                  <input
+                    pInputText
+                    formControlName="phone"
+                    class="w-full"
+                    autocomplete="tel"
+                    data-testid="profile-phone"
+                  />
+                </label>
+
+                <label class="flex flex-col gap-2">
+                  <span class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.EMAIL' | translate }}
+                  </span>
+                  <input
+                    pInputText
+                    class="w-full"
+                    [value]="current.email"
+                    autocomplete="email"
+                    data-testid="profile-email"
+                    disabled
+                  />
+                </label>
+
+                <div class="profile__span">
+                  <p-button
+                    type="submit"
+                    [label]="'PROFILE.SAVE' | translate"
+                    [disabled]="form.invalid || form.pristine || saving()"
+                    [loading]="saving()"
+                    styleClass="w-full"
+                    data-testid="profile-save"
+                  />
+                </div>
+              </form>
+            } @else {
+              <dl class="profile__fields">
+                <div class="flex flex-col gap-2">
+                  <dt class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.FIRST_NAME' | translate }}
+                  </dt>
+                  <dd class="m-0" data-testid="profile-first-name">{{ current.firstName }}</dd>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <dt class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.LAST_NAME' | translate }}
+                  </dt>
+                  <dd class="m-0" data-testid="profile-last-name">{{ current.lastName }}</dd>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <dt class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.PHONE' | translate }}
+                  </dt>
+                  <dd class="m-0" data-testid="profile-phone">{{ current.phone }}</dd>
+                </div>
+                <div class="flex flex-col gap-2">
+                  <dt class="text-sm font-medium text-surface-600">
+                    {{ 'PROFILE.EMAIL' | translate }}
+                  </dt>
+                  <dd class="m-0" data-testid="profile-email">{{ current.email }}</dd>
+                </div>
+              </dl>
+            }
+          </div>
+
+          @if (!editing() && current.canDeleteAccount) {
+            <div class="flex flex-col gap-2 border-t border-surface-200 pt-4">
+              <p class="m-0 text-sm font-medium text-red-600">
+                {{ 'PROFILE.DELETE_ACCOUNT' | translate }}
+              </p>
+              <p class="m-0 text-sm text-surface-600">
+                {{ 'PROFILE.DELETE_HINT' | translate }}
+              </p>
+              <p-button
+                type="button"
+                severity="danger"
+                [outlined]="true"
+                [label]="'PROFILE.DELETE_ACCOUNT' | translate"
+                [disabled]="saving()"
+                data-testid="profile-delete"
+                (onClick)="onDeleteAccount()"
+              />
+            </div>
+          }
+        </div>
+      </ng-template>
+    </p-card>
+
+
+    <ng-template #avatar>
+      @if (current.pictureUrl) {
+        <p-avatar [image]="current.pictureUrl" shape="circle" styleClass="profile__avatar-face" />
+      } @else if (initials()) {
+        <p-avatar [label]="initials()" shape="circle" styleClass="profile__avatar-face" />
+      } @else {
+        <p-avatar icon="pi pi-user" shape="circle" styleClass="profile__avatar-face" />
+      }
+    </ng-template>
+  }
+</div>

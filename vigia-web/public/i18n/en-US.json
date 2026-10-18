@@ -9,6 +9,85 @@
       "LIGHT": "Light"
     }
   },
+    "PROFILE": {
+    "TITLE": "Profile",
+    "MENU": "My profile",
+    "BACK": "Back",
+    "EDIT": "Edit",
+    "NAME": "Name",
+    "FIRST_NAME": "First name",
+    "LAST_NAME": "Last name",
+    "EMAIL": "Email",
+    "PHONE": "Phone",
+    "SAVE": "Save",
+    "SAVED": "Profile updated.",
+    "SAVE_ERROR": "Could not save the profile.",
+    "NAME_INVALID": "Enter a first and last name.",
+    "PHONE_INVALID": "Enter a valid phone number.",
+    "CHANGE_PICTURE": "Change photo",
+    "REMOVE_PICTURE": "Remove photo",
+    "PICTURE_INVALID": "Choose a JPEG, PNG, or WebP image up to 2 MB.",
+    "PICTURE_ERROR": "Could not update the photo.",
+    "LOAD_ERROR": "Could not load the profile.",
+    "DELETE_ACCOUNT": "Delete account",
+    "DELETE_HINT": "The account, photo, and access to devices are removed.",
+    "DELETE_TITLE": "Delete account",
+    "DELETE_MESSAGE": "This cannot be undone. Delete the account?",
+    "DELETE_CONFIRM": "Delete",
+    "DELETE_ERROR": "Could not delete the account.",
+    "DELETE_FORBIDDEN": "The super admin cannot delete the account.",
+    "PLAN": {
+      "TITLE": "Plan",
+      "PREVIEW_HINT": "Sample data for now. Nothing is charged.",
+      "ACTIVE": "Active plan",
+      "EDIT": "Edit my plan",
+      "EDIT_HINT": "Choose a package to preview a change. The active plan stays the same in this preview.",
+      "DRAFT_HINT": "Preview only. Nothing is charged and the active plan stays the same.",
+      "CURRENT": "Current plan",
+      "RENEWS": "Renews on {{date}}",
+      "PER_MONTH": "/month",
+      "STATUS": {
+        "ACTIVE": "Active"
+      },
+      "PAYMENT_METHOD": "Card",
+      "EXPIRES": "Expires {{expiry}}",
+      "USAGE_DEVICES": "{{used}} of {{limit}} devices",
+      "USAGE_STORAGE": "{{used}} of {{limit}} GB of clips",
+      "OVER_LIMIT": "Over this package's limit",
+      "PACKAGES": "Packages",
+      "PACKAGE_CURRENT": "Current plan",
+      "PACKAGE_PREVIEWING": "Previewing",
+      "PACKAGE_PREVIEW": "See this package",
+      "PAYMENTS": "Payments",
+      "INVOICE_STATUS": {
+        "PAID": "Paid",
+        "SCHEDULED": "Scheduled"
+      },
+      "CATALOG": {
+        "ESSENTIAL": {
+          "NAME": "Essential",
+          "HINT": "One room, with realtime alerts."
+        },
+        "FAMILY": {
+          "NAME": "Family care",
+          "HINT": "More than one Vigia, with fall clips."
+        },
+        "HOME": {
+          "NAME": "Residential",
+          "HINT": "Several rooms, long history, and priority support."
+        }
+      },
+      "FEATURES": {
+        "DEVICE": "1 device",
+        "DEVICES": "{{count}} devices",
+        "HISTORY": "{{days}} days of history",
+        "STORAGE": "{{gb}} GB for clips",
+        "ALERTS": "Realtime alerts",
+        "CLIPS": "Fall clips",
+        "PRIORITY": "Priority support"
+      }
+    }
+  },
   "AUTH": {
     "LOGOUT": "Sign out",
     "WELCOME": "Welcome to Vigia",

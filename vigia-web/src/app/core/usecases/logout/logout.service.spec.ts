@@ -4,6 +4,7 @@ import { AuthSessionService } from '@core/services/auth/auth-session.service';
 import { KeycloakAuthService } from '@core/services/auth/keycloak-auth.service';
 import { FirebaseMessagingService } from '@core/services/push/firebase-messaging.service';
 import { NotificationStoreService } from '@core/services/notifications/notification-store.service';
+import { UserProfileStoreService } from '@core/services/user-profile/user-profile-store.service';
 import { LogoutSessionService } from '@core/usecases/logout-session/logout-session.service';
 import { LogoutService } from './logout.service';
 
@@ -22,6 +23,7 @@ describe('LogoutService', () => {
     clearToken: ReturnType<typeof vi.fn>;
   };
   let notificationStore: { clearForLogout: ReturnType<typeof vi.fn> };
+  let profileStore: { set: ReturnType<typeof vi.fn> };
   let assignMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -40,6 +42,7 @@ describe('LogoutService', () => {
       clearToken: vi.fn(),
     };
     notificationStore = { clearForLogout: vi.fn() };
+    profileStore = { set: vi.fn() };
     assignMock = vi.fn();
     vi.stubGlobal('location', {
       origin: 'http://localhost:4200',
@@ -54,6 +57,7 @@ describe('LogoutService', () => {
         { provide: LogoutSessionService, useValue: logoutSession },
         { provide: FirebaseMessagingService, useValue: firebaseMessaging },
         { provide: NotificationStoreService, useValue: notificationStore },
+        { provide: UserProfileStoreService, useValue: profileStore },
       ],
     });
     service = TestBed.inject(LogoutService);
@@ -74,6 +78,7 @@ describe('LogoutService', () => {
     });
     expect(firebaseMessaging.clearToken).toHaveBeenCalled();
     expect(notificationStore.clearForLogout).toHaveBeenCalled();
+    expect(profileStore.set).toHaveBeenCalledWith(null);
     expect(keycloak.logout).toHaveBeenCalledWith('http://localhost:4200/');
     expect(assignMock).not.toHaveBeenCalled();
   });
@@ -101,6 +106,7 @@ describe('LogoutService', () => {
 
     expect(firebaseMessaging.clearToken).not.toHaveBeenCalled();
     expect(notificationStore.clearForLogout).not.toHaveBeenCalled();
+    expect(profileStore.set).not.toHaveBeenCalled();
     expect(keycloak.logout).not.toHaveBeenCalled();
   });
 

@@ -5,9 +5,17 @@ import { provideOptimus } from '@openng/optimus-ui/config';
 import { TranslateModule } from '@ngx-translate/core';
 import { signal } from '@angular/core';
 import { vi } from 'vitest';
-import { FallNotification } from '@core/entities';
-import { AuthExitTransitionService, MessageService, NotificationStoreService } from '@core/services';
-import { LogoutService, NavigateToFallAlertService, SyncPushNotificationsService } from '@core/usecases';
+import { FallNotification, UserProfile } from '@core/entities';
+import { AuthExitTransitionService, MessageService, NotificationStoreService, UserProfileStoreService } from '@core/services';
+import {
+  GetUserProfileService,
+  LoadNotificationsService,
+  LogoutService,
+  MarkAllNotificationsReadService,
+  MarkNotificationReadService,
+  NavigateToFallAlertService,
+  SyncPushNotificationsService,
+} from '@core/usecases';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
 import { ToolbarComponent } from './toolbar.component';
 
@@ -17,6 +25,8 @@ describe('ToolbarComponent', () => {
   let logout: { execute: ReturnType<typeof vi.fn> };
   let navigateToFallAlert: { execute: ReturnType<typeof vi.fn> };
   let syncPushNotifications: { execute: ReturnType<typeof vi.fn> };
+  let markNotificationRead: { execute: ReturnType<typeof vi.fn> };
+  let profileStore: UserProfileStoreService;
   let authExitTransition: AuthExitTransitionService;
   let notificationStore: {
     notifications: ReturnType<typeof signal<FallNotification[]>>;
@@ -29,6 +39,7 @@ describe('ToolbarComponent', () => {
     logout = { execute: vi.fn().mockResolvedValue(undefined) };
     navigateToFallAlert = { execute: vi.fn().mockResolvedValue(true) };
     syncPushNotifications = { execute: vi.fn().mockResolvedValue(true) };
+    markNotificationRead = { execute: vi.fn().mockResolvedValue(undefined) };
     notificationStore = {
       notifications: signal<FallNotification[]>([]),
       unreadCount: signal(0),
@@ -42,11 +53,16 @@ describe('ToolbarComponent', () => {
         { provide: LogoutService, useValue: logout },
         { provide: NavigateToFallAlertService, useValue: navigateToFallAlert },
         { provide: SyncPushNotificationsService, useValue: syncPushNotifications },
+        { provide: LoadNotificationsService, useValue: { execute: vi.fn().mockResolvedValue(undefined) } },
+        { provide: MarkNotificationReadService, useValue: markNotificationRead },
+        { provide: MarkAllNotificationsReadService, useValue: { execute: vi.fn().mockResolvedValue(undefined) } },
+        { provide: GetUserProfileService, useValue: { execute: vi.fn().mockResolvedValue(undefined) } },
         { provide: NotificationStoreService, useValue: notificationStore },
         MessageService,
         provideRouter([
           { path: 'login', children: [] },
           { path: 'devices/:deviceId', children: [] },
+          { path: 'profile', children: [] },
         ]),
         provideAnimationsAsync(),
         provideOptimus({
@@ -61,6 +77,7 @@ describe('ToolbarComponent', () => {
     fixture = TestBed.createComponent(ToolbarComponent);
     component = fixture.componentInstance;
     authExitTransition = TestBed.inject(AuthExitTransitionService);
+    profileStore = TestBed.inject(UserProfileStoreService);
     authExitTransition.complete();
     fixture.detectChanges();
   });
@@ -99,10 +116,12 @@ describe('ToolbarComponent', () => {
 
     await component.onNotificationClick(notification);
 
-    expect(notificationStore.markRead).toHaveBeenCalledWith('1');
+    expect(notificationStore.markRead).not.toHaveBeenCalled();
+    expect(markNotificationRead.execute).toHaveBeenCalledWith('1');
     expect(navigateToFallAlert.execute).toHaveBeenCalledWith({
       type: 'fall',
       deviceId: 'device-1',
+      alertId: undefined,
     });
   });
 
@@ -181,5 +200,31 @@ describe('ToolbarComponent', () => {
 
     expect(sessionStorage.getItem('vigia.auth.exit')).toBe('180,300,225,225');
     sessionStorage.removeItem('vigia.auth.exit');
+  });
+
+  it('shows the profile name and picture in the toolbar', () => {
+    profileStore.set(new UserProfile(
+      'user-1',
+      'Ana Lima',
+      'Ana',
+      'Lima',
+      'ana@vigia.test',
+      '11999990000',
+      'https://example.test/picture.jpg',
+      true,
+    ));
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const image = compiled.querySelector('.toolbar__avatar-btn img') as HTMLImageElement | null;
+    expect(image?.getAttribute('src')).toBe('https://example.test/picture.jpg');
+
+    component.toggleUserMenu(new MouseEvent('click'));
+    fixture.detectChanges();
+
+    const menu = document.body.querySelector('[data-testid="user-menu-profile"]');
+    expect(menu?.textContent).toContain('Ana Lima');
+    expect(menu?.textContent).toContain('ana@vigia.test');
+    expect(document.body.querySelector('[data-testid="profile-link"]')).toBeTruthy();
   });
 });

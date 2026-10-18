@@ -1,16 +1,18 @@
-import { Component, computed, inject, viewChild } from '@angular/core';
+import { Component, computed, inject, OnInit, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { Avatar } from '@openng/optimus-ui/avatar';
 import { Popover } from '@openng/optimus-ui/popover';
 import { FallNotification } from '@core/entities';
-import { captureToolbarHeight, captureToolbarLogoBounds, stageAppExit } from '@core/helpers';
+import { captureToolbarHeight, captureToolbarLogoBounds, profileInitials, stageAppExit } from '@core/helpers';
 import {
   AuthExitTransitionService,
   MessageService,
   NotificationStoreService,
+  UserProfileStoreService,
 } from '@core/services';
 import {
+  GetUserProfileService,
   LoadNotificationsService,
   LogoutService,
   MarkAllNotificationsReadService,
@@ -27,7 +29,7 @@ import moment from 'moment';
   templateUrl: './toolbar.component.html',
   styleUrl: './toolbar.component.css',
 })
-export class ToolbarComponent {
+export class ToolbarComponent implements OnInit {
   private readonly authExitTransition = inject(AuthExitTransitionService);
   private readonly logout = inject(LogoutService);
   private readonly messageService = inject(MessageService);
@@ -37,6 +39,8 @@ export class ToolbarComponent {
   private readonly loadNotifications = inject(LoadNotificationsService);
   private readonly markNotificationRead = inject(MarkNotificationReadService);
   private readonly markAllNotificationsRead = inject(MarkAllNotificationsReadService);
+  private readonly profileStore = inject(UserProfileStoreService);
+  private readonly getProfile = inject(GetUserProfileService);
 
   readonly userMenu = viewChild.required<Popover>('userMenu');
   readonly notificationsMenu = viewChild.required<Popover>('notificationsMenu');
@@ -58,9 +62,19 @@ export class ToolbarComponent {
       this.authExitTransition.kind() === 'logout' &&
       !this.authExitTransition.settled(),
   );
+  readonly profile = this.profileStore.profile;
+  readonly userPictureUrl = computed(() => this.profile()?.pictureUrl ?? null);
+  readonly userInitials = computed(() => {
+    const profile = this.profile();
+    if (!profile) {
+      return '';
+    }
+    return profileInitials(profile.name, profile.email);
+  });
 
-  /** Reserved for when the API exposes a profile picture URL. */
-  readonly userPictureUrl: string | null = null;
+  ngOnInit(): void {
+    void this.getProfile.execute().catch(() => undefined);
+  }
 
   toggleUserMenu(event: Event): void {
     this.notificationsMenu().hide();
@@ -121,7 +135,7 @@ export class ToolbarComponent {
     await this.markNotificationRead.execute(notification.id);
     this.notificationsMenu().hide();
     await this.navigateToFallAlert.execute({
-      type: 'fall',
+      type: notification.type,
       deviceId: notification.deviceId,
       alertId: notification.episodeId,
     });

@@ -1,0 +1,121 @@
+.profile__back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.profile__back:hover {
+  background: var(--p-content-hover-background, rgb(0 0 0 / 4%));
+}
+
+.profile__avatar {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 5.5rem;
+  height: 5.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+}
+
+button.profile__avatar {
+  cursor: pointer;
+}
+
+button.profile__avatar:disabled {
+  cursor: default;
+}
+
+.profile__avatar-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+button.profile__avatar:hover .profile__avatar-overlay,
+button.profile__avatar:focus-visible .profile__avatar-overlay {
+  inset: 0;
+  height: auto;
+  background: rgb(0 0 0 / 45%);
+  font-size: 1.25rem;
+}
+
+.profile__layout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+  align-items: center;
+}
+
+.profile__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 7.5rem;
+  text-align: center;
+}
+
+.profile__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
+  margin: 0;
+  align-content: center;
+}
+
+.profile__fields dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile__span {
+  grid-column: 1 / -1;
+}
+
+.profile__file {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .profile__layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .profile__fields {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+}
+
+:host ::ng-deep .profile__avatar-face.p-avatar {
+  width: 5.5rem;
+  height: 5.5rem;
+  font-size: 1.5rem;
+}
+
+:host ::ng-deep .profile__card .p-card-body,
+:host ::ng-deep .profile__card .p-card-content {
+  padding: 1rem;
+}

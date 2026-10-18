@@ -3,6 +3,7 @@ import { AuthSessionService } from '@core/services/auth/auth-session.service';
 import { KeycloakAuthService } from '@core/services/auth/keycloak-auth.service';
 import { FirebaseMessagingService } from '@core/services/push/firebase-messaging.service';
 import { NotificationStoreService } from '@core/services/notifications/notification-store.service';
+import { UserProfileStoreService } from '@core/services/user-profile/user-profile-store.service';
 import { LogoutSessionService } from '@core/usecases/logout-session/logout-session.service';
 
 @Injectable({
@@ -14,12 +15,14 @@ export class LogoutService {
   private readonly logoutSession = inject(LogoutSessionService);
   private readonly firebaseMessaging = inject(FirebaseMessagingService);
   private readonly notificationStore = inject(NotificationStoreService);
+  private readonly profileStore = inject(UserProfileStoreService);
 
   async execute(): Promise<void> {
     const refreshToken = this.keycloak.refreshToken;
     if (!refreshToken?.trim()) {
       this.session.clearSession();
       this.keycloak.clearToken();
+      this.profileStore.set(null);
       return;
     }
 
@@ -36,6 +39,7 @@ export class LogoutService {
 
     this.firebaseMessaging.clearToken();
     this.notificationStore.clearForLogout();
+    this.profileStore.set(null);
 
     if (result.endSessionUrl && typeof window !== 'undefined') {
       this.keycloak.clearToken();

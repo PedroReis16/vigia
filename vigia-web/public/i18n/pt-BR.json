@@ -9,6 +9,85 @@
       "LIGHT": "Claro"
     }
   },
+    "PROFILE": {
+    "TITLE": "Perfil",
+    "MENU": "Meu perfil",
+    "BACK": "Voltar",
+    "EDIT": "Editar",
+    "NAME": "Nome",
+    "FIRST_NAME": "Nome",
+    "LAST_NAME": "Sobrenome",
+    "EMAIL": "E-mail",
+    "PHONE": "Telefone",
+    "SAVE": "Salvar",
+    "SAVED": "Perfil atualizado.",
+    "SAVE_ERROR": "Não foi possível salvar o perfil.",
+    "NAME_INVALID": "Informe nome e sobrenome.",
+    "PHONE_INVALID": "Informe um telefone válido.",
+    "CHANGE_PICTURE": "Trocar foto",
+    "REMOVE_PICTURE": "Remover foto",
+    "PICTURE_INVALID": "Escolha uma imagem JPEG, PNG ou WebP de até 2 MB.",
+    "PICTURE_ERROR": "Não foi possível atualizar a foto.",
+    "LOAD_ERROR": "Não foi possível carregar o perfil.",
+    "DELETE_ACCOUNT": "Apagar conta",
+    "DELETE_HINT": "A conta, a foto e o acesso aos dispositivos são removidos.",
+    "DELETE_TITLE": "Apagar conta",
+    "DELETE_MESSAGE": "Essa ação não pode ser desfeita. Deseja apagar a conta?",
+    "DELETE_CONFIRM": "Apagar",
+    "DELETE_ERROR": "Não foi possível apagar a conta.",
+    "DELETE_FORBIDDEN": "O super admin não pode apagar a conta.",
+    "PLAN": {
+      "TITLE": "Plano",
+      "PREVIEW_HINT": "Prévia com dados de exemplo. Nenhum valor é cobrado.",
+      "ACTIVE": "Plano ativo",
+      "EDIT": "Editar meu plano",
+      "EDIT_HINT": "Escolha um pacote para simular a troca. O plano ativo não muda nesta prévia.",
+      "DRAFT_HINT": "Simulação. Nada é cobrado e o plano ativo continua o mesmo.",
+      "CURRENT": "Plano atual",
+      "RENEWS": "Renova em {{date}}",
+      "PER_MONTH": "/mês",
+      "STATUS": {
+        "ACTIVE": "Ativo"
+      },
+      "PAYMENT_METHOD": "Cartão",
+      "EXPIRES": "Validade {{expiry}}",
+      "USAGE_DEVICES": "{{used}} de {{limit}} dispositivos",
+      "USAGE_STORAGE": "{{used}} de {{limit}} GB de clipes",
+      "OVER_LIMIT": "Acima do limite deste pacote",
+      "PACKAGES": "Pacotes",
+      "PACKAGE_CURRENT": "Plano atual",
+      "PACKAGE_PREVIEWING": "Visualizando",
+      "PACKAGE_PREVIEW": "Ver este pacote",
+      "PAYMENTS": "Pagamentos",
+      "INVOICE_STATUS": {
+        "PAID": "Pago",
+        "SCHEDULED": "Agendado"
+      },
+      "CATALOG": {
+        "ESSENTIAL": {
+          "NAME": "Essencial",
+          "HINT": "Um ambiente, com alertas em tempo real."
+        },
+        "FAMILY": {
+          "NAME": "Cuidado familiar",
+          "HINT": "Mais de um Vigia, com clipes de queda."
+        },
+        "HOME": {
+          "NAME": "Residencial",
+          "HINT": "Vários ambientes, histórico longo e suporte prioritário."
+        }
+      },
+      "FEATURES": {
+        "DEVICE": "1 dispositivo",
+        "DEVICES": "{{count}} dispositivos",
+        "HISTORY": "{{days}} dias de histórico",
+        "STORAGE": "{{gb}} GB para clipes",
+        "ALERTS": "Alertas em tempo real",
+        "CLIPS": "Clipes de queda",
+        "PRIORITY": "Suporte prioritário"
+      }
+    }
+  },
   "AUTH": {
     "LOGOUT": "Sair",
     "WELCOME": "Bem-vindo ao Vigia",

@@ -1,0 +1,9 @@
+captures/
+reprocessed/
+.lab-data/
+*.avi
+*.mp4
+*.npy
+*.npz
+models/**/*.onnx
+__pycache__/

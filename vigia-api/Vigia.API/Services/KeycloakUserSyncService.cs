@@ -5,7 +5,11 @@ using Vigia.Models.Entities;
 
 namespace Vigia.API.Services;
 
-internal class KeycloakUserSyncService(IUserDao userDao, IUserPushTokenDao pushTokenDao, IGroupDao groupDao) : IKeycloakUserSyncService
+internal class KeycloakUserSyncService(
+    IUserDao userDao,
+    IUserPushTokenDao pushTokenDao,
+    IGroupDao groupDao,
+    IUserPictureCleaner pictureCleaner) : IKeycloakUserSyncService
 {
     private const int FirstNameMaxLength = 64;
     private const int LastNameMaxLength = 64;
@@ -15,6 +19,7 @@ internal class KeycloakUserSyncService(IUserDao userDao, IUserPushTokenDao pushT
     private readonly IUserDao _userDao = userDao;
     private readonly IUserPushTokenDao _pushTokenDao = pushTokenDao;
     private readonly IGroupDao _groupDao = groupDao;
+    private readonly IUserPictureCleaner _pictureCleaner = pictureCleaner;
 
     public async Task ApplyAsync(KeycloakUserSyncMessage message)
     {
@@ -23,6 +28,7 @@ internal class KeycloakUserSyncService(IUserDao userDao, IUserPushTokenDao pushT
 
         if (string.Equals(message.Operation, "delete", StringComparison.OrdinalIgnoreCase))
         {
+            await _pictureCleaner.DeleteStoredPictureAsync(message.Id);
             await _userDao.SoftDeleteAsync(message.Id);
             await _pushTokenDao.DeleteByUserIdAsync(message.Id);
             return;

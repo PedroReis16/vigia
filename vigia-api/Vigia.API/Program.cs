@@ -7,6 +7,7 @@ using Vigia.API.Contracts;
 using Vigia.API.Contracts.Clips;
 using Vigia.API.Hubs;
 using Vigia.API.Services;
+using Vigia.API.Services.Users;
 using Vigia.API.Services.Clips;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
@@ -66,8 +67,12 @@ builder.Services.AddHostedService<KeycloakUserSyncConsumer>();
 // Services
 builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetSection(KeycloakOptions.SectionName));
 builder.Services.AddHttpClient<IKeycloakSessionClient, KeycloakSessionClient>();
+builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();
 builder.Services.AddTransient<IUserLogoutService, UserLogoutService>();
+builder.Services.AddTransient<UserProfileService>();
+builder.Services.AddTransient<IUserProfileService>(sp => sp.GetRequiredService<UserProfileService>());
+builder.Services.AddTransient<IUserPictureCleaner>(sp => sp.GetRequiredService<UserProfileService>());
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IDeviceShareService, DeviceShareService>();
@@ -97,9 +102,11 @@ builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheServ
 builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
 builder.Services.AddSingleton<IClipAccessCacheService, ClipAccessCacheService>();
+builder.Services.AddSingleton<IPictureAccessCacheService, PictureAccessCacheService>();
 
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
 builder.Services.AddSingleton<IClipAccessTokenProvider, ClipAccessTokenProvider>();
+builder.Services.AddSingleton<IPictureAccessTokenProvider, PictureAccessTokenProvider>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

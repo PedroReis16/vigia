@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Users;
 using Vigia.API.Services;
 using Vigia.Database.EFDao;
@@ -72,7 +73,8 @@ public class KeycloakUserSyncServiceTests
     {
         await using VigiaDbContext context = CreateContext();
         UserPushTokenDao pushTokenDao = new(context);
-        KeycloakUserSyncService service = new(new UserDao(context), pushTokenDao, new GroupDao(context));
+        RecordingCleaner cleaner = new();
+        KeycloakUserSyncService service = new(new UserDao(context), pushTokenDao, new GroupDao(context), cleaner);
         Guid userId = Guid.NewGuid();
 
         await service.ApplyAsync(new KeycloakUserSyncMessage
@@ -92,6 +94,7 @@ public class KeycloakUserSyncServiceTests
         UserPushToken token = await context.UserPushTokens.SingleAsync(t => t.Token == "fcm-token-1");
         Assert.NotNull(user.DeletedAt);
         Assert.NotNull(token.DeletedAt);
+        Assert.Equal([userId], cleaner.Deleted);
         Assert.Empty(await pushTokenDao.GetTokensByUserIdsAsync([userId]));
     }
 
@@ -149,9 +152,30 @@ public class KeycloakUserSyncServiceTests
         Assert.Contains(user.LinkedGroups, group => group.Id == new Guid("80eed123-8e77-47a3-8fae-cedb1ab3eef7"));
     }
 
-    private static KeycloakUserSyncService CreateService(VigiaDbContext context)
+    private static KeycloakUserSyncService CreateService(VigiaDbContext context, IUserPictureCleaner? cleaner = null)
     {
-        return new KeycloakUserSyncService(new UserDao(context), new UserPushTokenDao(context), new GroupDao(context));
+        return new KeycloakUserSyncService(
+            new UserDao(context),
+            new UserPushTokenDao(context),
+            new GroupDao(context),
+            cleaner ?? new NoOpCleaner());
+    }
+
+    private sealed class NoOpCleaner : IUserPictureCleaner
+    {
+        public Task DeleteStoredPictureAsync(Guid userId, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RecordingCleaner : IUserPictureCleaner
+    {
+        public List<Guid> Deleted { get; } = [];
+
+        public Task DeleteStoredPictureAsync(Guid userId, CancellationToken cancellationToken = default)
+        {
+            Deleted.Add(userId);
+            return Task.CompletedTask;
+        }
     }
 
     private static VigiaDbContext CreateContext()

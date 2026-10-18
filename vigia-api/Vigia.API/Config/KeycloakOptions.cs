@@ -23,6 +23,13 @@ public class KeycloakOptions
     /// </summary>
     public string? LogoutRealmBaseUrl { get; set; }
 
+    /// <summary>Usuário administrador do realm master. Usado para gravar nome, telefone e apagar a conta.</summary>
+    public string AdminUsername { get; set; } = string.Empty;
+
+    public string AdminPassword { get; set; } = string.Empty;
+
+    public string AdminClientId { get; set; } = "admin-cli";
+
     public string ResolveLogoutRealmBaseUrl()
     {
         if (!string.IsNullOrWhiteSpace(LogoutRealmBaseUrl))
@@ -37,6 +44,33 @@ public class KeycloakOptions
             throw new InvalidOperationException("Keycloak:ValidIssuer é obrigatório.");
 
         return ValidIssuer.TrimEnd('/');
+    }
+
+    /// <summary>
+    /// Origem interna do Keycloak, a partir de <see cref="MetadataAddress"/>
+    /// (ex.: <c>http://keycloak:8080/auth</c>).
+    /// </summary>
+    public string ResolveAdminServerRoot()
+    {
+        if (string.IsNullOrWhiteSpace(MetadataAddress))
+            throw new InvalidOperationException("Keycloak:MetadataAddress é obrigatório.");
+
+        const string marker = "/realms/";
+        int index = MetadataAddress.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (index <= 0)
+            throw new InvalidOperationException("Keycloak:MetadataAddress precisa incluir /realms/{realm}.");
+
+        return MetadataAddress[..index].TrimEnd('/');
+    }
+
+    public string ResolveRealmName()
+    {
+        string issuer = ResolvePublicRealmBaseUrl();
+        int slash = issuer.LastIndexOf('/');
+        if (slash < 0 || slash == issuer.Length - 1)
+            throw new InvalidOperationException("Keycloak:ValidIssuer precisa terminar com o nome do realm.");
+
+        return issuer[(slash + 1)..];
     }
 
     /// <summary>

@@ -482,7 +482,7 @@ services:
   #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    # Official image is scratch (no curl/sh). Build adds Alpine for runOnDemand hooks.
     build:
       context: ..
       dockerfile: dockerfiles/mediamtx.dockerfile
@@ -492,10 +492,10 @@ services:
     depends_on:
       - vigia-api
     environment:
-      # API in compose (vigia-api). Token = MediaMTX:WebhookToken.
+      # API in compose (vigia-api). Basic = ServiceBasic:MediaMtx.
       VIGIA_API_BASE: http://vigia-api:8080
-      VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
-      UNDEMAND_GRACE_SECONDS: "3"
+      VIGIA_MEDIAMTX_USER: mediamtx
+      VIGIA_MEDIAMTX_PASSWORD: dev-mediamtx-password
     ports:
       # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
       - "1935:1935"
@@ -513,7 +513,8 @@ services:
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
-      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
+      - ../mediamtx-hooks/on_demand_start_streaming.sh:/hooks/on_demand_start_streaming.sh:ro
+      - ../mediamtx-hooks/on_undemand_stop_streaming.sh:/hooks/on_undemand_stop_streaming.sh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

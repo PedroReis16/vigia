@@ -99,10 +99,11 @@ docker run -d \
 log "Minio OK."
 
 # ─── MEDIAMTX ─────────────────────────────────────────────────────────────────
-# Imagem custom (Alpine + curl/jq) para hooks runOnUnread — NÃO buildar na VM.
+# Imagem custom (Alpine + curl) para hooks runOnDemand — NÃO buildar na VM.
 # Override no .env: MEDIAMTX_IMAGE=usuario/vigia-mediamtx:tag
 MEDIAMTX_IMAGE="${MEDIAMTX_IMAGE:-pedroreis16/vigia-mediamtx:latest}"
-MEDIAMTX_HOOK="$BASE_DIR/mediamtx-hooks/on_unread_stop_streaming.sh"
+MEDIAMTX_DEMAND_HOOK="$BASE_DIR/mediamtx-hooks/on_demand_start_streaming.sh"
+MEDIAMTX_UNDEMAND_HOOK="$BASE_DIR/mediamtx-hooks/on_undemand_stop_streaming.sh"
 MEDIAMTX_CONF="$BASE_DIR/mediamtx/mediamtx.yml"
 
 log "Preparando config do MediaMTX..."
@@ -113,14 +114,17 @@ if [ -d "$MEDIAMTX_CONF" ]; then
   warn "Removendo mediamtx.yml inválido (era diretório)..."
   rm -rf "$MEDIAMTX_CONF"
 fi
-if [ -d "$MEDIAMTX_HOOK" ]; then
-  warn "Removendo hook inválido (era diretório)..."
-  rm -rf "$MEDIAMTX_HOOK"
-fi
+for hook in "$MEDIAMTX_DEMAND_HOOK" "$MEDIAMTX_UNDEMAND_HOOK"; do
+  if [ -d "$hook" ]; then
+    warn "Removendo hook inválido (era diretório): $hook"
+    rm -rf "$hook"
+  fi
+done
 
 [ -f "$MEDIAMTX_CONF" ] || err "Arquivo ausente: $MEDIAMTX_CONF (copie deploy/mediamtx/mediamtx.yml para a VM)"
-[ -f "$MEDIAMTX_HOOK" ] || err "Arquivo ausente: $MEDIAMTX_HOOK (copie deploy/mediamtx-hooks/on_unread_stop_streaming.sh para a VM)"
-chmod +x "$MEDIAMTX_HOOK"
+[ -f "$MEDIAMTX_DEMAND_HOOK" ] || err "Arquivo ausente: $MEDIAMTX_DEMAND_HOOK (copie deploy/mediamtx-hooks/on_demand_start_streaming.sh para a VM)"
+[ -f "$MEDIAMTX_UNDEMAND_HOOK" ] || err "Arquivo ausente: $MEDIAMTX_UNDEMAND_HOOK (copie deploy/mediamtx-hooks/on_undemand_stop_streaming.sh para a VM)"
+chmod +x "$MEDIAMTX_DEMAND_HOOK" "$MEDIAMTX_UNDEMAND_HOOK"
 
 log "Baixando imagem MediaMTX ($MEDIAMTX_IMAGE)..."
 docker pull "$MEDIAMTX_IMAGE"
@@ -131,8 +135,8 @@ docker run -d \
   --restart unless-stopped \
   --network vigia-network \
   -e VIGIA_API_BASE=http://vigia-api:8080 \
-  -e VIGIA_MEDIAMTX_TOKEN="${VIGIA_MEDIAMTX_TOKEN:-CHANGE_ME_MEDIAMTX_WEBHOOK_TOKEN}" \
-  -e UNDEMAND_GRACE_SECONDS=3 \
+  -e VIGIA_MEDIAMTX_USER="${VIGIA_MEDIAMTX_USER:-mediamtx}" \
+  -e VIGIA_MEDIAMTX_PASSWORD="${VIGIA_MEDIAMTX_PASSWORD:-CHANGE_ME_MEDIAMTX_PASSWORD}" \
   -p 1935:1935 \
   -p 8189:8189/udp \
   -p 8189:8189/tcp \
@@ -150,7 +154,8 @@ docker run -d \
   --label "traefik.tcp.routers.mediamtx-ingest.tls.certresolver=letsencrypt" \
   --label "traefik.tcp.services.mediamtx-ingest.loadbalancer.server.port=1935" \
   -v "$MEDIAMTX_CONF":/mediamtx.yml:ro \
-  -v "$MEDIAMTX_HOOK":/hooks/on_unread_stop_streaming.sh:ro \
+  -v "$MEDIAMTX_DEMAND_HOOK":/hooks/on_demand_start_streaming.sh:ro \
+  -v "$MEDIAMTX_UNDEMAND_HOOK":/hooks/on_undemand_stop_streaming.sh:ro \
   "$MEDIAMTX_IMAGE"
 log "MediaMTX OK."
 

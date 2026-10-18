@@ -84,10 +84,6 @@ class _DeviceDetailsPageState extends ConsumerState<DeviceDetailsPage>
       await _session.initialize();
       if (!mounted) return;
 
-      ref.invalidate(startDeviceStreamingProvider(widget.deviceId));
-      await ref.read(startDeviceStreamingProvider(widget.deviceId).future);
-      if (!mounted) return;
-
       await _session.connect();
     } catch (e) {
       if (!mounted) return;

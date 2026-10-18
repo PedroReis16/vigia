@@ -2,7 +2,6 @@ export * from './get-devices/get-devices.service';
 export * from './get-device/get-device.service';
 export * from './get-device-clips/get-device-clips.service';
 export * from './update-device/update-device.service';
-export * from './start-device-streaming/start-device-streaming.service';
 export * from './get-device-users/get-device-users.service';
 export * from './generate-device-share-link/generate-device-share-link.service';
 export * from './accept-share-invite/accept-share-invite.service';

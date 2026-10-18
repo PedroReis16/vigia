@@ -11,7 +11,6 @@ import { DeviceGroupsRealtimeService, WhepLiveSession, AuthSessionService, Devic
 import {
   GetDeviceService,
   GetDeviceUsersService,
-  StartDeviceStreamingService,
 } from '@core/usecases';
 import { VigiaTheme } from '@shared/theme/vigia.theme';
 import { NEVER } from 'rxjs';
@@ -21,7 +20,6 @@ describe('DeviceDetailComponent', () => {
   let fixture: ComponentFixture<DeviceDetailComponent>;
   let getDevice: { execute: ReturnType<typeof vi.fn> };
   let getDeviceUsers: { execute: ReturnType<typeof vi.fn> };
-  let startStreaming: { execute: ReturnType<typeof vi.fn> };
 
   const sampleDevice = new Device(
     'device-1',
@@ -42,7 +40,6 @@ describe('DeviceDetailComponent', () => {
 
     getDevice = { execute: vi.fn().mockResolvedValue(sampleDevice) };
     getDeviceUsers = { execute: vi.fn().mockResolvedValue([]) };
-    startStreaming = { execute: vi.fn().mockResolvedValue(undefined) };
 
     await TestBed.configureTestingModule({
       imports: [DeviceDetailComponent, TranslateModule.forRoot()],
@@ -61,7 +58,6 @@ describe('DeviceDetailComponent', () => {
         },
         { provide: GetDeviceService, useValue: getDevice },
         { provide: GetDeviceUsersService, useValue: getDeviceUsers },
-        { provide: StartDeviceStreamingService, useValue: startStreaming },
         {
           provide: DeviceGroupsRealtimeService,
           useValue: { membershipChanged$: NEVER, connect: vi.fn(), disconnect: vi.fn() },
@@ -85,7 +81,7 @@ describe('DeviceDetailComponent', () => {
     expect(fixture.debugElement.nativeElement.textContent).toContain('Sala');
   });
 
-  it('shows mobile app bar with device nickname and status', async () => {
+  it('shows mobile app bar with device nickname', async () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -93,21 +89,10 @@ describe('DeviceDetailComponent', () => {
     const appBar = fixture.nativeElement.querySelector('[data-testid="device-detail-appbar"]');
     expect(appBar).toBeTruthy();
     expect(appBar.textContent).toContain('Sala');
-
-    const status = fixture.nativeElement.querySelector('[data-testid="device-detail-appbar-status"]');
-    expect(status).toBeTruthy();
-    expect(status.textContent).toContain('ONLINE');
-  });
-
-  it('shows status badge in details panel on all viewports', async () => {
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const badge = fixture.nativeElement.querySelector('[data-testid="device-status-badge"]');
-    expect(badge).toBeTruthy();
-    expect(badge.textContent).toContain('ONLINE');
-    expect(badge.querySelector('.device-details-panel__status-dot--online')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="device-detail-appbar-status"]'),
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="device-status-badge"]')).toBeNull();
   });
 
   it('renders two-column layout container for responsive desktop', async () => {

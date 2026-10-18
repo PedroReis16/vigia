@@ -31,7 +31,6 @@ import {
   AcknowledgeDeviceAlertsService,
   GetDeviceService,
   GetDeviceUsersService,
-  StartDeviceStreamingService,
   DevicesUseCaseError,
 } from '@core/usecases';
 import { AuthSessionService } from '@core/services';
@@ -60,7 +59,6 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly getDevice = inject(GetDeviceService);
   private readonly getDeviceUsers = inject(GetDeviceUsersService);
-  private readonly startStreaming = inject(StartDeviceStreamingService);
   private readonly acknowledgeDeviceAlerts = inject(AcknowledgeDeviceAlertsService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
   private readonly authSession = inject(AuthSessionService);
@@ -240,7 +238,6 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.session.beginConnecting();
 
     try {
-      await this.startStreaming.execute(this.deviceId);
       await this.session.connect();
     } catch (error) {
       this.session.markError(error);

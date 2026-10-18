@@ -54,8 +54,8 @@ public static class OAuthExtension
                 PictureAccessTokenDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, DeviceCertificateAuthenticationHandler>(
                 DeviceCertificateDefaults.AuthenticationScheme, _ => { })
-            .AddScheme<AuthenticationSchemeOptions, MediaMtxTokenAuthenticationHandler>(
-                MediaMtxTokenDefaults.AuthenticationScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, ServiceBasicAuthenticationHandler>(
+                ServiceBasicDefaults.AuthenticationScheme, _ => { })
             .AddJwtBearer(BearerSchemeSelector.LocalJwtScheme, options =>
             {
                 options.MapInboundClaims = false;

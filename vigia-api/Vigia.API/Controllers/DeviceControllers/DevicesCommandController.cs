@@ -43,11 +43,11 @@ public class DevicesCommandController(IDeviceCommandsService service) : Controll
     }
 
     /// <summary>
-    /// Hook do MediaMTX (runOnUnread when last reader leaves): envia STOP_STREAMING sem JWT de usuário.
-    /// Autenticado pelo header X-MediaMTX-Token.
+    /// Hook do MediaMTX (runOnUnDemand): envia STOP_STREAMING sem JWT de usuário.
+    /// Autenticado por Basic da conta mediamtx.
     /// </summary>
     [HttpPatch("undemand")]
-    [Authorize(AuthenticationSchemes = MediaMtxTokenDefaults.AuthenticationScheme)]
+    [Authorize(AuthenticationSchemes = ServiceBasicDefaults.AuthenticationScheme, Roles = ServiceBasicDefaults.MediaMtxRole)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -132,6 +132,18 @@
   "shareLimitReached": "User limit reached",
   "shareDeviceInviteSubject": "Vigia invite",
   "shareLinkCopied": "Link copied. Share it with who you want to invite.",
+  "shareLinkCopiedUntil": "Link copied. Expires at {time}.",
+  "@shareLinkCopiedUntil": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "shareLinkExpires": "Expires at {time}",
+  "@shareLinkExpires": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
   "shareLinkError": "Could not generate the share link",
   "deviceOwner": "Owner",
   "removeUserTitle": "Remove user?",
@@ -151,9 +163,19 @@
   "acceptingInvite": "Accepting invite…",
   "inviteAcceptedSuccess": "Invite accepted. Shared devices are now available.",
   "inviteAcceptedError": "Could not accept the invite",
+  "inviteExpired": "This invite has expired.",
+  "inviteInvalid": "This invite is invalid or was revoked.",
+  "inviteGroupFull": "This group has reached the user limit.",
+  "inviteRetry": "Try again",
   "clips": "Clips",
   "viewClips": "View clips",
   "account": "Account",
-  "session": "Session"
+  "session": "Session",
+  "profilePhone": "Phone",
+  "changeProfilePicture": "Change photo",
+  "removeProfilePicture": "Remove photo",
+  "profilePictureInvalid": "Choose a JPEG, PNG, or WebP image up to 2 MB.",
+  "profilePictureError": "Could not update the photo.",
+  "profileLoadError": "Could not load the profile."
 }
 

@@ -349,6 +349,16 @@ class AppLocalizationsPt extends AppLocalizations {
       'Link copiado. Compartilhe com quem deseja convidar.';
 
   @override
+  String shareLinkCopiedUntil(String time) {
+    return 'Link copiado. Expira às $time.';
+  }
+
+  @override
+  String shareLinkExpires(String time) {
+    return 'Expira às $time';
+  }
+
+  @override
   String get shareLinkError =>
       'Não foi possível gerar o link de compartilhamento';
 
@@ -396,6 +406,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get inviteAcceptedError => 'Não foi possível aceitar o convite';
 
   @override
+  String get inviteExpired => 'Este convite expirou.';
+
+  @override
+  String get inviteInvalid => 'Este convite é inválido ou foi revogado.';
+
+  @override
+  String get inviteGroupFull => 'O grupo já atingiu o limite de usuários.';
+
+  @override
+  String get inviteRetry => 'Tentar novamente';
+
+  @override
   String get clips => 'Clips';
 
   @override
@@ -406,4 +428,23 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get session => 'Sessão';
+
+  @override
+  String get profilePhone => 'Telefone';
+
+  @override
+  String get changeProfilePicture => 'Trocar foto';
+
+  @override
+  String get removeProfilePicture => 'Remover foto';
+
+  @override
+  String get profilePictureInvalid =>
+      'Escolha uma imagem JPEG, PNG ou WebP de até 2 MB.';
+
+  @override
+  String get profilePictureError => 'Não foi possível atualizar a foto.';
+
+  @override
+  String get profileLoadError => 'Não foi possível carregar o perfil.';
 }

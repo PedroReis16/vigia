@@ -40,6 +40,7 @@ dependencies:
   device_info_plus: ^12.4.0
   crypto: ^3.0.6
   webview_flutter: ^4.13.0
+  image_picker: ^1.2.1
 
 # Keep FCM out of iPhone/SPM: published FlutterFire packages declare iOS and pull
 # firebase-ios-sdk. These path packages keep the Dart API + Android natives only.

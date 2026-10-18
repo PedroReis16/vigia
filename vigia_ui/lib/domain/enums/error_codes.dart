@@ -7,7 +7,13 @@ enum ErrorCodes {
   notificationNotFound(42),
   refreshTokenRequired(43),
   keycloakLogoutRejected(44),
-  keycloakClientRequired(45);
+  keycloakClientRequired(45),
+  invalidProfilePicture(46),
+  profilePictureTooLarge(47),
+  invalidProfileName(48),
+  invalidProfilePhone(49),
+  profileUpdateFailed(50),
+  accountDeleteForbidden(51);
 
   final int value;
 

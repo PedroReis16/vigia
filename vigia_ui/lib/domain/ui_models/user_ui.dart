@@ -1,4 +1,5 @@
 import 'package:vigia_ui/domain/DTOs/user.dart';
+import 'package:vigia_ui/domain/api_asset_url.dart';
 
 class UserUIModel {
   final String id;
@@ -17,7 +18,7 @@ class UserUIModel {
     return UserUIModel(
       id: user.id,
       name: user.name,
-      userPicture: user.userPicture,
+      userPicture: resolveApiAssetUrl(user.userPicture),
       isOwner: user.isOwner,
     );
   }

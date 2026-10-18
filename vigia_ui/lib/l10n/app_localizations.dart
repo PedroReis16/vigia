@@ -730,6 +730,18 @@ abstract class AppLocalizations {
   /// **'Link copiado. Compartilhe com quem deseja convidar.'**
   String get shareLinkCopied;
 
+  /// No description provided for @shareLinkCopiedUntil.
+  ///
+  /// In pt, this message translates to:
+  /// **'Link copiado. Expira às {time}.'**
+  String shareLinkCopiedUntil(String time);
+
+  /// No description provided for @shareLinkExpires.
+  ///
+  /// In pt, this message translates to:
+  /// **'Expira às {time}'**
+  String shareLinkExpires(String time);
+
   /// No description provided for @shareLinkError.
   ///
   /// In pt, this message translates to:
@@ -814,6 +826,30 @@ abstract class AppLocalizations {
   /// **'Não foi possível aceitar o convite'**
   String get inviteAcceptedError;
 
+  /// No description provided for @inviteExpired.
+  ///
+  /// In pt, this message translates to:
+  /// **'Este convite expirou.'**
+  String get inviteExpired;
+
+  /// No description provided for @inviteInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'Este convite é inválido ou foi revogado.'**
+  String get inviteInvalid;
+
+  /// No description provided for @inviteGroupFull.
+  ///
+  /// In pt, this message translates to:
+  /// **'O grupo já atingiu o limite de usuários.'**
+  String get inviteGroupFull;
+
+  /// No description provided for @inviteRetry.
+  ///
+  /// In pt, this message translates to:
+  /// **'Tentar novamente'**
+  String get inviteRetry;
+
   /// No description provided for @clips.
   ///
   /// In pt, this message translates to:
@@ -837,6 +873,42 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Sessão'**
   String get session;
+
+  /// No description provided for @profilePhone.
+  ///
+  /// In pt, this message translates to:
+  /// **'Telefone'**
+  String get profilePhone;
+
+  /// No description provided for @changeProfilePicture.
+  ///
+  /// In pt, this message translates to:
+  /// **'Trocar foto'**
+  String get changeProfilePicture;
+
+  /// No description provided for @removeProfilePicture.
+  ///
+  /// In pt, this message translates to:
+  /// **'Remover foto'**
+  String get removeProfilePicture;
+
+  /// No description provided for @profilePictureInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'Escolha uma imagem JPEG, PNG ou WebP de até 2 MB.'**
+  String get profilePictureInvalid;
+
+  /// No description provided for @profilePictureError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível atualizar a foto.'**
+  String get profilePictureError;
+
+  /// No description provided for @profileLoadError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível carregar o perfil.'**
+  String get profileLoadError;
 }
 
 class _AppLocalizationsDelegate

@@ -201,15 +201,6 @@
   white-space: nowrap;
 }
 
-.device-detail__appbar-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--p-text-muted-color, #7a8499);
-}
-
 .device-detail__appbar-spacer {
   width: 2.5rem;
   flex-shrink: 0;

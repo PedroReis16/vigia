@@ -6,6 +6,8 @@ import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
 import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/DTOs/user.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
+import 'package:vigia_ui/domain/enums/error_codes.dart';
+import 'package:vigia_ui/domain/exceptions/request_exception.dart';
 import 'package:vigia_ui/domain/exceptions/unauthroized_exception.dart';
 
 class DevicesRepository {
@@ -144,6 +146,31 @@ class DevicesRepository {
     return message is String && message.isNotEmpty ? message : null;
   }
 
+  ErrorCodes _errorCode(int? code) {
+    for (final item in ErrorCodes.values) {
+      if (item.value == code) return item;
+    }
+    return ErrorCodes.unknownError;
+  }
+
+  RequestException _shareRequestException(DioException e, String fallback) {
+    final data = e.response?.data;
+    int? code;
+    if (data is Map) {
+      final raw = data['errorCode'] ?? data['ErrorCode'];
+      if (raw is int) {
+        code = raw;
+      } else if (raw is String) {
+        code = int.tryParse(raw);
+      }
+    }
+
+    return RequestException(
+      message: _apiErrorMessage(e) ?? fallback,
+      errorCode: _errorCode(code),
+    );
+  }
+
   Future<List<DeviceUser>> getDeviceUsers(String deviceId) async {
     try {
       final response = await dio.get("$_devicesEndpoint/$deviceId/users");
@@ -195,10 +222,7 @@ class DevicesRepository {
           "Permissões insuficientes para aceitar o convite.",
         );
       }
-      final message = e.response?.data is Map
-          ? (e.response?.data['errorMessage'] as String?)
-          : null;
-      throw Exception(message ?? 'Failed to accept share invite');
+      throw _shareRequestException(e, 'Failed to accept share invite');
     } catch (e) {
       rethrow;
     }

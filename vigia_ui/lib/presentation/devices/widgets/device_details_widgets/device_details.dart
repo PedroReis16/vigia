@@ -140,8 +140,17 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
         ref
             .watch(getDeviceUsersProvider(widget.device.id))
             .when(
-              error: (error, stackTrace) =>
-                  Center(child: Text(error.toString())),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(error.toString()),
+                  if (widget.device.isOwner)
+                    TextButton(
+                      onPressed: _routeToDeviceUsers,
+                      child: Text(t.shareDevice),
+                    ),
+                ],
+              ),
               loading: () => Skeletonizer(
                 child: DeviceUserItem(
                   user: UserUIModel(id: "", name: "", isOwner: false),
@@ -149,7 +158,17 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
               ),
               data: (users) {
                 if (users.isEmpty) {
-                  return Text(t.noUsersFound);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(t.noUsersFound),
+                      if (widget.device.isOwner)
+                        TextButton(
+                          onPressed: _routeToDeviceUsers,
+                          child: Text(t.shareDevice),
+                        ),
+                    ],
+                  );
                 }
 
                 _users = users;

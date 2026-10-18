@@ -1,6 +1,9 @@
 enum ErrorCodes {
   unknownError(0),
   emailAlreadyInUse(7),
+  groupUserLimitReached(26),
+  inviteInvalid(27),
+  inviteExpired(28),
   fiwareCommandFailed(35),
   fiwareProvisionFailed(36),
   notGroupMember(41),

@@ -38,7 +38,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 - **ORM:** Entity Framework Core + Npgsql (PostgreSQL)
 - **Cache:** Redis + in-memory (`Vigia.Cache`)
 - **Realtime:** SignalR
-- **Auth:** access token do Keycloak (web e app Flutter); logout orquestrado em `POST /users/logout`; tokens efêmeros para frames, service token (dev)
+- **Auth:** access token do Keycloak (web e app Flutter); logout orquestrado em `POST /users/logout`; tokens efêmeros para frames; mTLS de cliente nas rotas da placa no deploy; Basic nos webhooks do Orion e do MediaMTX
 - **Push:** Firebase Admin (Android + Web)
 - **Docs API:** Swagger/OpenAPI
 - **Storage:** S3-compatible via `Vigia.Cloud` (MinIO)
@@ -123,11 +123,11 @@ vigia/
 
 | Controller | Responsabilidade |
 |------------|------------------|
-| `UserController` | Push tokens FCM (`PUT`/`DELETE /users/push-token`) e logout orquestrado (`POST /users/logout`) |
+| `UserController` | Perfil (`GET`/`PUT`/`DELETE /users/me`, `PUT`/`DELETE /users/me/picture`), foto (`GET /users/{id}/picture` com token efêmero), push tokens FCM (`PUT`/`DELETE /users/push-token`) e logout orquestrado (`POST /users/logout`) |
 | `DevicesController` | CRUD e registro de devices |
 | `DevicesCommandController` | Comandos FIWARE para devices |
 | `DevicesFrameController` | Upload e acesso a frames |
-| `DevicesClipController` | POST anônimo dos frames PNG e montagem do MP4 com poster JPEG; GET da lista exige usuário autenticado; thumbnail e playback usam token efêmero e o vídeo responde `Range` |
+| `DevicesClipController` | POST dos frames PNG com certificado de cliente no deploy (anônimo no local) e montagem do MP4 com poster JPEG; GET da lista exige usuário autenticado; thumbnail e playback usam token efêmero e o vídeo responde `Range` |
 | `DeviceShareController` | Convites e compartilhamento de grupos |
 | `DevicesUsersController` | Membros do grupo / associação user-device |
 | `DeviceUpdatesController` | OTA — upload e distribuição de versões |
@@ -259,9 +259,9 @@ vigia/
 | `__init__.py` | `start_supervisor` (thread) / `ensure_*` / `stop_*` — ciclo de vida dos Processes fora do loop YOLO; thumbnail fica ligada na sessão |
 | `stream_runner.py` | Process RTMP: live SHM (frame nativo) → FFmpeg CRF 18 / `veryfast` → MediaMTX enquanto `stream_on` |
 | `thumbs_runner.py` | Process thumbnail: live SHM → JPEG a cada 60s |
-| `frame_uploader.py` | POST anônimo do JPEG (`frameFile`) em `/devices/{id}/frame` |
+| `frame_uploader.py` | POST do JPEG (`frameFile`) em `/devices/{id}/frame`, com certificado de cliente quando `device.crt` existe |
 | `clips_runner.py` | Process janela: live SHM → JPEG na resolução da câmera (slot `CLIP_MAX_PAYLOAD`, default 2 MiB) no fps da câmera; na entrada em `fall`, exporta nesse fps |
-| `clip_export.py` | PNG sem perdas via FFmpeg e POST anônimo dos frames numerados para a API |
+| `clip_export.py` | PNG sem perdas via FFmpeg e POST dos frames numerados para a API, com certificado de cliente quando `device.crt` existe |
 | `rtmp.py` | Publisher FFmpeg (BGR raw → libx264/FLV) |
 | `mp_compat.py` | `freeze_support` + stop de filhos |
 
@@ -342,9 +342,9 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `public/i18n/` | Traduções JSON (pt-BR, en-US, es-ES) |
 | `public/_redirects` | SPA fallback Cloudflare Pages (`/invite/*`, `/*` → `/index.html` 200) |
 
-**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; `inviteEntryGuard` persiste o token e manda o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma). Shell: toolbar full-bleed (logo + avatar/logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak fixa o logo, some com o formulário (POST com submitter `login`) e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms; bridge só cai após o véu pintar). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site / origin `:81`) e `sessionStorage` na volta do logout. `login-page-expired` do tema auto-segue “continuar” quando possível.
+**Rotas:** `/login` (`guestGuard`, redireciona ao Keycloak; `?mode=register` abre o cadastro do realm); `/register` → redirect `/login?mode=register`; `/invite/:token` (aceitar convite; sessão já aberta entra direto; `inviteEntryGuard` persiste o token e manda só o anônimo ao Keycloak com volta para o convite); `/` → layout + `authGuard` → `/devices` (default); `/devices/:deviceId` (detalhe + stream); `/devices/:deviceId/clips` (lista com thumbnail e reprodução por faixas HTTP); `/home` (idioma); `/profile` (nome, e-mail, telefone, foto e prévia mockada do plano). Shell: toolbar full-bleed (logo + avatar com nome/foto e logout). Tema claro only (como Flutter). Sem cadastro BLE de devices na web. Login: o tema Keycloak fixa o logo, some com o formulário (POST com submitter `login`) e o shell continua o morph (véu `#669CEE` encolhe até a toolbar, logo 780ms; bridge só cai após o véu pintar). Logout: o morph inverso termina no logo do Keycloak; o tema revela o formulário. O handoff usa o cookie `vigia_auth_handoff` (mesmo site / origin `:81`) e `sessionStorage` na volta do logout. `login-page-expired` do tema auto-segue “continuar” quando possível.
 
-**Status:** sessão Keycloak (PKCE, `check-sso`); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl` + `START_STREAMING`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + inbox server-side via `/notifications`); clips de queda (thumbnail na lista; playback por faixas HTTP).
+**Status:** sessão Keycloak (PKCE, `check-sso`, tokens no `localStorage` para recarregar sem novo login); listagem de devices; detalhe com live stream WHEP (`streamBaseUrl`; o MediaMTX dispara `stream_on`), edição owner, usuários/compartilhamento (gerar link + aceitar convite via `/invite/:token`), SignalR `device-groups`; push FCM web (sino + inbox server-side via `/notifications`); clips de queda (thumbnail na lista; playback por faixas HTTP).
 
 ---
 
@@ -427,7 +427,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 3. **Ordem de instalação edge** — bootstrap → pareamento via app → fall-detection. O fall só inicia com `identity.json` e `network.json` presentes. O pacote `onboard` é a alternativa de placa única: serviço systemd `vigia` (captura + integração + interface) em `/opt/vigia/onboard/`, com o YOLO pose NCNN no bundle.
 
-4. **Autenticação multi-esquema** — Access token do Keycloak (issuer público, JWKS interno) para o vigia-web (`vigia-web`) e para o app Flutter (`vigia-app`, PKCE na WebView). Logout via `POST /users/logout` (API revoga refresh no Keycloak e remove o push token do aparelho). Tokens efêmeros para frames e para mídia de clipes; token de serviço para dev (`AllowAnonymous` handler, IP privado); token MediaMTX para webhooks de streaming. O scheme padrão escolhe pelo `iss` do Bearer. No dev, `Keycloak:AdditionalValidIssuers` aceita o host da LAN usado pelo app.
+4. **Autenticação multi-esquema** — Access token do Keycloak (issuer público, JWKS interno) para o vigia-web (`vigia-web`) e para o app Flutter (`vigia-app`, PKCE na WebView). Logout via `POST /users/logout` (API revoga refresh no Keycloak e remove o push token do aparelho). Tokens efêmeros para frames e para mídia de clipes; token de serviço para dev (`AllowAnonymous` handler, IP privado). A placa usa certificado de cliente ECDSA P-256 emitido no registro e entregue no pareamento BLE; `DeviceAuth:RequireClientCertificate` só liga no deploy, onde o Traefik exige o certificado nas rotas de frame, clipe e OTA. Webhooks do Orion e o hook do MediaMTX usam Basic (`ServiceBasic`), em local e deploy. O scheme padrão escolhe pelo `iss` do Bearer. No dev, `Keycloak:AdditionalValidIssuers` aceita o host da LAN usado pelo app.
 
 5. **Tags rolling no CI** — Tags `service`, `web`, `bootstrap`, `onboard`, `mobile` são sobrescritas a cada release. Sem SemVer no GitHub para esses artefatos; simplifica deploy operacional.
 
@@ -460,7 +460,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | Registro duplicado é idempotente (request ignorada) | `DevicesService.RegisterDeviceAsync` |
 | Máximo **10 usuários por grupo** | `DeviceShareService.MaxGroupUsers` |
 | Listagem de membros do device usa o e-mail como nome: `users` persiste só e-mail e telefone | `UserDao.GetUsersByGroupAsync`, `DeviceUsersService` |
-| Convite expira em **7 dias**; apenas o owner pode gerar | `DeviceShareService` |
+| Convite expira em **5 minutos**; apenas o owner pode gerar | `DeviceShareService.InviteLifetime` |
 | JWT access token: **10 min**; refresh token: **7 dias** com rotação e revogação | `appsettings.json` (JWT) + `AuthService` |
 | Alerta de queda: subscription Orion `fall_state==fall` → webhook API → 1 episódio Active + inbox por membro + 1 FCM; webhooks repetidos enquanto Active são ignorados; reenvio via `FallAlertRetryWorker` até ack/expire | `AlertService`, `FallAlertEpisode`, `UserNotification`, `Alerts:*` |
 | Ack de queda: abrir detalhe do device (`POST .../alerts/acknowledge`) por membro do grupo para o episódio e marca lidas só desse usuário | `NotificationInboxService`, web `AcknowledgeDeviceAlertsService`, Flutter `device_details_page` |
@@ -476,13 +476,15 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
 | Device de teste em DEBUG: `Vigia-a1b2c3d4`, já no grupo do usuário `admin` | `TestDeviceSeed` + `TestDeviceLocalSeed` |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
-| Landing web de convite: `https://vigiadeteccoes.com.br/invite/{token}` | `appsettings.json` (`Invite:WebInviteBase`); link "Continuar na web" em `InviteRedirectController` |
+| Landing de convite: `Invite:WebInviteBase` + token. Produção `https://vigiadeteccoes.com.br/invite/{token}`; local `http://localhost:4200/invite/{token}` (`ng serve`). Desktop recebe redirect HTTP; celular tenta o app e cai na web sem página de escolha | `appsettings.json`, `appsettings.Development.json`, `docker-compose/local/default.env`; `InviteRedirectController` |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
 | Códigos de erro espelhados entre API e Flutter | `ErrorCodes.cs` ↔ `error_codes.dart` |
 | Token FCM: plataformas `android`, `ios`, `web` | `UserPushTokenService` |
 | Token FCM: upsert reativa registro soft-deleted (logout→login sem chave duplicada no índice único de `token`) | `UserPushTokenDao.UpsertAsync` |
 | Logout: cliente chama `POST /users/logout` (refresh + push opcional); a API revoga no Keycloak e só então soft-delete do push token daquele aparelho; web pode receber `endSessionUrl` para limpar SSO | `UserLogoutService`, `KeycloakSessionClient` |
-| Usuário local usa o UUID do Keycloak; cadastro, login e alteração de perfil fazem upsert, exclusão faz soft-delete e desativa push tokens | Fila `vigia.users.sync` + `KeycloakUserSyncService` |
+| Usuário local usa o UUID do Keycloak; cadastro, login e alteração de perfil fazem upsert de nome, e-mail e telefone sem apagar a foto; exclusão faz soft-delete, remove a foto e desativa push tokens | Fila `vigia.users.sync` + `KeycloakUserSyncService` |
+| Edição de nome e telefone e exclusão da conta passam pela Admin API do Keycloak (`Keycloak:AdminUsername` / `AdminPassword`, client `admin-cli`) e atualizam o usuário local na mesma requisição | `KeycloakAdminClient`, `PUT`/`DELETE /users/me` |
+| Foto de perfil: JPEG, PNG ou WebP até 2 MB em `vigia-pictures` (`users/{id}/avatar`). `GET /users/me` e a lista de membros devolvem `pictureUrl` com token de 1 h; o GET da imagem exige esse token | `UserProfileService`, `PictureAccessTokenProvider` |
 | Realm local `vigia` já traz o usuário `admin` com o UUID do antigo super usuário; no startup DEBUG e no upsert ele é membro do grupo do device de teste | `TestDeviceLocalSeed`, `realm-export.json`, `GroupDao.EnsureOwnerMembershipAsync` |
 
 **Referência detalhada FIWARE:** tutorial operacional de schema (adicionar comandos/atributos, env vars, verificação MongoDB) permanece em [`README.md`](../README.md) seção FIWARE.
@@ -610,13 +612,11 @@ flowchart LR
 
 ### 3. Streaming ao vivo
 
-1. Usuário solicita stream via app → API envia comando `stream_on` via FIWARE
-2. IoT Agent publica comando no MQTT → processo FIWARE seta `multiprocessing.Event`
-3. Supervisor (`main.py`) sobe processo `run_stream`; captura lê câmera em **full-rate**, arquiva/classifica no ritmo de `FRAME_RATE` (com backpressure) e escreve frames flipados na **shared memory** (`frame_shm`, latest-only) quando `stream_on`
-4. Processo streaming lê SHM → `publish_frame` direto → FFmpeg (low-delay) → endpoint `stream_ingest_url` (`rtmp://` local ou `rtmps://` produção) → MediaMTX
-5. App consome stream via WebRTC/WHEP
-6. MediaMTX envia webhooks de lifecycle para API (auth via token dedicado)
-7. `stream_off` (ou falhas RTMP) limpa o Event → supervisor termina o processo de streaming e reseta sequence (zero FFmpeg/encode idle)
+1. O player (web ou app) só conecta WHEP em `/live/{deviceId}`. Sem publisher, o MediaMTX segura o pedido e dispara `runOnDemand` (`runOnDemandStartTimeout` 30s)
+2. O hook chama `PATCH /devices/{id}/command/demand` com Basic da conta `mediamtx`. A API envia `stream_on` via FIWARE; o IoT Agent publica no MQTT e o processo de integração liga o stream
+3. O supervisor sobe o processo de streaming. A captura escreve frames na shared memory quando `stream_on` e o processo publica RTMP em `stream_ingest_url` (`rtmp://` local ou `rtmps://` produção). O MediaMTX então libera o WHEP
+4. O último leitor sair espera `runOnDemandCloseAfter` (10s). Se ninguém volta, `runOnUnDemand` chama `PATCH .../command/undemand` com Basic e a API envia `stream_off`
+5. `stream_off` (ou falhas RTMP) encerra o processo de streaming
 
 ### 4. OTA (atualização de firmware)
 
@@ -628,25 +628,25 @@ flowchart LR
 
 ### 5. Compartilhamento de device
 
-1. Owner gera convite via API → recebe link HTTPS (`/vigia/i/{code}`) ou deep link `vigia://invite/{token}`
-2. Landing `/vigia/i/{code}` redireciona para app mobile; se `Invite:WebInviteBase` configurado, oferece link "Continuar na web"
-3. Convidado web: `/invite/{token}` → `AcceptShareInviteService` (`POST /devices/share/accept`); anônimo persiste token em `sessionStorage` e faz login antes
-4. Convidado aceita → entra no grupo (validação: max 10 membros, convite não expirado)
+1. Owner gera convite via API → recebe link HTTPS (`/vigia/i/{code}`), válido por 5 minutos. Um link novo revoga o convite ativo anterior
+2. `GET /vigia/i/{code}` é anônimo e não mostra página de escolha. No computador responde redirect para `Invite:WebInviteBase`. No celular tenta `vigia://invite/{code}` e, se o app não abrir, segue para a web
+3. Convidado web: `/invite/{token}` → `AcceptShareInviteService` (`POST /devices/share/accept`). Sessão já aberta (tokens no `localStorage`) aceita sem novo login; anônimo persiste o token em `sessionStorage` e faz login antes. Falha no aceite mantém o token e permite tentar de novo
+4. Convidado aceita → entra no grupo (validação: max 10 membros, convite não expirado). O grupo do owner é criado no sync do Keycloak
 5. Membros do grupo recebem alertas e podem visualizar devices compartilhados
-6. SignalR notifica mudanças de grupo em tempo real via `DeviceGroupsHub`
+6. SignalR `DeviceGroupsHub` envia `GroupMembershipChanged` uma vez por destinatário em join, remove e ao vincular ou desvincular um device (`devices_changed`). O cliente web negocia sem cookies. Quem foi removido sai da página do device (e dos clipes) sem recarregar
 
 ### 6. Upload de frames
 
 1. No onboard, um Process filho lê o último frame da live SHM e envia um JPEG a cada 60s. O fall-detection envia no próprio loop de captura
-2. POST anônimo para `/devices/{id}/frame`
-3. A API guarda o JPEG em cache (TTL 120s). A listagem devolve `thumbnailUrl` com token efêmero; o GET do frame exige esse token
+2. POST para `/devices/{id}/frame`. No deploy a placa apresenta o certificado de cliente; no local, sem os ficheiros, o POST segue anônimo
+3. A API guarda o JPEG em cache (TTL 120s). A listagem e o `GET /devices/{id}` devolvem `thumbnailUrl` com token efêmero; o GET do frame exige esse token
 
 ### 7. Montagem de clipes
 
 1. O update do device com `IsClipsEnabled` diferente envia `clips_on` ou `clips_off` pelo FIWARE. Falha no envio não desfaz a gravação no Postgres
 2. O onboard grava a chave `clips` na secção `options` de `{DATA_DIR}/device.json` e espelha-a no ControlShm. No arranque da captura (e da integração) a secção volta a ligar ou a deixar desligado o processo de armazenamento, sem um comando novo
 3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
-4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4), sem autenticação, em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`
+4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4) em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`, com o certificado de cliente quando ele existe
 5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps, mais um JPEG do último frame (largura máxima 480)
 6. O MP4 e o JPEG sobem para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4` e `.jpg`). `GET /devices/{id}/clips` exige usuário autenticado e, no clipe pronto, devolve `thumbnailUrl` e `playbackUrl` com token efêmero de 1 h. A web mostra o JPEG e, ao escolher o clipe, pede o MP4 por faixas (`Range` / `206`). Clipe antigo sem JPEG ganha o poster na primeira leitura do thumbnail, extraído do MP4
 
@@ -656,10 +656,33 @@ flowchart LR
 2. O onboard grava a chave `blur` na secção `options` de `{DATA_DIR}/device.json` e espelha-a no ControlShm. Sem a chave, vale `BLUR_VIDEO`. No arranque da captura e da integração a flag volta ao ControlShm
 3. Com a flag ligada, o loop de captura borra as caixas de pessoa antes de escrever a live SHM, por isso stream, clipes e thumbnail saem desfocados
 
+### 9. Perfil do usuário
+
+1. O Keycloak continua dono de nome, e-mail e telefone. `PUT /users/me` grava nome e telefone na Admin API e na base local; o e-mail permanece somente leitura. O upsert da fila não apaga a foto
+2. A foto sobe em `PUT /users/me/picture` e fica no bucket de pictures. Sem foto, o nome de exibição cai no e-mail
+3. `DELETE /users/me` apaga o usuário no Keycloak, a foto, os push tokens e faz soft-delete local. O super admin (`admin@vigia.local`) não pode apagar a conta. O web encerra a sessão em seguida
+4. Web (`/profile`) abre em leitura e pode apagar a conta. Editar revela nome, sobrenome e telefone; a foto troca pelo toque no avatar. Abaixo dos dados, a web separa a prévia em Plano ativo (pacote, uso, cartão e faturas) e Editar meu plano (simulação de troca, sem cobrança). O app (Configurações → Conta) mostra os mesmos dados de perfil. A lista de membros do device usa o mesmo nome e a mesma URL
+
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] Prévia do plano no perfil separa Plano ativo e Editar meu plano (`vigia-web /profile`)
+- [2026-10-18] Perfil web ganha prévia do plano com pacotes, uso e pagamentos de exemplo (`vigia-web /profile`)
+- [2026-10-18] Streaming: MediaMTX `runOnDemand` pede `stream_on` e `runOnUnDemand` pede `stream_off` após 10s sem leitores (`mediamtx.yml`, `command/demand`)
+- [2026-10-18] Convite não mostra mais a página "Abrir no aplicativo / Continuar na web": desktop recebe redirect HTTP e o celular tenta o app em página vazia (`InviteRedirectController`)
+- [2026-10-18] Convite web reaproveita a sessão já aberta em vez de mandar de novo ao Keycloak (`KeycloakAuthService`, `localStorage`)
+- [2026-10-18] Funcionamento do dispositivo suspenso: sem heartbeat MQTT, sem subscrição `system_status`, sem aviso `device_offline` e sem selo online/offline na web e no app. A coluna `last_heartbeat_at` permanece
+- [2026-10-18] Thumbnail do device também sai em `GET /devices/{id}` (`DevicesService`)
+- [2026-10-15] Auth da placa por mTLS no deploy (certificado emitido no registro e entregue no BLE) e Basic nos webhooks do Orion e do MediaMTX (`DeviceCertificate`, `ServiceBasic`, vigia-onboard, vigia_ui)
+- [2026-10-15] O super admin não pode apagar a conta (`DELETE /users/me`, vigia-web `/profile`)
+- [2026-10-15] Perfil web abre em leitura; editar revela o formulário e a foto troca pelo toque no avatar (`vigia-web /profile`)
+- [2026-10-15] Perfil editável no web: nome, telefone e exclusão da conta via Admin API do Keycloak (`PUT`/`DELETE /users/me`, vigia-web `/profile`)
+- [2026-10-15] Perfil: nome vindo do Keycloak e foto no MinIO (`User`, `UserProfileService`, `GET /users/me`, vigia-web `/profile`, vigia_ui Configurações)
+- [2026-10-15] Status do dispositivo: health-check MQTT `system_status` no onboard, `LastHeartbeatAt`/`IsRunning` e um aviso `device_offline` quando o sinal some (`integration_runner.py`, `DeviceHealthService`, `DeviceHealthWorker`, vigia-web, vigia_ui)
+- [2026-10-15] vigia-web: transição suave entre o detalhe do device e a página de clipes (`DevicePageTransitionService`, `withViewTransitions`)
+- [2026-10-16] SignalR do compartilhamento chega no browser (negotiate sem cookies) e a remoção tira o usuário da página do device na hora (`DeviceGroupsRealtimeService`, `LayoutComponent`, `DeviceGroupsHub`, vigia_ui)
+- [2026-10-15] Compartilhamento: landing anônima com app e web, convite de 5 minutos, grupo do owner no sync do Keycloak, SignalR também em track/untrack (`InviteRedirectController`, `DeviceShareService`, `GroupDao`, `GroupRealtimeNotifier`, vigia-web, vigia_ui)
 - [2026-10-14] Onboard: identity, network, classifier e options num só `{DATA_DIR}/device.json`; JSON legados migram na primeira leitura (`shared/device_config.py`, seed `device.json`)
 - [2026-10-12] Keycloak local: `ValidIssuer` = `localhost:81`; `LogoutRealmBaseUrl` + Host do iss para revoke no Docker; `:80`/LAN em `AdditionalValidIssuers` (`default.env`, `KeycloakSessionClient`)
 - [2026-10-12] Logout orquestrado na API (`POST /users/logout`): revoga refresh no Keycloak e só então remove o push token do aparelho; restaura `PUT`/`DELETE /users/push-token` (`UserController`, `UserLogoutService`, vigia-web, vigia_ui)

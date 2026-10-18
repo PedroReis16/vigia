@@ -20,6 +20,7 @@ export * from './mark-notification-read/mark-notification-read.service';
 export * from './mark-all-notifications-read/mark-all-notifications-read.service';
 export * from './acknowledge-device-alerts/acknowledge-device-alerts.service';
 export * from './get-user-profile/get-user-profile.service';
+export * from './get-user-plan/get-user-plan.service';
 export * from './upload-profile-picture/upload-profile-picture.service';
 export * from './remove-profile-picture/remove-profile-picture.service';
 export * from './update-user-profile/update-user-profile.service';

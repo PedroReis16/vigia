@@ -4,6 +4,7 @@ export * from './classes/device-clip';
 export * from './classes/device-share-invite';
 export * from './classes/fall-notification';
 export * from './classes/user-profile';
+export * from './classes/user-plan';
 export * from './DTOs/device.dto';
 export * from './DTOs/device-clip.dto';
 export * from './DTOs/device-user.dto';

@@ -90,6 +90,11 @@ describe('ProfileComponent', () => {
     expect(compiled.querySelector('input[data-testid="profile-first-name"]')).toBeNull();
     expect(compiled.querySelector('[data-testid="profile-picture-button"]')).toBeNull();
     expect(compiled.querySelector('[data-testid="profile-remove-picture"]')).toBeNull();
+    const account = compiled.querySelector('p-card');
+    const plan = compiled.querySelector('[data-testid="profile-plan"]');
+    expect(account).toBeTruthy();
+    expect(plan).toBeTruthy();
+    expect(account!.compareDocumentPosition(plan!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('reveals the form and the picture overlay when editing', () => {

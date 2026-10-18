@@ -19,6 +19,7 @@ import {
   UpdateUserProfileService,
   UploadProfilePictureService,
 } from '@core/usecases';
+import { ProfilePlanComponent } from './profile-plan/profile-plan.component';
 
 const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
 const PHONE_PATTERN = /^[0-9+() .-]{8,16}$/;
@@ -35,6 +36,7 @@ const PHONE_PATTERN = /^[0-9+() .-]{8,16}$/;
     CardModule,
     ConfirmDialog,
     InputTextModule,
+    ProfilePlanComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './profile.component.html',

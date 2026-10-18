@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/app_router.dart';
+import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
 import 'package:vigia_ui/data/services/device_groups_realtime_service.dart';
@@ -78,5 +80,28 @@ class DeviceGroupsRealtimeBridge extends _$DeviceGroupsRealtimeBridge {
     } catch (e) {
       debugPrint('[SignalR] devices refresh failed: $e');
     }
+
+    await _leaveIfRemoved(event);
+  }
+
+  Future<void> _leaveIfRemoved(GroupMembershipChanged event) async {
+    if (!event.wasRemoved) return;
+
+    String userId;
+    try {
+      userId = await ref.read(tokenStorageProvider).getUserId();
+    } catch (e) {
+      debugPrint('[SignalR] user id unavailable: $e');
+      return;
+    }
+
+    final router = ref.read(appRouterProvider);
+    final match = RegExp(r'^/devices/([^/]+)').firstMatch(router.state.uri.path);
+    if (match == null) return;
+
+    final deviceId = Uri.decodeComponent(match.group(1)!);
+    if (!event.removesUserFromDevice(userId, deviceId)) return;
+
+    router.go(AppRoutes.devicesPage);
   }
 }

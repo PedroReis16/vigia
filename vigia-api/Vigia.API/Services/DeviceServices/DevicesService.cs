@@ -220,6 +220,9 @@ internal class DevicesService(
 
             await devicesDao.UpdateDeviceGroupAsync(device);
 
+            IGroupRealtimeNotifier realtime = scope.ServiceProvider.GetRequiredService<IGroupRealtimeNotifier>();
+            await realtime.NotifyDevicesChangedAsync(userGroup.Id, userId, deviceId);
+
             _logger.LogInformation($"Dispositivo {deviceId} vinculado ao usuário {userId} com sucesso");
         }
         catch (EntityValidationException) { throw; }
@@ -254,10 +257,14 @@ internal class DevicesService(
                 throw new UnauthorizedAccessException($"Somente o proprietário do dispositivo '{deviceId}' pode remove-lo");
             }
 
+            Guid groupId = device.Group.Id;
             device.Group = null;
 
             IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
             await devicesDao.UpdateDeviceGroupAsync(device);
+
+            IGroupRealtimeNotifier realtime = scope.ServiceProvider.GetRequiredService<IGroupRealtimeNotifier>();
+            await realtime.NotifyDevicesChangedAsync(groupId, userId, deviceId);
 
             _logger.LogInformation($"Dispositivo'{deviceId}' desvinculado do usuário '{userId}' com sucesso");
         }

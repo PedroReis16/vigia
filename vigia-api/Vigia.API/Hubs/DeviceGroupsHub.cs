@@ -12,14 +12,24 @@ public class DeviceGroupsHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        string? userId = ResolveUserId(Context.User);
+        string? userId = CanonicalUserId(ResolveUserId(Context.User));
         if (!string.IsNullOrEmpty(userId))
             await Groups.AddToGroupAsync(Context.ConnectionId, UserGroupName(userId));
 
         await base.OnConnectedAsync();
     }
 
-    public static string UserGroupName(string userId) => $"user:{userId}";
+    public static string UserGroupName(string userId) => $"user:{CanonicalUserId(userId)}";
+
+    public static string? CanonicalUserId(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return null;
+
+        return Guid.TryParse(userId, out Guid parsed)
+            ? parsed.ToString("D")
+            : userId.Trim();
+    }
 
     public static string? ResolveUserId(ClaimsPrincipal? user)
     {
@@ -38,5 +48,5 @@ public class DeviceGroupsHub : Hub
 public class JwtUserIdProvider : IUserIdProvider
 {
     public string? GetUserId(HubConnectionContext connection) =>
-        DeviceGroupsHub.ResolveUserId(connection.User);
+        DeviceGroupsHub.CanonicalUserId(DeviceGroupsHub.ResolveUserId(connection.User));
 }

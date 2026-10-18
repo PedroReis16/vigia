@@ -48,6 +48,8 @@ class DevicePairing extends _$DevicePairing {
   BluetoothDevice? _connectedBleDevice;
   DeviceIdentity? _deviceIdentity;
   DeviceProvisionConfig? _provisionConfig;
+  String? _clientCertificate;
+  String? _clientPrivateKey;
   String? _bleName;
   var _started = false;
   var _registered = false;
@@ -124,6 +126,8 @@ class DevicePairing extends _$DevicePairing {
         apiBaseUrl: Environments.apiUrl,
         fiwareApiKey: provisionConfig.fiwareApiKey,
         streamIngestUrl: provisionConfig.streamIngestUrl,
+        clientCert: _clientCertificate,
+        clientKey: _clientPrivateKey,
       );
 
       final status = await _ble.pollProvisionStatus(device);
@@ -232,12 +236,9 @@ class DevicePairing extends _$DevicePairing {
 
   Future<void> _registerDevice(DeviceIdentity identity) async {
     final repo = ref.read(devicesRepositoryProvider);
-    final newDevice = _toNewDevice(identity);
-
-    final existing = await repo.getDevice(newDevice.id);
-    if (existing == null) {
-      await repo.registerDevice(newDevice);
-    }
+    final material = await repo.registerDevice(_toNewDevice(identity));
+    _clientCertificate = material?.certificate;
+    _clientPrivateKey = material?.privateKey;
   }
 
   NewDevice _toNewDevice(DeviceIdentity identity) {
@@ -255,6 +256,8 @@ class DevicePairing extends _$DevicePairing {
     _connectedBleDevice = null;
     _deviceIdentity = null;
     _provisionConfig = null;
+    _clientCertificate = null;
+    _clientPrivateKey = null;
     _bleName = null;
     _registered = false;
   }

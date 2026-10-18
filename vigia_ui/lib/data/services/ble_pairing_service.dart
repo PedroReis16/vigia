@@ -130,6 +130,31 @@ class BlePairingService {
     return DeviceIdentity.fromJson(jsonMap);
   }
 
+  static Map<String, dynamic> provisionPayload({
+    required String ssid,
+    required String password,
+    required String apiBaseUrl,
+    required String fiwareApiKey,
+    required String streamIngestUrl,
+    String? clientCert,
+    String? clientKey,
+  }) {
+    final payload = <String, dynamic>{
+      'ssid': ssid,
+      'pass': password,
+      'api': apiBaseUrl,
+      'fiware': fiwareApiKey,
+      'stream_ingest_url': streamIngestUrl,
+    };
+    if (clientCert != null && clientCert.isNotEmpty) {
+      payload['client_cert'] = clientCert;
+    }
+    if (clientKey != null && clientKey.isNotEmpty) {
+      payload['client_key'] = clientKey;
+    }
+    return payload;
+  }
+
   /// Writes Wi‑Fi credentials. Device replies with CONNECTING and connects async.
   Future<void> provision(
     BluetoothDevice device, {
@@ -138,19 +163,25 @@ class BlePairingService {
     required String apiBaseUrl,
     required String fiwareApiKey,
     required String streamIngestUrl,
+    String? clientCert,
+    String? clientKey,
   }) async {
     final characteristic = await _requireCharacteristic(
       device,
       Constants.charProvisionUuid,
     );
 
-    final payload = jsonEncode({
-      'ssid': ssid,
-      'pass': password,
-      'api': apiBaseUrl,
-      'fiware': fiwareApiKey,
-      'stream_ingest_url': streamIngestUrl,
-    });
+    final payload = jsonEncode(
+      provisionPayload(
+        ssid: ssid,
+        password: password,
+        apiBaseUrl: apiBaseUrl,
+        fiwareApiKey: fiwareApiKey,
+        streamIngestUrl: streamIngestUrl,
+        clientCert: clientCert,
+        clientKey: clientKey,
+      ),
+    );
 
     final payloadBytes = utf8.encode(payload);
     await characteristic.write(

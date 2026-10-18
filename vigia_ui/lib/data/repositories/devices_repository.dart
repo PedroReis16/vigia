@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/DTOs/device_client_certificate.dart';
 import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
 import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
 import 'package:vigia_ui/domain/DTOs/new_device.dart';
@@ -68,9 +69,9 @@ class DevicesRepository {
     }
   }
 
-  Future<void> registerDevice(NewDevice device) async {
+  Future<DeviceClientCertificate?> registerDevice(NewDevice device) async {
     try {
-      await dio.post(
+      final response = await dio.post(
         "$_devicesEndpoint/register",
         data: {
           'id': device.id,
@@ -78,6 +79,7 @@ class DevicesRepository {
           'macAddress': device.macAddress,
         },
       );
+      return DeviceClientCertificate.fromJson(response.data);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
         throw UnauthorizedException(

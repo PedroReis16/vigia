@@ -22,3 +22,13 @@
   margin: 0;
   color: var(--p-text-muted-color);
 }
+
+.accept-invite__content button {
+  border: none;
+  border-radius: 9999px;
+  padding: 0.625rem 1.25rem;
+  background: #669cee;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}

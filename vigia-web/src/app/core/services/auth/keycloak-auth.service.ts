@@ -1,6 +1,11 @@
 import { Injectable } from '@angular/core';
 import { environment } from '@environments/environment';
 import Keycloak from 'keycloak-js';
+import {
+  clearStoredWebAuthTokens,
+  readStoredWebAuthTokens,
+  writeStoredWebAuthTokens,
+} from './web-auth-token-store';
 
 @Injectable({
   providedIn: 'root',
@@ -47,6 +52,7 @@ export class KeycloakAuthService {
 
   async logout(redirectUri?: string): Promise<void> {
     await this.init();
+    clearStoredWebAuthTokens();
     if (!this.instance) {
       return;
     }
@@ -67,6 +73,7 @@ export class KeycloakAuthService {
   }
 
   clearToken(): void {
+    clearStoredWebAuthTokens();
     this.instance?.clearToken();
   }
 
@@ -76,13 +83,47 @@ export class KeycloakAuthService {
       return false;
     }
 
+    const stored = readStoredWebAuthTokens();
     const keycloak = new Keycloak({ url, realm, clientId });
     this.instance = keycloak;
-    return keycloak.init({
+    keycloak.onAuthSuccess = () => this.persistTokens();
+    keycloak.onAuthRefreshSuccess = () => this.persistTokens();
+    keycloak.onAuthLogout = () => clearStoredWebAuthTokens();
+
+    const authenticated = await keycloak.init({
       onLoad: 'check-sso',
       pkceMethod: 'S256',
       checkLoginIframe: false,
       silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
+      ...(stored
+        ? {
+            token: stored.token,
+            refreshToken: stored.refreshToken,
+            ...(stored.idToken ? { idToken: stored.idToken } : {}),
+          }
+        : {}),
+    });
+
+    if (authenticated) {
+      this.persistTokens();
+    } else {
+      clearStoredWebAuthTokens();
+    }
+
+    return authenticated;
+  }
+
+  private persistTokens(): void {
+    const token = this.instance?.token;
+    const refreshToken = this.instance?.refreshToken;
+    if (!token || !refreshToken) {
+      return;
+    }
+
+    writeStoredWebAuthTokens({
+      token,
+      refreshToken,
+      ...(this.instance?.idToken ? { idToken: this.instance.idToken } : {}),
     });
   }
 }

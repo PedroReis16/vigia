@@ -15,6 +15,10 @@ public class Device : BaseEntity
 
     public DateTime? LastHeartbeatAt { get; set; }
 
+    public string? ClientCertificateSerial { get; set; }
+
+    public DateTime? ClientCertificateNotAfter { get; set; }
+
     public Guid? GroupId { get; set; }
     public Group? Group { get; set; } = null;   // Group != null -> Dispositivo vinculado a um grupo de usuários
 }

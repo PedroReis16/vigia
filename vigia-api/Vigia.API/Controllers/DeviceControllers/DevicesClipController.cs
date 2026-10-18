@@ -17,10 +17,11 @@ public class DevicesClipController(IClipIngestService clips) : ControllerBase
 
     /// <summary>
     /// Abre uma sessão para receber os frames numerados de um clipe.
-    /// A placa envia sem token de usuário.
+    /// No deploy a placa apresenta o certificado de cliente. Localmente segue anônimo.
     /// </summary>
     [HttpPost]
     [AllowAnonymous]
+    [DeviceCertificate]
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -33,10 +34,11 @@ public class DevicesClipController(IClipIngestService clips) : ControllerBase
 
     /// <summary>
     /// Recebe um frame PNG já decodificável, gravado pelo índice na sequência.
-    /// A placa envia sem token de usuário.
+    /// No deploy a placa apresenta o certificado de cliente. Localmente segue anônimo.
     /// </summary>
     [HttpPost("{clipId}/frames/{index:int}")]
     [AllowAnonymous]
+    [DeviceCertificate]
     [Consumes("image/png")]
     [RequestSizeLimit(ClipIngestService.MaxPngBytes)]
     [ProducesResponseType(StatusCodes.Status202Accepted)]

@@ -45,6 +45,15 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("ClientCertificateNotAfter")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("client_certificate_not_after");
+
+                    b.Property<string>("ClientCertificateSerial")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_certificate_serial");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
@@ -99,6 +108,10 @@ namespace Vigia.Database.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientCertificateSerial")
+                        .IsUnique()
+                        .HasFilter("client_certificate_serial IS NOT NULL");
 
                     b.HasIndex("CreatedAt");
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Vigia.Models.Middlewares;
 using Vigia.API.Config;
 using Vigia.API.Contracts.Devices;
 
@@ -21,6 +22,8 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Metadados do pacote rolling atual (<c>revision</c> para o device comparar com o instalado).
     /// </summary>
     [HttpGet("current")]
+    [AllowAnonymous]
+    [DeviceCertificate]
     public async Task<IActionResult> GetCurrentUpdate()
     {
         DeviceUpdateInfo? info = await _service.GetCurrentUpdateAsync();
@@ -34,6 +37,8 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Stream do pacote OTA rolling atual.
     /// </summary>
     [HttpGet("download")]
+    [AllowAnonymous]
+    [DeviceCertificate]
     public async Task<IActionResult> DownloadCurrentUpdate()
     {
         Stream stream = await _service.DownloadCurrentUpdateAsync();

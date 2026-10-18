@@ -13,10 +13,11 @@ public class DevicesFrameController(IDevicesService devicesService) : Controller
 
     /// <summary>
     /// Enviar um frame atual do dispositivo.
-    /// A placa envia sem token de usuário.
+    /// No deploy a placa apresenta o certificado de cliente. Localmente segue anônimo.
     /// </summary>
     [HttpPost]
     [AllowAnonymous]
+    [DeviceCertificate]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

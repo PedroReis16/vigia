@@ -107,6 +107,9 @@ builder.Services.AddSingleton<IPictureAccessCacheService, PictureAccessCacheServ
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
 builder.Services.AddSingleton<IClipAccessTokenProvider, ClipAccessTokenProvider>();
 builder.Services.AddSingleton<IPictureAccessTokenProvider, PictureAccessTokenProvider>();
+builder.Services.AddSingleton<DeviceCertificateAuthority>();
+builder.Services.AddSingleton<IDeviceCertificateAuthority>(provider => provider.GetRequiredService<DeviceCertificateAuthority>());
+builder.Services.AddSingleton<IDeviceCertificateAuthenticator>(provider => provider.GetRequiredService<DeviceCertificateAuthority>());
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

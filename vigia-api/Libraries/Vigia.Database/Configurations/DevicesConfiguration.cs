@@ -40,6 +40,17 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
             .HasColumnName("last_heartbeat_at")
             .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
 
+        _ = builder.Property(e => e.ClientCertificateSerial)
+            .HasColumnName("client_certificate_serial")
+            .HasMaxLength(64);
+
+        _ = builder.Property(e => e.ClientCertificateNotAfter)
+            .HasColumnName("client_certificate_not_after")
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        _ = builder.HasIndex(e => e.ClientCertificateSerial)
+            .IsUnique()
+            .HasFilter("client_certificate_serial IS NOT NULL");
 
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices)

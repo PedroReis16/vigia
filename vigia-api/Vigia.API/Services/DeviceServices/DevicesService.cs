@@ -1,3 +1,5 @@
+using Vigia.API.Contracts;
+using Vigia.API.Services;
 using Vigia.API.Contracts.Devices;
 using Vigia.Database.Contracts;
 using Vigia.API.Models.DTOs.Devices;
@@ -18,11 +20,13 @@ namespace Vigia.API.Services.Devices;
 internal class DevicesService(
     ILogger<DevicesService> logger,
     IServiceScopeFactory scopeFactory,
-    IConfiguration configuration) : IDevicesService
+    IConfiguration configuration,
+    IDeviceCertificateAuthority certificates) : IDevicesService
 {
     private readonly ILogger<DevicesService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IConfiguration _configuration = configuration;
+    private readonly IDeviceCertificateAuthority _certificates = certificates;
 
     public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId)
     {
@@ -45,7 +49,7 @@ internal class DevicesService(
         }
     }
 
-    public async Task RegisterDeviceAsync(NewDeviceDTO newDevice)
+    public async Task<DeviceClientCertificateDTO?> RegisterDeviceAsync(NewDeviceDTO newDevice, Guid userId)
     {
         try
         {
@@ -55,6 +59,24 @@ internal class DevicesService(
             if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
                 throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
 
+            Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id, track: true);
+
+            if (trackedDevice != null)
+            {
+                if (!_certificates.RequireClientCertificate)
+                {
+                    _logger.LogWarning($"O dispositivo '{newDevice.Id}' já esta registrado no sistema. Etapa de registro sendo ignorada");
+                    return null;
+                }
+
+                if (trackedDevice.Group != null && trackedDevice.Group.OwnerId != userId)
+                    throw new UnauthorizedAccessException("Somente o proprietário pode renovar o certificado do dispositivo");
+
+                IssuedDeviceCertificate rotated = _certificates.Issue(trackedDevice.Id);
+                await devicesDao.UpdateClientCertificateAsync(trackedDevice.Id, rotated.SerialNumber, rotated.NotAfterUtc);
+                return ToClientCertificate(rotated);
+            }
+
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
@@ -62,12 +84,12 @@ internal class DevicesService(
                 MacAddress = newDevice.MacAddress,
             };
 
-            Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id);
-
-            if (trackedDevice != null)
+            IssuedDeviceCertificate? issued = null;
+            if (_certificates.RequireClientCertificate)
             {
-                _logger.LogWarning($"O dispositivo '{newDevice.Id}' já esta registrado no sistema. Etapa de registro sendo ignorada");
-                return;
+                issued = _certificates.Issue(newDevice.Id);
+                newDeviceEntity.ClientCertificateSerial = issued.SerialNumber;
+                newDeviceEntity.ClientCertificateNotAfter = issued.NotAfterUtc;
             }
 
             IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
@@ -113,8 +135,10 @@ internal class DevicesService(
             }
 
             _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
+            return issued is null ? null : ToClientCertificate(issued);
         }
         catch (EntityValidationException) { throw; }
+        catch (UnauthorizedAccessException) { throw; }
         catch (Exception ex)
         {
             string errorMsg = $"Houve um erro ao tentar registrar o dispositivo {newDevice.Id}: {ex.GetFullMessage()}";
@@ -122,6 +146,13 @@ internal class DevicesService(
             throw;
         }
     }
+
+    private static DeviceClientCertificateDTO ToClientCertificate(IssuedDeviceCertificate issued) =>
+        new()
+        {
+            Certificate = issued.CertificatePem,
+            PrivateKey = issued.PrivateKeyPem,
+        };
 
     public DeviceProvisionConfigDTO GetProvisionConfig()
     {

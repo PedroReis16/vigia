@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Vigia.API.Models.DTOs.Devices;
+using Vigia.API.Services;
 using Vigia.API.Services.Devices;
 using Vigia.Database.EFDao;
 using Vigia.Fiware.Contracts;
@@ -47,7 +48,8 @@ public class DevicesServiceBlurCommandTests : IDisposable
         _service = new DevicesService(
             NullLogger<DevicesService>.Instance,
             scopes,
-            new ConfigurationBuilder().Build());
+            new ConfigurationBuilder().Build(),
+            new DeviceCertificateAuthority(new ConfigurationBuilder().Build(), scopes));
     }
 
     [Fact]

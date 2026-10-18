@@ -52,6 +52,8 @@ public static class OAuthExtension
                 ClipAccessTokenDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, PictureAccessTokenAuthenticationHandler>(
                 PictureAccessTokenDefaults.AuthenticationScheme, _ => { })
+            .AddScheme<AuthenticationSchemeOptions, DeviceCertificateAuthenticationHandler>(
+                DeviceCertificateDefaults.AuthenticationScheme, _ => { })
             .AddScheme<AuthenticationSchemeOptions, MediaMtxTokenAuthenticationHandler>(
                 MediaMtxTokenDefaults.AuthenticationScheme, _ => { })
             .AddJwtBearer(BearerSchemeSelector.LocalJwtScheme, options =>

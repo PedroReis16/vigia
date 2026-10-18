@@ -20,9 +20,18 @@ public class DevicesController(IDevicesService service) : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> RegisterDevice([FromBody] NewDeviceDTO newDevice)
     {
-        await _service.RegisterDeviceAsync(newDevice);
+        try
+        {
+            DeviceClientCertificateDTO? issued = await _service.RegisterDeviceAsync(newDevice, User.GetUserId());
+            if (issued is null)
+                return Created();
 
-        return Created();
+            return StatusCode(StatusCodes.Status201Created, issued);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
 
     /// <summary>

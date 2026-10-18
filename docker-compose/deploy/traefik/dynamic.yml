@@ -1,5 +1,16 @@
+tls:
+  options:
+    device-mtls:
+      clientAuth:
+        caFiles:
+          - /certificates/vigia-device-ca.crt
+        clientAuthType: RequireAndVerifyClientCert
+
 http:
   middlewares:
+    pass-device-cert:
+      passTLSClientCert:
+        pem: true
     cors:
       headers:
         accessControlAllowOriginList:

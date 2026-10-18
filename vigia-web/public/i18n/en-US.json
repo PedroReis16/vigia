@@ -9,7 +9,7 @@
       "LIGHT": "Light"
     }
   },
-    "PROFILE": {
+  "PROFILE": {
     "TITLE": "Profile",
     "MENU": "My profile",
     "BACK": "Back",
@@ -175,8 +175,12 @@
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Share",
       "SHARE_LIMIT": "User limit reached",
-      "SHARE_SUBJECT": "Vigia invite",
       "SHARE_COPIED": "Link copied. Share it with who you want to invite.",
+      "SHARE_COPY": "Copy link",
+      "SHARE_COPIED_ACTION": "Copied",
+      "SHARE_COPY_ERROR": "Could not copy the link",
+      "SHARE_LINK": "Invite link",
+      "SHARE_EXPIRES": "Expires at {{time}}",
       "SHARE_ERROR": "Could not generate the share link",
       "REMOVE_TITLE": "Remove user",
       "REMOVE_MESSAGE": "Remove {{name}} from access to this group's devices?",

@@ -81,7 +81,7 @@
                 </div>
               }
 
-              @if (!usersLoading() && !usersError() && users().length > 0) {
+              @if (!usersLoading() && (isOwner(device()) || (!usersError() && users().length > 0))) {
                 <div class="device-details-panel__users-footer">
                   <app-device-detail-action-row
                     icon="pi pi-users"

@@ -9,7 +9,7 @@
       "LIGHT": "Claro"
     }
   },
-    "PROFILE": {
+  "PROFILE": {
     "TITLE": "Perfil",
     "MENU": "Mi perfil",
     "NAME": "Nombre",
@@ -175,8 +175,12 @@
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Compartir",
       "SHARE_LIMIT": "Límite de usuarios alcanzado",
-      "SHARE_SUBJECT": "Invitación a Vigia",
       "SHARE_COPIED": "Enlace copiado. Compártelo con quien quieras invitar.",
+      "SHARE_COPY": "Copiar enlace",
+      "SHARE_COPIED_ACTION": "Copiado",
+      "SHARE_COPY_ERROR": "No se pudo copiar el enlace",
+      "SHARE_LINK": "Enlace de invitación",
+      "SHARE_EXPIRES": "Expira a las {{time}}",
       "SHARE_ERROR": "No se pudo generar el enlace de compartición",
       "REMOVE_TITLE": "Eliminar usuario",
       "REMOVE_MESSAGE": "¿Eliminar a {{name}} del acceso a los dispositivos de este grupo?",

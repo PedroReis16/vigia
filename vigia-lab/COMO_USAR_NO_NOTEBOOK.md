@@ -33,20 +33,24 @@ vigia-onboard/.venv/Scripts/python.exe -m pip install -r vigia-onboard/requireme
 Download grande (torch CPU via ultralytics). A GPU não é usada: o pipeline do vigia fixa
 `device="cpu"` e roda o ONNX no `onnxruntime` de CPU.
 
-## 3. Modelos dos GRUs (não estão no Git)
+## 3. Modelos dos GRUs (já versionados nesta branch)
 
-O `gru_2classes.onnx` (34 features) **não existe no onboard** e os `.onnx` do lab são ignorados
-pelo Git. Copie-os do repositório `fall-classifier-bench`
-(`git@github.com:EForamiglio/fall-detection.git`, branch `avaliacao-cenarios-campo`):
+Os dois ONNX vêm no clone, em `vigia-lab/models/` (`gru34/models/gru_2classes.onnx` e
+`gru37/gru_2classes_v2.onnx`, ~180 KB cada). O `gru_2classes.onnx` (34 features) **não existe no
+onboard**, por isso o lab o traz junto. O `yolo26s-pose` NÃO vai no Git: é exportado sozinho
+na primeira execução (precisa de internet).
+
+Nada a fazer neste passo. O `provision_models.py` só serve para **atualizar** os modelos a partir do
+repositório `fall-classifier-bench` (`git@github.com:EForamiglio/fall-detection.git`, branch
+`avaliacao-cenarios-campo`); ele confere os hashes contra o `models.lock.json`:
 
 ```bash
 cd vigia-lab
 ../vigia-onboard/.venv/Scripts/python.exe scripts/provision_models.py --src <caminho>/fall-classifier-bench
 ```
 
-O script copia `model/gru_2classes.onnx` e `model/gru_2classes_v2.onnx` e confere os hashes
-contra o `models.lock.json` (versionado). Se acusar divergência, não use: os resultados não seriam
-comparáveis.
+Se algum hash divergir do `models.lock.json`, não use: os resultados não seriam comparáveis
+(o teste `drift_tests.py` também falha nesse caso).
 
 ## 4. Conferir e rodar
 
@@ -117,7 +121,7 @@ Sem câmera: `python -m vigia_lab --replay clipe.mp4 --scenario sentando --durat
 
 > Estou na pasta `vigia-lab/` da branch `feat/vigia-lab` do repositório do Pedro (vigia). Leia
 > `vigia-lab/COMO_USAR_NO_NOTEBOOK.md` e `vigia-lab/README.md`. Ajude-me a (1) instalar o ambiente
-> do passo 2, (2) provisionar os ONNX do passo 3 a partir do meu `fall-classifier-bench`,
+> do passo 2, (2) conferir que os ONNX de `vigia-lab/models/` batem com o `models.lock.json`,
 > (3) rodar os testes e (4) abrir o lab com `--ids grace` para eu gravar quedas. Depois analise os
 > `_meta.json` e `_decisions.csv` de `captures/` (tempo até o primeiro alerta de cada modelo,
 > `untracked_frames`, `bottleneck`). Não faça commit/push sem eu pedir e não altere o `vigia-onboard`.

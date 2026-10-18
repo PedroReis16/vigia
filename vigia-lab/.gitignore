@@ -6,4 +6,6 @@ reprocessed/
 *.npy
 *.npz
 models/**/*.onnx
+!models/gru34/models/gru_2classes.onnx
+!models/gru37/gru_2classes_v2.onnx
 __pycache__/

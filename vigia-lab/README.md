@@ -29,7 +29,8 @@ via AST) e cada tomada grava uma ficha técnica com versões, hashes e SHA do co
    py -3.13 -m venv vigia-onboard/.venv
    vigia-onboard/.venv/Scripts/python.exe -m pip install -r vigia-onboard/requirements.txt -r vigia-onboard/requirements-dev.txt
    ```
-3. Modelos dos GRUs (não existem no onboard; ficam em `vigia-lab/models/`, fora do Git):
+3. Modelos dos GRUs (não existem no onboard; já vêm versionados em `vigia-lab/models/`).
+   Só para atualizá-los a partir do `fall-classifier-bench`:
    ```bash
    cd vigia-lab
    ../vigia-onboard/.venv/Scripts/python.exe scripts/provision_models.py --src <caminho>/fall-classifier-bench

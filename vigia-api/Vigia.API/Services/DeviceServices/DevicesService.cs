@@ -28,7 +28,7 @@ internal class DevicesService(
     private readonly IConfiguration _configuration = configuration;
     private readonly IDeviceCertificateAuthority _certificates = certificates;
 
-    public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId)
+    public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId, Guid? viewerId = null)
     {
         try
         {
@@ -38,7 +38,11 @@ internal class DevicesService(
             if (device == null)
                 return null;
 
-            return MapDeviceToDTO(device);
+            DeviceDTO dto = MapDeviceToDTO(device);
+            if (viewerId is Guid userId)
+                dto.ThumbnailUrl = GetDeviceThumbnailUrl(scope, userId, device.Id);
+
+            return dto;
         }
         catch (EntityValidationException) { throw; }
         catch (Exception ex)

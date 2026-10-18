@@ -51,7 +51,7 @@ public class DevicesController(IDevicesService service) : ControllerBase
     [HttpGet("{deviceId}")]
     public async Task<IActionResult> GetDevice(Guid deviceId)
     {
-        DeviceDTO? device = await _service.GetDeviceAsync(deviceId);
+        DeviceDTO? device = await _service.GetDeviceAsync(deviceId, User.GetUserId());
         if (device == null)
             return NoContent();
 

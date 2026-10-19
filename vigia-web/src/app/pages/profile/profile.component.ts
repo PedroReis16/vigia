@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -24,6 +24,11 @@ import { ProfilePlanComponent } from './profile-plan/profile-plan.component';
 const MAX_PICTURE_BYTES = 2 * 1024 * 1024;
 const PHONE_PATTERN = /^[0-9+() .-]{8,16}$/;
 
+type PictureDraft =
+  | { kind: 'none' }
+  | { kind: 'file'; file: File; previewUrl: string }
+  | { kind: 'removed' };
+
 @Component({
   selector: 'app-profile',
   standalone: true,
@@ -42,7 +47,7 @@ const PHONE_PATTERN = /^[0-9+() .-]{8,16}$/;
   templateUrl: './profile.component.html',
   styleUrl: './profile.component.css',
 })
-export class ProfileComponent implements OnInit {
+export class ProfileComponent implements OnInit, OnDestroy {
   private readonly store = inject(UserProfileStoreService);
   private readonly getProfile = inject(GetUserProfileService);
   private readonly updateProfile = inject(UpdateUserProfileService);
@@ -58,6 +63,21 @@ export class ProfileComponent implements OnInit {
   readonly profile = this.store.profile;
   readonly saving = signal(false);
   readonly editing = signal(false);
+  private readonly pictureDraft = signal<PictureDraft>({ kind: 'none' });
+  readonly picturePending = computed(() => this.pictureDraft().kind !== 'none');
+  readonly displayedPictureUrl = computed(() => {
+    if (this.editing()) {
+      const draft = this.pictureDraft();
+      if (draft.kind === 'file') {
+        return draft.previewUrl;
+      }
+      if (draft.kind === 'removed') {
+        return null;
+      }
+    }
+
+    return this.profile()?.pictureUrl ?? null;
+  });
   readonly form = this.formBuilder.nonNullable.group({
     firstName: ['', [Validators.required, Validators.maxLength(64)]],
     lastName: ['', [Validators.required, Validators.maxLength(64)]],
@@ -95,6 +115,10 @@ export class ProfileComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.revokePicturePreview();
+  }
+
   onBack(): void {
     void this.router.navigate(['/devices']);
   }
@@ -110,6 +134,7 @@ export class ProfileComponent implements OnInit {
       lastName: current.lastName,
       phone: current.phone,
     });
+    this.setPictureDraft({ kind: 'none' });
     this.editing.set(true);
   }
 
@@ -118,25 +143,46 @@ export class ProfileComponent implements OnInit {
       return;
     }
 
+    this.setPictureDraft({ kind: 'none' });
     this.editing.set(false);
     this.form.markAsPristine();
   }
 
   async onSave(): Promise<void> {
-    if (this.form.invalid || this.saving()) {
+    if (this.saving()) {
+      return;
+    }
+
+    if (this.form.invalid) {
       this.form.markAllAsTouched();
+      return;
+    }
+
+    const draft = this.pictureDraft();
+    const profileDirty = this.form.dirty;
+    if (!profileDirty && draft.kind === 'none') {
       return;
     }
 
     const { firstName, lastName, phone } = this.form.getRawValue();
     this.saving.set(true);
     try {
-      const saved = await this.updateProfile.execute({ firstName, lastName, phone });
-      this.form.reset({
-        firstName: saved.firstName,
-        lastName: saved.lastName,
-        phone: saved.phone,
-      });
+      if (profileDirty) {
+        const saved = await this.updateProfile.execute({ firstName, lastName, phone });
+        this.form.reset({
+          firstName: saved.firstName,
+          lastName: saved.lastName,
+          phone: saved.phone,
+        });
+      }
+
+      if (draft.kind === 'file') {
+        await this.uploadPicture.execute(draft.file);
+      } else if (draft.kind === 'removed') {
+        await this.removePicture.execute();
+      }
+
+      this.setPictureDraft({ kind: 'none' });
       this.editing.set(false);
       this.messageService.addMessage({
         message: this.translate.instant('PROFILE.SAVED'),
@@ -168,11 +214,11 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  async onFileSelected(event: Event): Promise<void> {
+  onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (!file || this.saving()) {
+    if (!file || this.saving() || !this.editing()) {
       return;
     }
 
@@ -184,29 +230,21 @@ export class ProfileComponent implements OnInit {
       return;
     }
 
-    this.saving.set(true);
-    try {
-      await this.uploadPicture.execute(file);
-    } catch (error: unknown) {
-      this.showPictureError(error);
-    } finally {
-      this.saving.set(false);
-    }
+    const previewUrl = URL.createObjectURL(file);
+    this.setPictureDraft({ kind: 'file', file, previewUrl });
   }
 
-  async onRemovePicture(): Promise<void> {
-    if (this.saving() || !this.profile()?.pictureUrl) {
+  onRemovePicture(): void {
+    if (this.saving() || !this.editing() || !this.displayedPictureUrl()) {
       return;
     }
 
-    this.saving.set(true);
-    try {
-      await this.removePicture.execute();
-    } catch (error: unknown) {
-      this.showPictureError(error);
-    } finally {
-      this.saving.set(false);
+    if (this.profile()?.pictureUrl) {
+      this.setPictureDraft({ kind: 'removed' });
+      return;
     }
+
+    this.setPictureDraft({ kind: 'none' });
   }
 
   private async confirmDelete(): Promise<void> {
@@ -223,12 +261,16 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  private showPictureError(error: unknown): void {
-    const key = error instanceof ProfileUseCaseError ? error.messageKey : 'PROFILE.PICTURE_ERROR';
-    this.messageService.addMessage({
-      message: this.translate.instant(key),
-      type: 'error',
-    });
+  private setPictureDraft(next: PictureDraft): void {
+    this.revokePicturePreview();
+    this.pictureDraft.set(next);
+  }
+
+  private revokePicturePreview(): void {
+    const draft = this.pictureDraft();
+    if (draft.kind === 'file') {
+      URL.revokeObjectURL(draft.previewUrl);
+    }
   }
 }
 

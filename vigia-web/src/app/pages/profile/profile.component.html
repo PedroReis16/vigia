@@ -73,7 +73,7 @@
                 <p class="m-0 text-base font-semibold" data-testid="profile-name">
                   {{ current.name }}
                 </p>
-                @if (editing() && current.pictureUrl) {
+                @if (editing() && displayedPictureUrl()) {
                   <p-button
                     type="button"
                     [text]="true"
@@ -146,7 +146,7 @@
                   <p-button
                     type="submit"
                     [label]="'PROFILE.SAVE' | translate"
-                    [disabled]="form.invalid || form.pristine || saving()"
+                    [disabled]="form.invalid || (form.pristine && !picturePending()) || saving()"
                     [loading]="saving()"
                     styleClass="w-full"
                     data-testid="profile-save"
@@ -209,8 +209,8 @@
     <app-profile-plan />
 
     <ng-template #avatar>
-      @if (current.pictureUrl) {
-        <p-avatar [image]="current.pictureUrl" shape="circle" styleClass="profile__avatar-face" />
+      @if (displayedPictureUrl(); as pictureUrl) {
+        <p-avatar [image]="pictureUrl" shape="circle" styleClass="profile__avatar-face" />
       } @else if (initials()) {
         <p-avatar [label]="initials()" shape="circle" styleClass="profile__avatar-face" />
       } @else {

@@ -150,27 +150,21 @@ describe('ProfileComponent', () => {
     expect(update.execute).not.toHaveBeenCalled();
   });
 
-  it('uploads an allowed picture from the avatar overlay', async () => {
-    fixture.componentInstance.onEdit();
-    fixture.detectChanges();
-    const input = fixture.nativeElement.querySelector(
-      '[data-testid="profile-picture-input"]',
-    ) as HTMLInputElement;
-    const file = new File([new Uint8Array([1, 2, 3])], 'avatar.png', { type: 'image/png' });
-    const list = {
-      0: file,
-      length: 1,
-      item: () => file,
-    } as unknown as FileList;
-    Object.defineProperty(input, 'files', { value: list });
+  it('previews an allowed picture and uploads it only when saving', async () => {
+    const file = selectPicture(fixture);
 
-    input.dispatchEvent(new Event('change'));
-    await fixture.whenStable();
+    expect(upload.execute).not.toHaveBeenCalled();
+    expect(pictureSource(fixture)).toContain('blob:');
+    expect(saveButton(fixture).disabled).toBe(false);
+
+    await fixture.componentInstance.onSave();
 
     expect(upload.execute).toHaveBeenCalledWith(file);
+    expect(fixture.componentInstance.editing()).toBe(false);
+    expect(remove.execute).not.toHaveBeenCalled();
   });
 
-  it('rejects a file that is too large', async () => {
+  it('rejects a file that is too large', () => {
     fixture.componentInstance.onEdit();
     fixture.detectChanges();
     const message = TestBed.inject(MessageService);
@@ -187,16 +181,81 @@ describe('ProfileComponent', () => {
     Object.defineProperty(input, 'files', { value: list });
 
     input.dispatchEvent(new Event('change'));
-    await fixture.whenStable();
+    fixture.detectChanges();
 
     expect(upload.execute).not.toHaveBeenCalled();
     expect(message.messages()?.type).toBe('error');
+    expect(pictureSource(fixture)).toBe('https://example.test/picture.jpg');
+    expect(saveButton(fixture).disabled).toBe(true);
   });
 
-  it('removes the picture', async () => {
+  it('stages picture removal until save', async () => {
     fixture.componentInstance.onEdit();
-    await fixture.componentInstance.onRemovePicture();
+    fixture.detectChanges();
+    fixture.componentInstance.onRemovePicture();
+    fixture.detectChanges();
+
+    expect(remove.execute).not.toHaveBeenCalled();
+    expect(pictureSource(fixture)).toBeNull();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="profile-remove-picture"]'),
+    ).toBeNull();
+    expect(saveButton(fixture).disabled).toBe(false);
+
+    await fixture.componentInstance.onSave();
+
     expect(remove.execute).toHaveBeenCalled();
+    expect(update.execute).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.editing()).toBe(false);
+  });
+
+  it('discards a staged picture when edit is cancelled', () => {
+    selectPicture(fixture);
+    fixture.componentInstance.onCancelEdit();
+    fixture.detectChanges();
+
+    expect(upload.execute).not.toHaveBeenCalled();
+    expect(remove.execute).not.toHaveBeenCalled();
+    expect(pictureSource(fixture)).toBe('https://example.test/picture.jpg');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="profile-edit"]'),
+    ).toBeTruthy();
+  });
+
+  it('discards a staged removal when edit is cancelled', () => {
+    fixture.componentInstance.onEdit();
+    fixture.componentInstance.onRemovePicture();
+    fixture.componentInstance.onCancelEdit();
+    fixture.detectChanges();
+
+    expect(remove.execute).not.toHaveBeenCalled();
+    expect(pictureSource(fixture)).toBe('https://example.test/picture.jpg');
+  });
+
+  it('saves profile fields and a staged picture together', async () => {
+    const file = selectPicture(fixture);
+    fixture.componentInstance.form.controls.firstName.setValue('Ana Paula');
+    fixture.componentInstance.form.markAsDirty();
+
+    await fixture.componentInstance.onSave();
+
+    expect(update.execute).toHaveBeenCalledWith({
+      firstName: 'Ana Paula',
+      lastName: 'Lima',
+      phone: '11999990000',
+    });
+    expect(upload.execute).toHaveBeenCalledWith(file);
+  });
+
+  it('keeps the staged picture when saving it fails', async () => {
+    upload.execute.mockRejectedValueOnce(new Error('upload failed'));
+    selectPicture(fixture);
+
+    await fixture.componentInstance.onSave();
+
+    expect(fixture.componentInstance.editing()).toBe(true);
+    expect(pictureSource(fixture)).toContain('blob:');
+    expect(saveButton(fixture).disabled).toBe(false);
   });
 
   it('hides account deletion for the super admin', () => {
@@ -234,3 +293,38 @@ describe('ProfileComponent', () => {
     expect(deleteAccount.execute).toHaveBeenCalled();
   });
 });
+
+function selectPicture(fixture: ComponentFixture<ProfileComponent>): File {
+  fixture.componentInstance.onEdit();
+  fixture.detectChanges();
+  const input = fixture.nativeElement.querySelector(
+    '[data-testid="profile-picture-input"]',
+  ) as HTMLInputElement;
+  const file = new File([new Uint8Array([1, 2, 3])], 'avatar.png', { type: 'image/png' });
+  const list = {
+    0: file,
+    length: 1,
+    item: () => file,
+  } as unknown as FileList;
+  Object.defineProperty(input, 'files', { value: list });
+  input.dispatchEvent(new Event('change'));
+  fixture.detectChanges();
+  return file;
+}
+
+function pictureSource(fixture: ComponentFixture<ProfileComponent>): string | null {
+  const image = (fixture.nativeElement as HTMLElement).querySelector(
+    '.profile__avatar img',
+  ) as HTMLImageElement | null;
+  return image?.getAttribute('src') ?? null;
+}
+
+function saveButton(fixture: ComponentFixture<ProfileComponent>): HTMLButtonElement {
+  const button = (fixture.nativeElement as HTMLElement).querySelector(
+    '[data-testid="profile-save"] button',
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error('Save button was not rendered');
+  }
+  return button;
+}

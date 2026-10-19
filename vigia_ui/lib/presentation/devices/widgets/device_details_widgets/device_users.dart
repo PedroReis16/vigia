@@ -37,8 +37,6 @@ class DeviceUsers extends ConsumerStatefulWidget {
 class _DeviceUsersState extends ConsumerState<DeviceUsers> {
   String? _currentUserId;
   bool _sharing = false;
-  String? _inviteUrl;
-  String? _inviteExpiresLabel;
 
   @override
   void initState() {
@@ -60,10 +58,6 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
           .generateShareLink(widget.deviceId);
 
       if (!mounted) return;
-      setState(() {
-        _inviteUrl = invite.inviteUrl;
-        _inviteExpiresLabel = _formatExpiry(invite.expiresAt);
-      });
 
       try {
         await Clipboard.setData(ClipboardData(text: invite.inviteUrl));
@@ -98,7 +92,7 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
 
       if (!mounted) return;
       context.showSnackbar(
-        message: t.shareLinkCopiedUntil(_inviteExpiresLabel ?? ''),
+        message: t.shareLinkCopied,
         color: theme.colorScheme.onSurface,
       );
     } catch (e) {
@@ -110,13 +104,6 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
-  }
-
-  String _formatExpiry(DateTime expiresAt) {
-    final local = expiresAt.toLocal();
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
   }
 
   Future<File?> _prepareShareIcon() async {
@@ -256,12 +243,6 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
               },
             ),
           ),
-          if (_inviteUrl != null) ...[
-            SelectableText(_inviteUrl!),
-            const SizedBox(height: 4),
-            Text(t.shareLinkExpires(_inviteExpiresLabel ?? '')),
-            const SizedBox(height: 12),
-          ],
           if (widget.isOwner)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),

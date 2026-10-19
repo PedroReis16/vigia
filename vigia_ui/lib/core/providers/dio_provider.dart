@@ -12,7 +12,13 @@ part 'dio_provider.g.dart';
 Dio dio(Ref ref) {
   final tokenStorage = ref.watch(tokenStorageProvider);
   final keycloak = ref.watch(keycloakAuthClientProvider);
-  final dio = Dio(BaseOptions(baseUrl: Environments.apiUrl));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: Environments.apiUrl,
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 20),
+    ),
+  );
 
   dio.interceptors.add(
     AuthInterceptor(

@@ -8,6 +8,9 @@ abstract final class KeycloakAuthorize {
   static const redirectUri = 'vigia://auth/callback';
   static const scopes = 'openid offline_access';
 
+  /// Appended to the WebView user agent so the realm theme skips the web handoff.
+  static const appUserAgentMarker = 'VigiaApp';
+
   static Uri build({
     required String baseUrl,
     required String realm,
@@ -63,6 +66,17 @@ class KeycloakCallback {
     return uri.scheme == 'vigia' &&
         uri.host == 'auth' &&
         (uri.path == '/callback' || uri.path == 'callback');
+  }
+
+  /// Reads a callback from a navigation or a failed-load URL.
+  ///
+  /// iOS WKWebView reports `vigia://` as a web resource error instead of a
+  /// navigation, and that URL is the only place the authorization code arrives.
+  static KeycloakCallback? tryParseUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return null;
+    return tryParse(uri);
   }
 
   static KeycloakCallback? tryParse(Uri uri) {

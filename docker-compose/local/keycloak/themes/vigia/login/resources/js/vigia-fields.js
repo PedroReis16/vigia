@@ -64,6 +64,12 @@
     return form && (form.id === "kc-form-login" || form.id === "kc-register-form");
   }
 
+  // The Flutter WebView appends this marker. Skip the SPA logo handoff there:
+  // the app closes the sheet and runs its own overlay transition.
+  function isVigiaApp() {
+    return navigator.userAgent.indexOf("VigiaApp") !== -1;
+  }
+
   /** Freeze the logo in place so the SPA boot bridge meets the same bounds. */
   function pinLeaveLogo() {
     var header = document.getElementById("kc-header-wrapper");
@@ -663,6 +669,9 @@
       return;
     }
     if (!authSubmitForm(form)) return;
+
+    // App sheet: post straight to Keycloak. Do not pin the logo or hide the form.
+    if (isVigiaApp()) return;
 
     // Block double-POST (second click / requestSubmit re-entry) that causes page-expired.
     if (leavingAuth) {

@@ -56,6 +56,23 @@ void main() {
     expect(callback.code, isNull);
   });
 
+  test('callback parse reads a failed navigation url', () {
+    final callback = KeycloakCallback.tryParseUrl(
+      'vigia://auth/callback?code=from-error&state=ios',
+    );
+
+    expect(callback, isNotNull);
+    expect(callback!.isSuccess, isTrue);
+    expect(callback.code, 'from-error');
+    expect(callback.state, 'ios');
+    expect(KeycloakCallback.tryParseUrl(null), isNull);
+    expect(KeycloakCallback.tryParseUrl(''), isNull);
+    expect(
+      KeycloakCallback.tryParseUrl('https://example.com/not-the-callback'),
+      isNull,
+    );
+  });
+
   test('callback parse ignores urls that are not the app redirect', () {
     expect(
       KeycloakCallback.tryParse(Uri.parse('vigia://invite/code-1')),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vigia_ui/data/services/keycloak_authorize.dart';
@@ -37,6 +39,9 @@ class _KeycloakLoginSheetState extends ConsumerState<KeycloakLoginSheet> {
   bool _exchanging = false;
   bool _handled = false;
   String? _loadError;
+  Animation<double>? _sheetAnimation;
+  AnimationStatusListener? _sheetListener;
+  Completer<void>? _sheetSettled;
 
   @override
   void initState() {
@@ -63,10 +68,7 @@ class _KeycloakLoginSheetState extends ConsumerState<KeycloakLoginSheet> {
             }
             return NavigationDecision.navigate;
           },
-          onUrlChange: (change) {
-            final url = change.url;
-            if (url != null) _intercept(url);
-          },
+          onUrlChange: (change) => _intercept(change.url),
           onPageFinished: (_) {
             if (mounted) {
               setState(() {
@@ -79,7 +81,9 @@ class _KeycloakLoginSheetState extends ConsumerState<KeycloakLoginSheet> {
             debugPrint(
               '[Keycloak] ${error.errorCode} ${error.description} ${error.url}',
             );
-            if (!mounted || error.isForMainFrame == false) return;
+            // iOS delivers vigia:// as a failed provisional navigation.
+            if (_intercept(error.url)) return;
+            if (!mounted || error.isForMainFrame == false || _handled) return;
             setState(() {
               _loadingPage = false;
               _loadError = error.description;
@@ -88,18 +92,76 @@ class _KeycloakLoginSheetState extends ConsumerState<KeycloakLoginSheet> {
         ),
       );
 
-    // The sheet's platform view has no size until the first frame.
-    // Loading before that leaves a blank WKWebView on iOS.
+    // WKWebView stays blank if the request starts before the sheet has a size.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _controller.loadRequest(authorizeUri);
+      unawaited(_loadAfterSheetSettles(authorizeUri));
     });
   }
 
-  bool _intercept(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null || !KeycloakCallback.isCallback(uri)) return false;
-    _handleCallback(uri);
+  Future<void> _loadAfterSheetSettles(Uri authorizeUri) async {
+    await _waitForSheetSettle();
+    if (!mounted) return;
+    await _applyAppUserAgent();
+    if (!mounted) return;
+    await _controller.loadRequest(authorizeUri);
+  }
+
+  Future<void> _waitForSheetSettle() {
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null ||
+        animation.status == AnimationStatus.completed ||
+        animation.status == AnimationStatus.dismissed) {
+      return Future<void>.value();
+    }
+
+    final settled = Completer<void>();
+    void listener(AnimationStatus status) {
+      if (status != AnimationStatus.completed &&
+          status != AnimationStatus.dismissed) {
+        return;
+      }
+      animation.removeStatusListener(listener);
+      _sheetListener = null;
+      if (!settled.isCompleted) settled.complete();
+    }
+
+    _sheetAnimation = animation;
+    _sheetListener = listener;
+    _sheetSettled = settled;
+    animation.addStatusListener(listener);
+    return settled.future;
+  }
+
+  @override
+  void dispose() {
+    final listener = _sheetListener;
+    if (listener != null) {
+      _sheetAnimation?.removeStatusListener(listener);
+    }
+    final settled = _sheetSettled;
+    if (settled != null && !settled.isCompleted) settled.complete();
+    super.dispose();
+  }
+
+  Future<void> _applyAppUserAgent() async {
+    const marker = KeycloakAuthorize.appUserAgentMarker;
+    try {
+      final current = await _controller.getUserAgent();
+      if (current != null && current.contains(marker)) return;
+      final next = (current == null || current.isEmpty)
+          ? marker
+          : '$current $marker';
+      await _controller.setUserAgent(next);
+    } catch (error) {
+      debugPrint('[Keycloak] user agent: $error');
+      await _controller.setUserAgent(marker);
+    }
+  }
+
+  bool _intercept(String? url) {
+    final callback = KeycloakCallback.tryParseUrl(url);
+    if (callback == null || url == null) return false;
+    _handleCallback(Uri.parse(url));
     return true;
   }
 
@@ -143,10 +205,7 @@ class _KeycloakLoginSheetState extends ConsumerState<KeycloakLoginSheet> {
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(
-                _loadError!,
-                textAlign: TextAlign.center,
-              ),
+              child: Text(_loadError!, textAlign: TextAlign.center),
             ),
           ),
         if (_loadingPage || _exchanging)

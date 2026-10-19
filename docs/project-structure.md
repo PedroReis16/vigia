@@ -373,7 +373,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |------|-----|
 | `docker-compose/local/docker-compose.yaml` | Stack completa de desenvolvimento (API, web SPA, Postgres, Keycloak, MailHog, RabbitMQ, Redis, MinIO, Traefik, FIWARE, MediaMTX) |
 | `docker-compose/local/postgres/init/` | Init do Postgres local: schema `keycloak` isolado no database `vigia` |
-| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak. No submit o logo é pinado, o formulário some e o cookie `enter` é gravado (POST com submitter); no logout o formulário entra a partir desse ponto; sem prefetch de login-actions (GET em `reset-credentials` invalida a sessão); `login-page-expired` reinicia o fluxo OIDC se a URL for `reset-credentials`, senão auto-continua |
+| `docker-compose/local/keycloak/themes/vigia/` | Tema de login `vigia` (parent `keycloak`): CSS, logo e bundles `messages_{en,pt,pt_BR,es}`; o seletor de idioma fica oculto; páginas e campos continuam os do Keycloak. No submit da web o logo é pinado, o formulário some e o cookie `enter` é gravado (POST com submitter); no logout o formulário entra a partir desse ponto. O user agent `VigiaApp` (WebView do app) não faz esse handoff e o submit segue direto. Sem prefetch de login-actions (GET em `reset-credentials` invalida a sessão); `login-page-expired` reinicia o fluxo OIDC se a URL for `reset-credentials`, senão auto-continua |
 | `docker-compose/local/keycloak/realm-export.json` | Export do realm `vigia`; montado como `vigia-realm.json` e importado no start (`--import-realm`) se o realm ainda não existir |
 | `docker-compose/local/keycloak/apply-login-theme.sh` | Aplica `loginTheme=vigia` no realm `master` via `kcadm` |
 | `docker-compose/local/keycloak/vigia-webhook/` | Provider Keycloak `vigia-webhook`: publica ações de usuário no RabbitMQ |
@@ -521,7 +521,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
-- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView. Refresh no token endpoint do Keycloak; logout via `POST /users/logout` na API
+- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView (user agent `VigiaApp`, sem o handoff visual da web). No iOS o redirect `vigia://auth/callback` também vale quando o WKWebView reporta erro. Refresh no token endpoint do Keycloak; logout via `POST /users/logout` na API
 - **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
@@ -667,6 +667,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] App: o redirect do Keycloak no WebView fecha o sheet no iPhone e o tema ignora o handoff do user agent VigiaApp (`vigia_ui`, tema `vigia`)
 - [2026-10-18] Keycloak local: confirmação de e-mail desligada no realm `vigia` (`realm-export.json`, `apply-smtp.sh`)
 - [2026-10-18] Prévia do plano no perfil separa Plano ativo e Editar meu plano (`vigia-web /profile`)
 - [2026-10-18] Perfil web ganha prévia do plano com pacotes, uso e pagamentos de exemplo (`vigia-web /profile`)

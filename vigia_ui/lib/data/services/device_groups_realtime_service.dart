@@ -15,10 +15,12 @@ class DeviceGroupsRealtimeService {
   DeviceGroupsRealtimeService({
     required this._tokenStorage,
     required this._keycloak,
+    this.onRefreshFailed,
   });
 
   final TokenStorageService _tokenStorage;
   final KeycloakAuthClient _keycloak;
+  final Future<void> Function()? onRefreshFailed;
   static const _hubPath = '/hubs/device-groups';
   static const _membershipChangedEvent = 'GroupMembershipChanged';
   HubConnection? _connection;
@@ -106,7 +108,8 @@ class DeviceGroupsRealtimeService {
       return credentials.accessToken;
     } catch (e) {
       debugPrint('[SignalR] token refresh failed: $e');
-      return current ?? '';
+      await onRefreshFailed?.call();
+      return '';
     }
   }
 

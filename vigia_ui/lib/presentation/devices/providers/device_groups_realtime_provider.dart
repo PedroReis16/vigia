@@ -19,6 +19,8 @@ DeviceGroupsRealtimeService deviceGroupsRealtimeService(Ref ref) {
   final service = DeviceGroupsRealtimeService(
     tokenStorage: ref.watch(tokenStorageProvider),
     keycloak: ref.watch(keycloakAuthClientProvider),
+    onRefreshFailed: () =>
+        ref.read(authSessionProvider.notifier).clearSession(),
   );
   ref.onDispose(() {
     unawaited(service.disconnect());
@@ -96,7 +98,9 @@ class DeviceGroupsRealtimeBridge extends _$DeviceGroupsRealtimeBridge {
     }
 
     final router = ref.read(appRouterProvider);
-    final match = RegExp(r'^/devices/([^/]+)').firstMatch(router.state.uri.path);
+    final match = RegExp(
+      r'^/devices/([^/]+)',
+    ).firstMatch(router.state.uri.path);
     if (match == null) return;
 
     final deviceId = Uri.decodeComponent(match.group(1)!);

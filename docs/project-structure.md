@@ -521,7 +521,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
-- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView (user agent `VigiaApp`, sem o handoff visual da web). No iOS o redirect `vigia://auth/callback` também vale quando o WKWebView reporta erro. Refresh no token endpoint do Keycloak; logout via `POST /users/logout` na API
+- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView (user agent `VigiaApp`, sem o handoff visual da web). No iOS o redirect `vigia://auth/callback` também vale quando o WKWebView reporta erro. Refresh inválido ou logout com access token morto limpa a sessão e volta ao overlay
 - **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
@@ -667,6 +667,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] App: refresh inválido ou logout com access token morto limpa a sessão e volta ao overlay (`vigia_ui`)
 - [2026-10-18] App: o redirect do Keycloak no WebView fecha o sheet no iPhone e o tema ignora o handoff do user agent VigiaApp (`vigia_ui`, tema `vigia`)
 - [2026-10-18] Keycloak local: confirmação de e-mail desligada no realm `vigia` (`realm-export.json`, `apply-smtp.sh`)
 - [2026-10-18] Prévia do plano no perfil separa Plano ativo e Editar meu plano (`vigia-web /profile`)

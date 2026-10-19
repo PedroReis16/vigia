@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/push_notification_provider.dart';
@@ -32,7 +33,10 @@ class AuthSession extends _$AuthSession {
     state = const AsyncData(false);
   }
 
-  /// Ends the Keycloak session via the API; only clears local state on success.
+  /// Ends the Keycloak session via the API.
+  ///
+  /// A dead access token (401/403) still drops the local session so the
+  /// overlay can show. Other failures leave the session in place.
   Future<void> signOut() async {
     final tokenStorage = ref.read(tokenStorageProvider);
     final authRepository = ref.read(authRepositoryProvider);
@@ -46,11 +50,15 @@ class AuthSession extends _$AuthSession {
     final pushCoordinator = ref.read(pushNotificationCoordinatorProvider);
     final pushToken = pushCoordinator.currentPushToken;
 
-    // Access token must still be valid for Authorization on POST /users/logout.
-    await authRepository.logout(
-      refreshToken: refreshToken,
-      pushToken: pushToken,
-    );
+    try {
+      await authRepository.logout(
+        refreshToken: refreshToken,
+        pushToken: pushToken,
+      );
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status != 401 && status != 403) rethrow;
+    }
 
     pushCoordinator.clearLocalToken();
     await clearSession();

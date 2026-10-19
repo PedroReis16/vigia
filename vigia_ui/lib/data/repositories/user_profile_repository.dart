@@ -36,7 +36,14 @@ class UserProfileRepository {
           contentType: DioMediaType.parse(contentType),
         ),
       });
-      final response = await dio.put('$_users/me/picture', data: body);
+      final response = await dio.put(
+        '$_users/me/picture',
+        data: body,
+        options: Options(
+          sendTimeout: const Duration(minutes: 2),
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+      );
       return _profileFrom(response.data);
     } on DioException catch (error) {
       throw _asException(error, 'Não foi possível atualizar a foto.');
@@ -49,6 +56,30 @@ class UserProfileRepository {
       return _profileFrom(response.data);
     } on DioException catch (error) {
       throw _asException(error, 'Não foi possível atualizar a foto.');
+    }
+  }
+
+  Future<UserProfile> updateProfile({
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) async {
+    try {
+      final response = await dio.put(
+        '$_users/me',
+        data: {'firstName': firstName, 'lastName': lastName, 'phone': phone},
+      );
+      return _profileFrom(response.data);
+    } on DioException catch (error) {
+      throw _asException(error, 'Não foi possível salvar o perfil.');
+    }
+  }
+
+  Future<void> deleteAccount() async {
+    try {
+      await dio.delete('$_users/me');
+    } on DioException catch (error) {
+      throw _asException(error, 'Não foi possível apagar a conta.');
     }
   }
 
@@ -65,6 +96,7 @@ class UserProfileRepository {
       email: profile.email,
       phone: profile.phone,
       pictureUrl: resolveApiAssetUrl(profile.pictureUrl),
+      canDeleteAccount: profile.canDeleteAccount,
     );
   }
 
@@ -97,6 +129,9 @@ class UserProfileRepository {
       return switch (raw) {
         'INVALID_PROFILE_PICTURE' => ErrorCodes.invalidProfilePicture,
         'PROFILE_PICTURE_TOO_LARGE' => ErrorCodes.profilePictureTooLarge,
+        'INVALID_PROFILE_NAME' => ErrorCodes.invalidProfileName,
+        'INVALID_PROFILE_PHONE' => ErrorCodes.invalidProfilePhone,
+        'ACCOUNT_DELETE_FORBIDDEN' => ErrorCodes.accountDeleteForbidden,
         _ => ErrorCodes.unknownError,
       };
     }

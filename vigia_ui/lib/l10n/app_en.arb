@@ -184,9 +184,87 @@
   "session": "Session",
   "profilePhone": "Phone",
   "changeProfilePicture": "Change photo",
+  "profilePictureCamera": "Open camera",
+  "profilePictureGallery": "Open gallery",
   "removeProfilePicture": "Remove photo",
   "profilePictureInvalid": "Choose a JPEG, PNG, or WebP image up to 2 MB.",
   "profilePictureError": "Could not update the photo.",
-  "profileLoadError": "Could not load the profile."
+  "profileLoadError": "Could not load the profile.",
+  "profileTitle": "Profile",
+  "profileEdit": "Edit",
+  "profileFirstName": "First name",
+  "profileLastName": "Last name",
+  "profileSave": "Save",
+  "profileSaved": "Profile updated.",
+  "profileSaveError": "Could not save the profile.",
+  "profileNameInvalid": "Enter a first and last name.",
+  "profilePhoneInvalid": "Enter a valid phone number.",
+  "profileDeleteAccount": "Delete account",
+  "profileDeleteHint": "The account, photo, and access to devices are removed.",
+  "profileDeleteTitle": "Delete account",
+  "profileDeleteMessage": "This cannot be undone. Delete the account?",
+  "profileDeleteConfirm": "Delete",
+  "profileDeleteError": "Could not delete the account.",
+  "profileDeleteForbidden": "The super admin cannot delete the account.",
+  "planTitle": "Plan",
+  "planPreviewHint": "Sample data for now. Nothing is charged.",
+  "planActive": "Active plan",
+  "planRenews": "Renews on {date}",
+  "@planRenews": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "planPerMonth": "/month",
+  "planStatusActive": "Active",
+  "planPaymentMethod": "Card",
+  "planExpires": "Expires {expiry}",
+  "@planExpires": {
+    "placeholders": {
+      "expiry": { "type": "String" }
+    }
+  },
+  "planUsageDevices": "{used} of {limit} devices",
+  "@planUsageDevices": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planUsageStorage": "{used} of {limit} GB of clips",
+  "@planUsageStorage": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planPayments": "Payments",
+  "planInvoicePaid": "Paid",
+  "planInvoiceScheduled": "Scheduled",
+  "planEssential": "Essential",
+  "planFamily": "Family care",
+  "planHome": "Residential",
+  "planFeatureDevice": "1 device",
+  "planFeatureDevices": "{count} devices",
+  "@planFeatureDevices": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "planFeatureHistory": "{days} days of history",
+  "@planFeatureHistory": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "planFeatureStorage": "{gb} GB for clips",
+  "@planFeatureStorage": {
+    "placeholders": {
+      "gb": { "type": "int" }
+    }
+  },
+  "planFeatureAlerts": "Realtime alerts",
+  "planFeatureClips": "Fall clips",
+  "planFeaturePriority": "Priority support"
 }
 

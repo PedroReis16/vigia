@@ -184,9 +184,87 @@
   "session": "Sesión",
   "profilePhone": "Teléfono",
   "changeProfilePicture": "Cambiar foto",
+  "profilePictureCamera": "Abrir cámara",
+  "profilePictureGallery": "Abrir galería",
   "removeProfilePicture": "Quitar foto",
   "profilePictureInvalid": "Elige una imagen JPEG, PNG o WebP de hasta 2 MB.",
   "profilePictureError": "No se pudo actualizar la foto.",
-  "profileLoadError": "No se pudo cargar el perfil."
+  "profileLoadError": "No se pudo cargar el perfil.",
+  "profileTitle": "Perfil",
+  "profileEdit": "Editar",
+  "profileFirstName": "Nombre",
+  "profileLastName": "Apellido",
+  "profileSave": "Guardar",
+  "profileSaved": "Perfil actualizado.",
+  "profileSaveError": "No se pudo guardar el perfil.",
+  "profileNameInvalid": "Indica nombre y apellido.",
+  "profilePhoneInvalid": "Indica un teléfono válido.",
+  "profileDeleteAccount": "Eliminar cuenta",
+  "profileDeleteHint": "Se eliminan la cuenta, la foto y el acceso a los dispositivos.",
+  "profileDeleteTitle": "Eliminar cuenta",
+  "profileDeleteMessage": "Esta acción no se puede deshacer. ¿Eliminar la cuenta?",
+  "profileDeleteConfirm": "Eliminar",
+  "profileDeleteError": "No se pudo eliminar la cuenta.",
+  "profileDeleteForbidden": "El super admin no puede eliminar la cuenta.",
+  "planTitle": "Plan",
+  "planPreviewHint": "Vista previa con datos de ejemplo. No se cobra nada.",
+  "planActive": "Plan activo",
+  "planRenews": "Se renueva el {date}",
+  "@planRenews": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "planPerMonth": "/mes",
+  "planStatusActive": "Activo",
+  "planPaymentMethod": "Tarjeta",
+  "planExpires": "Vence {expiry}",
+  "@planExpires": {
+    "placeholders": {
+      "expiry": { "type": "String" }
+    }
+  },
+  "planUsageDevices": "{used} de {limit} dispositivos",
+  "@planUsageDevices": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planUsageStorage": "{used} de {limit} GB de clips",
+  "@planUsageStorage": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planPayments": "Pagos",
+  "planInvoicePaid": "Pagado",
+  "planInvoiceScheduled": "Programado",
+  "planEssential": "Esencial",
+  "planFamily": "Cuidado familiar",
+  "planHome": "Residencial",
+  "planFeatureDevice": "1 dispositivo",
+  "planFeatureDevices": "{count} dispositivos",
+  "@planFeatureDevices": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "planFeatureHistory": "{days} días de historial",
+  "@planFeatureHistory": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "planFeatureStorage": "{gb} GB para clips",
+  "@planFeatureStorage": {
+    "placeholders": {
+      "gb": { "type": "int" }
+    }
+  },
+  "planFeatureAlerts": "Alertas en tiempo real",
+  "planFeatureClips": "Clips de caídas",
+  "planFeaturePriority": "Soporte prioritario"
 }
 

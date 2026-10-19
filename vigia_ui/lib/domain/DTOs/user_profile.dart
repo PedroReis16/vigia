@@ -7,6 +7,7 @@ class UserProfile {
     required this.email,
     required this.phone,
     this.pictureUrl,
+    this.canDeleteAccount = true,
   });
 
   final String id;
@@ -16,6 +17,7 @@ class UserProfile {
   final String email;
   final String phone;
   final String? pictureUrl;
+  final bool canDeleteAccount;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -26,6 +28,7 @@ class UserProfile {
       email: json['email'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
       pictureUrl: json['pictureUrl'] as String?,
+      canDeleteAccount: json['canDeleteAccount'] as bool? ?? true,
     );
   }
 }

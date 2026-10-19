@@ -952,6 +952,18 @@ abstract class AppLocalizations {
   /// **'Trocar foto'**
   String get changeProfilePicture;
 
+  /// No description provided for @profilePictureCamera.
+  ///
+  /// In pt, this message translates to:
+  /// **'Abrir câmera'**
+  String get profilePictureCamera;
+
+  /// No description provided for @profilePictureGallery.
+  ///
+  /// In pt, this message translates to:
+  /// **'Abrir galeria'**
+  String get profilePictureGallery;
+
   /// No description provided for @removeProfilePicture.
   ///
   /// In pt, this message translates to:
@@ -975,6 +987,240 @@ abstract class AppLocalizations {
   /// In pt, this message translates to:
   /// **'Não foi possível carregar o perfil.'**
   String get profileLoadError;
+
+  /// No description provided for @profileTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Perfil'**
+  String get profileTitle;
+
+  /// No description provided for @profileEdit.
+  ///
+  /// In pt, this message translates to:
+  /// **'Editar'**
+  String get profileEdit;
+
+  /// No description provided for @profileFirstName.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nome'**
+  String get profileFirstName;
+
+  /// No description provided for @profileLastName.
+  ///
+  /// In pt, this message translates to:
+  /// **'Sobrenome'**
+  String get profileLastName;
+
+  /// No description provided for @profileSave.
+  ///
+  /// In pt, this message translates to:
+  /// **'Salvar'**
+  String get profileSave;
+
+  /// No description provided for @profileSaved.
+  ///
+  /// In pt, this message translates to:
+  /// **'Perfil atualizado.'**
+  String get profileSaved;
+
+  /// No description provided for @profileSaveError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível salvar o perfil.'**
+  String get profileSaveError;
+
+  /// No description provided for @profileNameInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'Informe nome e sobrenome.'**
+  String get profileNameInvalid;
+
+  /// No description provided for @profilePhoneInvalid.
+  ///
+  /// In pt, this message translates to:
+  /// **'Informe um telefone válido.'**
+  String get profilePhoneInvalid;
+
+  /// No description provided for @profileDeleteAccount.
+  ///
+  /// In pt, this message translates to:
+  /// **'Apagar conta'**
+  String get profileDeleteAccount;
+
+  /// No description provided for @profileDeleteHint.
+  ///
+  /// In pt, this message translates to:
+  /// **'A conta, a foto e o acesso aos dispositivos são removidos.'**
+  String get profileDeleteHint;
+
+  /// No description provided for @profileDeleteTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Apagar conta'**
+  String get profileDeleteTitle;
+
+  /// No description provided for @profileDeleteMessage.
+  ///
+  /// In pt, this message translates to:
+  /// **'Essa ação não pode ser desfeita. Deseja apagar a conta?'**
+  String get profileDeleteMessage;
+
+  /// No description provided for @profileDeleteConfirm.
+  ///
+  /// In pt, this message translates to:
+  /// **'Apagar'**
+  String get profileDeleteConfirm;
+
+  /// No description provided for @profileDeleteError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível apagar a conta.'**
+  String get profileDeleteError;
+
+  /// No description provided for @profileDeleteForbidden.
+  ///
+  /// In pt, this message translates to:
+  /// **'O super admin não pode apagar a conta.'**
+  String get profileDeleteForbidden;
+
+  /// No description provided for @planTitle.
+  ///
+  /// In pt, this message translates to:
+  /// **'Plano'**
+  String get planTitle;
+
+  /// No description provided for @planPreviewHint.
+  ///
+  /// In pt, this message translates to:
+  /// **'Prévia com dados de exemplo. Nenhum valor é cobrado.'**
+  String get planPreviewHint;
+
+  /// No description provided for @planActive.
+  ///
+  /// In pt, this message translates to:
+  /// **'Plano ativo'**
+  String get planActive;
+
+  /// No description provided for @planRenews.
+  ///
+  /// In pt, this message translates to:
+  /// **'Renova em {date}'**
+  String planRenews(String date);
+
+  /// No description provided for @planPerMonth.
+  ///
+  /// In pt, this message translates to:
+  /// **'/mês'**
+  String get planPerMonth;
+
+  /// No description provided for @planStatusActive.
+  ///
+  /// In pt, this message translates to:
+  /// **'Ativo'**
+  String get planStatusActive;
+
+  /// No description provided for @planPaymentMethod.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cartão'**
+  String get planPaymentMethod;
+
+  /// No description provided for @planExpires.
+  ///
+  /// In pt, this message translates to:
+  /// **'Validade {expiry}'**
+  String planExpires(String expiry);
+
+  /// No description provided for @planUsageDevices.
+  ///
+  /// In pt, this message translates to:
+  /// **'{used} de {limit} dispositivos'**
+  String planUsageDevices(String used, String limit);
+
+  /// No description provided for @planUsageStorage.
+  ///
+  /// In pt, this message translates to:
+  /// **'{used} de {limit} GB de clipes'**
+  String planUsageStorage(String used, String limit);
+
+  /// No description provided for @planPayments.
+  ///
+  /// In pt, this message translates to:
+  /// **'Pagamentos'**
+  String get planPayments;
+
+  /// No description provided for @planInvoicePaid.
+  ///
+  /// In pt, this message translates to:
+  /// **'Pago'**
+  String get planInvoicePaid;
+
+  /// No description provided for @planInvoiceScheduled.
+  ///
+  /// In pt, this message translates to:
+  /// **'Agendado'**
+  String get planInvoiceScheduled;
+
+  /// No description provided for @planEssential.
+  ///
+  /// In pt, this message translates to:
+  /// **'Essencial'**
+  String get planEssential;
+
+  /// No description provided for @planFamily.
+  ///
+  /// In pt, this message translates to:
+  /// **'Cuidado familiar'**
+  String get planFamily;
+
+  /// No description provided for @planHome.
+  ///
+  /// In pt, this message translates to:
+  /// **'Residencial'**
+  String get planHome;
+
+  /// No description provided for @planFeatureDevice.
+  ///
+  /// In pt, this message translates to:
+  /// **'1 dispositivo'**
+  String get planFeatureDevice;
+
+  /// No description provided for @planFeatureDevices.
+  ///
+  /// In pt, this message translates to:
+  /// **'{count} dispositivos'**
+  String planFeatureDevices(int count);
+
+  /// No description provided for @planFeatureHistory.
+  ///
+  /// In pt, this message translates to:
+  /// **'{days} dias de histórico'**
+  String planFeatureHistory(int days);
+
+  /// No description provided for @planFeatureStorage.
+  ///
+  /// In pt, this message translates to:
+  /// **'{gb} GB para clipes'**
+  String planFeatureStorage(int gb);
+
+  /// No description provided for @planFeatureAlerts.
+  ///
+  /// In pt, this message translates to:
+  /// **'Alertas em tempo real'**
+  String get planFeatureAlerts;
+
+  /// No description provided for @planFeatureClips.
+  ///
+  /// In pt, this message translates to:
+  /// **'Clipes de queda'**
+  String get planFeatureClips;
+
+  /// No description provided for @planFeaturePriority.
+  ///
+  /// In pt, this message translates to:
+  /// **'Suporte prioritário'**
+  String get planFeaturePriority;
 }
 
 class _AppLocalizationsDelegate

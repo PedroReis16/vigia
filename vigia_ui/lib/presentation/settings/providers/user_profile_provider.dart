@@ -17,7 +17,7 @@ final userProfileProvider =
 class UserProfileController extends AsyncNotifier<UserProfile> {
   @override
   Future<UserProfile> build() {
-    return ref.watch(userProfileRepositoryProvider).getProfile();
+    return ref.read(userProfileRepositoryProvider).getProfile();
   }
 
   Future<void> upload(
@@ -32,7 +32,24 @@ class UserProfileController extends AsyncNotifier<UserProfile> {
   }
 
   Future<void> remove() async {
-    final profile = await ref.read(userProfileRepositoryProvider).removePicture();
+    final profile = await ref
+        .read(userProfileRepositoryProvider)
+        .removePicture();
     state = AsyncData(profile);
+  }
+
+  Future<void> save({
+    required String firstName,
+    required String lastName,
+    required String phone,
+  }) async {
+    final profile = await ref
+        .read(userProfileRepositoryProvider)
+        .updateProfile(firstName: firstName, lastName: lastName, phone: phone);
+    state = AsyncData(profile);
+  }
+
+  Future<void> delete() {
+    return ref.read(userProfileRepositoryProvider).deleteAccount();
   }
 }

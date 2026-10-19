@@ -660,13 +660,14 @@ flowchart LR
 
 1. O Keycloak continua dono de nome, e-mail e telefone. `PUT /users/me` grava nome e telefone na Admin API e na base local; o e-mail permanece somente leitura. O upsert da fila não apaga a foto
 2. A foto sobe em `PUT /users/me/picture` e fica no bucket de pictures. Sem foto, o nome de exibição cai no e-mail
-3. `DELETE /users/me` apaga o usuário no Keycloak, a foto, os push tokens e faz soft-delete local. O super admin (`admin@vigia.local`) não pode apagar a conta. O web encerra a sessão em seguida
-4. Web (`/profile`) abre em leitura e pode apagar a conta. Editar revela nome, sobrenome e telefone. Na web, a foto nova ou a remoção permanece como prévia até salvar; cancelar restaura a foto anterior. Abaixo dos dados, a web separa a prévia em Plano ativo (pacote, uso, cartão e faturas) e Editar meu plano (simulação de troca, sem cobrança). O app (Configurações → Conta) mostra os mesmos dados de perfil. A lista de membros do device usa o mesmo nome e a mesma URL
+3. `DELETE /users/me` apaga o usuário no Keycloak, a foto, os push tokens e faz soft-delete local. O super admin (`admin@vigia.local`) não pode apagar a conta. Web e app encerram a sessão em seguida
+4. Web (`/profile`) e o app (guia Perfil) abrem em leitura e podem apagar a conta. Editar revela nome, sobrenome e telefone. Na web, a foto nova ou a remoção permanece como prévia até salvar; cancelar restaura a foto anterior. No app, a troca da foto ocorre no toque do avatar e a remoção fica pendente até salvar. Abaixo dos dados, a prévia mostra o plano ativo (pacote, uso, cartão e faturas); a web ainda separa a simulação de troca, sem cobrança. A barra inferior do app usa a foto do perfil. A lista de membros do device usa o mesmo nome e a mesma URL
 
 ---
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)
 - [2026-10-18] Perfil web aplica troca ou remoção da foto só ao salvar; cancelar descarta a prévia (`vigia-web /profile`)
 - [2026-10-18] App: lista e reprodução dos clipes de queda a partir do detalhe do dispositivo (`vigia_ui`)
 - [2026-10-18] App: refresh inválido ou logout com access token morto limpa a sessão e volta ao overlay (`vigia_ui`)

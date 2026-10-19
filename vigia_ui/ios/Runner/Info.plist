@@ -77,6 +77,8 @@
 			</array>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>O Vigia usa a câmera para definir a foto do seu perfil.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>O Vigia usa a foto escolhida como imagem do seu perfil.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

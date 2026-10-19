@@ -473,6 +473,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get changeProfilePicture => 'Cambiar foto';
 
   @override
+  String get profilePictureCamera => 'Abrir cámara';
+
+  @override
+  String get profilePictureGallery => 'Abrir galería';
+
+  @override
   String get removeProfilePicture => 'Quitar foto';
 
   @override
@@ -484,4 +490,139 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get profileLoadError => 'No se pudo cargar el perfil.';
+
+  @override
+  String get profileTitle => 'Perfil';
+
+  @override
+  String get profileEdit => 'Editar';
+
+  @override
+  String get profileFirstName => 'Nombre';
+
+  @override
+  String get profileLastName => 'Apellido';
+
+  @override
+  String get profileSave => 'Guardar';
+
+  @override
+  String get profileSaved => 'Perfil actualizado.';
+
+  @override
+  String get profileSaveError => 'No se pudo guardar el perfil.';
+
+  @override
+  String get profileNameInvalid => 'Indica nombre y apellido.';
+
+  @override
+  String get profilePhoneInvalid => 'Indica un teléfono válido.';
+
+  @override
+  String get profileDeleteAccount => 'Eliminar cuenta';
+
+  @override
+  String get profileDeleteHint =>
+      'Se eliminan la cuenta, la foto y el acceso a los dispositivos.';
+
+  @override
+  String get profileDeleteTitle => 'Eliminar cuenta';
+
+  @override
+  String get profileDeleteMessage =>
+      'Esta acción no se puede deshacer. ¿Eliminar la cuenta?';
+
+  @override
+  String get profileDeleteConfirm => 'Eliminar';
+
+  @override
+  String get profileDeleteError => 'No se pudo eliminar la cuenta.';
+
+  @override
+  String get profileDeleteForbidden =>
+      'El super admin no puede eliminar la cuenta.';
+
+  @override
+  String get planTitle => 'Plan';
+
+  @override
+  String get planPreviewHint =>
+      'Vista previa con datos de ejemplo. No se cobra nada.';
+
+  @override
+  String get planActive => 'Plan activo';
+
+  @override
+  String planRenews(String date) {
+    return 'Se renueva el $date';
+  }
+
+  @override
+  String get planPerMonth => '/mes';
+
+  @override
+  String get planStatusActive => 'Activo';
+
+  @override
+  String get planPaymentMethod => 'Tarjeta';
+
+  @override
+  String planExpires(String expiry) {
+    return 'Vence $expiry';
+  }
+
+  @override
+  String planUsageDevices(String used, String limit) {
+    return '$used de $limit dispositivos';
+  }
+
+  @override
+  String planUsageStorage(String used, String limit) {
+    return '$used de $limit GB de clips';
+  }
+
+  @override
+  String get planPayments => 'Pagos';
+
+  @override
+  String get planInvoicePaid => 'Pagado';
+
+  @override
+  String get planInvoiceScheduled => 'Programado';
+
+  @override
+  String get planEssential => 'Esencial';
+
+  @override
+  String get planFamily => 'Cuidado familiar';
+
+  @override
+  String get planHome => 'Residencial';
+
+  @override
+  String get planFeatureDevice => '1 dispositivo';
+
+  @override
+  String planFeatureDevices(int count) {
+    return '$count dispositivos';
+  }
+
+  @override
+  String planFeatureHistory(int days) {
+    return '$days días de historial';
+  }
+
+  @override
+  String planFeatureStorage(int gb) {
+    return '$gb GB para clips';
+  }
+
+  @override
+  String get planFeatureAlerts => 'Alertas en tiempo real';
+
+  @override
+  String get planFeatureClips => 'Clips de caídas';
+
+  @override
+  String get planFeaturePriority => 'Soporte prioritario';
 }

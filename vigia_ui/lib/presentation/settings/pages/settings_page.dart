@@ -7,6 +7,8 @@ import 'package:vigia_ui/l10n/app_localizations.dart';
 import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/settings/providers/user_profile_provider.dart';
 import 'package:vigia_ui/presentation/settings/widgets/account_profile_card.dart';
+import 'package:vigia_ui/presentation/settings/widgets/profile_picture_source_sheet.dart';
+import 'package:vigia_ui/presentation/settings/widgets/profile_plan_card.dart';
 import 'package:vigia_ui/presentation/settings/widgets/settings_section.dart';
 import 'package:vigia_ui/presentation/settings/widgets/settings_tile.dart';
 import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
@@ -38,28 +40,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: _padding,
         children: [
-          Text(t.settings, style: theme.textTheme.headlineSmall),
-          const SizedBox(height: 24),
-          SettingsSection(
-            title: t.account,
-            children: [
-              profile.when(
-                data: (user) => AccountProfileCard(
+          profile.when(
+            data: (user) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AccountProfileCard(
                   profile: user,
                   saving: _saving,
                   onChangePicture: _changePicture,
                   onRemovePicture: _removePicture,
+                  onSave: _saveProfile,
+                  onDeleteAccount: _deleteAccount,
                 ),
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(24),
+                const SizedBox(height: 24),
+                const ProfilePlanCard(),
+              ],
+            ),
+            loading: () => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.profileTitle, style: theme.textTheme.titleLarge),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-                error: (_, _) => Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(t.profileLoadError),
-                ),
-              ),
-            ],
+              ],
+            ),
+            error: (_, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.profileTitle, style: theme.textTheme.titleLarge),
+                const SizedBox(height: 24),
+                Text(t.profileLoadError),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           SettingsSection(
@@ -80,14 +94,83 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  Future<bool> _saveProfile(
+    String firstName,
+    String lastName,
+    String phone,
+  ) async {
+    final t = context.translations;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(userProfileProvider.notifier)
+          .save(firstName: firstName, lastName: lastName, phone: phone);
+      if (!mounted) return false;
+      _showMessage(t.profileSaved);
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      _showMessage(_saveMessage(t, error));
+      return false;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final t = context.translations;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(t.profileDeleteTitle),
+        content: Text(t.profileDeleteMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(t.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(t.profileDeleteConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(userProfileProvider.notifier).delete();
+      if (!mounted) return;
+      await _signOut(context, ref);
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(_deleteMessage(t, error));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _changePicture() async {
     final t = context.translations;
-    final image = await _picker.pickImage(source: ImageSource.gallery);
+    final source = await showProfilePictureSourceSheet(context);
+    if (source == null || !mounted) return;
+
+    final XFile? image;
+    try {
+      image = await _picker.pickImage(source: source);
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage(t.profilePictureError);
+      return;
+    }
     if (image == null || !mounted) return;
 
     final bytes = await image.readAsBytes();
     final contentType = _contentType(image);
-    if (contentType == null || bytes.isEmpty || bytes.length > _maxPictureBytes) {
+    if (contentType == null ||
+        bytes.isEmpty ||
+        bytes.length > _maxPictureBytes) {
       _showMessage(t.profilePictureInvalid);
       return;
     }
@@ -105,14 +188,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _removePicture() async {
+  Future<bool> _removePicture() async {
     final t = context.translations;
     setState(() => _saving = true);
     try {
       await ref.read(userProfileProvider.notifier).remove();
+      return true;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       _showMessage(_pictureMessage(t, error));
+      return false;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -140,8 +225,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return t.profilePictureError;
   }
 
+  String _saveMessage(AppLocalizations t, Object error) {
+    if (error is RequestException &&
+        error.errorCode == ErrorCodes.invalidProfileName) {
+      return t.profileNameInvalid;
+    }
+    if (error is RequestException &&
+        error.errorCode == ErrorCodes.invalidProfilePhone) {
+      return t.profilePhoneInvalid;
+    }
+    return t.profileSaveError;
+  }
+
+  String _deleteMessage(AppLocalizations t, Object error) {
+    if (error is RequestException &&
+        error.errorCode == ErrorCodes.accountDeleteForbidden) {
+      return t.profileDeleteForbidden;
+    }
+    return t.profileDeleteError;
+  }
+
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {

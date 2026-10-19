@@ -423,6 +423,40 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewClips => 'View clips';
 
   @override
+  String get clipsDescription => 'Review device recordings';
+
+  @override
+  String get clipsStorageOn => 'Storage on';
+
+  @override
+  String get clipsStorageOff => 'Storage off';
+
+  @override
+  String get clipsStorageOffNotice =>
+      'Clip storage is off. Turn it on in device settings to record new falls.';
+
+  @override
+  String get clipsEmpty => 'No fall clips yet.';
+
+  @override
+  String get clipsLoadError => 'Could not load clips.';
+
+  @override
+  String get clipsPlayError => 'Could not play the clip.';
+
+  @override
+  String get clipStatusReceiving => 'Receiving';
+
+  @override
+  String get clipStatusAssembling => 'Assembling';
+
+  @override
+  String get clipStatusReady => 'Ready';
+
+  @override
+  String get clipStatusFailed => 'Failed';
+
+  @override
   String get account => 'Account';
 
   @override

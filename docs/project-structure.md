@@ -296,7 +296,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ### vigia_ui
 
-**Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, push FCM (Android) e inbox server-side (sino + lista).
+**Propósito:** App mobile para usuários finais — auth, pareamento BLE, live stream (WebRTC/WHEP), gestão de devices, compartilhamento, lista e playback de clipes de queda, push FCM (Android) e inbox server-side (sino + lista).
 
 **Tecnologias:** Flutter, Riverpod, go_router, dio, flutter_blue_plus, permission_handler, device_info_plus, flutter_webrtc, signalr_netcore, Firebase (Android only).
 
@@ -648,7 +648,7 @@ flowchart LR
 3. Com clipes activos, o processo mantém a janela (`CLIP_WINDOW_S` × fps da câmera, o mesmo da live SHM; fallback `FRAME_RATE`)
 4. Na entrada em `fall`, a placa comprime o snapshot com ffmpeg para PNG sem perdas, abre a sessão e envia os frames em paralelo (até 4) em `POST /devices/{id}/clips` e `POST /devices/{id}/clips/{clipId}/frames/{index}`, com o certificado de cliente quando ele existe
 5. A API grava cada PNG pelo índice, fora da ordem de chegada. Quando a sequência fecha, copia os frames em ordem (`ordered/`) e o ffmpeg gera H.264 CRF 18 nesse fps, mais um JPEG do último frame (largura máxima 480)
-6. O MP4 e o JPEG sobem para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4` e `.jpg`). `GET /devices/{id}/clips` exige usuário autenticado e, no clipe pronto, devolve `thumbnailUrl` e `playbackUrl` com token efêmero de 1 h. A web mostra o JPEG e, ao escolher o clipe, pede o MP4 por faixas (`Range` / `206`). Clipe antigo sem JPEG ganha o poster na primeira leitura do thumbnail, extraído do MP4
+6. O MP4 e o JPEG sobem para o bucket de pictures (`clips/{deviceId}/{clipId}.mp4` e `.jpg`). `GET /devices/{id}/clips` exige usuário autenticado e, no clipe pronto, devolve `thumbnailUrl` e `playbackUrl` com token efêmero de 1 h. A web e o app mostram o JPEG e, ao escolher o clipe, pedem o MP4 por faixas (`Range` / `206`). Clipe antigo sem JPEG ganha o poster na primeira leitura do thumbnail, extraído do MP4
 
 ### 8. Blur nas capturas
 
@@ -667,6 +667,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-18] App: lista e reprodução dos clipes de queda a partir do detalhe do dispositivo (`vigia_ui`)
 - [2026-10-18] App: refresh inválido ou logout com access token morto limpa a sessão e volta ao overlay (`vigia_ui`)
 - [2026-10-18] App: o redirect do Keycloak no WebView fecha o sheet no iPhone e o tema ignora o handoff do user agent VigiaApp (`vigia_ui`, tema `vigia`)
 - [2026-10-18] Keycloak local: confirmação de e-mail desligada no realm `vigia` (`realm-export.json`, `apply-smtp.sh`)

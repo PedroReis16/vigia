@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/DTOs/device_clip.dart';
 import 'package:vigia_ui/domain/DTOs/device_client_certificate.dart';
 import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
 import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
@@ -243,6 +244,35 @@ class DevicesRepository {
       throw Exception(message ?? 'Failed to remove device user');
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<List<DeviceClip>> listClips(String deviceId) async {
+    try {
+      final response = await dio.get("$_devicesEndpoint/$deviceId/clips");
+
+      if (response.statusCode == 204 || response.data == null) {
+        return [];
+      }
+
+      final data = response.data;
+      if (data is! List) {
+        return [];
+      }
+
+      return data
+          .whereType<Map>()
+          .map((clip) => DeviceClip.fromJson(Map<String, dynamic>.from(clip)))
+          .toList();
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para acessar os dispositivos.",
+        );
+      }
+      throw Exception('Failed to get device clips');
+    } catch (e) {
+      throw Exception('Failed to get device clips');
     }
   }
 

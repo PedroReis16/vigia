@@ -427,6 +427,40 @@ class AppLocalizationsEs extends AppLocalizations {
   String get viewClips => 'Ver clips';
 
   @override
+  String get clipsDescription => 'Revisa las grabaciones del dispositivo';
+
+  @override
+  String get clipsStorageOn => 'Almacenamiento activado';
+
+  @override
+  String get clipsStorageOff => 'Almacenamiento desactivado';
+
+  @override
+  String get clipsStorageOffNotice =>
+      'El almacenamiento de clips está desactivado. Actívalo al editar el dispositivo para grabar nuevas caídas.';
+
+  @override
+  String get clipsEmpty => 'Aún no hay clips de caída.';
+
+  @override
+  String get clipsLoadError => 'No se pudieron cargar los clips.';
+
+  @override
+  String get clipsPlayError => 'No se pudo reproducir el clip.';
+
+  @override
+  String get clipStatusReceiving => 'Recibiendo';
+
+  @override
+  String get clipStatusAssembling => 'Montando';
+
+  @override
+  String get clipStatusReady => 'Listo';
+
+  @override
+  String get clipStatusFailed => 'Falló';
+
+  @override
   String get account => 'Cuenta';
 
   @override

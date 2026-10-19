@@ -862,6 +862,72 @@ abstract class AppLocalizations {
   /// **'Ver clips'**
   String get viewClips;
 
+  /// No description provided for @clipsDescription.
+  ///
+  /// In pt, this message translates to:
+  /// **'Revise gravações do dispositivo'**
+  String get clipsDescription;
+
+  /// No description provided for @clipsStorageOn.
+  ///
+  /// In pt, this message translates to:
+  /// **'Armazenamento ligado'**
+  String get clipsStorageOn;
+
+  /// No description provided for @clipsStorageOff.
+  ///
+  /// In pt, this message translates to:
+  /// **'Armazenamento desligado'**
+  String get clipsStorageOff;
+
+  /// No description provided for @clipsStorageOffNotice.
+  ///
+  /// In pt, this message translates to:
+  /// **'O armazenamento de clips está desligado. Ative em editar dispositivo para gravar novas quedas.'**
+  String get clipsStorageOffNotice;
+
+  /// No description provided for @clipsEmpty.
+  ///
+  /// In pt, this message translates to:
+  /// **'Nenhum clipe de queda ainda.'**
+  String get clipsEmpty;
+
+  /// No description provided for @clipsLoadError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível carregar os clips.'**
+  String get clipsLoadError;
+
+  /// No description provided for @clipsPlayError.
+  ///
+  /// In pt, this message translates to:
+  /// **'Não foi possível reproduzir o clipe.'**
+  String get clipsPlayError;
+
+  /// No description provided for @clipStatusReceiving.
+  ///
+  /// In pt, this message translates to:
+  /// **'Recebendo'**
+  String get clipStatusReceiving;
+
+  /// No description provided for @clipStatusAssembling.
+  ///
+  /// In pt, this message translates to:
+  /// **'Montando'**
+  String get clipStatusAssembling;
+
+  /// No description provided for @clipStatusReady.
+  ///
+  /// In pt, this message translates to:
+  /// **'Pronto'**
+  String get clipStatusReady;
+
+  /// No description provided for @clipStatusFailed.
+  ///
+  /// In pt, this message translates to:
+  /// **'Falhou'**
+  String get clipStatusFailed;
+
   /// No description provided for @account.
   ///
   /// In pt, this message translates to:

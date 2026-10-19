@@ -209,20 +209,60 @@ class _DeviceDetailsState extends ConsumerState<DeviceDetails> {
                 );
               },
             ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(t.clips, style: theme.textTheme.titleMedium),
-        ),
-        TextButton(
-          onPressed: () {
-            context.push(
-              AppRoutes.deviceClipsPage.replaceAll(
-                ':deviceId',
-                widget.device.id,
+        const SizedBox(height: 8),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              context.push(
+                AppRoutes.deviceClipsPage.replaceAll(
+                  ':deviceId',
+                  widget.device.id,
+                ),
+              );
+            },
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.videocam_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(t.viewClips, style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 2),
+                        Text(
+                          t.clipsDescription,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.device.isClipsEnabled
+                              ? t.clipsStorageOn
+                              : t.clipsStorageOff,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
-            );
-          },
-          child: Text(t.viewClips, textAlign: TextAlign.start),
+            ),
+          ),
         ),
       ],
     );

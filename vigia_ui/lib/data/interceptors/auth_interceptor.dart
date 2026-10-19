@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:vigia_ui/data/services/keycloak_auth_client.dart';
 import 'package:vigia_ui/data/services/token_storage_service.dart';
 
-class AuthInterceptor extends QueuedInterceptor {
+class AuthInterceptor extends Interceptor {
   AuthInterceptor({
     required this._dio,
     required this._keycloak,
@@ -14,6 +14,10 @@ class AuthInterceptor extends QueuedInterceptor {
   final KeycloakAuthClient _keycloak;
   final TokenStorageService _tokenStorage;
   final Future<void> Function() _onRefreshFailed;
+
+  /// One refresh at a time. Successful calls stay parallel so a slow profile
+  /// request cannot hold the device list in loading.
+  Future<void>? _refreshing;
 
   @override
   Future<void> onRequest(
@@ -48,14 +52,11 @@ class AuthInterceptor extends QueuedInterceptor {
         return handler.next(err);
       }
 
-      final credentials = await _keycloak.refresh(refreshToken);
-      await _tokenStorage.saveUserTokens(
-        credentials.accessToken,
-        credentials.refreshToken,
-      );
+      await _refresh(refreshToken);
 
+      final accessToken = await _tokenStorage.getAccessToken();
       final request = err.requestOptions;
-      request.headers['Authorization'] = 'Bearer ${credentials.accessToken}';
+      request.headers['Authorization'] = 'Bearer $accessToken';
       request.extra['retried'] = true;
       final retryResponse = await _dio.fetch(request);
       return handler.resolve(retryResponse);
@@ -63,5 +64,19 @@ class AuthInterceptor extends QueuedInterceptor {
       await _onRefreshFailed();
       return handler.next(err);
     }
+  }
+
+  Future<void> _refresh(String refreshToken) {
+    return _refreshing ??= _refreshAndSave(refreshToken).whenComplete(() {
+      _refreshing = null;
+    });
+  }
+
+  Future<void> _refreshAndSave(String refreshToken) async {
+    final credentials = await _keycloak.refresh(refreshToken);
+    await _tokenStorage.saveUserTokens(
+      credentials.accessToken,
+      credentials.refreshToken,
+    );
   }
 }

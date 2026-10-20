@@ -54,6 +54,8 @@ def capture_deps():
         patch.object(cr, "unpack_raw_points", return_value=[]),
         patch.object(cr, "prepare_multiprocessing"),
         patch.object(cr, "apply_persisted_clips"),
+        patch.object(cr, "apply_persisted_blur"),
+        patch.object(cr, "get_blur_enabled", return_value=False),
         patch.object(cr, "start_supervisor"),
         patch.object(cr, "stop_supervisor"),
         patch.object(cr, "export_active", return_value=False),
@@ -234,10 +236,9 @@ def test_run_capture_ShowVideo_BlurEPlot(capture_deps):
         patch.object(
             cr,
             "get_settings",
-            return_value=_settings(
-                show_video=True, show_plot=True, blur_video=True
-            ),
+            return_value=_settings(show_video=True, show_plot=True),
         ),
+        patch.object(cr, "get_blur_enabled", return_value=True),
         patch.object(cr, "_opencv_has_gui", return_value=True),
         patch.object(cr, "_blur_boxes", return_value=preview) as blur,
     ):

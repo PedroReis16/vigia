@@ -3,8 +3,8 @@
 FROM bluenviron/mediamtx:1 AS mediamtx
 
 FROM alpine:3.21
-# curl: outbound undemand webhook; jq: parse Control API reader count in on_unread hook
-RUN apk add --no-cache curl ca-certificates jq
+# curl: runOnDemand / runOnUnDemand webhooks
+RUN apk add --no-cache curl ca-certificates
 COPY --from=mediamtx /mediamtx /mediamtx
 COPY --from=mediamtx /mediamtx.yml /mediamtx.yml
 ENTRYPOINT ["/mediamtx"]

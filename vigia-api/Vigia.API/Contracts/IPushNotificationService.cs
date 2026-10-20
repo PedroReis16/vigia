@@ -1,6 +1,7 @@
 namespace Vigia.API.Contracts;
 
 public record FallAlertPushRequest(
+    Guid AlertId,
     Guid DeviceId,
     string DeviceName,
     string? Nickname,

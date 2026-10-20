@@ -11,6 +11,8 @@ public class VigiaDbContext : DbContext
     public DbSet<GroupInvite> GroupInvites { get; set; } = null!;
     public DbSet<UserPushToken> UserPushTokens { get; set; } = null!;
     public DbSet<DeviceClip> DeviceClips { get; set; } = null!;
+    public DbSet<FallAlertEpisode> FallAlertEpisodes { get; set; } = null!;
+    public DbSet<UserNotification> UserNotifications { get; set; } = null!;
 
     public VigiaDbContext(DbContextOptions<VigiaDbContext> options) : base(options)
     {
@@ -31,6 +33,8 @@ public class VigiaDbContext : DbContext
         _ = modelBuilder.ApplyConfiguration(new GroupInvitesConfiguration());
         _ = modelBuilder.ApplyConfiguration(new UserPushTokensConfiguration());
         _ = modelBuilder.ApplyConfiguration(new DeviceClipsConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new FallAlertEpisodesConfiguration());
+        _ = modelBuilder.ApplyConfiguration(new UserNotificationsConfiguration());
 
         _ = modelBuilder.Ignore<BaseEntity>();
     }

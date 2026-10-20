@@ -1,3 +1,5 @@
+using Vigia.API.Contracts;
+using Vigia.API.Services;
 using Vigia.API.Contracts.Devices;
 using Vigia.Database.Contracts;
 using Vigia.API.Models.DTOs.Devices;
@@ -18,13 +20,15 @@ namespace Vigia.API.Services.Devices;
 internal class DevicesService(
     ILogger<DevicesService> logger,
     IServiceScopeFactory scopeFactory,
-    IConfiguration configuration) : IDevicesService
+    IConfiguration configuration,
+    IDeviceCertificateAuthority certificates) : IDevicesService
 {
     private readonly ILogger<DevicesService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly IConfiguration _configuration = configuration;
+    private readonly IDeviceCertificateAuthority _certificates = certificates;
 
-    public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId)
+    public async Task<DeviceDTO?> GetDeviceAsync(Guid deviceId, Guid? viewerId = null)
     {
         try
         {
@@ -34,7 +38,11 @@ internal class DevicesService(
             if (device == null)
                 return null;
 
-            return MapDeviceToDTO(device);
+            DeviceDTO dto = MapDeviceToDTO(device);
+            if (viewerId is Guid userId)
+                dto.ThumbnailUrl = GetDeviceThumbnailUrl(scope, userId, device.Id);
+
+            return dto;
         }
         catch (EntityValidationException) { throw; }
         catch (Exception ex)
@@ -45,7 +53,7 @@ internal class DevicesService(
         }
     }
 
-    public async Task RegisterDeviceAsync(NewDeviceDTO newDevice)
+    public async Task<DeviceClientCertificateDTO?> RegisterDeviceAsync(NewDeviceDTO newDevice, Guid userId)
     {
         try
         {
@@ -55,6 +63,24 @@ internal class DevicesService(
             if (!Regex.IsMatch(newDevice.Name, @"^Vigia-[0-9a-f]{8}$"))
                 throw new EntityValidationException(nameof(newDevice.Name), "Nome do dispositivo inválido", ErrorCodes.INVALID_DEVICE_NAME);
 
+            Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id, track: true);
+
+            if (trackedDevice != null)
+            {
+                if (!_certificates.RequireClientCertificate)
+                {
+                    _logger.LogWarning($"O dispositivo '{newDevice.Id}' já esta registrado no sistema. Etapa de registro sendo ignorada");
+                    return null;
+                }
+
+                if (trackedDevice.Group != null && trackedDevice.Group.OwnerId != userId)
+                    throw new UnauthorizedAccessException("Somente o proprietário pode renovar o certificado do dispositivo");
+
+                IssuedDeviceCertificate rotated = _certificates.Issue(trackedDevice.Id);
+                await devicesDao.UpdateClientCertificateAsync(trackedDevice.Id, rotated.SerialNumber, rotated.NotAfterUtc);
+                return ToClientCertificate(rotated);
+            }
+
             Device newDeviceEntity = new()
             {
                 Id = newDevice.Id,
@@ -62,12 +88,12 @@ internal class DevicesService(
                 MacAddress = newDevice.MacAddress,
             };
 
-            Device? trackedDevice = await devicesDao.FindAsync(newDevice.Id);
-
-            if (trackedDevice != null)
+            IssuedDeviceCertificate? issued = null;
+            if (_certificates.RequireClientCertificate)
             {
-                _logger.LogWarning($"O dispositivo '{newDevice.Id}' já esta registrado no sistema. Etapa de registro sendo ignorada");
-                return;
+                issued = _certificates.Issue(newDevice.Id);
+                newDeviceEntity.ClientCertificateSerial = issued.SerialNumber;
+                newDeviceEntity.ClientCertificateNotAfter = issued.NotAfterUtc;
             }
 
             IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
@@ -113,8 +139,10 @@ internal class DevicesService(
             }
 
             _logger.LogInformation($"Dispositivo {newDevice.Id} registrado com sucesso");
+            return issued is null ? null : ToClientCertificate(issued);
         }
         catch (EntityValidationException) { throw; }
+        catch (UnauthorizedAccessException) { throw; }
         catch (Exception ex)
         {
             string errorMsg = $"Houve um erro ao tentar registrar o dispositivo {newDevice.Id}: {ex.GetFullMessage()}";
@@ -122,6 +150,13 @@ internal class DevicesService(
             throw;
         }
     }
+
+    private static DeviceClientCertificateDTO ToClientCertificate(IssuedDeviceCertificate issued) =>
+        new()
+        {
+            Certificate = issued.CertificatePem,
+            PrivateKey = issued.PrivateKeyPem,
+        };
 
     public DeviceProvisionConfigDTO GetProvisionConfig()
     {
@@ -185,6 +220,9 @@ internal class DevicesService(
 
             await devicesDao.UpdateDeviceGroupAsync(device);
 
+            IGroupRealtimeNotifier realtime = scope.ServiceProvider.GetRequiredService<IGroupRealtimeNotifier>();
+            await realtime.NotifyDevicesChangedAsync(userGroup.Id, userId, deviceId);
+
             _logger.LogInformation($"Dispositivo {deviceId} vinculado ao usuário {userId} com sucesso");
         }
         catch (EntityValidationException) { throw; }
@@ -219,10 +257,14 @@ internal class DevicesService(
                 throw new UnauthorizedAccessException($"Somente o proprietário do dispositivo '{deviceId}' pode remove-lo");
             }
 
+            Guid groupId = device.Group.Id;
             device.Group = null;
 
             IDevicesDao devicesDao = scope.ServiceProvider.GetRequiredService<IDevicesDao>();
             await devicesDao.UpdateDeviceGroupAsync(device);
+
+            IGroupRealtimeNotifier realtime = scope.ServiceProvider.GetRequiredService<IGroupRealtimeNotifier>();
+            await realtime.NotifyDevicesChangedAsync(groupId, userId, deviceId);
 
             _logger.LogInformation($"Dispositivo'{deviceId}' desvinculado do usuário '{userId}' com sucesso");
         }
@@ -326,7 +368,9 @@ internal class DevicesService(
             MacAddress = device.MacAddress,
             Room = device.Room,
             OwnerId = device.Group?.OwnerId,
-            IsClipsEnabled = device.IsClipsEnabled
+            IsClipsEnabled = device.IsClipsEnabled,
+            IsBlurEnabled = device.IsBlurEnabled,
+            IsRunning = false,
         };
     }
 
@@ -353,11 +397,14 @@ internal class DevicesService(
             DeviceRooms? nextRoom = updatedDevice.Room ?? device.Room;
             bool nextIsClipsEnabled = updatedDevice.IsClipsEnabled ?? device.IsClipsEnabled;
             bool clipsChanged = nextIsClipsEnabled != device.IsClipsEnabled;
+            bool nextIsBlurEnabled = updatedDevice.IsBlurEnabled ?? device.IsBlurEnabled;
+            bool blurChanged = nextIsBlurEnabled != device.IsBlurEnabled;
 
             if (
                 nextNickname == device.Nickname &&
                 nextRoom == device.Room &&
-                !clipsChanged)
+                !clipsChanged &&
+                !blurChanged)
             {
                 _logger.LogInformation($"A solicitação de atualização do dispositivo '{deviceId}' foi ignorada pois a solicitação não aplica mudanças efetivas sobre o dispositivo");
                 return;
@@ -368,7 +415,8 @@ internal class DevicesService(
                 Id = deviceId,
                 Nickname = nextNickname,
                 Room = nextRoom,
-                IsClipsEnabled = nextIsClipsEnabled
+                IsClipsEnabled = nextIsClipsEnabled,
+                IsBlurEnabled = nextIsBlurEnabled
             };
 
             //TODO: Criar log com as alterações de antes e depois do dispositivo
@@ -377,6 +425,9 @@ internal class DevicesService(
 
             if (clipsChanged)
                 await TrySendClipsCommandAsync(scope, device.Name, nextIsClipsEnabled);
+
+            if (blurChanged)
+                await TrySendBlurCommandAsync(scope, device.Name, nextIsBlurEnabled);
 
             _logger.LogInformation($"Dispositivo '{deviceId}' atualizado com sucesso");
         }
@@ -387,6 +438,26 @@ internal class DevicesService(
             string errorMsg = $"Houve um erro ao tentar atualizar o dispositivo {deviceId}: {ex.GetFullMessage()}";
             _logger.LogError(errorMsg);
             throw;
+        }
+    }
+
+    private async Task TrySendBlurCommandAsync(IServiceScope scope, string deviceName, bool enabled)
+    {
+        DeviceCommands command = enabled ? DeviceCommands.BLUR_ON : DeviceCommands.BLUR_OFF;
+        try
+        {
+            IFiwareService fiwareService = scope.ServiceProvider.GetRequiredService<IFiwareService>();
+            bool sent = await fiwareService.SendCommandAsync(deviceName, command);
+            if (!sent)
+            {
+                _logger.LogWarning(
+                    $"Falha ao enviar o comando '{command.GetCommandName()}' para o dispositivo '{deviceName}'. A preferência de blur ficou gravada.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                $"Falha ao enviar o comando de blur para o dispositivo '{deviceName}': {ex.GetFullMessage()}. A preferência ficou gravada.");
         }
     }
 

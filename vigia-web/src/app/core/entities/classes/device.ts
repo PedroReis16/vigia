@@ -11,6 +11,7 @@ export class Device {
     public readonly thumbnailUrl: string | null,
     public readonly isRunning: boolean,
     public readonly isClipsEnabled: boolean,
+    public readonly isBlurEnabled: boolean,
   ) {}
 
   get displayName(): string {

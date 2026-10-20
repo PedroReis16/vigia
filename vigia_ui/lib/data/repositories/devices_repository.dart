@@ -1,10 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:vigia_ui/domain/DTOs/device.dart';
+import 'package:vigia_ui/domain/DTOs/device_clip.dart';
+import 'package:vigia_ui/domain/DTOs/device_client_certificate.dart';
 import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
 import 'package:vigia_ui/domain/DTOs/device_share_invite.dart';
 import 'package:vigia_ui/domain/DTOs/new_device.dart';
 import 'package:vigia_ui/domain/DTOs/user.dart';
 import 'package:vigia_ui/domain/enums/device_rooms.dart';
+import 'package:vigia_ui/domain/enums/error_codes.dart';
+import 'package:vigia_ui/domain/exceptions/request_exception.dart';
 import 'package:vigia_ui/domain/exceptions/unauthroized_exception.dart';
 
 class DevicesRepository {
@@ -68,9 +72,9 @@ class DevicesRepository {
     }
   }
 
-  Future<void> registerDevice(NewDevice device) async {
+  Future<DeviceClientCertificate?> registerDevice(NewDevice device) async {
     try {
-      await dio.post(
+      final response = await dio.post(
         "$_devicesEndpoint/register",
         data: {
           'id': device.id,
@@ -78,6 +82,7 @@ class DevicesRepository {
           'macAddress': device.macAddress,
         },
       );
+      return DeviceClientCertificate.fromJson(response.data);
     } on DioException catch (e) {
       if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
         throw UnauthorizedException(
@@ -142,6 +147,31 @@ class DevicesRepository {
     return message is String && message.isNotEmpty ? message : null;
   }
 
+  ErrorCodes _errorCode(int? code) {
+    for (final item in ErrorCodes.values) {
+      if (item.value == code) return item;
+    }
+    return ErrorCodes.unknownError;
+  }
+
+  RequestException _shareRequestException(DioException e, String fallback) {
+    final data = e.response?.data;
+    int? code;
+    if (data is Map) {
+      final raw = data['errorCode'] ?? data['ErrorCode'];
+      if (raw is int) {
+        code = raw;
+      } else if (raw is String) {
+        code = int.tryParse(raw);
+      }
+    }
+
+    return RequestException(
+      message: _apiErrorMessage(e) ?? fallback,
+      errorCode: _errorCode(code),
+    );
+  }
+
   Future<List<DeviceUser>> getDeviceUsers(String deviceId) async {
     try {
       final response = await dio.get("$_devicesEndpoint/$deviceId/users");
@@ -193,10 +223,7 @@ class DevicesRepository {
           "Permissões insuficientes para aceitar o convite.",
         );
       }
-      final message = e.response?.data is Map
-          ? (e.response?.data['errorMessage'] as String?)
-          : null;
-      throw Exception(message ?? 'Failed to accept share invite');
+      throw _shareRequestException(e, 'Failed to accept share invite');
     } catch (e) {
       rethrow;
     }
@@ -220,11 +247,41 @@ class DevicesRepository {
     }
   }
 
+  Future<List<DeviceClip>> listClips(String deviceId) async {
+    try {
+      final response = await dio.get("$_devicesEndpoint/$deviceId/clips");
+
+      if (response.statusCode == 204 || response.data == null) {
+        return [];
+      }
+
+      final data = response.data;
+      if (data is! List) {
+        return [];
+      }
+
+      return data
+          .whereType<Map>()
+          .map((clip) => DeviceClip.fromJson(Map<String, dynamic>.from(clip)))
+          .toList();
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw UnauthorizedException(
+          "Permissões insuficientes para acessar os dispositivos.",
+        );
+      }
+      throw Exception('Failed to get device clips');
+    } catch (e) {
+      throw Exception('Failed to get device clips');
+    }
+  }
+
   Future<void> updateDevice(
     String deviceId, {
     String? nickname,
     DeviceRooms? room,
     bool? isClipsEnabled,
+    bool? isBlurEnabled,
   }) async {
     try {
       await dio.put(
@@ -233,6 +290,7 @@ class DevicesRepository {
           "nickname": nickname,
           "room": room?.toApiString(),
           "isClipsEnabled": isClipsEnabled,
+          "isBlurEnabled": isBlurEnabled,
         },
       );
     } on DioException catch (e) {

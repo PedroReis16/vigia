@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:vigia_ui/l10n/l10n_extension.dart';
 import 'package:vigia_ui/presentation/devices/providers/devices_provider.dart';
+import 'package:vigia_ui/presentation/settings/providers/user_profile_provider.dart';
+import 'package:vigia_ui/presentation/shared/widgets/profile_avatar.dart';
 
 class MenuComponent extends ConsumerWidget {
   final int currentIndex;
@@ -40,15 +43,27 @@ class MenuComponent extends ConsumerWidget {
             ),
           ),
           IconButton(
+            tooltip: context.translations.profileTitle,
             onPressed: () => onItemTap(1),
-            icon: Icon(
-              Icons.settings,
-              color: currentIndex == 1
-                  ? colorScheme.primary
-                  : colorScheme.onSurface.withValues(alpha: 0.4),
-            ),
+            icon: _profileAvatar(ref, colorScheme, currentIndex == 1),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _profileAvatar(WidgetRef ref, ColorScheme colorScheme, bool selected) {
+    final profile = ref.watch(userProfileProvider).asData?.value;
+    return Opacity(
+      opacity: selected ? 1 : 0.45,
+      child: ProfileAvatar(
+        key: const Key('nav-profile-avatar'),
+        name: profile?.name ?? '',
+        email: profile?.email ?? '',
+        pictureUrl: profile?.pictureUrl,
+        size: 32,
+        borderWidth: 2,
+        borderColor: selected ? colorScheme.primary : Colors.transparent,
       ),
     );
   }

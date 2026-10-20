@@ -15,8 +15,10 @@ from shared.capture_gate import (
     request_capture_restart,
 )
 
+from shared.device_config import remove_section
+
 from .identity import is_provisioned
-from .settings import get_network_path, get_settings
+from .settings import get_settings
 from .state import request_force_pairing, request_pairing_restart
 from .sysenv import system_subprocess_env
 
@@ -40,14 +42,14 @@ def stop_capture() -> None:
 
 
 def restart_capture() -> None:
-    """Abre o gate e pede nova sessão para reler classifier.json."""
+    """Abre o gate e pede nova sessão para reler o classificador."""
     release_capture()
     request_capture_restart()
     log.info("Pedido de restart da captura")
 
 
 def _clear_capture_local_data() -> None:
-    """Remove dados runtime locais; preserva identity.json e network.json."""
+    """Remove dados runtime locais; preserva device.json."""
     root = Path(get_settings().data_dir)
     for rel in ("fall-detection/data", "onboard/data", "DB", "data"):
         path = root / rel
@@ -59,16 +61,14 @@ def _clear_capture_local_data() -> None:
 
 
 def clear_wifi() -> None:
-    """Apaga só network.json e bloqueia a captura (mantém identidade)."""
+    """Remove só a secção network e bloqueia a captura (mantém identidade)."""
     script = WIFI_RESET_SCRIPT
     if os.path.isfile(script) and os.access(script, os.X_OK):
         subprocess.run([script], check=False, env=system_subprocess_env())
     else:
         stop_capture()
-        path = get_network_path()
-        if path.exists():
-            path.unlink()
-            log.info("network.json removido")
+        remove_section("network")
+        log.info("secção network removida de device.json")
         if is_provisioned():
             log.warning("clear_wifi: identity+network ainda presentes")
     request_pairing_restart()

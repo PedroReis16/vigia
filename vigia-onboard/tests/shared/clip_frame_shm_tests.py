@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 
 from shared.clip_frame_shm import ClipFrameRing
@@ -34,6 +36,21 @@ def test_push_DropOldestQuandoCheio() -> None:
         snap = ring.snapshot()
         assert len(snap) == 2
         assert [int(item.frame[0, 0, 0]) for item in snap] == [2, 3]
+    finally:
+        ring.close()
+        ring.unlink()
+
+
+def test_push_jpeg_SnapshotDecodifica() -> None:
+    ring = ClipFrameRing.create(slot_count=2, max_payload=64)
+    image = np.full((4, 4, 3), 9, dtype=np.uint8)
+    try:
+        assert ring.push_jpeg(b"\xff\xd8\xff", 4, 4, capture_ts=1.5) is True
+        with patch("cv2.imdecode", return_value=image):
+            snap = ring.snapshot()
+        assert len(snap) == 1
+        np.testing.assert_array_equal(snap[0].frame, image)
+        assert snap[0].capture_ts == 1.5
     finally:
         ring.close()
         ring.unlink()

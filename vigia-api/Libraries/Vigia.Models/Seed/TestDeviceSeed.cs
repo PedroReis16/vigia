@@ -18,6 +18,11 @@ public static class TestDeviceSeed
     /// <summary>Grupo do Admin (<c>GroupsConfiguration</c>).</summary>
     public static readonly Guid GroupId = new("80eed123-8e77-47a3-8fae-cedb1ab3eef7");
 
+    /// <summary>Mesmo UUID do usuário <c>admin</c> do realm Keycloak <c>vigia</c>.</summary>
+    public static readonly Guid OwnerId = new("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b");
+    public const string OwnerEmail = "admin@vigia.local";
+    public const string OwnerPhone = "11999999999";
+
     public static readonly DateTime CreatedAt =
         new DateTime(2026, 7, 27, 17, 42, 22, 525, DateTimeKind.Utc).AddTicks(2940);
 

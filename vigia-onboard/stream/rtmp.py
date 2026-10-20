@@ -163,9 +163,11 @@ class RtmpPublisher:
             "-c:v",
             "libx264",
             "-preset",
-            "ultrafast",
+            "veryfast",
             "-tune",
             "zerolatency",
+            "-crf",
+            "18",
             "-profile:v",
             "baseline",
             "-pix_fmt",
@@ -273,7 +275,7 @@ def _resolve_target(stream_fps: int) -> tuple[int, str]:
     network = get_network_settings()
     if not network.stream_ingest_url:
         raise ValueError(
-            "stream_ingest_url não configurada em network.json; "
+            "stream_ingest_url não configurada em device.json; "
             "reprovisione o dispositivo"
         )
     url = _rtmp_publish_url(

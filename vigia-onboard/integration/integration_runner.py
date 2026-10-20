@@ -17,15 +17,20 @@ import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
 
 from shared.capture_gate import capture_allowed
-from shared.clips_config import apply_persisted_clips, save_clips_enabled
 from shared.event_types import EVENT_FALL_STATE
 from shared.fall_ipc import attach_fall_shm, normalize_fall_state
+from shared.options_config import (
+    apply_persisted_blur,
+    apply_persisted_clips,
+    save_blur_enabled,
+    save_clips_enabled,
+)
 from shared.settings import (
     get_device_identity,
     get_network_settings,
     resolve_ota_dir,
 )
-from shared.stream_control import set_clips_enabled, set_stream_status
+from shared.stream_control import set_blur_enabled, set_clips_enabled, set_stream_status
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +103,12 @@ def _on_message(_: mqtt.Client, __: Any, message: mqtt.MQTTMessage) -> None:
             case "clips_off":
                 save_clips_enabled(False)
                 set_clips_enabled(False)
+            case "blur_on":
+                save_blur_enabled(True)
+                set_blur_enabled(True)
+            case "blur_off":
+                save_blur_enabled(False)
+                set_blur_enabled(False)
             case "device_update":
                 _write_ota_pending(value)
             case _:
@@ -170,6 +181,20 @@ def _publish_fall_state(client: mqtt.Client, topic: str, state: str) -> None:
     logger.info("fall_state=%s", state)
 
 
+def apply_fall_label(
+    client: mqtt.Client,
+    topic: str,
+    label: str,
+    last_state: str | None,
+) -> str | None:
+    """Publica fall_state só se o valor canónico mudou."""
+    state = normalize_fall_state(label)
+    if state == last_state:
+        return last_state
+    _publish_fall_state(client, topic, state)
+    return state
+
+
 def _reset_provision_cache() -> None:
     for fn in (get_device_identity, get_network_settings):
         clear = getattr(fn, "cache_clear", None)
@@ -178,7 +203,7 @@ def _reset_provision_cache() -> None:
 
 
 def _wait_for_provision():
-    """Espera identity.json e network.json. Não liga o MQTT antes disso."""
+    """Espera identity e network em device.json. Não liga o MQTT antes disso."""
     announced = False
     while True:
         _reset_provision_cache()
@@ -187,7 +212,7 @@ def _wait_for_provision():
         except FileNotFoundError:
             if not announced:
                 logger.info(
-                    "Integração à espera de identity.json e network.json"
+                    "Integração à espera de identity e network em device.json"
                 )
                 announced = True
             time.sleep(0.5)
@@ -203,6 +228,7 @@ def run_integration() -> None:
 
     identity, network_settings = _wait_for_provision()
     apply_persisted_clips()
+    apply_persisted_blur()
 
     OTA_DIR = resolve_ota_dir()
     PENDING_PATH = OTA_DIR / "pending.json"
@@ -221,6 +247,7 @@ def run_integration() -> None:
 
     fall_shm = attach_fall_shm()
     try:
+        last_state: str | None = None
         while True:
             if not capture_allowed():
                 time.sleep(0.05)
@@ -230,8 +257,9 @@ def run_integration() -> None:
                 continue
             if event.event_type != EVENT_FALL_STATE:
                 continue
-            state = normalize_fall_state(event.payload)
-            _publish_fall_state(client, topic_attrs, state)
+            last_state = apply_fall_label(
+                client, topic_attrs, event.payload, last_state
+            )
     except KeyboardInterrupt:
         logger.info("Integration stopped")
     finally:

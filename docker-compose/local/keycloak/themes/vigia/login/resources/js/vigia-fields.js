@@ -1,7 +1,181 @@
 (function () {
+  var HANDOFF_COOKIE = "vigia_auth_handoff";
   var ORDER = { login: 0, reset: 1, register: 2 };
   var SLIDE_MS = 320;
+  var LEAVE_MS = 180;
+  var REVEAL_MS = 420;
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var pendingExit = "";
+
+  function readHandoffCookie() {
+    var match = document.cookie.match(new RegExp("(?:^|; )" + HANDOFF_COOKIE + "=([^;]*)"));
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function writeHandoffCookie(value) {
+    document.cookie = HANDOFF_COOKIE + "=" + encodeURIComponent(value) + "; Path=/; Max-Age=45; SameSite=Lax";
+  }
+
+  function clearHandoffCookie() {
+    document.cookie = HANDOFF_COOKIE + "=; Path=/; Max-Age=0; SameSite=Lax";
+  }
+
+  function round1(value) {
+    return Math.round(value * 10) / 10;
+  }
+
+  function visualLogoBox(element) {
+    var rect = element.getBoundingClientRect();
+    var size = Math.min(rect.width, rect.height);
+    return {
+      top: rect.top + (rect.height - size) / 2,
+      left: rect.left + (rect.width - size) / 2,
+      width: size,
+      height: size
+    };
+  }
+
+  function formatBox(box) {
+    return [box.top, box.left, box.width, box.height].map(round1).join(",");
+  }
+
+  function parseBox(value) {
+    var parts = value.split(",").map(Number);
+    if (parts.length < 4 || parts.slice(0, 4).some(function (part) { return !isFinite(part); })) return null;
+    if (parts[2] <= 0 || parts[3] <= 0) return null;
+    return { top: parts[0], left: parts[1], width: parts[2], height: parts[3] };
+  }
+
+  function stampEnterCookie(form, logoBox) {
+    var header = document.getElementById("kc-header-wrapper");
+    var box = logoBox || (header ? visualLogoBox(header) : null);
+    if (!box) return;
+    var mode = form && form.id === "kc-register-form" ? "register" : "login";
+    var payload =
+      formatBox(box) + "," + window.innerWidth + "," + window.innerHeight + "," + mode;
+    writeHandoffCookie("enter," + payload);
+    // Same-origin SPA (:81) can read this even if the cookie is dropped on redirect.
+    try {
+      sessionStorage.setItem("vigia.auth.enter", payload);
+    } catch (e) {}
+  }
+
+  function authSubmitForm(form) {
+    return form && (form.id === "kc-form-login" || form.id === "kc-register-form");
+  }
+
+  // The Flutter WebView appends this marker. Skip the SPA logo handoff there:
+  // the app closes the sheet and runs its own overlay transition.
+  function isVigiaApp() {
+    return navigator.userAgent.indexOf("VigiaApp") !== -1;
+  }
+
+  /** Freeze the logo in place so the SPA boot bridge meets the same bounds. */
+  function pinLeaveLogo() {
+    var header = document.getElementById("kc-header-wrapper");
+    if (!header) return null;
+    var box = visualLogoBox(header);
+    var fly = document.createElement("div");
+    fly.className = "vigia-handoff-logo";
+    fly.setAttribute("aria-hidden", "true");
+    fly.style.top = box.top + "px";
+    fly.style.left = box.left + "px";
+    fly.style.width = box.width + "px";
+    fly.style.height = box.height + "px";
+    fly.style.backgroundImage = getComputedStyle(header).backgroundImage;
+    document.body.appendChild(fly);
+    document.documentElement.classList.add("vigia-auth-leave-logo");
+    return box;
+  }
+
+  /**
+   * Programmatic submit after leave animation.
+   * Must use form.submit() (no submit event) so our listener does not re-enter;
+   * copy the CTA name/value so Keycloak still receives `login` / register submitter.
+   */
+  function submitAuthForm(form, button) {
+    if (button && button.name) {
+      var existing = form.querySelector('input[data-vigia-submitter="1"]');
+      if (existing) existing.remove();
+      var hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = button.name;
+      hidden.value = button.value || "";
+      hidden.setAttribute("data-vigia-submitter", "1");
+      form.appendChild(hidden);
+    }
+    HTMLFormElement.prototype.submit.call(form);
+  }
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function revealAuthHandoff() {
+    if (!pendingExit || reduceMotion) return;
+    var box = parseBox(pendingExit.slice(5));
+    var header = document.getElementById("kc-header-wrapper");
+    clearHandoffCookie();
+    pendingExit = "";
+    if (!box || !header) {
+      document.documentElement.classList.remove("vigia-auth-reveal");
+      return;
+    }
+
+    var fly = document.createElement("div");
+    fly.className = "vigia-handoff-logo";
+    fly.setAttribute("aria-hidden", "true");
+    fly.style.top = box.top + "px";
+    fly.style.left = box.left + "px";
+    fly.style.width = box.width + "px";
+    fly.style.height = box.height + "px";
+    fly.style.backgroundImage = getComputedStyle(header).backgroundImage;
+    document.body.appendChild(fly);
+
+    var target = visualLogoBox(header);
+    var delta = Math.abs(target.top - box.top) + Math.abs(target.left - box.left)
+      + Math.abs(target.width - box.width) + Math.abs(target.height - box.height);
+
+    function finish() {
+      document.documentElement.classList.remove("vigia-auth-reveal", "vigia-auth-revealed");
+      fly.remove();
+    }
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.documentElement.classList.add("vigia-auth-revealed");
+        if (delta < 2) {
+          window.setTimeout(finish, REVEAL_MS);
+          return;
+        }
+        var start = performance.now();
+        function tick(now) {
+          var raw = Math.min(1, (now - start) / REVEAL_MS);
+          var t = easeInOutCubic(raw);
+          fly.style.top = (box.top + (target.top - box.top) * t) + "px";
+          fly.style.left = (box.left + (target.left - box.left) * t) + "px";
+          fly.style.width = (box.width + (target.width - box.width) * t) + "px";
+          fly.style.height = (box.height + (target.height - box.height) * t) + "px";
+          if (raw < 1) requestAnimationFrame(tick);
+          else finish();
+        }
+        requestAnimationFrame(tick);
+      });
+    });
+  }
+
+  (function captureExitHandoff() {
+    var cookie = readHandoffCookie();
+    // Keep enter,* for the SPA callback; only consume exit,* here.
+    if (reduceMotion) {
+      if (cookie.indexOf("exit,") === 0) clearHandoffCookie();
+      return;
+    }
+    if (cookie.indexOf("exit,") === 0) {
+      pendingExit = cookie;
+      document.documentElement.classList.add("vigia-auth-reveal");
+    }
+  })();
 
   function kindFromUrl(href) {
     if (!href) return "";
@@ -92,6 +266,7 @@
     var box = document.createElement("div");
     if (!card) return box;
     card.querySelectorAll("a[href]").forEach(function (link) {
+      if (link.closest("#kc-locale")) return;
       if (!kindFromUrl(link.href)) return;
       if (link.closest("#kc-form-login") && kindFromUrl(link.href) === "reset") return;
       var row = linkRow(link);
@@ -253,8 +428,9 @@
       var direction = slideDir(currentKind(), kindFromUrl(link.href));
       if (!direction) return;
       link.dataset.vigiaSlide = "1";
-      link.addEventListener("pointerenter", function () { loadPage(link.href); });
-      link.addEventListener("pointerdown", function () { loadPage(link.href); });
+      // Never prefetch login-actions: a credentials-bearing GET to
+      // reset-credentials/registration advances the auth session while the
+      // login form is still visible, so submit then lands on page-expired.
       link.addEventListener("click", function (event) {
         if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         if (document.documentElement.classList.contains("vigia-sliding")) {
@@ -470,6 +646,7 @@
     syncSubmit(document);
     softenLinks();
     bindPageSlides();
+    revealAuthHandoff();
   }
 
   document.addEventListener("input", function (event) {
@@ -479,14 +656,70 @@
     syncSubmit(form);
   });
 
+  var leavingAuth = false;
+
   document.addEventListener("submit", function (event) {
     var form = event.target;
     if (!form || !form.closest || !form.closest(".login-pf-page")) return;
     mirrorRegisterUsername(form);
     syncSubmit(form);
     var button = submitButton(form);
-    if (button && button.disabled) event.preventDefault();
+    if (button && button.disabled) {
+      event.preventDefault();
+      return;
+    }
+    if (!authSubmitForm(form)) return;
+
+    // App sheet: post straight to Keycloak. Do not pin the logo or hide the form.
+    if (isVigiaApp()) return;
+
+    // Block double-POST (second click / requestSubmit re-entry) that causes page-expired.
+    if (leavingAuth) {
+      event.preventDefault();
+      return;
+    }
+
+    if (reduceMotion) {
+      stampEnterCookie(form);
+      return;
+    }
+
+    event.preventDefault();
+    leavingAuth = true;
+    var logoBox = pinLeaveLogo();
+    stampEnterCookie(form, logoBox);
+    document.documentElement.classList.add("vigia-auth-leave");
+    window.setTimeout(function () {
+      submitAuthForm(form, button);
+    }, LEAVE_MS);
   }, true);
+
+  // Recover from login-page-expired. Prefer restart when stranded on
+  // reset-credentials (poisoned session from a forgot-password GET) so we
+  // resume the original OIDC login instead of the reset flow.
+  (function autoContinueExpiredLogin() {
+    if (reduceMotion) return;
+    var continueLink = document.getElementById("loginContinueLink");
+    var restartLink = document.getElementById("loginRestartLink");
+    if (!continueLink && !restartLink) return;
+
+    var onReset = location.pathname.indexOf("reset-credentials") !== -1;
+    var target = onReset
+      ? (restartLink && restartLink.href) || (continueLink && continueLink.href)
+      : (continueLink && continueLink.href) || (restartLink && restartLink.href);
+    if (!target) return;
+
+    // Seed a fallback enter handoff so the SPA still morphs after continue.
+    var header = document.getElementById("kc-header-wrapper");
+    if (header) {
+      stampEnterCookie(null, visualLogoBox(header));
+    }
+
+    document.documentElement.classList.add("vigia-auth-expired");
+    window.setTimeout(function () {
+      window.location.href = target;
+    }, 120);
+  })();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);

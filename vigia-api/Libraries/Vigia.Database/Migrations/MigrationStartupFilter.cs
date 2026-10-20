@@ -3,10 +3,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-#if DEBUG
-using Vigia.Models.Entities;
-using Vigia.Models.Seed;
-#endif
 
 namespace Vigia.Database.Migrations;
 
@@ -27,7 +23,8 @@ public class MigrationStartupFilter<TContext> : IStartupFilter where TContext : 
                             context.Database.Migrate();
 
 #if DEBUG
-                            SeedTestDevice(context, logger);
+                            if (context is VigiaDbContext db)
+                                TestDeviceLocalSeed.Apply(db, logger);
 #endif
                         }
                     }
@@ -40,23 +37,4 @@ public class MigrationStartupFilter<TContext> : IStartupFilter where TContext : 
             };
     }
 
-#if DEBUG
-    private static void SeedTestDevice(TContext context, ILogger? logger)
-    {
-        if (context is not VigiaDbContext db)
-            return;
-
-        Device? existing = db.Devices.FirstOrDefault(d => d.Id == TestDeviceSeed.Id);
-        if (existing == null)
-        {
-            db.Devices.Add(TestDeviceSeed.Create());
-            db.SaveChanges();
-            logger?.LogInformation(
-                "Device de teste {DeviceId} ({DeviceName}) seedado no banco (DEBUG)",
-                TestDeviceSeed.Id,
-                TestDeviceSeed.Name);
-            return;
-        }
-    }
-#endif
 }

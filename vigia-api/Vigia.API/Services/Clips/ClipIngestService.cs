@@ -6,6 +6,7 @@ using Vigia.API.Models.DTOs.Devices;
 using Vigia.Cloud.Config;
 using Vigia.Cloud.Contracts;
 using Vigia.Database.Contracts;
+using Vigia.Models.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
@@ -16,6 +17,8 @@ internal sealed class ClipIngestService(
     IDeviceClipDao clips,
     IDevicesDao devices,
     ICloudService cloud,
+    IClipAccessTokenProvider clipAccess,
+    IClipAssembler assembler,
     IOptions<ClipOptions> options,
     IOptions<CloudOptions> cloudOptions,
     IClipAssemblyQueue queue,
@@ -26,10 +29,13 @@ internal sealed class ClipIngestService(
 
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> Gates = new();
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> PosterGates = new();
 
     private readonly IDeviceClipDao _clips = clips;
     private readonly IDevicesDao _devices = devices;
     private readonly ICloudService _cloud = cloud;
+    private readonly IClipAccessTokenProvider _clipAccess = clipAccess;
+    private readonly IClipAssembler _assembler = assembler;
     private readonly ClipOptions _options = options.Value;
     private readonly CloudOptions _cloudOptions = cloudOptions.Value;
     private readonly IClipAssemblyQueue _queue = queue;
@@ -174,33 +180,167 @@ internal sealed class ClipIngestService(
         return clip;
     }
 
-    public async Task<List<DeviceClipDTO>> ListAsync(Guid deviceId, CancellationToken cancellationToken = default)
+    public async Task<List<DeviceClipDTO>> ListAsync(Guid deviceId, Guid userId, CancellationToken cancellationToken = default)
     {
         if (await _devices.FindAsync(deviceId) == null)
             throw new HttpResponseException(StatusCodes.Status404NotFound, "Dispositivo não encontrado", ErrorCodes.DEVICE_NOT_FOUND);
 
         List<DeviceClip> clips = await _clips.ListByDeviceAsync(deviceId, cancellationToken);
-        return clips.Select(clip => new DeviceClipDTO
+        string? accessToken = null;
+        List<DeviceClipDTO> result = [];
+        foreach (DeviceClip clip in clips)
         {
-            Id = clip.Id,
-            DeviceId = clip.DeviceId,
-            Status = clip.Status,
-            FrameCount = clip.FrameCount,
-            Fps = clip.Fps,
-            CreatedAt = clip.CreatedAt,
-        }).ToList();
+            DeviceClipDTO dto = new()
+            {
+                Id = clip.Id,
+                DeviceId = clip.DeviceId,
+                Status = clip.Status,
+                FrameCount = clip.FrameCount,
+                Fps = clip.Fps,
+                CreatedAt = clip.CreatedAt,
+            };
+
+            if (clip.Status == ClipStatus.Ready && !string.IsNullOrWhiteSpace(clip.ObjectKey))
+            {
+                accessToken ??= _clipAccess.IssueToken(userId, deviceId);
+                dto.PlaybackUrl = $"devices/{deviceId:D}/clips/{clip.Id:D}?accessToken={accessToken}";
+                dto.ThumbnailUrl = $"devices/{deviceId:D}/clips/{clip.Id:D}/thumbnail?accessToken={accessToken}";
+            }
+
+            result.Add(dto);
+        }
+
+        return result;
     }
 
-    public async Task<Stream?> OpenVideoAsync(Guid deviceId, Guid clipId, CancellationToken cancellationToken = default)
+    public async Task<long?> GetVideoLengthAsync(Guid deviceId, Guid clipId, CancellationToken cancellationToken = default)
     {
-        DeviceClip? clip = await _clips.FindAsync(clipId, cancellationToken);
-        if (clip == null || clip.DeviceId != deviceId || clip.Status != ClipStatus.Ready || string.IsNullOrWhiteSpace(clip.ObjectKey))
+        DeviceClip? clip = await FindReadyClipAsync(deviceId, clipId, cancellationToken);
+        if (clip == null || string.IsNullOrWhiteSpace(clip.ObjectKey))
             return null;
 
+        EnsurePicturesBucket();
+        return await _cloud.TryGetObjectLengthAsync(_cloudOptions.PicturesBucketName, clip.ObjectKey, cancellationToken);
+    }
+
+    public async Task<CloudObjectRead?> OpenVideoAsync(
+        Guid deviceId,
+        Guid clipId,
+        long? start,
+        long? end,
+        CancellationToken cancellationToken = default)
+    {
+        DeviceClip? clip = await FindReadyClipAsync(deviceId, clipId, cancellationToken);
+        if (clip == null || string.IsNullOrWhiteSpace(clip.ObjectKey))
+            return null;
+
+        EnsurePicturesBucket();
+        try
+        {
+            return await _cloud.OpenRangeAsync(_cloudOptions.PicturesBucketName, clip.ObjectKey, start, end, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Stream?> OpenThumbnailAsync(Guid deviceId, Guid clipId, CancellationToken cancellationToken = default)
+    {
+        DeviceClip? clip = await FindReadyClipAsync(deviceId, clipId, cancellationToken);
+        if (clip == null || string.IsNullOrWhiteSpace(clip.ObjectKey))
+            return null;
+
+        EnsurePicturesBucket();
+        string posterKey = ClipObjectKeys.Poster(deviceId, clipId);
+        SemaphoreSlim gate = PosterGates.GetOrAdd(clipId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!await PosterExistsAsync(deviceId, clipId, cancellationToken))
+                await CreatePosterFromVideoAsync(clip, posterKey, cancellationToken);
+
+            return await _cloud.DownloadFileAsync(_cloudOptions.PicturesBucketName, posterKey, cancellationToken);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or InvalidOperationException)
+        {
+            _logger.LogWarning(ex, "Não foi possível obter o poster do clipe {ClipId}", clipId);
+            return null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task CreatePosterFromVideoAsync(DeviceClip clip, string posterKey, CancellationToken cancellationToken)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "vigia-poster", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string videoPath = Path.Combine(directory, "clip.mp4");
+            string posterPath = Path.Combine(directory, "poster.jpg");
+            await using (FileStream file = File.Create(videoPath))
+            await using (Stream video = await _cloud.DownloadFileAsync(_cloudOptions.PicturesBucketName, clip.ObjectKey!, cancellationToken))
+                await video.CopyToAsync(file, cancellationToken);
+
+            await _assembler.WritePosterFromVideoAsync(videoPath, posterPath, cancellationToken);
+
+            await using FileStream poster = File.OpenRead(posterPath);
+            await _cloud.UploadFileAsync(
+                _cloudOptions.PicturesBucketName,
+                posterKey,
+                poster,
+                "image/jpeg",
+                cancellationToken);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Não foi possível remover o poster temporário de {Directory}", directory);
+            }
+        }
+    }
+
+    private async Task<DeviceClip?> FindReadyClipAsync(Guid deviceId, Guid clipId, CancellationToken cancellationToken)
+    {
+        DeviceClip? clip = await _clips.FindAsync(clipId, cancellationToken);
+        if (clip == null || clip.DeviceId != deviceId || clip.Status != ClipStatus.Ready)
+            return null;
+
+        return clip;
+    }
+
+    private async Task<bool> PosterExistsAsync(Guid deviceId, Guid clipId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_cloudOptions.PicturesBucketName))
+            return false;
+
+        try
+        {
+            long? length = await _cloud.TryGetObjectLengthAsync(
+                _cloudOptions.PicturesBucketName,
+                ClipObjectKeys.Poster(deviceId, clipId),
+                cancellationToken);
+            return length is > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Não foi possível verificar o poster do clipe {ClipId}", clipId);
+            return false;
+        }
+    }
+
+    private void EnsurePicturesBucket()
+    {
         if (string.IsNullOrWhiteSpace(_cloudOptions.PicturesBucketName))
             throw new HttpResponseException(StatusCodes.Status500InternalServerError, "O bucket de pictures não está configurado", ErrorCodes.UNKNOWN_ERROR);
-
-        return await _cloud.DownloadFileAsync(_cloudOptions.PicturesBucketName, clip.ObjectKey, cancellationToken);
     }
 
     internal static bool IsPng(ReadOnlySpan<byte> bytes)

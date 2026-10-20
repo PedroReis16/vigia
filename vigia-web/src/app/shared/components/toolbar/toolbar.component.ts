@@ -1,16 +1,25 @@
-import { Component, computed, inject, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, computed, inject, OnInit, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { Avatar } from '@openng/optimus-ui/avatar';
 import { Popover } from '@openng/optimus-ui/popover';
 import { FallNotification } from '@core/entities';
-import { captureToolbarHeight, captureToolbarLogoBounds } from '@core/helpers';
+import { captureToolbarHeight, captureToolbarLogoBounds, profileInitials, stageAppExit } from '@core/helpers';
 import {
   AuthExitTransitionService,
   MessageService,
   NotificationStoreService,
+  UserProfileStoreService,
 } from '@core/services';
-import { LogoutService, NavigateToFallAlertService, SyncPushNotificationsService } from '@core/usecases';
+import {
+  GetUserProfileService,
+  LoadNotificationsService,
+  LogoutService,
+  MarkAllNotificationsReadService,
+  MarkNotificationReadService,
+  NavigateToFallAlertService,
+  SyncPushNotificationsService,
+} from '@core/usecases';
 import moment from 'moment';
 
 @Component({
@@ -20,14 +29,18 @@ import moment from 'moment';
   templateUrl: './toolbar.component.html',
   styleUrl: './toolbar.component.css',
 })
-export class ToolbarComponent {
+export class ToolbarComponent implements OnInit {
   private readonly authExitTransition = inject(AuthExitTransitionService);
   private readonly logout = inject(LogoutService);
-  private readonly router = inject(Router);
   private readonly messageService = inject(MessageService);
   private readonly notificationStore = inject(NotificationStoreService);
   private readonly navigateToFallAlert = inject(NavigateToFallAlertService);
   private readonly syncPushNotifications = inject(SyncPushNotificationsService);
+  private readonly loadNotifications = inject(LoadNotificationsService);
+  private readonly markNotificationRead = inject(MarkNotificationReadService);
+  private readonly markAllNotificationsRead = inject(MarkAllNotificationsReadService);
+  private readonly profileStore = inject(UserProfileStoreService);
+  private readonly getProfile = inject(GetUserProfileService);
 
   readonly userMenu = viewChild.required<Popover>('userMenu');
   readonly notificationsMenu = viewChild.required<Popover>('notificationsMenu');
@@ -49,9 +62,19 @@ export class ToolbarComponent {
       this.authExitTransition.kind() === 'logout' &&
       !this.authExitTransition.settled(),
   );
+  readonly profile = this.profileStore.profile;
+  readonly userPictureUrl = computed(() => this.profile()?.pictureUrl ?? null);
+  readonly userInitials = computed(() => {
+    const profile = this.profile();
+    if (!profile) {
+      return '';
+    }
+    return profileInitials(profile.name, profile.email);
+  });
 
-  /** Reserved for when the API exposes a profile picture URL. */
-  readonly userPictureUrl: string | null = null;
+  ngOnInit(): void {
+    void this.getProfile.execute().catch(() => undefined);
+  }
 
   toggleUserMenu(event: Event): void {
     this.notificationsMenu().hide();
@@ -60,7 +83,10 @@ export class ToolbarComponent {
 
   toggleNotifications(event: Event): void {
     this.userMenu().hide();
-    void this.syncPushNotifications.execute().finally(() => {
+    void Promise.all([
+      this.syncPushNotifications.execute(),
+      this.loadNotifications.execute().catch(() => undefined),
+    ]).finally(() => {
       this.notificationsMenu().toggle(event);
     });
   }
@@ -106,16 +132,17 @@ export class ToolbarComponent {
   }
 
   async onNotificationClick(notification: FallNotification): Promise<void> {
-    this.notificationStore.markRead(notification.id);
+    await this.markNotificationRead.execute(notification.id);
     this.notificationsMenu().hide();
     await this.navigateToFallAlert.execute({
-      type: 'fall',
+      type: notification.type,
       deviceId: notification.deviceId,
+      alertId: notification.episodeId,
     });
   }
 
   onMarkAllRead(): void {
-    this.notificationStore.markAllRead();
+    void this.markAllNotificationsRead.execute();
   }
 
   async onLogout(): Promise<void> {
@@ -129,12 +156,25 @@ export class ToolbarComponent {
       if (logo && toolbarHeight) {
         this.authExitTransition.armLogout(logo, toolbarHeight);
         await this.authExitTransition.waitForShellExit();
+        const handoff = this.authExitTransition.handoffLogo();
+        if (handoff) {
+          stageAppExit({
+            top: handoff.top,
+            left: handoff.left,
+            width: handoff.height,
+            height: handoff.height,
+          });
+        }
       }
     }
 
-    await this.logout.execute();
-    this.messageService.removeMessage();
-    await this.router.navigate(['/login']);
+    try {
+      await this.logout.execute();
+      this.messageService.removeMessage();
+    } catch {
+      // API/Keycloak refused — cancel morph and stay authenticated.
+      this.authExitTransition.complete();
+    }
   }
 
   private prefersReducedMotion(): boolean {

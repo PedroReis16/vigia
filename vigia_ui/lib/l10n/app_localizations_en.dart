@@ -288,6 +288,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'When enabled, Vigia will store short video clips for later analysis of possible fall situations.';
 
   @override
+  String get blurPeople => 'Blur people';
+
+  @override
+  String get whatIsBlur => 'What is blur?';
+
+  @override
+  String get whenEnabledPeopleAppearBlurred =>
+      'When enabled, people appear blurred in the stream, clips, and thumbnail.';
+
+  @override
   String get saveChanges => 'Save changes';
 
   @override
@@ -339,6 +349,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Link copied. Share it with who you want to invite.';
 
   @override
+  String shareLinkCopiedUntil(String time) {
+    return 'Link copied. Expires at $time.';
+  }
+
+  @override
+  String shareLinkExpires(String time) {
+    return 'Expires at $time';
+  }
+
+  @override
   String get shareLinkError => 'Could not generate the share link';
 
   @override
@@ -385,14 +405,219 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inviteAcceptedError => 'Could not accept the invite';
 
   @override
+  String get inviteExpired => 'This invite has expired.';
+
+  @override
+  String get inviteInvalid => 'This invite is invalid or was revoked.';
+
+  @override
+  String get inviteGroupFull => 'This group has reached the user limit.';
+
+  @override
+  String get inviteRetry => 'Try again';
+
+  @override
   String get clips => 'Clips';
 
   @override
   String get viewClips => 'View clips';
 
   @override
+  String get clipsDescription => 'Review device recordings';
+
+  @override
+  String get clipsStorageOn => 'Storage on';
+
+  @override
+  String get clipsStorageOff => 'Storage off';
+
+  @override
+  String get clipsStorageOffNotice =>
+      'Clip storage is off. Turn it on in device settings to record new falls.';
+
+  @override
+  String get clipsEmpty => 'No fall clips yet.';
+
+  @override
+  String get clipsLoadError => 'Could not load clips.';
+
+  @override
+  String get clipsPlayError => 'Could not play the clip.';
+
+  @override
+  String get clipStatusReceiving => 'Receiving';
+
+  @override
+  String get clipStatusAssembling => 'Assembling';
+
+  @override
+  String get clipStatusReady => 'Ready';
+
+  @override
+  String get clipStatusFailed => 'Failed';
+
+  @override
   String get account => 'Account';
 
   @override
   String get session => 'Session';
+
+  @override
+  String get profilePhone => 'Phone';
+
+  @override
+  String get changeProfilePicture => 'Change photo';
+
+  @override
+  String get profilePictureCamera => 'Open camera';
+
+  @override
+  String get profilePictureGallery => 'Open gallery';
+
+  @override
+  String get removeProfilePicture => 'Remove photo';
+
+  @override
+  String get profilePictureInvalid =>
+      'Choose a JPEG, PNG, or WebP image up to 2 MB.';
+
+  @override
+  String get profilePictureError => 'Could not update the photo.';
+
+  @override
+  String get profileLoadError => 'Could not load the profile.';
+
+  @override
+  String get profileTitle => 'Profile';
+
+  @override
+  String get profileEdit => 'Edit';
+
+  @override
+  String get profileFirstName => 'First name';
+
+  @override
+  String get profileLastName => 'Last name';
+
+  @override
+  String get profileSave => 'Save';
+
+  @override
+  String get profileSaved => 'Profile updated.';
+
+  @override
+  String get profileSaveError => 'Could not save the profile.';
+
+  @override
+  String get profileNameInvalid => 'Enter a first and last name.';
+
+  @override
+  String get profilePhoneInvalid => 'Enter a valid phone number.';
+
+  @override
+  String get profileDeleteAccount => 'Delete account';
+
+  @override
+  String get profileDeleteHint =>
+      'The account, photo, and access to devices are removed.';
+
+  @override
+  String get profileDeleteTitle => 'Delete account';
+
+  @override
+  String get profileDeleteMessage =>
+      'This cannot be undone. Delete the account?';
+
+  @override
+  String get profileDeleteConfirm => 'Delete';
+
+  @override
+  String get profileDeleteError => 'Could not delete the account.';
+
+  @override
+  String get profileDeleteForbidden =>
+      'The super admin cannot delete the account.';
+
+  @override
+  String get planTitle => 'Plan';
+
+  @override
+  String get planPreviewHint => 'Sample data for now. Nothing is charged.';
+
+  @override
+  String get planActive => 'Active plan';
+
+  @override
+  String planRenews(String date) {
+    return 'Renews on $date';
+  }
+
+  @override
+  String get planPerMonth => '/month';
+
+  @override
+  String get planStatusActive => 'Active';
+
+  @override
+  String get planPaymentMethod => 'Card';
+
+  @override
+  String planExpires(String expiry) {
+    return 'Expires $expiry';
+  }
+
+  @override
+  String planUsageDevices(String used, String limit) {
+    return '$used of $limit devices';
+  }
+
+  @override
+  String planUsageStorage(String used, String limit) {
+    return '$used of $limit GB of clips';
+  }
+
+  @override
+  String get planPayments => 'Payments';
+
+  @override
+  String get planInvoicePaid => 'Paid';
+
+  @override
+  String get planInvoiceScheduled => 'Scheduled';
+
+  @override
+  String get planEssential => 'Essential';
+
+  @override
+  String get planFamily => 'Family care';
+
+  @override
+  String get planHome => 'Residential';
+
+  @override
+  String get planFeatureDevice => '1 device';
+
+  @override
+  String planFeatureDevices(int count) {
+    return '$count devices';
+  }
+
+  @override
+  String planFeatureHistory(int days) {
+    return '$days days of history';
+  }
+
+  @override
+  String planFeatureStorage(int gb) {
+    return '$gb GB for clips';
+  }
+
+  @override
+  String get planFeatureAlerts => 'Realtime alerts';
+
+  @override
+  String get planFeatureClips => 'Fall clips';
+
+  @override
+  String get planFeaturePriority => 'Priority support';
 }

@@ -36,6 +36,7 @@ class Devices extends _$Devices {
     String? nickname,
     DeviceRooms? room,
     bool? isClipsEnabled,
+    bool? isBlurEnabled,
   }) async {
     await ref
         .read(devicesRepositoryProvider)
@@ -44,6 +45,7 @@ class Devices extends _$Devices {
           nickname: nickname,
           room: room,
           isClipsEnabled: isClipsEnabled,
+          isBlurEnabled: isBlurEnabled,
         );
 
     final current = state.asData?.value;
@@ -59,6 +61,7 @@ class Devices extends _$Devices {
             nickname: nickname,
             room: room,
             isClipsEnabled: isClipsEnabled,
+            isBlurEnabled: isBlurEnabled,
           )
         else
           device,

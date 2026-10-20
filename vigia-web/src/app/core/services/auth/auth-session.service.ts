@@ -1,47 +1,35 @@
 import { inject, Injectable } from '@angular/core';
-import { AUTH_STORAGE_KEYS } from '@core/constants';
-import { readJwtSubject } from '@core/helpers';
-import { StorageService } from '@core/services/storage/storage.service';
-import { AuthTokensDto } from '@core/entities/DTOs/auth.dto';
+import { KeycloakAuthService } from './keycloak-auth.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthSessionService {
-  private readonly storage = inject(StorageService);
+  private readonly keycloak = inject(KeycloakAuthService);
 
   isAuthenticated(): boolean {
-    const refreshToken = this.getRefreshToken();
-    return !!refreshToken;
+    return this.keycloak.authenticated;
   }
 
   getAccessToken(): string | null {
-    return this.storage.getItem(AUTH_STORAGE_KEYS.accessToken);
-  }
-
-  getRefreshToken(): string | null {
-    return this.storage.getItem(AUTH_STORAGE_KEYS.refreshToken);
+    return this.keycloak.token;
   }
 
   getUserId(): string | null {
-    return this.storage.getItem(AUTH_STORAGE_KEYS.userId);
+    return this.keycloak.userId;
   }
 
-  setSession(tokens: AuthTokensDto): void {
-    this.storage.setItem(AUTH_STORAGE_KEYS.accessToken, tokens.accessToken);
-    this.storage.setItem(AUTH_STORAGE_KEYS.refreshToken, tokens.refreshToken);
+  /** Refreshes the access token when it expires within the given window. */
+  ensureFreshAccessToken(minValidity = 30): Promise<string | null> {
+    return this.keycloak.updateToken(minValidity);
+  }
 
-    const userId = readJwtSubject(tokens.accessToken);
-    if (userId) {
-      this.storage.setItem(AUTH_STORAGE_KEYS.userId, userId);
-    } else {
-      this.storage.removeItem(AUTH_STORAGE_KEYS.userId);
-    }
+  /** Forces a refresh. Used after the API rejects the current access token. */
+  forceRefreshAccessToken(): Promise<string | null> {
+    return this.keycloak.updateToken(-1);
   }
 
   clearSession(): void {
-    this.storage.removeItem(AUTH_STORAGE_KEYS.accessToken);
-    this.storage.removeItem(AUTH_STORAGE_KEYS.refreshToken);
-    this.storage.removeItem(AUTH_STORAGE_KEYS.userId);
+    this.keycloak.clearToken();
   }
 }

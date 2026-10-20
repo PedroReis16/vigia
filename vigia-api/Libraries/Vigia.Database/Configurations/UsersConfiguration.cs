@@ -11,6 +11,18 @@ internal class UsersConfiguration : BaseConfiguration<User>
         base.Configure(builder);
 
         _ = builder
+            .Property(u => u.FirstName)
+            .IsRequired()
+            .HasColumnName("first_name")
+            .HasMaxLength(64);
+
+        _ = builder
+            .Property(u => u.LastName)
+            .IsRequired()
+            .HasColumnName("last_name")
+            .HasMaxLength(64);
+
+        _ = builder
             .Property(u => u.Email)
             .IsRequired()
             .HasColumnName("email")
@@ -21,6 +33,11 @@ internal class UsersConfiguration : BaseConfiguration<User>
             .IsRequired()
             .HasColumnName("phone")
             .HasMaxLength(16);
+
+        _ = builder
+            .Property(u => u.PictureKey)
+            .HasColumnName("picture_key")
+            .HasMaxLength(128);
 
         _ = builder
             .HasMany(u => u.LinkedGroups)

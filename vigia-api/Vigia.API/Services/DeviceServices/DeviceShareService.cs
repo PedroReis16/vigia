@@ -17,7 +17,7 @@ public class DeviceShareService(
     IHttpContextAccessor httpContextAccessor) : IDeviceShareService
 {
     public const int MaxGroupUsers = 10;
-    private static readonly TimeSpan InviteLifetime = TimeSpan.FromDays(7);
+    public static readonly TimeSpan InviteLifetime = TimeSpan.FromMinutes(5);
 
     private readonly ILogger<DeviceShareService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
@@ -145,7 +145,7 @@ public class DeviceShareService(
 
     /// <summary>
     /// Public HTTPS URL shown to users. Prefer config; otherwise derive from the current request.
-    /// Deep link scheme stays internal (landing page redirects to it).
+    /// The landing page offers the app scheme and the web invite from there.
     /// </summary>
     private string ResolvePublicShareBase()
     {

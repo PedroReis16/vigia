@@ -9,6 +9,85 @@
       "LIGHT": "Claro"
     }
   },
+  "PROFILE": {
+    "TITLE": "Perfil",
+    "MENU": "Mi perfil",
+    "NAME": "Nombre",
+    "EMAIL": "Correo electrónico",
+    "BACK": "Volver",
+    "EDIT": "Editar",
+    "FIRST_NAME": "Nombre",
+    "LAST_NAME": "Apellido",
+    "PHONE": "Teléfono",
+    "SAVE": "Guardar",
+    "SAVED": "Perfil actualizado.",
+    "SAVE_ERROR": "No se pudo guardar el perfil.",
+    "NAME_INVALID": "Indica nombre y apellido.",
+    "PHONE_INVALID": "Indica un teléfono válido.",
+    "CHANGE_PICTURE": "Cambiar foto",
+    "REMOVE_PICTURE": "Quitar foto",
+    "PICTURE_INVALID": "Elige una imagen JPEG, PNG o WebP de hasta 2 MB.",
+    "PICTURE_ERROR": "No se pudo actualizar la foto.",
+    "LOAD_ERROR": "No se pudo cargar el perfil.",
+    "DELETE_ACCOUNT": "Eliminar cuenta",
+    "DELETE_HINT": "Se eliminan la cuenta, la foto y el acceso a los dispositivos.",
+    "DELETE_TITLE": "Eliminar cuenta",
+    "DELETE_MESSAGE": "Esta acción no se puede deshacer. ¿Eliminar la cuenta?",
+    "DELETE_CONFIRM": "Eliminar",
+    "DELETE_ERROR": "No se pudo eliminar la cuenta.",
+    "DELETE_FORBIDDEN": "El super admin no puede eliminar la cuenta.",
+    "PLAN": {
+      "TITLE": "Plan",
+      "PREVIEW_HINT": "Vista previa con datos de ejemplo. No se cobra nada.",
+      "ACTIVE": "Plan activo",
+      "EDIT": "Editar mi plan",
+      "EDIT_HINT": "Elige un paquete para simular el cambio. El plan activo no cambia en esta vista previa.",
+      "DRAFT_HINT": "Solo una simulación. No se cobra nada y el plan activo sigue igual.",
+      "CURRENT": "Plan actual",
+      "RENEWS": "Se renueva el {{date}}",
+      "PER_MONTH": "/mes",
+      "STATUS": {
+        "ACTIVE": "Activo"
+      },
+      "PAYMENT_METHOD": "Tarjeta",
+      "EXPIRES": "Vence {{expiry}}",
+      "USAGE_DEVICES": "{{used}} de {{limit}} dispositivos",
+      "USAGE_STORAGE": "{{used}} de {{limit}} GB de clips",
+      "OVER_LIMIT": "Por encima del límite de este paquete",
+      "PACKAGES": "Paquetes",
+      "PACKAGE_CURRENT": "Plan actual",
+      "PACKAGE_PREVIEWING": "Viendo",
+      "PACKAGE_PREVIEW": "Ver este paquete",
+      "PAYMENTS": "Pagos",
+      "INVOICE_STATUS": {
+        "PAID": "Pagado",
+        "SCHEDULED": "Programado"
+      },
+      "CATALOG": {
+        "ESSENTIAL": {
+          "NAME": "Esencial",
+          "HINT": "Un ambiente, con alertas en tiempo real."
+        },
+        "FAMILY": {
+          "NAME": "Cuidado familiar",
+          "HINT": "Más de un Vigia, con clips de caídas."
+        },
+        "HOME": {
+          "NAME": "Residencial",
+          "HINT": "Varios ambientes, historial largo y soporte prioritario."
+        }
+      },
+      "FEATURES": {
+        "DEVICE": "1 dispositivo",
+        "DEVICES": "{{count}} dispositivos",
+        "HISTORY": "{{days}} días de historial",
+        "STORAGE": "{{gb}} GB para clips",
+        "ALERTS": "Alertas en tiempo real",
+        "CLIPS": "Clips de caídas",
+        "PRIORITY": "Soporte prioritario"
+      }
+    }
+  },
   "AUTH": {
     "LOGOUT": "Salir",
     "WELCOME": "Bienvenido a Vigia",
@@ -57,6 +136,7 @@
       "NOT_FOUND": "Dispositivo no encontrado.",
       "UPDATE": "No se pudo actualizar el dispositivo.",
       "USERS": "No se pudieron cargar los usuarios.",
+      "CLIPS": "No se pudieron cargar los clips.",
       "SHARE": "No se pudo generar el enlace de compartición.",
       "REMOVE_USER": "No se pudo eliminar el usuario.",
       "STREAM_COMMAND": "No se pudo iniciar la transmisión."
@@ -72,9 +152,11 @@
     },
     "EDIT": {
       "TITLE": "Editar dispositivo",
-      "DESCRIPTION": "Nombre, habitación y grabación de clips",
+      "DESCRIPTION": "Nombre, habitación, clips y desenfoque",
       "SAVE_CLIPS": "Guardar clips",
       "CLIPS_INFO": "Cuando está activado, Vigia almacenará clips de video cortos para un análisis posterior sobre posibles situaciones de caída.",
+      "BLUR_CAPTURES": "Desenfocar personas",
+      "BLUR_INFO": "Cuando está activado, las personas aparecen desenfocadas en el stream, los clips y la miniatura.",
       "SAVE": "Guardar cambios",
       "SUCCESS": "Dispositivo actualizado con éxito",
       "ERROR": "No se pudo actualizar el dispositivo",
@@ -93,8 +175,12 @@
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Compartir",
       "SHARE_LIMIT": "Límite de usuarios alcanzado",
-      "SHARE_SUBJECT": "Invitación a Vigia",
       "SHARE_COPIED": "Enlace copiado. Compártelo con quien quieras invitar.",
+      "SHARE_COPY": "Copiar enlace",
+      "SHARE_COPIED_ACTION": "Copiado",
+      "SHARE_COPY_ERROR": "No se pudo copiar el enlace",
+      "SHARE_LINK": "Enlace de invitación",
+      "SHARE_EXPIRES": "Expira a las {{time}}",
       "SHARE_ERROR": "No se pudo generar el enlace de compartición",
       "REMOVE_TITLE": "Eliminar usuario",
       "REMOVE_MESSAGE": "¿Eliminar a {{name}} del acceso a los dispositivos de este grupo?",
@@ -111,9 +197,19 @@
     "CLIPS": {
       "TITLE": "Clips",
       "DESCRIPTION": "Revisa las grabaciones del dispositivo",
-      "WEB_SOON": "Próximamente en la web",
       "VIEW": "Ver clips",
-      "STUB": "La reproducción de clips aún no está disponible en la web."
+      "ENABLED": "Almacenamiento activado",
+      "DISABLED": "Almacenamiento desactivado",
+      "STORAGE_OFF": "El almacenamiento de clips está desactivado. Actívalo al editar el dispositivo para grabar nuevas caídas.",
+      "EMPTY": "Aún no hay clips de caída.",
+      "LOADING": "Cargando clips…",
+      "PLAY_ERROR": "No se pudo reproducir el clip.",
+      "STATUS": {
+        "Receiving": "Recibiendo",
+        "Assembling": "Montando",
+        "Ready": "Listo",
+        "Failed": "Falló"
+      }
     },
     "ROOMS": {
       "Bedroom": "Dormitorio",

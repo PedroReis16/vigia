@@ -79,21 +79,37 @@ internal sealed class ClipAssemblyWorker(
 
         string framesDirectory = ClipStaging.ArrangeSequence(job.StagingDirectory, job.FrameCount);
         string outputPath = Path.Combine(job.StagingDirectory, "clip.mp4");
+        string posterPath = Path.Combine(job.StagingDirectory, "poster.jpg");
+        string posterSource = Path.Combine(framesDirectory, $"{job.FrameCount - 1:D6}.png");
         await _assembler.AssembleAsync(framesDirectory, job.Fps, outputPath, cancellationToken);
+        await _assembler.WritePosterAsync(posterSource, posterPath, cancellationToken);
 
         string objectKey = ClipObjectKeys.For(job.DeviceId, job.ClipId);
-        await using FileStream video = File.OpenRead(outputPath);
+        string posterKey = ClipObjectKeys.Poster(job.DeviceId, job.ClipId);
 
         using IServiceScope scope = _scopeFactory.CreateScope();
         ICloudService cloud = scope.ServiceProvider.GetRequiredService<ICloudService>();
         IDeviceClipDao clips = scope.ServiceProvider.GetRequiredService<IDeviceClipDao>();
 
-        await cloud.UploadFileAsync(
-            _cloudOptions.PicturesBucketName,
-            objectKey,
-            video,
-            "video/mp4",
-            cancellationToken);
+        await using (FileStream video = File.OpenRead(outputPath))
+        {
+            await cloud.UploadFileAsync(
+                _cloudOptions.PicturesBucketName,
+                objectKey,
+                video,
+                "video/mp4",
+                cancellationToken);
+        }
+
+        await using (FileStream poster = File.OpenRead(posterPath))
+        {
+            await cloud.UploadFileAsync(
+                _cloudOptions.PicturesBucketName,
+                posterKey,
+                poster,
+                "image/jpeg",
+                cancellationToken);
+        }
 
         await clips.MarkReadyAsync(job.ClipId, objectKey, cancellationToken);
         ClipStaging.DeleteQuietly(job.StagingDirectory, _logger);

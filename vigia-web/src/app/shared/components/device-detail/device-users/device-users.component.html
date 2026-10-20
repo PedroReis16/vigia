@@ -67,6 +67,42 @@
     </ng-template>
   </p-card>
 
+  @if (sharedInvite(); as invite) {
+    <div class="device-users__invite" data-testid="device-share-link">
+      <p class="device-users__invite-expiry">
+        {{ 'DEVICES.USERS.SHARE_EXPIRES' | translate: { time: formatExpiry(invite) } }}
+      </p>
+      <div class="device-users__invite-row">
+        <input
+          class="device-users__invite-url"
+          type="text"
+          readonly
+          [value]="invite.inviteUrl"
+          [attr.aria-label]="'DEVICES.USERS.SHARE_LINK' | translate"
+          data-testid="device-share-link-input"
+          (focus)="selectInviteLink($event)"
+        />
+        <button
+          type="button"
+          class="device-users__invite-copy"
+          data-testid="device-share-copy"
+          (click)="copyInviteLink()"
+        >
+          <i
+            class="pi"
+            [class.pi-check]="linkCopied()"
+            [class.pi-copy]="!linkCopied()"
+            aria-hidden="true"
+          ></i>
+          {{
+            (linkCopied() ? 'DEVICES.USERS.SHARE_COPIED_ACTION' : 'DEVICES.USERS.SHARE_COPY')
+              | translate
+          }}
+        </button>
+      </div>
+    </div>
+  }
+
   @if (isOwner()) {
     <div class="shrink-0">
       <p-button

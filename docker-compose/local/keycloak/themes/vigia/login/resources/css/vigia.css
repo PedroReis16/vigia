@@ -113,7 +113,12 @@ html.login-pf body {
   display: none;
 }
 
-.login-pf-page .login-pf-header:not(:has(#kc-locale)) {
+/* O realm tem en e pt-BR, mas o login não oferece troca de idioma. */
+.login-pf-page #kc-locale {
+  display: none;
+}
+
+.login-pf-page .login-pf-header:not(:has(#kc-username)) {
   display: none;
 }
 
@@ -588,11 +593,6 @@ html.login-pf body {
   font-size: 0.9375rem;
 }
 
-.login-pf-page #kc-locale-dropdown button,
-.login-pf-page #kc-locale-dropdown a {
-  color: #ffffff;
-}
-
 .login-pf-page #kc-form-options,
 .login-pf-page #kc-form-buttons {
   padding-left: 0;
@@ -702,6 +702,68 @@ html.login-pf body {
   color: #ffffff;
   text-decoration: underline;
   outline: none;
+}
+
+/* Handoff com o vigia-web: o formulário some antes do redirect e reaparece no logout. */
+html.vigia-auth-leave .login-pf-page > .card-pf,
+html.vigia-auth-leave .vigia-slide-viewport,
+html.vigia-auth-leave .vigia-auth-links,
+html.vigia-auth-leave-logo #kc-header-wrapper,
+html.vigia-auth-reveal .login-pf-page > .card-pf,
+html.vigia-auth-reveal .vigia-slide-viewport,
+html.vigia-auth-reveal .vigia-auth-links,
+html.vigia-auth-reveal #kc-header-wrapper {
+  opacity: 0;
+}
+
+html.vigia-auth-leave .login-pf-page > .card-pf,
+html.vigia-auth-leave .vigia-slide-viewport,
+html.vigia-auth-leave .vigia-auth-links {
+  transition: opacity 160ms ease;
+}
+
+/* login-page-expired: keep brand logo; hide instruction flash before auto-continue. */
+html.vigia-auth-expired #kc-content-wrapper,
+html.vigia-auth-expired .card-pf,
+html.vigia-auth-expired .vigia-auth-links {
+  opacity: 0;
+}
+
+.vigia-page-expired {
+  text-align: center;
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 28rem;
+  margin: 1.5rem auto 0;
+}
+
+.vigia-page-expired a {
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.vigia-page-expired a:hover,
+.vigia-page-expired a:focus-visible {
+  color: #e8f0fc;
+  outline: none;
+}
+
+html.vigia-auth-reveal.vigia-auth-revealed .login-pf-page > .card-pf,
+html.vigia-auth-reveal.vigia-auth-revealed .vigia-slide-viewport,
+html.vigia-auth-reveal.vigia-auth-revealed .vigia-auth-links {
+  opacity: 1;
+  transition: opacity 420ms ease;
+}
+
+.vigia-handoff-logo {
+  position: fixed;
+  z-index: 30;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
 }
 
 @media (max-width: 767px) {

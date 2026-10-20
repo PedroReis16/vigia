@@ -228,14 +228,16 @@ def run_fiware(
             while True:
                 time.sleep(0.5)
         else:
+            last_state: str | None = None
             while True:
                 event = fall_shm.read_next(timeout=0.05)
                 if event is None:
                     continue
                 if event.event_type != EVENT_FALL_STATE:
                     continue
-                state = normalize_fall_state(event.payload)
-                _publish_fall_state(fiware_client, topic_attrs, state)
+                last_state = apply_fall_label(
+                    fiware_client, topic_attrs, event.payload, last_state
+                )
     finally:
         if fall_shm is not None:
             fall_shm.close()

@@ -1,4 +1,4 @@
-"""Factory do classificador: classifier.json e fallback CLASSIFIER."""
+"""Factory do classificador: device.json e fallback CLASSIFIER."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def test_factory_json_vence_ambiente(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setenv("CLASSIFIER", "math")
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     st.get_settings.cache_clear()
-    (tmp_path / "classifier.json").write_text(
+    (tmp_path / "device.json").write_text(
         json.dumps({"classifier": "gru"}), encoding="utf-8"
     )
     assert read_classifier_id() == "gru"

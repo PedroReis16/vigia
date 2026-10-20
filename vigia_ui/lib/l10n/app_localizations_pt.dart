@@ -287,6 +287,16 @@ class AppLocalizationsPt extends AppLocalizations {
       'Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda';
 
   @override
+  String get blurPeople => 'Desfocar pessoas';
+
+  @override
+  String get whatIsBlur => 'O que é o desfoque?';
+
+  @override
+  String get whenEnabledPeopleAppearBlurred =>
+      'Quando ativo, as pessoas aparecem desfocadas no stream, nos clipes e na miniatura.';
+
+  @override
   String get saveChanges => 'Salvar alterações';
 
   @override
@@ -339,6 +349,16 @@ class AppLocalizationsPt extends AppLocalizations {
       'Link copiado. Compartilhe com quem deseja convidar.';
 
   @override
+  String shareLinkCopiedUntil(String time) {
+    return 'Link copiado. Expira às $time.';
+  }
+
+  @override
+  String shareLinkExpires(String time) {
+    return 'Expira às $time';
+  }
+
+  @override
   String get shareLinkError =>
       'Não foi possível gerar o link de compartilhamento';
 
@@ -386,14 +406,219 @@ class AppLocalizationsPt extends AppLocalizations {
   String get inviteAcceptedError => 'Não foi possível aceitar o convite';
 
   @override
+  String get inviteExpired => 'Este convite expirou.';
+
+  @override
+  String get inviteInvalid => 'Este convite é inválido ou foi revogado.';
+
+  @override
+  String get inviteGroupFull => 'O grupo já atingiu o limite de usuários.';
+
+  @override
+  String get inviteRetry => 'Tentar novamente';
+
+  @override
   String get clips => 'Clips';
 
   @override
   String get viewClips => 'Ver clips';
 
   @override
+  String get clipsDescription => 'Revise gravações do dispositivo';
+
+  @override
+  String get clipsStorageOn => 'Armazenamento ligado';
+
+  @override
+  String get clipsStorageOff => 'Armazenamento desligado';
+
+  @override
+  String get clipsStorageOffNotice =>
+      'O armazenamento de clips está desligado. Ative em editar dispositivo para gravar novas quedas.';
+
+  @override
+  String get clipsEmpty => 'Nenhum clipe de queda ainda.';
+
+  @override
+  String get clipsLoadError => 'Não foi possível carregar os clips.';
+
+  @override
+  String get clipsPlayError => 'Não foi possível reproduzir o clipe.';
+
+  @override
+  String get clipStatusReceiving => 'Recebendo';
+
+  @override
+  String get clipStatusAssembling => 'Montando';
+
+  @override
+  String get clipStatusReady => 'Pronto';
+
+  @override
+  String get clipStatusFailed => 'Falhou';
+
+  @override
   String get account => 'Conta';
 
   @override
   String get session => 'Sessão';
+
+  @override
+  String get profilePhone => 'Telefone';
+
+  @override
+  String get changeProfilePicture => 'Trocar foto';
+
+  @override
+  String get profilePictureCamera => 'Abrir câmera';
+
+  @override
+  String get profilePictureGallery => 'Abrir galeria';
+
+  @override
+  String get removeProfilePicture => 'Remover foto';
+
+  @override
+  String get profilePictureInvalid =>
+      'Escolha uma imagem JPEG, PNG ou WebP de até 2 MB.';
+
+  @override
+  String get profilePictureError => 'Não foi possível atualizar a foto.';
+
+  @override
+  String get profileLoadError => 'Não foi possível carregar o perfil.';
+
+  @override
+  String get profileTitle => 'Perfil';
+
+  @override
+  String get profileEdit => 'Editar';
+
+  @override
+  String get profileFirstName => 'Nome';
+
+  @override
+  String get profileLastName => 'Sobrenome';
+
+  @override
+  String get profileSave => 'Salvar';
+
+  @override
+  String get profileSaved => 'Perfil atualizado.';
+
+  @override
+  String get profileSaveError => 'Não foi possível salvar o perfil.';
+
+  @override
+  String get profileNameInvalid => 'Informe nome e sobrenome.';
+
+  @override
+  String get profilePhoneInvalid => 'Informe um telefone válido.';
+
+  @override
+  String get profileDeleteAccount => 'Apagar conta';
+
+  @override
+  String get profileDeleteHint =>
+      'A conta, a foto e o acesso aos dispositivos são removidos.';
+
+  @override
+  String get profileDeleteTitle => 'Apagar conta';
+
+  @override
+  String get profileDeleteMessage =>
+      'Essa ação não pode ser desfeita. Deseja apagar a conta?';
+
+  @override
+  String get profileDeleteConfirm => 'Apagar';
+
+  @override
+  String get profileDeleteError => 'Não foi possível apagar a conta.';
+
+  @override
+  String get profileDeleteForbidden => 'O super admin não pode apagar a conta.';
+
+  @override
+  String get planTitle => 'Plano';
+
+  @override
+  String get planPreviewHint =>
+      'Prévia com dados de exemplo. Nenhum valor é cobrado.';
+
+  @override
+  String get planActive => 'Plano ativo';
+
+  @override
+  String planRenews(String date) {
+    return 'Renova em $date';
+  }
+
+  @override
+  String get planPerMonth => '/mês';
+
+  @override
+  String get planStatusActive => 'Ativo';
+
+  @override
+  String get planPaymentMethod => 'Cartão';
+
+  @override
+  String planExpires(String expiry) {
+    return 'Validade $expiry';
+  }
+
+  @override
+  String planUsageDevices(String used, String limit) {
+    return '$used de $limit dispositivos';
+  }
+
+  @override
+  String planUsageStorage(String used, String limit) {
+    return '$used de $limit GB de clipes';
+  }
+
+  @override
+  String get planPayments => 'Pagamentos';
+
+  @override
+  String get planInvoicePaid => 'Pago';
+
+  @override
+  String get planInvoiceScheduled => 'Agendado';
+
+  @override
+  String get planEssential => 'Essencial';
+
+  @override
+  String get planFamily => 'Cuidado familiar';
+
+  @override
+  String get planHome => 'Residencial';
+
+  @override
+  String get planFeatureDevice => '1 dispositivo';
+
+  @override
+  String planFeatureDevices(int count) {
+    return '$count dispositivos';
+  }
+
+  @override
+  String planFeatureHistory(int days) {
+    return '$days dias de histórico';
+  }
+
+  @override
+  String planFeatureStorage(int gb) {
+    return '$gb GB para clipes';
+  }
+
+  @override
+  String get planFeatureAlerts => 'Alertas em tempo real';
+
+  @override
+  String get planFeatureClips => 'Clipes de queda';
+
+  @override
+  String get planFeaturePriority => 'Suporte prioritário';
 }

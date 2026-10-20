@@ -107,6 +107,9 @@
   "saveClips": "Salvar clips",
   "whatAreClips": "O que são clips?",
   "whenEnabledClipsWillStoreClipsForAnalysis": "Quando ativo, o Vigia armazenará clips de vídeo curtos para análise posterior sobre possíveis situações de queda",
+  "blurPeople": "Desfocar pessoas",
+  "whatIsBlur": "O que é o desfoque?",
+  "whenEnabledPeopleAppearBlurred": "Quando ativo, as pessoas aparecem desfocadas no stream, nos clipes e na miniatura.",
   "saveChanges": "Salvar alterações",
   "deviceUpdatedSuccess": "Dispositivo atualizado com sucesso",
   "deviceUpdateError": "Não foi possível atualizar o dispositivo",
@@ -129,6 +132,18 @@
   "shareLimitReached": "Limite de usuários atingido",
   "shareDeviceInviteSubject": "Convite para o Vigia",
   "shareLinkCopied": "Link copiado. Compartilhe com quem deseja convidar.",
+  "shareLinkCopiedUntil": "Link copiado. Expira às {time}.",
+  "@shareLinkCopiedUntil": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "shareLinkExpires": "Expira às {time}",
+  "@shareLinkExpires": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
   "shareLinkError": "Não foi possível gerar o link de compartilhamento",
   "deviceOwner": "Proprietário",
   "removeUserTitle": "Remover usuário?",
@@ -148,9 +163,108 @@
   "acceptingInvite": "Aceitando convite…",
   "inviteAcceptedSuccess": "Convite aceito. Os dispositivos compartilhados já estão disponíveis.",
   "inviteAcceptedError": "Não foi possível aceitar o convite",
+  "inviteExpired": "Este convite expirou.",
+  "inviteInvalid": "Este convite é inválido ou foi revogado.",
+  "inviteGroupFull": "O grupo já atingiu o limite de usuários.",
+  "inviteRetry": "Tentar novamente",
   "clips": "Clips",
   "viewClips": "Ver clips",
+  "clipsDescription": "Revise gravações do dispositivo",
+  "clipsStorageOn": "Armazenamento ligado",
+  "clipsStorageOff": "Armazenamento desligado",
+  "clipsStorageOffNotice": "O armazenamento de clips está desligado. Ative em editar dispositivo para gravar novas quedas.",
+  "clipsEmpty": "Nenhum clipe de queda ainda.",
+  "clipsLoadError": "Não foi possível carregar os clips.",
+  "clipsPlayError": "Não foi possível reproduzir o clipe.",
+  "clipStatusReceiving": "Recebendo",
+  "clipStatusAssembling": "Montando",
+  "clipStatusReady": "Pronto",
+  "clipStatusFailed": "Falhou",
   "account": "Conta",
-  "session": "Sessão"
+  "session": "Sessão",
+  "profilePhone": "Telefone",
+  "changeProfilePicture": "Trocar foto",
+  "profilePictureCamera": "Abrir câmera",
+  "profilePictureGallery": "Abrir galeria",
+  "removeProfilePicture": "Remover foto",
+  "profilePictureInvalid": "Escolha uma imagem JPEG, PNG ou WebP de até 2 MB.",
+  "profilePictureError": "Não foi possível atualizar a foto.",
+  "profileLoadError": "Não foi possível carregar o perfil.",
+  "profileTitle": "Perfil",
+  "profileEdit": "Editar",
+  "profileFirstName": "Nome",
+  "profileLastName": "Sobrenome",
+  "profileSave": "Salvar",
+  "profileSaved": "Perfil atualizado.",
+  "profileSaveError": "Não foi possível salvar o perfil.",
+  "profileNameInvalid": "Informe nome e sobrenome.",
+  "profilePhoneInvalid": "Informe um telefone válido.",
+  "profileDeleteAccount": "Apagar conta",
+  "profileDeleteHint": "A conta, a foto e o acesso aos dispositivos são removidos.",
+  "profileDeleteTitle": "Apagar conta",
+  "profileDeleteMessage": "Essa ação não pode ser desfeita. Deseja apagar a conta?",
+  "profileDeleteConfirm": "Apagar",
+  "profileDeleteError": "Não foi possível apagar a conta.",
+  "profileDeleteForbidden": "O super admin não pode apagar a conta.",
+  "planTitle": "Plano",
+  "planPreviewHint": "Prévia com dados de exemplo. Nenhum valor é cobrado.",
+  "planActive": "Plano ativo",
+  "planRenews": "Renova em {date}",
+  "@planRenews": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "planPerMonth": "/mês",
+  "planStatusActive": "Ativo",
+  "planPaymentMethod": "Cartão",
+  "planExpires": "Validade {expiry}",
+  "@planExpires": {
+    "placeholders": {
+      "expiry": { "type": "String" }
+    }
+  },
+  "planUsageDevices": "{used} de {limit} dispositivos",
+  "@planUsageDevices": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planUsageStorage": "{used} de {limit} GB de clipes",
+  "@planUsageStorage": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planPayments": "Pagamentos",
+  "planInvoicePaid": "Pago",
+  "planInvoiceScheduled": "Agendado",
+  "planEssential": "Essencial",
+  "planFamily": "Cuidado familiar",
+  "planHome": "Residencial",
+  "planFeatureDevice": "1 dispositivo",
+  "planFeatureDevices": "{count} dispositivos",
+  "@planFeatureDevices": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "planFeatureHistory": "{days} dias de histórico",
+  "@planFeatureHistory": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "planFeatureStorage": "{gb} GB para clipes",
+  "@planFeatureStorage": {
+    "placeholders": {
+      "gb": { "type": "int" }
+    }
+  },
+  "planFeatureAlerts": "Alertas em tempo real",
+  "planFeatureClips": "Clipes de queda",
+  "planFeaturePriority": "Suporte prioritário"
 }
 

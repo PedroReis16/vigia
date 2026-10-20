@@ -7,14 +7,17 @@ import json
 from core.classifiers.base import FallClassifier
 from core.classifiers.gru_classifier import GruFallClassifier
 from core.classifiers.math_classifier import MathFallClassifier
-from shared.settings import get_classifier_path, get_settings
+from shared.device_config import read_document
+from shared.settings import get_device_config_path, get_settings
 
 _VALID = frozenset({"math", "gru"})
 
 
 def read_classifier_id() -> str:
-    """``classifier.json`` se existir; senão o fallback ``CLASSIFIER`` do ambiente."""
-    path = get_classifier_path()
+    """Chave ``classifier`` de device.json; se ausente, o fallback ``CLASSIFIER``."""
+    path = get_device_config_path()
+    if not path.is_file():
+        read_document()
     if not path.is_file():
         return get_settings().classifier
     try:
@@ -23,6 +26,8 @@ def read_classifier_id() -> str:
         return "math"
     if not isinstance(data, dict):
         return "math"
+    if "classifier" not in data:
+        return get_settings().classifier
     cid = str(data.get("classifier") or "").strip().lower()
     if cid in _VALID:
         return cid

@@ -1,12 +1,13 @@
-import { Component, inject, input, OnInit, output, signal } from '@angular/core';
+import { Component, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { CardModule } from '@openng/optimus-ui/card';
 import { ConfirmationService } from '@openng/optimus-ui/api';
 import { ConfirmDialog } from '@openng/optimus-ui/confirmdialog';
 import { MAX_GROUP_USERS } from '@core/constants/device.constants';
-import { DeviceUser } from '@core/entities';
-import { AuthSessionService, MessageService } from '@core/services';
+import { DeviceShareInvite, DeviceUser, eventIncludesDevice } from '@core/entities';
+import { AuthSessionService, DeviceGroupsRealtimeService, MessageService } from '@core/services';
 import {
   GenerateDeviceShareLinkService,
   GetDeviceUsersService,
@@ -30,6 +31,8 @@ export class DeviceUsersComponent implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly translate = inject(TranslateService);
+  private readonly realtime = inject(DeviceGroupsRealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly deviceId = input.required<string>();
   readonly isOwner = input.required<boolean>();
@@ -42,10 +45,27 @@ export class DeviceUsersComponent implements OnInit {
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly sharing = signal(false);
+  readonly sharedInvite = signal<DeviceShareInvite | null>(null);
+  readonly linkCopied = signal(false);
   readonly maxGroupUsers = MAX_GROUP_USERS;
+  private copyReset: ReturnType<typeof setTimeout> | null = null;
 
   ngOnInit(): void {
     void this.loadUsers(this.deviceId());
+    this.realtime.membershipChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        if (!eventIncludesDevice(event, this.deviceId())) {
+          return;
+        }
+
+        void this.loadUsers(this.deviceId());
+      });
+    this.destroyRef.onDestroy(() => {
+      if (this.copyReset) {
+        clearTimeout(this.copyReset);
+      }
+    });
   }
 
   get currentUserId(): string | null {
@@ -54,6 +74,20 @@ export class DeviceUsersComponent implements OnInit {
 
   get canShare(): boolean {
     return this.isOwner() && this.users().length < MAX_GROUP_USERS;
+  }
+
+  selectInviteLink(event: FocusEvent): void {
+    const input = event.target;
+    if (input instanceof HTMLInputElement) {
+      input.select();
+    }
+  }
+
+  formatExpiry(invite: DeviceShareInvite): string {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(invite.expiresAt);
   }
 
   onBack(): void {
@@ -77,6 +111,27 @@ export class DeviceUsersComponent implements OnInit {
     }
   }
 
+  async copyInviteLink(): Promise<void> {
+    const invite = this.sharedInvite();
+    if (!invite) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(invite.inviteUrl);
+      this.linkCopied.set(true);
+      if (this.copyReset) {
+        clearTimeout(this.copyReset);
+      }
+      this.copyReset = setTimeout(() => this.linkCopied.set(false), 2000);
+    } catch {
+      this.messageService.addMessage({
+        message: this.translate.instant('DEVICES.USERS.SHARE_COPY_ERROR'),
+        type: 'error',
+      });
+    }
+  }
+
   async onShare(): Promise<void> {
     if (this.sharing() || !this.canShare) {
       return;
@@ -85,17 +140,12 @@ export class DeviceUsersComponent implements OnInit {
     this.sharing.set(true);
     try {
       const invite = await this.generateShareLink.execute(this.deviceId());
-      await navigator.clipboard.writeText(invite.inviteUrl);
+      this.sharedInvite.set(invite);
 
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: this.translate.instant('DEVICES.USERS.SHARE_SUBJECT'),
-            url: invite.inviteUrl,
-          });
-        } catch {
-          // Non-fatal if share sheet is dismissed.
-        }
+      try {
+        await navigator.clipboard.writeText(invite.inviteUrl);
+      } catch {
+        // The link stays on screen when the clipboard is unavailable.
       }
 
       this.messageService.addMessage({

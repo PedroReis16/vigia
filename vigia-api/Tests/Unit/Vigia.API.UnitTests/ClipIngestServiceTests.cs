@@ -8,6 +8,7 @@ using Vigia.API.Models.DTOs.Devices;
 using Vigia.API.Services.Clips;
 using Vigia.Cloud.Config;
 using Vigia.Cloud.Contracts;
+using Vigia.Models.Contracts;
 using Vigia.Database.EFDao;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
@@ -22,6 +23,7 @@ public class ClipIngestServiceTests : IDisposable
     private readonly string _staging = Path.Combine(Path.GetTempPath(), "vigia-clip-tests", Guid.NewGuid().ToString("N"));
     private readonly VigiaDbContext _context;
     private readonly RecordingQueue _queue = new();
+    private readonly ListingCloud _cloud = new();
     private readonly ClipIngestService _service;
     private readonly Guid _deviceId = Guid.NewGuid();
 
@@ -40,7 +42,9 @@ public class ClipIngestServiceTests : IDisposable
         _service = new ClipIngestService(
             new DeviceClipDao(_context),
             new DevicesDao(_context),
-            new UnusedCloud(),
+            _cloud,
+            new FixedClipAccess(),
+            new PosterAssembler(),
             Options.Create(new ClipOptions { StagingDirectory = _staging, SessionTtlMinutes = 15 }),
             Options.Create(new CloudOptions { PicturesBucketName = "vigia-pictures" }),
             _queue,
@@ -121,6 +125,94 @@ public class ClipIngestServiceTests : IDisposable
         Assert.Empty(_queue.Jobs);
     }
 
+    [Fact]
+    public async Task List_ReadyIncluiPlaybackEThumbnailQuandoOPosterExiste()
+    {
+        Guid readyId = Guid.NewGuid();
+        Guid pendingId = Guid.NewGuid();
+        Guid userId = Guid.NewGuid();
+        _context.DeviceClips.AddRange(
+            new DeviceClip
+            {
+                Id = readyId,
+                DeviceId = _deviceId,
+                Status = ClipStatus.Ready,
+                FrameCount = 12,
+                Fps = 12,
+                ObjectKey = ClipObjectKeys.For(_deviceId, readyId),
+                CreatedAt = DateTime.UtcNow,
+            },
+            new DeviceClip
+            {
+                Id = pendingId,
+                DeviceId = _deviceId,
+                Status = ClipStatus.Receiving,
+                FrameCount = 12,
+                Fps = 12,
+                CreatedAt = DateTime.UtcNow,
+            });
+        await _context.SaveChangesAsync();
+        _cloud.Lengths[ClipObjectKeys.Poster(_deviceId, readyId)] = 1200;
+
+        List<DeviceClipDTO> clips = await _service.ListAsync(_deviceId, userId);
+
+        DeviceClipDTO ready = Assert.Single(clips, clip => clip.Id == readyId);
+        Assert.Equal($"devices/{_deviceId:D}/clips/{readyId:D}?accessToken=tok", ready.PlaybackUrl);
+        Assert.Equal($"devices/{_deviceId:D}/clips/{readyId:D}/thumbnail?accessToken=tok", ready.ThumbnailUrl);
+
+        DeviceClipDTO pending = Assert.Single(clips, clip => clip.Id == pendingId);
+        Assert.Null(pending.PlaybackUrl);
+        Assert.Null(pending.ThumbnailUrl);
+    }
+
+    [Fact]
+    public async Task List_ReadySemPosterAindaAssimIncluiThumbnail()
+    {
+        Guid readyId = Guid.NewGuid();
+        _context.DeviceClips.Add(new DeviceClip
+        {
+            Id = readyId,
+            DeviceId = _deviceId,
+            Status = ClipStatus.Ready,
+            FrameCount = 4,
+            Fps = 4,
+            ObjectKey = ClipObjectKeys.For(_deviceId, readyId),
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+
+        List<DeviceClipDTO> clips = await _service.ListAsync(_deviceId, Guid.NewGuid());
+
+        DeviceClipDTO ready = Assert.Single(clips);
+        Assert.Equal($"devices/{_deviceId:D}/clips/{readyId:D}?accessToken=tok", ready.PlaybackUrl);
+        Assert.Equal($"devices/{_deviceId:D}/clips/{readyId:D}/thumbnail?accessToken=tok", ready.ThumbnailUrl);
+    }
+
+    [Fact]
+    public async Task OpenThumbnail_GeraPosterAPartirDoVideoQuandoNaoExiste()
+    {
+        Guid readyId = Guid.NewGuid();
+        string videoKey = ClipObjectKeys.For(_deviceId, readyId);
+        _context.DeviceClips.Add(new DeviceClip
+        {
+            Id = readyId,
+            DeviceId = _deviceId,
+            Status = ClipStatus.Ready,
+            FrameCount = 4,
+            Fps = 4,
+            ObjectKey = videoKey,
+            CreatedAt = DateTime.UtcNow,
+        });
+        await _context.SaveChangesAsync();
+        _cloud.Objects[videoKey] = [0x00, 0x01];
+
+        await using Stream? poster = await _service.OpenThumbnailAsync(_deviceId, readyId);
+
+        Assert.NotNull(poster);
+        Assert.True(_cloud.Objects.ContainsKey(ClipObjectKeys.Poster(_deviceId, readyId)));
+        Assert.Equal(PosterAssembler.Jpeg, _cloud.Objects[ClipObjectKeys.Poster(_deviceId, readyId)]);
+    }
+
     public void Dispose()
     {
         _context.Dispose();
@@ -146,14 +238,33 @@ public class ClipIngestServiceTests : IDisposable
         public void Enqueue(ClipAssemblyJob job) => Jobs.Add(job);
     }
 
-    private sealed class UnusedCloud : ICloudService
+    private sealed class ListingCloud : ICloudService
     {
+        public Dictionary<string, long> Lengths { get; } = [];
+        public Dictionary<string, byte[]> Objects { get; } = [];
+
         public Task EnsureBucketAsync(string bucketName, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task UploadFileAsync(string bucketName, string key, Stream content, string? contentType = null, CancellationToken cancellationToken = default) =>
-            Task.CompletedTask;
+        public async Task UploadFileAsync(string bucketName, string key, Stream content, string? contentType = null, CancellationToken cancellationToken = default)
+        {
+            using MemoryStream buffer = new();
+            await content.CopyToAsync(buffer, cancellationToken);
+            Objects[key] = buffer.ToArray();
+            Lengths[key] = buffer.Length;
+        }
 
-        public Task<Stream> DownloadFileAsync(string bucketName, string key, CancellationToken cancellationToken = default) =>
+        public Task<Stream> DownloadFileAsync(string bucketName, string key, CancellationToken cancellationToken = default)
+        {
+            if (!Objects.TryGetValue(key, out byte[]? bytes))
+                throw new FileNotFoundException(key);
+
+            return Task.FromResult<Stream>(new MemoryStream(bytes));
+        }
+
+        public Task<long?> TryGetObjectLengthAsync(string bucketName, string key, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Lengths.TryGetValue(key, out long length) ? length : (long?)null);
+
+        public Task<CloudObjectRead> OpenRangeAsync(string bucketName, string key, long? start, long? end, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<IReadOnlyList<string>> ListKeysAsync(string bucketName, CancellationToken cancellationToken = default) =>
@@ -161,5 +272,33 @@ public class ClipIngestServiceTests : IDisposable
 
         public Task DeleteFileAsync(string bucketName, string key, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    private sealed class PosterAssembler : IClipAssembler
+    {
+        public static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF];
+
+        public Task AssembleAsync(string framesDirectory, int fps, string outputPath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task WritePosterAsync(string sourceFramePath, string outputPath, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task WritePosterFromVideoAsync(string videoPath, string outputPath, CancellationToken cancellationToken = default)
+        {
+            File.WriteAllBytes(outputPath, Jpeg);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FixedClipAccess : IClipAccessTokenProvider
+    {
+        public string IssueToken(Guid userId, Guid deviceId) => "tok";
+
+        public bool TryValidate(string token, Guid deviceId, out Guid userId)
+        {
+            userId = Guid.Empty;
+            return false;
+        }
     }
 }

@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/push_notification_provider.dart';
 import 'package:vigia_ui/core/providers/repository_providers/auth_repository_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
@@ -31,26 +33,38 @@ class AuthSession extends _$AuthSession {
     state = const AsyncData(false);
   }
 
+  /// Ends the Keycloak session via the API.
+  ///
+  /// A dead access token (401/403) still drops the local session so the
+  /// overlay can show. Other failures leave the session in place.
   Future<void> signOut() async {
     final tokenStorage = ref.read(tokenStorageProvider);
     final authRepository = ref.read(authRepositoryProvider);
     final refreshToken = await tokenStorage.getRefreshToken();
 
-    // Remove push token while the access token is still available.
-    try {
-      await ref
-          .read(pushNotificationCoordinatorProvider)
-          .unregisterCurrentToken();
-    } catch (_) {}
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await clearSession();
+      return;
+    }
 
-    // Clear locally first so GoRouter redirect runs immediately.
+    final pushCoordinator = ref.read(pushNotificationCoordinatorProvider);
+    final pushToken = pushCoordinator.currentPushToken;
+
+    try {
+      await authRepository.logout(
+        refreshToken: refreshToken,
+        pushToken: pushToken,
+      );
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      if (status != 401 && status != 403) rethrow;
+    }
+
+    pushCoordinator.clearLocalToken();
     await clearSession();
 
-    // Best-effort server revoke; failures must not block/undo local logout.
-    if (refreshToken != null) {
-      try {
-        await authRepository.logout(refreshToken);
-      } catch (_) {}
-    }
+    try {
+      await ref.read(keycloakBrowserSessionProvider).clear();
+    } catch (_) {}
   }
 }

@@ -5,9 +5,8 @@ import {
   HttpRequest,
   HttpResponse,
 } from '@angular/common/http';
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { AuthSessionService } from '@core/services/auth/auth-session.service';
 import { AuthInterceptor } from './auth.interceptor';
@@ -16,31 +15,22 @@ describe('AuthInterceptor', () => {
   let interceptor: AuthInterceptor;
   let session: {
     getAccessToken: ReturnType<typeof vi.fn>;
-    getRefreshToken: ReturnType<typeof vi.fn>;
-    setSession: ReturnType<typeof vi.fn>;
+    forceRefreshAccessToken: ReturnType<typeof vi.fn>;
     clearSession: ReturnType<typeof vi.fn>;
   };
-  let httpMock: HttpTestingController;
 
   beforeEach(() => {
     session = {
       getAccessToken: vi.fn(() => 'access'),
-      getRefreshToken: vi.fn(() => 'refresh'),
-      setSession: vi.fn(),
+      forceRefreshAccessToken: vi.fn().mockResolvedValue('new-access'),
       clearSession: vi.fn(),
     };
 
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
       providers: [AuthInterceptor, { provide: AuthSessionService, useValue: session }],
     });
 
     interceptor = TestBed.inject(AuthInterceptor);
-    httpMock = TestBed.inject(HttpTestingController);
-  });
-
-  afterEach(() => {
-    httpMock.verify();
   });
 
   it('attaches bearer token', () => {
@@ -71,7 +61,7 @@ describe('AuthInterceptor', () => {
   });
 
   it('skips auth header when Skip-Auth is set', () => {
-    const req = new HttpRequest('POST', '/auth/login', {}, {
+    const req = new HttpRequest('GET', '/devices', {
       headers: new HttpHeaders({ 'Skip-Auth': 'true' }),
     });
     const next: HttpHandler = {
@@ -86,7 +76,7 @@ describe('AuthInterceptor', () => {
     expect(forwarded.headers.has('Authorization')).toBe(false);
   });
 
-  it('refreshes token on 401 and retries', () => {
+  it('refreshes the Keycloak token on 401 and retries', async () => {
     const req = new HttpRequest('GET', '/devices');
     const next: HttpHandler = {
       handle: vi
@@ -97,25 +87,18 @@ describe('AuthInterceptor', () => {
         .mockReturnValueOnce(of(new HttpResponse({ status: 200, body: { ok: true } }))),
     };
 
-    let body: unknown;
-    interceptor.intercept(req, next).subscribe((event) => {
-      if (event instanceof HttpResponse) {
-        body = event.body;
-      }
-    });
+    const event = await firstValueFrom(interceptor.intercept(req, next));
 
-    const refresh = httpMock.expectOne((r) => r.url.includes('/auth/refresh'));
-    refresh.flush({ accessToken: 'new-access', refreshToken: 'new-refresh' });
-
-    expect(session.setSession).toHaveBeenCalledWith({
-      accessToken: 'new-access',
-      refreshToken: 'new-refresh',
-    });
-    expect(body).toEqual({ ok: true });
-    expect(next.handle).toHaveBeenCalledTimes(2);
+    expect(session.forceRefreshAccessToken).toHaveBeenCalled();
+    expect(event).toBeInstanceOf(HttpResponse);
+    expect((event as HttpResponse<{ ok: boolean }>).body).toEqual({ ok: true });
+    const retry = (next.handle as ReturnType<typeof vi.fn>).mock.calls[1][0] as HttpRequest<unknown>;
+    expect(retry.headers.get('Authorization')).toBe('Bearer new-access');
+    expect(retry.headers.get('X-Auth-Retry')).toBe('true');
   });
 
-  it('clears session when refresh fails', () => {
+  it('clears session when refresh returns no token', async () => {
+    session.forceRefreshAccessToken.mockResolvedValue(null);
     const req = new HttpRequest('GET', '/devices');
     const next: HttpHandler = {
       handle: vi
@@ -125,23 +108,14 @@ describe('AuthInterceptor', () => {
         ),
     };
 
-    let failed = false;
-    interceptor.intercept(req, next).subscribe({
-      error: () => {
-        failed = true;
-      },
-    });
-
-    const refresh = httpMock.expectOne((r) => r.url.includes('/auth/refresh'));
-    refresh.flush({ message: 'invalid' }, { status: 401, statusText: 'Unauthorized' });
-
+    await expect(firstValueFrom(interceptor.intercept(req, next))).rejects.toBeTruthy();
     expect(session.clearSession).toHaveBeenCalled();
-    expect(failed).toBe(true);
   });
 
-  it('clears session on 401 when there is no refresh token', () => {
-    session.getRefreshToken.mockReturnValue(null);
-    const req = new HttpRequest('GET', '/devices');
+  it('does not refresh twice for the same request', async () => {
+    const req = new HttpRequest('GET', '/devices', {
+      headers: new HttpHeaders({ 'X-Auth-Retry': 'true' }),
+    });
     const next: HttpHandler = {
       handle: vi
         .fn()
@@ -150,37 +124,8 @@ describe('AuthInterceptor', () => {
         ),
     };
 
-    let failed = false;
-    interceptor.intercept(req, next).subscribe({
-      error: () => {
-        failed = true;
-      },
-    });
-
-    httpMock.expectNone((r) => r.url.includes('/auth/refresh'));
-    expect(session.clearSession).toHaveBeenCalled();
-    expect(failed).toBe(true);
-  });
-
-  it('does not attempt refresh for public auth paths', () => {
-    const req = new HttpRequest('POST', 'http://localhost:81/vigia/auth/login', {});
-    const next: HttpHandler = {
-      handle: vi
-        .fn()
-        .mockReturnValue(
-          throwError(
-            () =>
-              new HttpErrorResponse({
-                status: 401,
-                url: 'http://localhost:81/vigia/auth/login',
-              }),
-          ),
-        ),
-    };
-
-    interceptor.intercept(req, next).subscribe({ error: () => undefined });
-
-    httpMock.expectNone((r) => r.url.includes('/auth/refresh'));
+    await expect(firstValueFrom(interceptor.intercept(req, next))).rejects.toBeTruthy();
+    expect(session.forceRefreshAccessToken).not.toHaveBeenCalled();
     expect(session.clearSession).not.toHaveBeenCalled();
   });
 });

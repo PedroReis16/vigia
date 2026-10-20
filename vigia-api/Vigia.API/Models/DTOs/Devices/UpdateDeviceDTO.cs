@@ -7,4 +7,5 @@ public class UpdateDeviceDTO
     public string? Nickname { get; set; }
     public DeviceRooms? Room { get; set; }
     public bool? IsClipsEnabled { get; set; }
+    public bool? IsBlurEnabled { get; set; }
 }

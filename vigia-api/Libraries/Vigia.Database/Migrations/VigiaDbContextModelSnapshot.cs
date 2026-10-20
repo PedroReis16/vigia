@@ -45,6 +45,15 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<DateTime?>("ClientCertificateNotAfter")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("client_certificate_not_after");
+
+                    b.Property<string>("ClientCertificateSerial")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("client_certificate_serial");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
@@ -58,11 +67,21 @@ namespace Vigia.Database.Migrations
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsBlurEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_blur_enabled");
+
                     b.Property<bool>("IsClipsEnabled")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_clips_enabled");
+
+                    b.Property<DateTime?>("LastHeartbeatAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("last_heartbeat_at");
 
                     b.Property<string>("MacAddress")
                         .IsRequired()
@@ -90,13 +109,21 @@ namespace Vigia.Database.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClientCertificateSerial")
+                        .IsUnique()
+                        .HasFilter("client_certificate_serial IS NOT NULL");
+
                     b.HasIndex("CreatedAt");
 
                     b.HasIndex("DeletedAt");
 
                     b.HasIndex("GroupId");
 
+                    b.HasIndex("IsBlurEnabled");
+
                     b.HasIndex("IsClipsEnabled");
+
+                    b.HasIndex("LastHeartbeatAt");
 
                     b.HasIndex("MacAddress");
 
@@ -167,6 +194,94 @@ namespace Vigia.Database.Migrations
                     b.HasIndex("UpdatedAt");
 
                     b.ToTable("device_clips", (string)null);
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.FallAlertEpisode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("acknowledged_at");
+
+                    b.Property<Guid?>("AcknowledgedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("acknowledged_by_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<DateTime>("FirstDetectedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("first_detected_at");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Fall")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTime>("LastNotifiedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("last_notified_at");
+
+                    b.Property<DateTime?>("NextRetryAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("next_retry_at");
+
+                    b.Property<int>("NotifyCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("notify_count");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("GroupId");
+
+                    b.HasIndex("NextRetryAt");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("DeviceId", "Status");
+
+                    b.HasIndex("DeviceId", "Kind", "Status");
+
+                    b.ToTable("fall_alert_episodes", (string)null);
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.FiwareProperties", b =>
@@ -364,11 +479,28 @@ namespace Vigia.Database.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("email");
 
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("first_name");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("last_name");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)")
                         .HasColumnName("phone");
+
+                    b.Property<string>("PictureKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("picture_key");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone")
@@ -387,6 +519,82 @@ namespace Vigia.Database.Migrations
                     b.HasIndex("UpdatedAt");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.UserNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<Guid>("EpisodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("episode_id");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("DeletedAt");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("EpisodeId");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.HasIndex("UserId", "EpisodeId");
+
+                    b.HasIndex("UserId", "ReadAt");
+
+                    b.ToTable("user_notifications", (string)null);
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.UserPushToken", b =>
@@ -477,6 +685,25 @@ namespace Vigia.Database.Migrations
                     b.Navigation("Device");
                 });
 
+            modelBuilder.Entity("Vigia.Models.Entities.FallAlertEpisode", b =>
+                {
+                    b.HasOne("Vigia.Models.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vigia.Models.Entities.Group", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+
+                    b.Navigation("Group");
+                });
+
             modelBuilder.Entity("Vigia.Models.Entities.GroupInvite", b =>
                 {
                     b.HasOne("Vigia.Models.Entities.Group", "Group")
@@ -486,6 +713,38 @@ namespace Vigia.Database.Migrations
                         .IsRequired();
 
                     b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.UserNotification", b =>
+                {
+                    b.HasOne("Vigia.Models.Entities.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vigia.Models.Entities.FallAlertEpisode", "Episode")
+                        .WithMany("Notifications")
+                        .HasForeignKey("EpisodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Vigia.Models.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+
+                    b.Navigation("Episode");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Vigia.Models.Entities.FallAlertEpisode", b =>
+                {
+                    b.Navigation("Notifications");
                 });
 
             modelBuilder.Entity("Vigia.Models.Entities.Group", b =>

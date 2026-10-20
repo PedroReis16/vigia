@@ -46,20 +46,6 @@
           <h1 class="device-detail__appbar-title">
             {{ detailDevice?.displayName ?? transitionTitle() }}
           </h1>
-          @if (detailDevice) {
-            <span
-              class="device-detail__appbar-status"
-              data-testid="device-detail-appbar-status"
-            >
-              {{ (detailDevice.isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
-              <span
-                class="inline-block h-2 w-2 rounded-full"
-                [class.bg-green-500]="detailDevice.isRunning"
-                [class.bg-red-500]="!detailDevice.isRunning"
-                aria-hidden="true"
-              ></span>
-            </span>
-          }
         </div>
         <span class="device-detail__appbar-spacer" aria-hidden="true"></span>
       </header>
@@ -139,7 +125,12 @@
                   icon="pi pi-video"
                   title="DEVICES.CLIPS.VIEW"
                   description="DEVICES.CLIPS.DESCRIPTION"
-                  [meta]="'DEVICES.CLIPS.WEB_SOON' | translate"
+                  [meta]="
+                    (detailDevice.isClipsEnabled
+                      ? 'DEVICES.CLIPS.ENABLED'
+                      : 'DEVICES.CLIPS.DISABLED'
+                    ) | translate
+                  "
                   [routerLink]="['/devices', detailDevice.id, 'clips']"
                   testId="device-clips-desktop-action"
                 />

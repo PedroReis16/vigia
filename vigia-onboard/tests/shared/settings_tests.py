@@ -79,7 +79,7 @@ def test_from_env_LeVariaveis(monkeypatch: pytest.MonkeyPatch):
     assert cfg.clip_slot_count == 450
     assert cfg.clip_slots_for(30) == 900
     assert cfg.data_dir == "/tmp/edge-data"
-    assert st.get_clips_config_path() == Path("/tmp/edge-data/clips.json")
+    assert st.get_device_config_path() == Path("/tmp/edge-data/device.json")
 
 
 def test_resolve_ota_dir_DevLocal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -98,9 +98,9 @@ def test_get_device_identity_SemChaves(
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     st.get_settings.cache_clear()
     st.get_device_identity.cache_clear()
-    (tmp_path / "identity.json").write_text(
-        '{"device_id":"dev-1","device_name":"Vigia-test",'
-        '"mac_address":"aa:bb:cc:dd:ee:ff"}',
+    (tmp_path / "device.json").write_text(
+        '{"identity":{"device_id":"dev-1","device_name":"Vigia-test",'
+        '"mac_address":"aa:bb:cc:dd:ee:ff"}}',
         encoding="utf-8",
     )
 
@@ -129,9 +129,9 @@ def test_get_network_settings_CarregaJson(
     st.get_settings.cache_clear()
     st.get_network_settings.cache_clear()
 
-    (tmp_path / "network.json").write_text(
-        '{"ssid":"x","password":"y","api_base_url":"http://localhost/vigia",'
-        '"fiware_api_key":"k","stream_ingest_url":"rtmp://x"}',
+    (tmp_path / "device.json").write_text(
+        '{"network":{"ssid":"x","password":"y","api_base_url":"http://localhost/vigia",'
+        '"fiware_api_key":"k","stream_ingest_url":"rtmp://x"}}',
         encoding="utf-8",
     )
 

@@ -32,6 +32,7 @@ internal class FiwareService : IFiwareService
     private readonly IFiwarePropertiesDao _fiwarePropertiesDao;
     private readonly DeviceSchemaOptions _deviceSchema;
     private readonly SubscriptionSchemaOptions _subscriptions;
+    private readonly OrionNotificationAuthOptions _orionAuth;
     private readonly string _iotAgentPath;
     private readonly string _orionPath;
     private readonly string _iotAgentProviderUrl;
@@ -46,6 +47,7 @@ internal class FiwareService : IFiwareService
         IConfiguration configuration,
         IOptionsSnapshot<DeviceSchemaOptions> deviceSchemaOptions,
         IOptionsSnapshot<SubscriptionSchemaOptions> subscriptionOptions,
+        IOptionsSnapshot<OrionNotificationAuthOptions> orionAuthOptions,
         IFiwarePropertiesDao fiwarePropertiesDao,
         ILogger<FiwareService> logger)
     {
@@ -55,6 +57,7 @@ internal class FiwareService : IFiwareService
         _fiwarePropertiesDao = fiwarePropertiesDao;
         _deviceSchema = deviceSchemaOptions.Value;
         _subscriptions = subscriptionOptions.Value;
+        _orionAuth = orionAuthOptions.Value;
         _iotAgentPath = configuration.GetValue<string>("Fiware:Paths:IotAgent")!;
         _orionPath = configuration.GetValue<string>("Fiware:Paths:Orion")!;
         _iotAgentProviderUrl = OrionRegistrationSync.ResolveProviderUrl(
@@ -638,7 +641,7 @@ internal class FiwareService : IFiwareService
         {
             List<OrionSubscriptionDTO> urlSubscriptions = subscriptions
                 .Where(s => IsSubscriptionForEntity(s, entityName, entityType)
-                    && UrlsMatch(s.Notification.Http.Url, definition.Notification.Url))
+                    && UrlsMatch(s.Notification.ResolvedUrl, definition.Notification.Url))
                 .ToList();
 
             OrionSubscriptionDTO? matching = urlSubscriptions.FirstOrDefault(s =>
@@ -680,11 +683,14 @@ internal class FiwareService : IFiwareService
         return allSucceeded;
     }
 
-    private static bool MatchesDefinition(
+    private bool MatchesDefinition(
         OrionSubscriptionDTO subscription,
         SubscriptionDefinitionOptions definition)
     {
-        bool urlMatches = UrlsMatch(subscription.Notification.Http.Url, definition.Notification.Url);
+        bool urlMatches = UrlsMatch(subscription.Notification.ResolvedUrl, definition.Notification.Url);
+        string? expectedAuthorization = OrionAuthorizationHeader();
+        bool authMatches = string.IsNullOrEmpty(expectedAuthorization)
+            || string.Equals(subscription.Notification.AuthorizationHeader, expectedAuthorization, StringComparison.Ordinal);
         bool conditionAttrsMatch = OrionRegistrationSync.AttrsMatch(
             subscription.Subject.Condition.Attrs,
             definition.GetConditionAttrs());
@@ -702,7 +708,17 @@ internal class FiwareService : IFiwareService
                 expectedFormat,
                 StringComparison.OrdinalIgnoreCase);
 
-        return urlMatches && conditionAttrsMatch && notificationAttrsMatch && queryMatches && formatMatches;
+        return urlMatches && authMatches && conditionAttrsMatch && notificationAttrsMatch && queryMatches && formatMatches;
+    }
+
+    private string? OrionAuthorizationHeader()
+    {
+        if (string.IsNullOrWhiteSpace(_orionAuth.Password))
+            return null;
+
+        string username = string.IsNullOrWhiteSpace(_orionAuth.Username) ? "orion" : _orionAuth.Username.Trim();
+        string token = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{username}:{_orionAuth.Password}"));
+        return $"Basic {token}";
     }
 
     private static bool IsSubscriptionForEntity(
@@ -796,15 +812,11 @@ internal class FiwareService : IFiwareService
                         }
                 }
             },
-            Notification = new OrionSubscriptionNotificationDTO
-            {
-                Http = new OrionSubscriptionHttpDTO
-                {
-                    Url = definition.Notification.Url.TrimEnd('/')
-                },
-                Attrs = notificationAttrs,
-                AttrsFormat = definition.GetAttrsFormat()
-            }
+            Notification = OrionSubscriptionNotificationFactory.Create(
+                definition.Notification.Url.TrimEnd('/'),
+                notificationAttrs,
+                definition.GetAttrsFormat(),
+                OrionAuthorizationHeader())
         };
 
         using StringContent content = new(
@@ -881,7 +893,7 @@ internal class FiwareService : IFiwareService
         List<OrionSubscriptionDTO> subscriptions = await ListSubscriptionsAsync();
         foreach (OrionSubscriptionDTO subscription in subscriptions.Where(s =>
             IsSubscriptionForEntity(s, entityName, entityType)
-            && managedUrls.Contains(s.Notification.Http.Url.TrimEnd('/'))))
+            && managedUrls.Contains(s.Notification.ResolvedUrl.TrimEnd('/'))))
         {
             await DeleteSubscriptionAsync(subscription.Id);
         }

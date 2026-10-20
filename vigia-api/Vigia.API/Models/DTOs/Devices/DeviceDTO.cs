@@ -13,4 +13,5 @@ public class DeviceDTO
     public string? ThumbnailUrl { get; set; }
     public bool IsRunning { get; set; }
     public bool IsClipsEnabled { get; set; }
+    public bool IsBlurEnabled { get; set; }
 }

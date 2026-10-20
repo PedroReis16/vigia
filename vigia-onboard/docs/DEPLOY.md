@@ -55,13 +55,13 @@ systemctl status vigia.service
 journalctl -u vigia.service -n 80 --no-pager
 ```
 
-O serviço arranca sem `identity.json`: o interface espera o pareamento BLE. A captura permanece no gate até identity e network existirem.
+O serviço arranca sem `device.json`: o interface espera o pareamento BLE. A captura permanece no gate até as secções identity e network existirem. Na primeira leitura, JSON antigos (`identity.json`, `network.json`, `classifier.json`, `options.json`) são importados para `device.json` e apagados.
 
 Desinstalar:
 
 ```bash
 sudo vigia-uninstall
-# também apaga identity, network, classifier, .env e o estado OTA:
+# também apaga device.json, .env e o estado OTA:
 sudo vigia-uninstall --purge-data
 ```
 

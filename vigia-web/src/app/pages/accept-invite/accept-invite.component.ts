@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { AcceptShareInviteService } from '@core/usecases';
@@ -19,23 +19,30 @@ export class AcceptInviteComponent implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly translate = inject(TranslateService);
 
-  private started = false;
+  readonly failed = signal(false);
+  private accepting = false;
 
   ngOnInit(): void {
     void this.accept();
   }
 
-  private async accept(): Promise<void> {
-    if (this.started) {
+  retry(): void {
+    void this.accept();
+  }
+
+  async accept(): Promise<void> {
+    if (this.accepting) {
       return;
     }
-    this.started = true;
 
     const token = this.route.snapshot.paramMap.get('token');
     if (!token) {
       await this.router.navigateByUrl('/devices');
       return;
     }
+
+    this.accepting = true;
+    this.failed.set(false);
 
     try {
       await this.acceptInvite.execute(token);
@@ -44,14 +51,16 @@ export class AcceptInviteComponent implements OnInit {
         message: this.translate.instant('INVITE.SUCCESS'),
         type: 'success',
       });
+      await this.router.navigateByUrl('/devices');
     } catch {
-      this.pendingInvite.clear();
+      this.pendingInvite.setToken(token);
+      this.failed.set(true);
       this.messageService.addMessage({
         message: this.translate.instant('INVITE.ERROR'),
         type: 'error',
       });
+    } finally {
+      this.accepting = false;
     }
-
-    await this.router.navigateByUrl('/devices');
   }
 }

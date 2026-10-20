@@ -10,4 +10,5 @@ export interface DeviceDto {
   thumbnailUrl?: string | null;
   isRunning: boolean;
   isClipsEnabled: boolean;
+  isBlurEnabled: boolean;
 }

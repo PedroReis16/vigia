@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reset de vínculo de utilizador na placa (botão longo Desvincular).
-# Mantém identity.json, network.json e .env.
+# Mantém device.json (identidade e rede) e .env.
 # Não pára o serviço Vigia: o control plane corre no mesmo processo e reabre o pareamento.
 set -euo pipefail
 

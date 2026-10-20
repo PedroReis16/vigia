@@ -9,4 +9,8 @@ public interface IDevicesDao : IRepository<Device>
     Task UpdateDeviceGroupAsync(Device device);
     Task<List<Guid>> GetDeviceIdsByGroupAsync(Guid groupId);
     Task<Device?> FindByNameAsync(string name);
+
+    Task UpdateClientCertificateAsync(Guid deviceId, string serial, DateTime notAfterUtc, CancellationToken cancellationToken = default);
+
+    Task<Device?> FindByClientCertificateSerialAsync(string serial, CancellationToken cancellationToken = default);
 }

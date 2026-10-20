@@ -122,6 +122,78 @@ services:
     networks:
       - vigia-network
 
+  # Reaplica redirects, PKCE e audience do cliente vigia-web: --import-realm ignora realm que já existe.
+  keycloak-web-client:
+    image: vigia-keycloak:local
+    container_name: keycloak-web-client
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-web-client.sh"]
+    volumes:
+      - ./keycloak/apply-web-client.sh:/apply-web-client.sh:ro
+    networks:
+      - vigia-network
+
+  # Cria ou reaplica o cliente público vigia-app: --import-realm ignora realm que já existe.
+  keycloak-app-client:
+    image: vigia-keycloak:local
+    container_name: keycloak-app-client
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-app-client.sh"]
+    volumes:
+      - ./keycloak/apply-app-client.sh:/apply-app-client.sh:ro
+    networks:
+      - vigia-network
+
+  # Garante o usuário admin do realm vigia: --import-realm ignora realm que já existe.
+  keycloak-realm-admin:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-admin
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-realm-admin.sh"]
+    volumes:
+      - ./keycloak/apply-realm-admin.sh:/apply-realm-admin.sh:ro
+    networks:
+      - vigia-network
+
+  # Reaplica locales (en, pt-BR; padrão pt-BR): --import-realm ignora realm que já existe.
+  keycloak-realm-locales:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-locales
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-locales.sh"]
+    volumes:
+      - ./keycloak/apply-locales.sh:/apply-locales.sh:ro
+    networks:
+      - vigia-network
+
   # ─── REDIS ────────────────────────────────────────────────────────────────
   redis:
     image: redis:latest
@@ -410,7 +482,7 @@ services:
   #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    # Official image is scratch (no curl/sh). Build adds Alpine for runOnDemand hooks.
     build:
       context: ..
       dockerfile: dockerfiles/mediamtx.dockerfile
@@ -420,10 +492,10 @@ services:
     depends_on:
       - vigia-api
     environment:
-      # API in compose (vigia-api). Token = MediaMTX:WebhookToken.
+      # API in compose (vigia-api). Basic = ServiceBasic:MediaMtx.
       VIGIA_API_BASE: http://vigia-api:8080
-      VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
-      UNDEMAND_GRACE_SECONDS: "3"
+      VIGIA_MEDIAMTX_USER: mediamtx
+      VIGIA_MEDIAMTX_PASSWORD: dev-mediamtx-password
     ports:
       # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
       - "1935:1935"
@@ -441,7 +513,8 @@ services:
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
-      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
+      - ../mediamtx-hooks/on_demand_start_streaming.sh:/hooks/on_demand_start_streaming.sh:ro
+      - ../mediamtx-hooks/on_undemand_stop_streaming.sh:/hooks/on_undemand_stop_streaming.sh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

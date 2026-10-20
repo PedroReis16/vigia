@@ -14,6 +14,7 @@ void main() {
         'room': 'LivingRoom',
         'isRunning': true,
         'isClipsEnabled': true,
+        'isBlurEnabled': true,
       });
 
       expect(device.id, 'dev-1');
@@ -24,6 +25,7 @@ void main() {
       expect(device.room, DeviceRooms.livingRoom);
       expect(device.isRunning, isTrue);
       expect(device.isClipsEnabled, isTrue);
+      expect(device.isBlurEnabled, isTrue);
     });
 
     test('applies defaults when optional fields are missing', () {
@@ -37,6 +39,7 @@ void main() {
       expect(device.room, isNull);
       expect(device.isRunning, isFalse);
       expect(device.isClipsEnabled, isFalse);
+      expect(device.isBlurEnabled, isFalse);
     });
 
     test('maps unknown room string to null', () {

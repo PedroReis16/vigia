@@ -107,6 +107,9 @@
   "saveClips": "Save clips",
   "whatAreClips": "What are clips?",
   "whenEnabledClipsWillStoreClipsForAnalysis": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+  "blurPeople": "Blur people",
+  "whatIsBlur": "What is blur?",
+  "whenEnabledPeopleAppearBlurred": "When enabled, people appear blurred in the stream, clips, and thumbnail.",
   "saveChanges": "Save changes",
   "deviceUpdatedSuccess": "Device updated successfully",
   "deviceUpdateError": "Could not update the device",
@@ -129,6 +132,18 @@
   "shareLimitReached": "User limit reached",
   "shareDeviceInviteSubject": "Vigia invite",
   "shareLinkCopied": "Link copied. Share it with who you want to invite.",
+  "shareLinkCopiedUntil": "Link copied. Expires at {time}.",
+  "@shareLinkCopiedUntil": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
+  "shareLinkExpires": "Expires at {time}",
+  "@shareLinkExpires": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
   "shareLinkError": "Could not generate the share link",
   "deviceOwner": "Owner",
   "removeUserTitle": "Remove user?",
@@ -148,9 +163,108 @@
   "acceptingInvite": "Accepting invite…",
   "inviteAcceptedSuccess": "Invite accepted. Shared devices are now available.",
   "inviteAcceptedError": "Could not accept the invite",
+  "inviteExpired": "This invite has expired.",
+  "inviteInvalid": "This invite is invalid or was revoked.",
+  "inviteGroupFull": "This group has reached the user limit.",
+  "inviteRetry": "Try again",
   "clips": "Clips",
   "viewClips": "View clips",
+  "clipsDescription": "Review device recordings",
+  "clipsStorageOn": "Storage on",
+  "clipsStorageOff": "Storage off",
+  "clipsStorageOffNotice": "Clip storage is off. Turn it on in device settings to record new falls.",
+  "clipsEmpty": "No fall clips yet.",
+  "clipsLoadError": "Could not load clips.",
+  "clipsPlayError": "Could not play the clip.",
+  "clipStatusReceiving": "Receiving",
+  "clipStatusAssembling": "Assembling",
+  "clipStatusReady": "Ready",
+  "clipStatusFailed": "Failed",
   "account": "Account",
-  "session": "Session"
+  "session": "Session",
+  "profilePhone": "Phone",
+  "changeProfilePicture": "Change photo",
+  "profilePictureCamera": "Open camera",
+  "profilePictureGallery": "Open gallery",
+  "removeProfilePicture": "Remove photo",
+  "profilePictureInvalid": "Choose a JPEG, PNG, or WebP image up to 2 MB.",
+  "profilePictureError": "Could not update the photo.",
+  "profileLoadError": "Could not load the profile.",
+  "profileTitle": "Profile",
+  "profileEdit": "Edit",
+  "profileFirstName": "First name",
+  "profileLastName": "Last name",
+  "profileSave": "Save",
+  "profileSaved": "Profile updated.",
+  "profileSaveError": "Could not save the profile.",
+  "profileNameInvalid": "Enter a first and last name.",
+  "profilePhoneInvalid": "Enter a valid phone number.",
+  "profileDeleteAccount": "Delete account",
+  "profileDeleteHint": "The account, photo, and access to devices are removed.",
+  "profileDeleteTitle": "Delete account",
+  "profileDeleteMessage": "This cannot be undone. Delete the account?",
+  "profileDeleteConfirm": "Delete",
+  "profileDeleteError": "Could not delete the account.",
+  "profileDeleteForbidden": "The super admin cannot delete the account.",
+  "planTitle": "Plan",
+  "planPreviewHint": "Sample data for now. Nothing is charged.",
+  "planActive": "Active plan",
+  "planRenews": "Renews on {date}",
+  "@planRenews": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "planPerMonth": "/month",
+  "planStatusActive": "Active",
+  "planPaymentMethod": "Card",
+  "planExpires": "Expires {expiry}",
+  "@planExpires": {
+    "placeholders": {
+      "expiry": { "type": "String" }
+    }
+  },
+  "planUsageDevices": "{used} of {limit} devices",
+  "@planUsageDevices": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planUsageStorage": "{used} of {limit} GB of clips",
+  "@planUsageStorage": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "limit": { "type": "String" }
+    }
+  },
+  "planPayments": "Payments",
+  "planInvoicePaid": "Paid",
+  "planInvoiceScheduled": "Scheduled",
+  "planEssential": "Essential",
+  "planFamily": "Family care",
+  "planHome": "Residential",
+  "planFeatureDevice": "1 device",
+  "planFeatureDevices": "{count} devices",
+  "@planFeatureDevices": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "planFeatureHistory": "{days} days of history",
+  "@planFeatureHistory": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+  "planFeatureStorage": "{gb} GB for clips",
+  "@planFeatureStorage": {
+    "placeholders": {
+      "gb": { "type": "int" }
+    }
+  },
+  "planFeatureAlerts": "Realtime alerts",
+  "planFeatureClips": "Fall clips",
+  "planFeaturePriority": "Priority support"
 }
 

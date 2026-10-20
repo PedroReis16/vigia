@@ -12,11 +12,8 @@ import pytest
 from integration import integration_runner as runner
 from shared.event_shm import EventShmRing
 from shared.event_types import EVENT_FALL_STATE
-from shared.fall_ipc import normalize_fall_state
-
-
 def _drain_shm_labels(client: MagicMock, topic: str, labels: list[str]) -> str | None:
-    """Simula o poll da fall SHM publicando cada evento enfileirado."""
+    """Simula o poll da fall SHM publicando só em mudança de estado."""
     ring = EventShmRing.create(slot_count=8, payload_max=64)
     try:
         for label in labels:
@@ -26,9 +23,7 @@ def _drain_shm_labels(client: MagicMock, topic: str, labels: list[str]) -> str |
             event = ring.read_next(timeout=0.05)
             if event is None:
                 break
-            state = normalize_fall_state(event.payload)
-            runner._publish_fall_state(client, topic, state)
-            last = state
+            last = runner.apply_fall_label(client, topic, event.payload, last)
         return last
     finally:
         ring.close()
@@ -80,9 +75,9 @@ def test_on_message_clips_on_off(
     monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
     monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
     monkeypatch.setattr(runner, "_device_id", "dev1")
-    clips_path = tmp_path / "clips.json"
+    device_path = tmp_path / "device.json"
     monkeypatch.setattr(
-        "shared.clips_config.get_clips_config_path", lambda: clips_path
+        "shared.device_config.get_device_config_path", lambda: device_path
     )
     called: dict[str, bool | None] = {"v": None}
     monkeypatch.setattr(
@@ -92,12 +87,46 @@ def test_on_message_clips_on_off(
     msg.payload = b"dev1@clips_on|"
     runner._on_message(None, None, msg)
     assert called["v"] is True
-    assert json.loads(clips_path.read_text(encoding="utf-8")) == {"enabled": True}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"clips": True}
+    }
 
     msg.payload = b"dev1@clips_off|"
     runner._on_message(None, None, msg)
     assert called["v"] is False
-    assert json.loads(clips_path.read_text(encoding="utf-8")) == {"enabled": False}
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"clips": False}
+    }
+
+
+def test_on_message_blur_on_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runner, "OTA_DIR", tmp_path)
+    monkeypatch.setattr(runner, "PENDING_PATH", tmp_path / "pending.json")
+    monkeypatch.setattr(runner, "_device_id", "dev1")
+    device_path = tmp_path / "device.json"
+    monkeypatch.setattr(
+        "shared.device_config.get_device_config_path", lambda: device_path
+    )
+    called: dict[str, bool | None] = {"v": None}
+    monkeypatch.setattr(
+        runner, "set_blur_enabled", lambda v: called.__setitem__("v", v)
+    )
+    msg = MagicMock()
+    msg.payload = b"dev1@blur_on|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is True
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"blur": True}
+    }
+
+    msg.payload = b"dev1@blur_off|"
+    runner._on_message(None, None, msg)
+    assert called["v"] is False
+    assert json.loads(device_path.read_text(encoding="utf-8")) == {
+        "options": {"blur": False}
+    }
 
 
 @pytest.mark.parametrize(
@@ -125,7 +154,7 @@ def test_mqtt_endpoint(api_base_url: str, expected: tuple) -> None:
     assert runner._mqtt_endpoint(api_base_url) == expected
 
 
-def test_fiware_loop_publica_cada_evento_da_shm() -> None:
+def test_fiware_loop_publica_so_em_mudanca_de_estado() -> None:
     client = MagicMock()
     last = _drain_shm_labels(
         client,
@@ -136,24 +165,20 @@ def test_fiware_loop_publica_cada_evento_da_shm() -> None:
     assert last == "fall"
     assert client.publish.call_args_list == [
         (("/key/dev/attrs", "fall|normal"),),
-        (("/key/dev/attrs", "fall|normal"),),
         (("/key/dev/attrs", "fall|suspect"),),
-        (("/key/dev/attrs", "fall|suspect"),),
-        (("/key/dev/attrs", "fall|fall"),),
         (("/key/dev/attrs", "fall|fall"),),
     ]
 
 
-def test_fiware_loop_normaliza_aliases_por_evento() -> None:
+def test_fiware_loop_dedupe_aliases_do_mesmo_estado() -> None:
     client = MagicMock()
     last = _drain_shm_labels(client, "/t", ["NORMAL", "ADL", "ok"])
 
     assert last == "normal"
     assert client.publish.call_args_list == [
         (("/t", "fall|normal"),),
-        (("/t", "fall|normal"),),
-        (("/t", "fall|normal"),),
     ]
+
 
 
 def test_run_integration_EsperaProvisionamento(
@@ -218,6 +243,7 @@ def test_run_integration_PublicaEventosDaShm(
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
     monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
+    monkeypatch.setattr(runner, "apply_persisted_blur", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: True)
@@ -262,6 +288,7 @@ def test_run_integration_NaoPublicaComGateFechado(
     )
     monkeypatch.setattr(runner, "resolve_ota_dir", lambda: Path("/tmp/ota-test"))
     monkeypatch.setattr(runner, "apply_persisted_clips", lambda: None)
+    monkeypatch.setattr(runner, "apply_persisted_blur", lambda: None)
     monkeypatch.setattr(runner, "_create_mqtt_client", lambda *_a, **_k: client)
     monkeypatch.setattr(runner, "attach_fall_shm", lambda: ring)
     monkeypatch.setattr(runner, "capture_allowed", lambda: False)

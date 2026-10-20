@@ -56,7 +56,7 @@ final class DeviceGroupsRealtimeServiceProvider
 }
 
 String _$deviceGroupsRealtimeServiceHash() =>
-    r'65c64bf4f55b51954f82c624747ae0fbaa2f0fd3';
+    r'372f16a6cd63121f9ba56d1cf79df9678b47710e';
 
 /// Keeps the SignalR connection alive while the user is authenticated and
 /// refreshes device/user lists when group membership changes.

@@ -8,6 +8,7 @@ class DeviceUIModel {
   final String? thumbnailUrl;
   final DeviceRooms? room;
   final bool isClipsEnabled;
+  final bool isBlurEnabled;
   final bool isRunning;
   final bool isOwner;
 
@@ -20,6 +21,7 @@ class DeviceUIModel {
     this.isRunning = false,
     this.isOwner = false,
     this.isClipsEnabled = false,
+    this.isBlurEnabled = false,
   });
 
   factory DeviceUIModel.fromDTO(Device device, String userId) {
@@ -32,6 +34,7 @@ class DeviceUIModel {
       isRunning: device.isRunning,
       isOwner: device.ownerId == userId,
       isClipsEnabled: device.isClipsEnabled,
+      isBlurEnabled: device.isBlurEnabled,
     );
   }
 
@@ -39,6 +42,7 @@ class DeviceUIModel {
     String? nickname,
     DeviceRooms? room,
     bool? isClipsEnabled,
+    bool? isBlurEnabled,
     bool clearRoom = false,
   }) {
     return DeviceUIModel(
@@ -50,6 +54,7 @@ class DeviceUIModel {
       isRunning: isRunning,
       isOwner: isOwner,
       isClipsEnabled: isClipsEnabled ?? this.isClipsEnabled,
+      isBlurEnabled: isBlurEnabled ?? this.isBlurEnabled,
     );
   }
 }

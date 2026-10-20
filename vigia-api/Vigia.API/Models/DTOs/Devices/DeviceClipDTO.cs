@@ -10,4 +10,6 @@ public class DeviceClipDTO
     public int FrameCount { get; set; }
     public int Fps { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public string? PlaybackUrl { get; set; }
 }

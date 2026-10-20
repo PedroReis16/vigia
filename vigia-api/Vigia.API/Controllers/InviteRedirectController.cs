@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -5,69 +6,91 @@ using Microsoft.Extensions.Configuration;
 namespace Vigia.API.Controllers;
 
 /// <summary>
-/// Landing pública de convite. O link compartilhado aponta para cá (HTTPS),
-/// e esta página redireciona para o deep link interno do app — sem expor
-/// o scheme <c>vigia://</c> no texto compartilhado.
+/// Entrada pública do convite. O link compartilhado aponta para cá (HTTPS).
+/// No computador responde com redirect para a web. No celular tenta o app e,
+/// se ele não abrir, segue para a web. Não há página de escolha.
 /// </summary>
 [ApiController]
 [Route("i")]
-public class InviteRedirectController(IConfiguration configuration) : ControllerBase
+public partial class InviteRedirectController(IConfiguration configuration) : ControllerBase
 {
     private readonly IConfiguration _configuration = configuration;
 
+    [AllowAnonymous]
     [HttpGet("{code}")]
-    [Produces("text/html")]
     public IActionResult OpenInvite(string code)
     {
         if (string.IsNullOrWhiteSpace(code) || code.Length > 64)
             return BadRequest();
 
-        string deepLinkBase = _configuration.GetValue<string>("Invite:DeepLinkBase") ?? "vigia://invite/";
-        if (!deepLinkBase.EndsWith('/'))
-            deepLinkBase += "/";
+        string deepLink = AppendCode(ConfiguredBase("Invite:DeepLinkBase") ?? "vigia://invite/", code);
+        string? webInviteUrl = ConfiguredBase("Invite:WebInviteBase") is string webBase
+            ? AppendCode(webBase, code)
+            : null;
+        if (webInviteUrl is not null && !IsMobileUserAgent(Request.Headers.UserAgent.ToString()))
+            return Redirect(webInviteUrl);
 
-        string deepLink = $"{deepLinkBase}{Uri.EscapeDataString(code)}";
-        string safeHref = System.Net.WebUtility.HtmlEncode(deepLink);
+        return Content(BuildHandoffHtml(deepLink, webInviteUrl), "text/html; charset=utf-8");
+    }
 
-        string? webInviteBase = _configuration.GetValue<string>("Invite:WebInviteBase");
-        string webLinkHtml = string.Empty;
-        if (!string.IsNullOrWhiteSpace(webInviteBase))
-        {
-            if (!webInviteBase.EndsWith('/'))
-                webInviteBase += "/";
+    private string? ConfiguredBase(string configKey)
+    {
+        string? baseUrl = _configuration.GetValue<string>(configKey);
+        return string.IsNullOrWhiteSpace(baseUrl) ? null : baseUrl;
+    }
 
-            string webInviteUrl = $"{webInviteBase}{Uri.EscapeDataString(code)}";
-            string safeWebHref = System.Net.WebUtility.HtmlEncode(webInviteUrl);
-            webLinkHtml = $"""<p><a href="{safeWebHref}">Continuar na web</a></p>""";
-        }
+    private static string AppendCode(string baseUrl, string code)
+    {
+        if (!baseUrl.EndsWith('/'))
+            baseUrl += "/";
 
-        string html = $$"""
+        return $"{baseUrl}{Uri.EscapeDataString(code)}";
+    }
+
+    private static bool IsMobileUserAgent(string userAgent)
+    {
+        return !string.IsNullOrWhiteSpace(userAgent) && MobileUserAgent().IsMatch(userAgent);
+    }
+
+    /// <summary>
+    /// Página vazia. O script corre no head, antes de qualquer pintura, tenta o app
+    /// e cai na web se a página continuar visível.
+    /// </summary>
+    private static string BuildHandoffHtml(string deepLink, string? webInviteUrl)
+    {
+        string deepLinkJson = System.Text.Json.JsonSerializer.Serialize(deepLink);
+        string webInviteJson = webInviteUrl is null
+            ? "null"
+            : System.Text.Json.JsonSerializer.Serialize(webInviteUrl);
+
+        return $$"""
             <!DOCTYPE html>
             <html lang="pt-BR">
             <head>
               <meta charset="utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <meta http-equiv="refresh" content="0;url={{safeHref}}" />
               <title>Vigia</title>
-              <style>
-                body { font-family: -apple-system, system-ui, sans-serif; display: flex;
-                       min-height: 100vh; align-items: center; justify-content: center;
-                       margin: 0; background: #0b0b0b; color: #f5f5f5; text-align: center; }
-                a { color: #7dd3fc; font-size: 1.1rem; }
-                p { opacity: 0.85; }
-              </style>
-              <script>window.location.replace({{System.Text.Json.JsonSerializer.Serialize(deepLink)}});</script>
+              <script>
+                (function () {
+                  var deepLink = {{deepLinkJson}};
+                  var webInvite = {{webInviteJson}};
+                  var timer = 0;
+                  function cancel() { window.clearTimeout(timer); }
+                  function fallback() { if (webInvite) window.location.replace(webInvite); }
+                  document.addEventListener("visibilitychange", function () {
+                    if (document.hidden) cancel();
+                  });
+                  window.addEventListener("pagehide", cancel);
+                  window.location.replace(deepLink);
+                  timer = window.setTimeout(fallback, 800);
+                })();
+              </script>
             </head>
-            <body>
-              <div>
-                <p>Abrindo o Vigia…</p>
-                <p><a href="{{safeHref}}">Abrir no aplicativo</a></p>
-                {{webLinkHtml}}
-              </div>
-            </body>
+            <body></body>
             </html>
             """;
-
-        return Content(html, "text/html; charset=utf-8");
     }
+
+    [GeneratedRegex("Android|iPhone|iPad|iPod|Mobile", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MobileUserAgent();
 }

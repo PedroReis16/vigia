@@ -33,7 +33,7 @@ final class DevicesProvider
   Devices create() => Devices();
 }
 
-String _$devicesHash() => r'1f7760ec3a278bcb373a7e08ab74d102c9ab9890';
+String _$devicesHash() => r'aa03f87fa0837e2675b5247de1a7404626e937cf';
 
 abstract class _$Devices extends $AsyncNotifier<List<DeviceUIModel>> {
   FutureOr<List<DeviceUIModel>> build();

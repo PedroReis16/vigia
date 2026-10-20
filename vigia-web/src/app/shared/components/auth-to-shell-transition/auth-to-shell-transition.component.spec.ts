@@ -26,6 +26,7 @@ describe('AuthToShellTransitionComponent', () => {
   let fixture: ComponentFixture<HostComponent>;
   let host: HostComponent;
   let transition: AuthExitTransitionService;
+  let rafCallbacks: FrameRequestCallback[];
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -36,6 +37,13 @@ describe('AuthToShellTransitionComponent', () => {
     transition = TestBed.inject(AuthExitTransitionService);
     transition.complete();
 
+    rafCallbacks = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      rafCallbacks.push(callback);
+      return rafCallbacks.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+
     fixture = TestBed.createComponent(HostComponent);
     host = fixture.componentInstance;
   });
@@ -45,6 +53,22 @@ describe('AuthToShellTransitionComponent', () => {
     vi.restoreAllMocks();
   });
 
+  async function flushEnterPlayback(): Promise<void> {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    for (let i = 0; i < 12 && !transition.settled(); i++) {
+      const pending = rafCallbacks.splice(0, rafCallbacks.length);
+      if (pending.length === 0) {
+        break;
+      }
+      pending.forEach((callback) => callback(performance.now()));
+      fixture.detectChanges();
+      await Promise.resolve();
+    }
+  }
+
   it('does not render overlay when transition is idle', () => {
     fixture.detectChanges();
 
@@ -52,29 +76,30 @@ describe('AuthToShellTransitionComponent', () => {
     expect(root.querySelector('[data-testid="auth-shell-veil"]')).toBeNull();
   });
 
-    it('plays login morph and completes transition', async () => {
+  it('plays login morph and completes transition', async () => {
     host.mode = 'enter';
     transition.armLogin({ top: 40, left: 100, width: 240, height: 240 });
+    expect(transition.bridgeActive()).toBe(true);
 
-    const rafCallbacks: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      rafCallbacks.push(callback);
-      return rafCallbacks.length;
-    });
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
-    vi.spyOn(performance, 'now')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(780);
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
 
     fixture.detectChanges();
-
     const rootAfterMount = fixture.nativeElement as HTMLElement;
     expect(rootAfterMount.querySelector('[data-testid="auth-shell-veil"]')).toBeTruthy();
+    expect(transition.bridgeActive()).toBe(true);
 
-    await Promise.resolve();
-    rafCallbacks.forEach((callback) => callback(0));
-    rafCallbacks.slice(1).forEach((callback) => callback(0));
+    now = 0;
+    await fixture.whenStable();
     fixture.detectChanges();
+
+    // afterNextRender → rAF → startEnterAnimation at t=0, then advance to end.
+    const firstWave = rafCallbacks.splice(0, rafCallbacks.length);
+    firstWave.forEach((callback) => callback(0));
+    now = 780;
+    const secondWave = rafCallbacks.splice(0, rafCallbacks.length);
+    secondWave.forEach((callback) => callback(780));
+    await flushEnterPlayback();
 
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="auth-shell-veil"]')).toBeNull();
@@ -82,17 +107,27 @@ describe('AuthToShellTransitionComponent', () => {
     expect(transition.bridgeActive()).toBe(false);
   });
 
+  it('keeps the enter bridge until the veil has painted', async () => {
+    host.mode = 'enter';
+    transition.armLogin({ top: 40, left: 100, width: 240, height: 240 });
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+
+    fixture.detectChanges();
+    expect(transition.bridgeActive()).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[data-testid="auth-shell-veil"]'),
+    ).toBeTruthy();
+
+    await fixture.whenStable();
+    // before draining rAF that starts tickEnter / beginPlayback
+    expect(transition.bridgeActive()).toBe(true);
+  });
+
   it('plays logout morph on shell and notifies when toolbar expands', async () => {
     host.mode = 'exit';
     transition.armLogout({ top: 12, left: 20, width: 56, height: 56 }, 80);
     const notifySpy = vi.spyOn(transition, 'notifyShellExitReady');
 
-    const rafCallbacks: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      rafCallbacks.push(callback);
-      return rafCallbacks.length;
-    });
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
     vi.spyOn(performance, 'now')
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(780);
@@ -105,9 +140,6 @@ describe('AuthToShellTransitionComponent', () => {
     ) as HTMLElement | null;
     expect(veil).toBeTruthy();
     expect(veil?.style.height).toBe('80px');
-    expect(
-      rootAfterMount.querySelector('[data-testid="auth-shell-exit-backdrop"]'),
-    ).toBeNull();
 
     await Promise.resolve();
     rafCallbacks.forEach((callback) => callback(0));

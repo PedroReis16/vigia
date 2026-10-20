@@ -1,4 +1,4 @@
-"""Testes de persistência do classificador (classifier.json)."""
+"""Testes de persistência do classificador (chave classifier em device.json)."""
 
 from __future__ import annotations
 
@@ -15,13 +15,13 @@ def _clear_settings(monkeypatch, tmp_path) -> None:
 def test_get_classifier_default_sem_ficheiro(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
     assert classifier.get_classifier() == "math"
-    assert not settings.get_classifier_path().exists()
+    assert not settings.get_device_config_path().exists()
 
 
 def test_set_e_get_classifier_persiste(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
     classifier.set_classifier("gru")
-    path = settings.get_classifier_path()
+    path = settings.get_device_config_path()
     assert path.exists()
     data = json.loads(path.read_text())
     assert data == {"classifier": "gru"}
@@ -30,7 +30,7 @@ def test_set_e_get_classifier_persiste(tmp_path, monkeypatch) -> None:
 
 def test_get_classifier_invalido_retorna_math(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
-    path = settings.get_classifier_path()
+    path = settings.get_device_config_path()
     path.write_text(json.dumps({"classifier": "onnx"}))
     assert classifier.get_classifier() == "math"
     path.write_text("not-json")
@@ -40,14 +40,14 @@ def test_get_classifier_invalido_retorna_math(tmp_path, monkeypatch) -> None:
 def test_ensure_materializa_default(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
     assert classifier.ensure_classifier_config() == "math"
-    path = settings.get_classifier_path()
+    path = settings.get_device_config_path()
     assert path.exists()
     assert json.loads(path.read_text()) == {"classifier": "math"}
 
 
 def test_ensure_reescreve_invalido(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
-    path = settings.get_classifier_path()
+    path = settings.get_device_config_path()
     path.write_text(json.dumps({"classifier": "bad"}))
     assert classifier.ensure_classifier_config() == "math"
     assert json.loads(path.read_text()) == {"classifier": "math"}
@@ -57,7 +57,7 @@ def test_ensure_preserva_gru_valido(tmp_path, monkeypatch) -> None:
     _clear_settings(monkeypatch, tmp_path)
     classifier.set_classifier("gru")
     assert classifier.ensure_classifier_config() == "gru"
-    assert json.loads(settings.get_classifier_path().read_text()) == {
+    assert json.loads(settings.get_device_config_path().read_text()) == {
         "classifier": "gru"
     }
 

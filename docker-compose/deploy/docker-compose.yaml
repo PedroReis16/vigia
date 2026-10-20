@@ -8,6 +8,8 @@ services:
       - /home/ubuntu/dockers/default.env
     ports:
       - "8090:8080"
+    volumes:
+      - ./certificates:/certificates:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vigia.rule=Host(`services.vigiadeteccoes.com.br`) && PathPrefix(`/vigia`)"
@@ -17,6 +19,14 @@ services:
       - "traefik.http.services.vigia.loadbalancer.server.port=8080"
       - "traefik.http.routers.vigia.priority=50"
       - "traefik.http.routers.vigia.middlewares=cors@file"
+      - "traefik.http.routers.vigia-devices.rule=Host(`services.vigiadeteccoes.com.br`) && ((Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/frame$$`)) || (Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/clips$$`)) || (Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/clips/[0-9a-fA-F-]{36}/frames/[0-9]+$$`)) || (Method(`GET`) && Path(`/vigia/devices/updates/current`)) || (Method(`GET`) && Path(`/vigia/devices/updates/download`)))"
+      - "traefik.http.routers.vigia-devices.entrypoints=websecure"
+      - "traefik.http.routers.vigia-devices.tls=true"
+      - "traefik.http.routers.vigia-devices.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vigia-devices.tls.options=device-mtls@file"
+      - "traefik.http.routers.vigia-devices.priority=100"
+      - "traefik.http.routers.vigia-devices.middlewares=pass-device-cert@file"
+      - "traefik.http.routers.vigia-devices.service=vigia"
     networks:
       - vigia-network
 

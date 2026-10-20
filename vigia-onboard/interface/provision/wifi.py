@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import abc
 import asyncio
-import json
 import logging
 from typing import Optional
 
-from .settings import get_network_path, get_settings
+from shared.device_config import read_section, remove_section, replace_section, section_present
+
+from .settings import get_settings
 from .sysenv import system_subprocess_env
 
 logger = logging.getLogger(__name__)
@@ -144,13 +145,7 @@ class MockWifiService(WifiService):
 
 
 def load_network_credentials() -> dict | None:
-    path = get_network_path()
-    if not path.exists():
-        return None
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
+    data = read_section("network")
     if not isinstance(data, dict):
         return None
     ssid = data.get("ssid")
@@ -168,7 +163,7 @@ async def switch_network(
     """Tenta a rede nova; só persiste se ligar. Em falha reconecta à atual."""
     current = load_network_credentials()
     if current is None:
-        logger.warning("switch_network: sem network.json")
+        logger.warning("switch_network: sem secção network em device.json")
         return False
     wifi = service or get_wifi_service()
     try:
@@ -197,26 +192,20 @@ def persist_network_credentials(
     fiware_api_key: str,
     stream_ingest_url: str = "",
 ) -> None:
-    network_path = get_network_path()
-    network_path.parent.mkdir(parents=True, exist_ok=True)
-    network_path.write_text(
-        json.dumps(
-            {
-                "ssid": ssid,
-                "password": password,
-                "api_base_url": api_base_url,
-                "fiware_api_key": fiware_api_key,
-                "stream_ingest_url": stream_ingest_url,
-            }
-        )
+    replace_section(
+        "network",
+        {
+            "ssid": ssid,
+            "password": password,
+            "api_base_url": api_base_url,
+            "fiware_api_key": fiware_api_key,
+            "stream_ingest_url": stream_ingest_url,
+        },
     )
-    network_path.chmod(0o600)
 
 
 def discard_network_credentials() -> None:
-    path = get_network_path()
-    if path.exists():
-        path.unlink()
+    remove_section("network")
 
 
 async def connect_and_persist(
@@ -227,7 +216,7 @@ async def connect_and_persist(
     service: WifiService | None = None,
     stream_ingest_url: str = "",
 ) -> None:
-    """Liga à rede e só então grava network.json. Em falha não deixa ficheiro."""
+    """Liga à rede e só então grava a secção network. Em falha remove essa secção."""
     wifi = service or get_wifi_service()
     try:
         await wifi.connect(ssid, password)
@@ -245,13 +234,13 @@ async def connect_and_persist(
 
 async def ensure_mock_network() -> bool:
     """
-    Em dev (WIFI_MOCK=true), grava network.json quando identity existe mas network não.
+    Em dev (WIFI_MOCK=true), grava a secção network quando ela ainda não existe.
     Usa credenciais/API mock — equivalente ao fluxo BLE sem radio.
     """
     settings = get_settings()
     if not settings.wifi_mock or settings.wifi_mock_result != "success":
         return False
-    if get_network_path().exists():
+    if section_present("network"):
         return False
 
     try:
@@ -267,7 +256,7 @@ async def ensure_mock_network() -> bool:
         return False
 
     logger.info(
-        "network.json criado (WIFI_MOCK) — api_base_url=%s",
+        "network gravada em device.json (WIFI_MOCK) — api_base_url=%s",
         settings.mock_api_base_url,
     )
     return True

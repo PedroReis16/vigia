@@ -44,17 +44,8 @@
           <h3 class="device-card__title m-0 text-base font-semibold leading-snug">
             {{ device.displayName }}
           </h3>
-          <div class="flex items-center justify-between gap-2 text-sm text-surface-600">
+          <div class="text-sm text-surface-600">
             <span class="truncate">{{ roomKey(device) | translate }}</span>
-            <span class="inline-flex shrink-0 items-center gap-1">
-              {{ (device.isRunning ? 'DEVICES.ONLINE' : 'DEVICES.OFFLINE') | translate }}
-              <span
-                class="inline-block h-2 w-2 rounded-full"
-                [class.bg-green-500]="device.isRunning"
-                [class.bg-red-500]="!device.isRunning"
-                aria-hidden="true"
-              ></span>
-            </span>
           </div>
         </div>
       </div>

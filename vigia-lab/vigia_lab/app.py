@@ -140,13 +140,7 @@ def record_take(
     if outcome is None:
         return None
 
-    predictor = getattr(ctx.model, "predictor", None)
-    pargs = vars(predictor.args) if predictor is not None and hasattr(predictor, "args") else None
-    weights = Path(ensure_yolo_pose_export(ctx.settings.yolo_model))
-    fingerprint = build_fingerprint(
-        stream_kwargs=ctx.kwargs, yolo_weights=weights, predictor_args=pargs, settings=ctx.settings,
-        imgsz_onnx=read_exported_imgsz(weights, "onnx") if weights.suffix == ".onnx" else None,
-    )
+    fingerprint = fingerprint_for(ctx)
     color, reasons, q = finalize_take(
         outcome, captures_dir=ctx.out, manifest_path=ctx.manifest, scenario_id=scenario.id,
         scenario_label=scenario.label, take=take, session_id=ctx.session_id,
@@ -160,6 +154,21 @@ def record_take(
     else:
         _discard_files(paths["dir"], scenario.id, take)
     return color, reasons, q
+
+
+def fingerprint_for(ctx: LabContext) -> dict[str, Any]:
+    """Ficha técnica da sessão (modelo de pose, parâmetros efetivos, versões, hashes, SHA)."""
+    from shared.yolo_export import ensure_yolo_pose_export, read_exported_imgsz
+
+    from vigia_lab.fingerprint import build_fingerprint
+
+    predictor = getattr(ctx.model, "predictor", None)
+    pargs = vars(predictor.args) if predictor is not None and hasattr(predictor, "args") else None
+    weights = Path(ensure_yolo_pose_export(ctx.settings.yolo_model))
+    return build_fingerprint(
+        stream_kwargs=ctx.kwargs, yolo_weights=weights, predictor_args=pargs, settings=ctx.settings,
+        imgsz_onnx=read_exported_imgsz(weights, "onnx") if weights.suffix == ".onnx" else None,
+    )
 
 
 def _cpu_sampler() -> Callable[[], float]:
@@ -207,7 +216,73 @@ def _discard_files(scenario_dir: Path, scenario_id: str, take: int) -> None:
         p.unlink(missing_ok=True)
 
 
+SUBCOMMANDS = ("record", "process", "report")
+
+
+def _float_list(text: str) -> list[float]:
+    return [float(x) for x in text.split(",") if x.strip()]
+
+
+def build_subparser(name: str) -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(prog=f"vigia_lab {name}")
+    if name == "record":
+        ap.add_argument("--source", type=int, default=0, help="indice da camera")
+        ap.add_argument("--duration", type=float, default=10.0, help="duracao fixa (s); a tecla d alterna p/ manual")
+        ap.add_argument("--resolution", default="640x480", help="igual a da camera da Raspberry")
+        ap.add_argument("--fps", type=int, default=30)
+        ap.add_argument("--out", type=Path, default=DEFAULT_CAPTURES)
+    elif name == "process":
+        ap.add_argument("--captures", type=Path, default=DEFAULT_CAPTURES)
+        ap.add_argument("--out", type=Path, default=bootstrap.LAB_ROOT / "reprocessed")
+        ap.add_argument("--pose-fps", default="10", help="cadencias do pose a simular, ex.: 6,8,10,15")
+        ap.add_argument("--ids", default="baseline", help="baseline,grace")
+        ap.add_argument("--only", help="so clipes cujo nome contenha este texto")
+    else:
+        ap.add_argument("--root", type=Path, default=bootstrap.LAB_ROOT / "reprocessed")
+    return ap
+
+
+def run_subcommand(name: str, argv: list[str]) -> int:
+    args = build_subparser(name).parse_args(argv)
+    if name == "report":
+        from vigia_lab import report
+
+        per_take, summary_csv, summary_md = report.write_outputs(args.root)
+        print(summary_md.read_text(encoding="utf-8") if summary_md.exists() else "sem dados")
+        print(f"arquivos: {per_take}, {summary_csv}, {summary_md}")
+        return 0
+
+    ctx = make_context(args.out if name == "record" else args.captures)
+    if name == "record":
+        from vigia_lab.lite_ui import run_recorder
+
+        return run_recorder(ctx, args)
+
+    from vigia_lab import offline, report
+
+    ids_list = [x.strip() for x in args.ids.split(",") if x.strip()]
+    bad = [x for x in ids_list if x not in ("baseline", "grace")]
+    if bad:
+        print(f"--ids invalido: {bad}")
+        return 2
+    results = offline.process_dir(
+        ctx, args.captures, pose_fps_list=_float_list(args.pose_fps), ids_list=ids_list,
+        out_root=args.out, only=args.only,
+    )
+    if not results:
+        print(f"nenhum *_capture.json em {args.captures}/<cenario>/")
+        return 1
+    _, _, summary_md = report.write_outputs(args.out)
+    print("\n" + summary_md.read_text(encoding="utf-8"))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    import sys
+
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in SUBCOMMANDS:
+        return run_subcommand(argv[0], argv[1:])
     args = build_parser().parse_args(argv)
     ctx = make_context(args.out)
 

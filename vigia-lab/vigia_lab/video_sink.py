@@ -16,13 +16,20 @@ import numpy as np
 
 
 class VideoSink:
-    def __init__(self, path: Path, fps: float, size: tuple[int, int], maxsize: int = 90) -> None:
+    def __init__(
+        self, path: Path, fps: float, size: tuple[int, int], maxsize: int = 90, quality: int | None = None,
+    ) -> None:
         import cv2
 
         path.parent.mkdir(parents=True, exist_ok=True)
         self._writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"MJPG"), fps, size)
         if not self._writer.isOpened():
             raise RuntimeError(f"não foi possível abrir o VideoWriter em {path}")
+        if quality is not None:
+            try:  # nem todo backend aceita; sem efeito é só tamanho/qualidade padrão
+                self._writer.set(cv2.VIDEOWRITER_PROP_QUALITY, float(quality))
+            except Exception:
+                pass
         self._size = size
         self._queue: queue.Queue[np.ndarray | None] = queue.Queue(maxsize=maxsize)
         self.drops = 0
@@ -30,11 +37,15 @@ class VideoSink:
         self._thread = threading.Thread(target=self._run, name="lab-video", daemon=True)
         self._thread.start()
 
-    def write(self, image: np.ndarray) -> None:
+    def write(self, image: np.ndarray) -> bool:
+        """True se o frame entrou na fila. False = descartado (conta em `drops`); quem grava
+        timestamps por frame deve registrar só os aceitos, para vídeo e tempo ficarem alinhados."""
         try:
             self._queue.put_nowait(image.copy())
+            return True
         except queue.Full:
             self.drops += 1
+            return False
 
     def _run(self) -> None:
         while True:

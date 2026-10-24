@@ -95,3 +95,17 @@ def test_id_stats_counts_delivered_id_changes_and_fallback_zero() -> None:
         rec.add_frame(_frame(i, people, delivered=True))
     stats = rec.id_stats()
     assert stats == {"id_set_changes_delivered": 2, "id_fallback_frames": 1, "untracked_frames": 0}
+
+
+def test_id_stats_ignores_people_who_just_leave_or_enter() -> None:
+    rec = TakeRecorder()
+    k = _kp()
+    seq = [{1: k, 2: k}, {1: k, 2: k}, {1: k}, {1: k, 3: k}, {3: k}]   # 2 sai; 3 entra; 1 sai
+    for i, people in enumerate(seq):
+        rec.add_frame(_frame(i, people, delivered=True))
+    # só a transição {1,3} -> {3} NÃO é troca; {1} -> {1,3} entrada pura; nenhuma troca (sai OU entra)
+    assert rec.id_stats()["id_set_changes_delivered"] == 0
+    rec2 = TakeRecorder()
+    for i, people in enumerate([{1: k}, {2: k}]):                         # 1 foi trocado por 2
+        rec2.add_frame(_frame(i, people, delivered=True))
+    assert rec2.id_stats()["id_set_changes_delivered"] == 1

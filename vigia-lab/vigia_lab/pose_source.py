@@ -71,7 +71,7 @@ def reset_tracker(model: Any) -> None:
     model.predictor = None
 
 
-def _is_untracked(result: Any) -> bool:
+def is_untracked(result: Any) -> bool:
     """Há detecções mas o tracker não devolveu IDs (zero tracks no frame)."""
     boxes = getattr(result, "boxes", None)
     if boxes is None or len(boxes) == 0:
@@ -102,7 +102,7 @@ def iter_pose_frames(model: Any, source: int | str, kwargs: dict[str, Any], cloc
                 yolo_ms=yolo_ms,
                 t_wall=t_wall,
                 t_mono=t_mono,
-                untracked=_is_untracked(result),
+                untracked=is_untracked(result),
                 wait_ms=wait_ms,
             )
             t_ready = time.perf_counter()   # o consumidor roda até o gerador ser retomado

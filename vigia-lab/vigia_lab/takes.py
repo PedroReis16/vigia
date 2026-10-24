@@ -40,3 +40,17 @@ def clip_id(scenario_id: str, take: int, person_idx: int) -> str:
 
 def new_session_id(now: datetime | None = None) -> str:
     return (now or datetime.now()).strftime("%Y%m%d_%H%M%S")
+
+
+_VIDEO_TAKE_RE = re.compile(r"_take(\d+)\.avi$")
+
+
+def takes_from_videos(scenario_dir: Path, scenario_id: str) -> set[int]:
+    """Takes do gravador leve presentes em disco (`<cenario>_takeNN.avi`)."""
+    if not scenario_dir.exists():
+        return set()
+    return {
+        int(m.group(1))
+        for p in scenario_dir.glob(f"{scenario_id}_take*.avi")
+        if (m := _VIDEO_TAKE_RE.search(p.name))
+    }

@@ -56,6 +56,41 @@ Resumo: `Enter` salva e grava a próxima, `r` descarta e repete, `Esc` salva e v
 **A janela precisa de foco** (clique nela) para receber as teclas.
 Protocolo de clipe: contagem 3 s, depois 10 s (≈3 s antes, ≈2 s de evento, ≥5 s depois).
 
+## Gravar leve + analisar offline (fluxo recomendado para coletar dados)
+
+O app ao vivo (`python -m vigia_lab`) satura a CPU de notebooks fracos e entrega menos de 10 quadros/s
+aos modelos. Para coletar dados sem essa limitação, separe a coleta da análise:
+
+```bash
+# 1) COLETA (notebook de campo, a Ana opera): só câmera + vídeo, ~30 fps
+python -m vigia_lab record                    # --duration 10 --resolution 640x480 --out captures
+# 2) ANÁLISE (máquina potente): YOLO + GRU 34 + GRU 37 + matemático sobre os vídeos
+python -m vigia_lab process --captures captures --pose-fps 6,8,10,15 --ids baseline,grace
+# 3) tabela resumo (também gerada ao fim do process)
+python -m vigia_lab report --root reprocessed
+```
+
+`record`: menu de cenários, contagem de 3 s, duração fixa de 10 s (tecla `d` alterna para manual: a Ana
+encerra com Espaço/Enter). Durante a gravação: `m` marca o INÍCIO da queda, `n` o FIM (contato com o
+chão), `u` desfaz, `x` aborta. Ao terminar, uma verificação rápida de pose (~1 s) e as métricas da câmera
+geram o semáforo da captura (fps medido, quadros perdidos, brilho, tronco visível). Cada tomada grava:
+`<take>.avi` (MJPG), `<take>_frames.npz` (tempo real de cada frame), `<take>_capture.json` (marcas,
+métricas, ficha técnica) e uma linha em `recordings.csv`.
+
+`process`: reprocessa cada vídeo simulando que o dispositivo processa `--pose-fps` quadros por segundo
+(escolhe os quadros por tempo-alvo ANTES do YOLO, para o tracker ver a mesma cadência) e aplica o mesmo
+throttle/filtro/modelos do vigia. Saída em `reprocessed/fps<N>_<ids>/<cenário>/` (decisões, meta, raw).
+`pose_fps` é a taxa média; o throttle de 12 Hz do vigia ainda quantiza a entrega (ex.: pose a 15 fps entrega
+~7,5/s ao classificador). Para o dispositivo real, meça o fps de pose na Raspberry e use esse valor.
+
+`report`: por configuração e modelo, quedas detectadas, latência mediana, falsos alarmes em ADL, maior
+intervalo sem decisão e trocas de ID. Definições (para o PFC):
+- início de referência da queda = `event_t_auto` (ângulo do tronco > 60° por 2 frames), com a marca da
+  operadora menos 0,4 s (atraso de reação) como reserva;
+- queda "detectada" = algum `alert` em [início, fim + 2 s] (sem marca de fim: início + 5 s); o 2 s extra cobre
+  a confirmação de 2 predições seguidas dos GRUs; latência = 1º alerta − início;
+- ADL com "falso alarme" = qualquer `alert` no clipe.
+
 ## Histórico apagado por troca de ID (`--ids`)
 
 Quando o tracker do Ultralytics devolve zero tracks num frame, as caixas ficam sem

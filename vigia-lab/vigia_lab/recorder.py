@@ -148,8 +148,8 @@ class TakeRecorder:
         return ok
 
     def id_stats(self) -> dict[str, int]:
-        """Quantas vezes o conjunto de IDs entregue aos modelos mudou (cada mudança faz o
-        vigia apagar o histórico da pessoa) e quantos frames usaram o ID de reserva 0
+        """Quantas vezes um ID foi SUBSTITUÍDO por outro nos frames entregues aos modelos (o vigia apaga
+        o histórico do ID que sumiu) e quantos frames usaram o ID de reserva 0
         (o tracker do Ultralytics começa em 1; 0 = `boxes.id` ausente -> range(n))."""
         changes = fallback = 0
         prev: set[int] | None = None
@@ -159,7 +159,10 @@ class TakeRecorder:
             if not f.delivered:
                 continue
             cur = {i for i in f.person_ids if i >= 0}
-            if prev is not None and cur and prev and cur != prev:
+            # troca = alguém SOME e alguém NOVO aparece no mesmo passo (a pessoa ganhou outro ID e o
+            # histórico dela foi apagado). Alguém que só sai de cena (ou entra) não conta: o cleanup do
+            # vigia remove apenas o ID ausente e preserva os demais.
+            if prev is not None and cur and prev and (prev - cur) and (cur - prev):
                 changes += 1
             if cur:
                 prev = cur

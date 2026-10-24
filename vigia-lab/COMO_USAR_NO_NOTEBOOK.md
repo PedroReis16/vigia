@@ -70,9 +70,22 @@ Cada tomada dura 10 s após contagem de 3 s. Os arquivos saem em `vigia-lab/capt
 
 Sem câmera: `python -m vigia_lab --replay clipe.mp4 --scenario sentando --duration 12`.
 
+### 4b. Fluxo leve (recomendado): gravar no notebook de campo, analisar na máquina potente
+
+Veja a seção "Gravar leve + analisar offline" do `README.md`. Resumo:
+
+```bash
+cd vigia-lab
+PYTHONPATH=. ../vigia-onboard/.venv/Scripts/python.exe -m vigia_lab record      # a Ana grava os clipes
+# copie a pasta captures/ para a máquina potente e rode lá:
+PYTHONPATH=. ../vigia-onboard/.venv/Scripts/python.exe -m vigia_lab process --captures captures --pose-fps 6,8,10,15 --ids baseline,grace
+```
+
+A captura leve mediu 30,0 fps, 0 quadros perdidos e ~0,4 MB/s de vídeo neste computador.
+
 ## 5. O que já foi validado (neste computador, 17/10/2026)
 
-- 54 testes passam; replay de vídeo ponta a ponta; 3 tomadas reais com câmera USB.
+- 77 testes passam; replay de vídeo ponta a ponta; 3 tomadas reais com câmera USB.
 - Parâmetros do YOLO lidos do código do Pedro; ficha técnica registra versões, hashes e SHA.
 - **Vazamento da câmera corrigido** (o Ultralytics não fecha o `LoadStreams` ao parar o gerador;
   `pose_source.close_stream` resolve): log sem avisos MSMF e fps estável entre tomadas.

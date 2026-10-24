@@ -179,6 +179,7 @@ def finalize_take(
     thresholds: Thresholds = Thresholds(),
     write_manifest: bool = True,
     extra_quality: dict[str, Any] | None = None,
+    extra_meta: dict[str, Any] | None = None,
 ) -> tuple[str, list[str], dict[str, Any]]:
     """Grava clipes/raw/decisions/meta e (opcional) o manifest. Devolve (cor, motivos, qualidade)."""
     rec = outcome.recorder
@@ -232,6 +233,7 @@ def finalize_take(
         "quality": quality,
         "verdict": {"color": color, "reasons": reasons},
         "fingerprint": fingerprint,
+        **(extra_meta or {}),
         "recorded_at_unix": time.time(),
     }
     rec.save_meta(paths["meta"], meta)

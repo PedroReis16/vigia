@@ -667,6 +667,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-10-26] vigia-web: `apiKey`/`vapidKey` Firebase fora do tree versionado (placeholders em `environment.ts` / `firebase-config.js`; prod via `FIREBASE_WEB_CONFIG_JSON_BASE64`)
 - [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)
 - [2026-10-18] Perfil web aplica troca ou remoção da foto só ao salvar; cancelar descarta a prévia (`vigia-web /profile`)
 - [2026-10-18] App: lista e reprodução dos clipes de queda a partir do detalhe do dispositivo (`vigia_ui`)

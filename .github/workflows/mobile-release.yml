@@ -556,6 +556,15 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: ./apk
 
+      - name: Upload APK to Google Drive
+        uses: logickoder/g-drive-upload@1.0.1
+        with:
+          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
+          filename: ./apk/${{ env.APK_NAME }}
+          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
+          name: ${{ env.APK_NAME }}
+          overwrite: "true"
+
       - name: Move mutable tag to HEAD
         env:
           TAG: ${{ env.RELEASE_TAG }}
@@ -616,7 +625,7 @@ jobs:
             --method POST \
             "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
             -f state="success" \
-            -f description="vigia-ui publicado (APK anexado à Release rolling mobile)"
+            -f description="vigia-ui publicado (APK na Release rolling mobile + Google Drive)"
 
       - name: Mark deployment as failure
         if: failure()

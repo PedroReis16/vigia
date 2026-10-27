@@ -557,7 +557,7 @@ jobs:
           path: ./apk
 
       - name: Upload APK to Google Drive
-        uses: logickoder/g-drive-upload@1.0.1
+        uses: logickoder/g-drive-upload@main
         with:
           credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
           filename: ./apk/${{ env.APK_NAME }}

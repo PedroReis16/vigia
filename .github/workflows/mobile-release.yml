@@ -556,14 +556,22 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: ./apk
 
-      - name: Upload APK to Google Drive
-        uses: logickoder/g-drive-upload@main
+      - name: Set up Python (Google Drive upload)
+        uses: actions/setup-python@v5
         with:
-          credentials: ${{ secrets.GDRIVE_CREDENTIALS }}
-          filename: ./apk/${{ env.APK_NAME }}
-          folderId: ${{ secrets.GDRIVE_FOLDER_ID }}
-          name: ${{ env.APK_NAME }}
-          overwrite: "true"
+          python-version: "3.10"
+
+      - name: Install Google Drive API deps
+        run: |
+          pip install --quiet google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Upload APK to Google Drive (Shared Drive)
+        env:
+          GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          GDRIVE_FILE_PATH: ./apk/${{ env.APK_NAME }}
+          GDRIVE_FILE_NAME: ${{ env.APK_NAME }}
+        run: python .github/scripts/upload-apk-gdrive.py
 
       - name: Move mutable tag to HEAD
         env:

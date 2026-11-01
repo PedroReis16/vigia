@@ -1,11 +1,11 @@
-"""Processamento offline: vídeo gravado -> YOLO/tracker -> 3 modelos, com a cadência do dispositivo simulada.
+"""Processamento offline: vídeo gravado -> YOLO/tracker -> 4 modelos, com a cadência do dispositivo simulada.
 
 Fluxo por clipe:
   1. `select_frames(t_rel, pose_fps)`: só esses frames chegam ao YOLO/tracker (como na Raspberry);
   2. o tracker é alimentado frame a frame (`model.track(frame, persist=True, ...)`, validado como
      idêntico ao modo `stream` em IDs e keypoints);
   3. cada resultado vira um `PoseFrame` com o TEMPO REAL do sidecar (não o fps do contêiner);
-  4. `session.run_take` aplica throttle + filtro + 3 modelos exatamente como no ao vivo.
+  4. `session.run_take` aplica throttle + filtro + 4 modelos exatamente como no ao vivo.
 """
 
 from __future__ import annotations

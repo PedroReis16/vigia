@@ -22,7 +22,8 @@ SKELETON = [
     (0, 1), (0, 2), (1, 3), (2, 4), (5, 6), (5, 7), (7, 9), (6, 8), (8, 10),
     (5, 11), (6, 12), (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
 ]
-MODEL_ORDER = [("gru34", "GRU 34"), ("gru37", "GRU 37"), ("math", "MATEMATICO")]
+MODEL_ORDER = [("gru34", "GRU 34"), ("gru37", "GRU 37"), ("gru38", "GRU 38"), ("math", "MATEMATICO")]
+CARD_STEP, CARD_H = 160, 145
 ALERT_FLASH_S = 1.5
 
 
@@ -102,15 +103,15 @@ def draw_live(
     # painel lateral: um cartão por modelo
     _text(canvas, f"{fps_now:4.1f} fps", (VIDEO_W + 20, 40), 1.0, WHITE, 2)
     for i, (key, name) in enumerate(MODEL_ORDER):
-        top = 70 + i * 200
+        top = 70 + i * CARD_STEP
         c = cards.get(key, {"label": "-", "extra": "", "flash": False})
         alerting = c["flash"]
         border = RED if (alerting and flash_on) else GREY
-        cv2.rectangle(canvas, (VIDEO_W + 10, top), (W - 10, top + 180), border, 4 if alerting else 2)
-        _text(canvas, name, (VIDEO_W + 24, top + 40), 1.0, WHITE, 2)
+        cv2.rectangle(canvas, (VIDEO_W + 10, top), (W - 10, top + CARD_H), border, 4 if alerting else 2)
+        _text(canvas, name, (VIDEO_W + 24, top + 34), 1.0, WHITE, 2)
         lab_color = RED if c["label"] in ("FALL", "SUSPECT") else GREEN
-        _text(canvas, c["label"], (VIDEO_W + 24, top + 100), 1.5, lab_color if c["label"] != "-" else GREY, 3)
-        _text(canvas, c["extra"], (VIDEO_W + 24, top + 150), 0.8, GREY, 2)
+        _text(canvas, c["label"], (VIDEO_W + 24, top + 88), 1.5, lab_color if c["label"] != "-" else GREY, 3)
+        _text(canvas, c["extra"], (VIDEO_W + 24, top + 128), 0.8, GREY, 2)
     return canvas
 
 

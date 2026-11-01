@@ -35,8 +35,8 @@ Download grande (torch CPU via ultralytics). A GPU não é usada: o pipeline do 
 
 ## 3. Modelos dos GRUs (já versionados nesta branch)
 
-Os dois ONNX vêm no clone, em `vigia-lab/models/` (`gru34/models/gru_2classes.onnx` e
-`gru37/gru_2classes_v2.onnx`, ~180 KB cada). O `gru_2classes.onnx` (34 features) **não existe no
+Os três ONNX vêm no clone, em `vigia-lab/models/` (`gru34/models/gru_2classes.onnx`,
+`gru37/gru_2classes_v2.onnx`, ~180 KB cada, e `gru38/gru_v3_f37_candidato.onnx`, ~640 KB). O `gru_2classes.onnx` (34 features) **não existe no
 onboard**, por isso o lab o traz junto. O `yolo26s-pose` NÃO vai no Git: é exportado sozinho
 na primeira execução (precisa de internet).
 

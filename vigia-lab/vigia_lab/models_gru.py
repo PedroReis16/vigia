@@ -1,4 +1,4 @@
-"""Carrega os 3 classificadores e verifica a integridade dos ONNX/pose_features.
+"""Carrega os 4 classificadores e verifica a integridade dos ONNX/pose_features.
 
 O ONNX do GRU 34 NÃO existe no vigia-onboard. Em vez de copiá-lo para dentro do
 onboard (sujaria a árvore e o SHA do ficha técnica), apontamos `core_root`
@@ -19,11 +19,13 @@ LOCK_PATH = LAB_ROOT / "models.lock.json"
 GRU34_ROOT = MODELS_DIR / "gru34"                       # contém models/gru_2classes.onnx
 GRU34_ONNX = GRU34_ROOT / "models" / "gru_2classes.onnx"
 GRU37_ONNX = MODELS_DIR / "gru37" / "gru_2classes_v2.onnx"
+GRU38_ONNX = MODELS_DIR / "gru38" / "gru_v3_f37_candidato.onnx"
 POSE_FEATURES = Path(__file__).with_name("pose_features.py")
 
 TRACKED = {
     "gru34_onnx": GRU34_ONNX,
     "gru37_onnx": GRU37_ONNX,
+    "gru38_onnx": GRU38_ONNX,
     "pose_features_py": POSE_FEATURES,
 }
 
@@ -56,7 +58,11 @@ def verify_lock(lock_path: Path = LOCK_PATH) -> dict[str, str]:
 
 
 def build_classifiers(slider_window: int) -> dict[str, object]:
-    """Instâncias novas (estado zerado) de GRU34, GRU37 e Math, nesta ordem."""
+    """Instâncias novas (estado zerado) de GRU34, GRU37, GRU38 e Math, nesta ordem.
+
+    O GRU 38 tem o mesmo contrato do GRU 37 (20 frames, 37 features). O limiar de 0,65 já está
+    embutido no ONNX: o argmax equivale a ele, então nenhum limiar é aplicado aqui.
+    """
     from core.classifiers.gru_classifier import GruFallClassifier
     from core.classifiers.math_classifier import MathFallClassifier
     from core.models.person_runtime import get_person_runtime_store
@@ -68,5 +74,6 @@ def build_classifiers(slider_window: int) -> dict[str, object]:
     return {
         "gru34": gru34,
         "gru37": Gru37Classifier(onnx_path=GRU37_ONNX),
+        "gru38": Gru37Classifier(onnx_path=GRU38_ONNX),
         "math": MathFallClassifier(window_size=slider_window),
     }

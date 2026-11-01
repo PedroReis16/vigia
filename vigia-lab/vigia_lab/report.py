@@ -19,7 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-MODELS = ("gru34", "gru37", "math")
+MODELS = ("gru34", "gru37", "gru38", "math")
 DEFAULT_REACTION_S = 0.4
 POST_END_S = 2.0
 NO_END_WINDOW_S = 5.0

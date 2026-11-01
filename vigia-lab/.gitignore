@@ -8,4 +8,5 @@ reprocessed/
 models/**/*.onnx
 !models/gru34/models/gru_2classes.onnx
 !models/gru37/gru_2classes_v2.onnx
+!models/gru38/gru_v3_f37_candidato.onnx
 __pycache__/

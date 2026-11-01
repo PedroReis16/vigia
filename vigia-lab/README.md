@@ -16,7 +16,7 @@ via AST) e cada tomada grava uma ficha técnica com versões, hashes e SHA do co
 |---|---|
 | `<take>_pN.npy` / `_labels.npy` / `_t.npy` | por pessoa: keypoints (T,17,3) com conf<0,3 zerada, rótulo (0=ADL, 2=FALL), tempo (s) por frame — formato compatível com o `keypoint_extraction` |
 | `<take>_raw.npz` | TODOS os frames processados pelo YOLO, keypoints PRÉ-filtro, `t_wall`, `t_mono`, `delivered`, `yolo_ms`, brilho |
-| `<take>_decisions.csv` | decisões de GRU 34, GRU 37 e Math (label, alert, prob/score, latência) |
+| `<take>_decisions.csv` | decisões de GRU 34, GRU 37, GRU 38 e Math (label, alert, prob/score, latência) |
 | `<take>_meta.json` | ficha técnica, métricas de qualidade, semáforo, marcas da Ana, resets de histórico |
 | `<take>.avi` | vídeo bruto (MJPG). Fica fora do Git |
 | `manifest.csv` | uma linha por pessoa; colunas antigas + `event_t`, `video_path`, `quality_verdict`, `meta_path` |
@@ -64,7 +64,7 @@ aos modelos. Para coletar dados sem essa limitação, separe a coleta da anális
 ```bash
 # 1) COLETA (notebook de campo, a Ana opera): só câmera + vídeo, ~30 fps
 python -m vigia_lab record                    # --duration 10 --resolution 640x480 --out captures
-# 2) ANÁLISE (máquina potente): YOLO + GRU 34 + GRU 37 + matemático sobre os vídeos
+# 2) ANÁLISE (máquina potente): YOLO + GRU 34 + GRU 37 + GRU 38 + matemático sobre os vídeos
 python -m vigia_lab process --captures captures --pose-fps 6,8,10,15 --ids baseline,grace
 # 3) tabela resumo (também gerada ao fim do process)
 python -m vigia_lab report --root reprocessed
@@ -106,14 +106,15 @@ O modo fica em `ids_mode` no `_meta.json`; `untracked_frames` e `id_set_changes_
 ## Fidelidade ao deploy (e onde o lab difere de propósito)
 
 - Mesma sequência do `FrameWorker._handle`: throttle (1/FRAME_RATE) → `filter_observations`
-  → `process` dos 3 modelos → `PersonRuntimeStore.cleanup` → `cleanup`. Testes de equivalência
+  → `process` dos 4 modelos → `PersonRuntimeStore.cleanup` → `cleanup`. Testes de equivalência
   com o `FrameQueue` e o `FrameWorker` reais estão em `tests/`.
 - Lote vazio (ninguém detectado num frame entregue) apaga o histórico de todos, como no vigia;
   cada ocorrência vai para `resets` no `_meta.json`.
 - Os classificadores rodam **no mesmo laço do YOLO** (o vigia usa a thread `core-worker`):
   o custo vai em `classifier_ms_total` e `ui_ms_mean`. Não há backpressure por fila cheia.
-- O GRU 37 (nosso) monta a janela numa grade de 10 fps por **timestamp**; o GRU 34 usa os
-  frames entregues como o vigia.
+- O GRU 37 e o GRU 38 (nossos) montam a janela numa grade de 10 fps por **timestamp**; o GRU 34 usa os
+  frames entregues como o vigia. O GRU 38 é o `gru_v3_f37_candidato`: mesmas 37 features do GRU 37, com o
+  limiar de 0,65 embutido no ONNX (o argmax já o aplica).
 - O timestamp é `time.time()` tirado DEPOIS do YOLO, como no deploy.
 
 ## Notas para outro assistente / chat
@@ -127,7 +128,7 @@ O modo fica em `ids_mode` no `_meta.json`; `untracked_frames` e `id_set_changes_
   implementada; fase 2 (reprocessamento offline a partir do vídeo/`_raw.npz`) não existe.
 - O fps que chega aos classificadores é **quantizado pelo throttle** (período ≥ 1/12 s):
   câmera a 30 fps → 10/s; a 20 → 10/s; a 15 → 7,5/s. Anotar o fps entregue ao comparar takes.
-- Janelas: o GRU 34 precisa de 20 frames entregues (~2 s), o Math de 30 (~3 s) e o GRU 37 de
+- Janelas: o GRU 34 precisa de 20 frames entregues (~2 s), o Math de 30 (~3 s) e o GRU 37 e o GRU 38 de
   2 s de histórico; clipes curtos não geram decisão.
 - `iou` não é passado pelo vigia → padrão do Ultralytics (0,7). Duplicatas com IoU≈0,66 podem aparecer.
 - Se o YOLO não devolve `boxes.id`, o vigia usa `0,1,…` como `person_id` (pode colidir com IDs do tracker).

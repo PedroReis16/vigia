@@ -16,6 +16,8 @@ from vigia_lab import bootstrap
 from vigia_lab.session import PoseFrame
 
 _CONST_NAME = "_YOLO_STREAM_KWARGS"
+_TRACKER_MODULE = "ultralytics.trackers.track"
+_TRACKER_EVENTS = ("on_predict_start", "on_predict_postprocess_end")
 
 
 def read_stream_kwargs(runner_path: Path | None = None) -> dict[str, Any]:
@@ -66,9 +68,21 @@ def close_stream(model: Any) -> None:
 
 
 def reset_tracker(model: Any) -> None:
-    """Descarta o predictor (e o estado do botsort) para IDs não vazarem entre takes."""
+    """Descarta o predictor (e o estado do botsort) para IDs não vazarem entre takes.
+
+    Sem predictor, o próximo `model.track` registra os callbacks do tracker de novo. Se os antigos
+    ficassem, o tracker seria atualizado uma vez a mais por frame a cada take já processado.
+    """
     close_stream(model)
     model.predictor = None
+    callbacks = getattr(model, "callbacks", {})
+    for event in _TRACKER_EVENTS:
+        if event in callbacks:
+            callbacks[event] = [cb for cb in callbacks[event] if not _is_tracker_callback(cb)]
+
+
+def _is_tracker_callback(callback: Any) -> bool:
+    return getattr(getattr(callback, "func", callback), "__module__", None) == _TRACKER_MODULE
 
 
 def is_untracked(result: Any) -> bool:

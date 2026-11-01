@@ -39,3 +39,25 @@ def test_close_stream_closes_ultralytics_dataset() -> None:
     pose_source.reset_tracker(model)
     assert closed == [1] and model.predictor is None
     pose_source.close_stream(SimpleNamespace(predictor=None))      # sem predictor: não quebra
+
+
+def test_reset_tracker_does_not_accumulate_tracker_callbacks() -> None:
+    """Callbacks repetidos atualizariam o tracker várias vezes por frame, conforme a posição do take."""
+    from collections import defaultdict
+    from types import SimpleNamespace
+
+    from ultralytics.trackers import register_tracker
+
+    def other(_predictor: object) -> None:
+        pass
+
+    callbacks = defaultdict(list, on_predict_start=[other])
+    model = SimpleNamespace(
+        predictor=None, callbacks=callbacks, add_callback=lambda event, func: callbacks[event].append(func),
+    )
+    for _ in range(3):
+        register_tracker(model, True)
+        assert len(callbacks["on_predict_postprocess_end"]) == 1
+        pose_source.reset_tracker(model)
+        assert callbacks["on_predict_postprocess_end"] == []
+    assert callbacks["on_predict_start"] == [other]                # callbacks de terceiros ficam

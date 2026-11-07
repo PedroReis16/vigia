@@ -55,6 +55,9 @@ jobs:
             vigia_bootstrap_src:
               - 'vigia-bootstrap/**'
               - '!vigia-bootstrap/**/*.md'
+            vigia_devices_src:
+              - 'vigia-devices/**'
+              - '!vigia-devices/**/*.md'
             vigia_ui_src:
               - 'vigia_ui/**'
               - '!vigia_ui/**/*.md'
@@ -122,6 +125,18 @@ jobs:
               "deps_file":    "requirements.txt",
               "bandit_paths": "provision ui main.py",
               "needs_lgpio":  "true",
+              "has_docker":   "false"
+            }]' <<< "$PROJECTS")
+          fi
+
+          if [[ "${{ steps.filter.outputs.vigia_devices_src }}" == "true" ]]; then
+            PROJECTS=$(jq -c '. + [{
+              "name":         "vigia-devices",
+              "type":         "python",
+              "path":         "vigia-devices",
+              "deps_file":    "requirements-dev.txt",
+              "bandit_paths": "worker main.py",
+              "needs_lgpio":  "false",
               "has_docker":   "false"
             }]' <<< "$PROJECTS")
           fi

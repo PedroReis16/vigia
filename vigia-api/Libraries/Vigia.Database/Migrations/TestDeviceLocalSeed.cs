@@ -10,17 +10,17 @@ internal static class TestDeviceLocalSeed
     public static void Apply(VigiaDbContext db, ILogger? logger)
     {
         User admin = EnsureAdmin(db);
-        bool createdDevice = EnsureDevice(db);
+        int createdDevices = EnsureDevices(db);
         bool linked = EnsureMembership(db, admin);
         db.SaveChanges();
 
-        if (!createdDevice && !linked)
+        if (createdDevices == 0 && !linked)
             return;
 
         logger?.LogInformation(
-            "Device de teste {DeviceId} ({DeviceName}) vinculado ao usuário {UserId} (DEBUG)",
-            TestDeviceSeed.Id,
-            TestDeviceSeed.Name,
+            "Seed mock: {CreatedCount} device(s) criados; pool={PoolSize}; admin={UserId} (DEBUG)",
+            createdDevices,
+            MockDevicesSeed.All.Count,
             TestDeviceSeed.OwnerId);
     }
 
@@ -50,13 +50,19 @@ internal static class TestDeviceLocalSeed
         return admin;
     }
 
-    private static bool EnsureDevice(VigiaDbContext db)
+    private static int EnsureDevices(VigiaDbContext db)
     {
-        if (db.Devices.Any(d => d.Id == TestDeviceSeed.Id))
-            return false;
+        int created = 0;
+        foreach (MockDeviceDefinition definition in MockDevicesSeed.All)
+        {
+            if (db.Devices.Any(d => d.Id == definition.Id))
+                continue;
 
-        db.Devices.Add(TestDeviceSeed.Create());
-        return true;
+            db.Devices.Add(MockDevicesSeed.Create(definition));
+            created++;
+        }
+
+        return created;
     }
 
     private static bool EnsureMembership(VigiaDbContext db, User admin)

@@ -952,8 +952,17 @@ internal class FiwareService : IFiwareService
     }
 
 #if DEBUG
-    public async Task<bool> EnsureSeedDeviceAsync() =>
-        await RegisterSensorAsync(TestDeviceSeed.Id, TestDeviceSeed.Name);
+    public async Task<bool> EnsureSeedDeviceAsync()
+    {
+        bool allReady = true;
+        foreach (MockDeviceDefinition definition in MockDevicesSeed.All)
+        {
+            if (!await RegisterSensorAsync(definition.Id, definition.Name))
+                allReady = false;
+        }
+
+        return allReady;
+    }
 #endif
 
     public async Task<bool> RegisterSensorAsync(Guid deviceId, string deviceName)

@@ -690,6 +690,7 @@ flowchart LR
 ## 9. Changelog Técnico
 
 - [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
+- [2026-11-07] MediaMTX hooks: normalizar LF + `.gitattributes` `*.sh eol=lf` (CRLF quebrava `runOnDemand` / `stream_on`)
 - [2026-11-07] API DEBUG: seed de thumbnails JPEG embutidos no Redis para edge + pool mock (`SeedDeviceFramesWorker`, `Seed/Frames/*.jpg`)
 - [2026-11-07] vigia-devices: worker mock não claima `TestDeviceSeed` (edge); pool só `MockDevicesSeed` (7) + `reserved_edge_ids`
 - [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + seed DEBUG (`TestDeviceSeed` + `MockDevicesSeed`) + gate CI Python

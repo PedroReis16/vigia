@@ -455,7 +455,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 6. **Deploy cloud separado por camada** — API/infra em compose mínimo EC2 + Traefik (`services.…`); web estático em Cloudflare Pages (`vigiadeteccoes.com.br`). Local: SPA no Traefik `:81` via container nginx.
 
-7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock.
+7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock. `SeedDeviceFramesWorker` preenche thumbnails no Redis (JPEG embutidos) quando o frame ainda não existe.
 
 8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Inbox server-side (`GET /notifications`) sincroniza lidas entre clientes; FCM continua como entrega. Web: service worker + sino; Flutter Android: tray + sino no AppBar.
 
@@ -690,6 +690,7 @@ flowchart LR
 ## 9. Changelog Técnico
 
 - [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
+- [2026-11-07] API DEBUG: seed de thumbnails JPEG embutidos no Redis para edge + pool mock (`SeedDeviceFramesWorker`, `Seed/Frames/*.jpg`)
 - [2026-11-07] vigia-devices: worker mock não claima `TestDeviceSeed` (edge); pool só `MockDevicesSeed` (7) + `reserved_edge_ids`
 - [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + seed DEBUG (`TestDeviceSeed` + `MockDevicesSeed`) + gate CI Python
 - [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)

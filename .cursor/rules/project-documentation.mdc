@@ -27,6 +27,7 @@ monorepo a cada conversa.
 | `vigia-bootstrap/` | Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade |
 | `vigia-fall/` | Detecção no Raspberry Pi (Python, YOLO, MQTT, BLE) |
 | `vigia-onboard/` | Onboard edge: captura YOLO (Python), release `onboard` |
+| `vigia-devices/` | Worker mock: vídeo em loop → RTMP/thumbnail/queda+clipe |
 | `vigia_ui/` | App Flutter do cuidador |
 | `vigia-web/` | Frontend web Angular (camadas `pages` → `usecases` → `services`) |
 | `docker-compose/` | Local (API .NET + FIWARE + MediaMTX) e deploy |

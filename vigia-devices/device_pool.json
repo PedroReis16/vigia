@@ -1,0 +1,56 @@
+{
+  "devices": [
+    {
+      "id": "a1b2c3d4-e5f6-4789-a012-3456789abcde",
+      "name": "Vigia-e5f67890",
+      "nickname": "Sala TV",
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "room": "LivingRoom"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-4890-b123-456789abcdef",
+      "name": "Vigia-f6a78901",
+      "nickname": "Quarto Casal",
+      "mac_address": "AA:BB:CC:DD:EE:02",
+      "room": "Bedroom"
+    },
+    {
+      "id": "c3d4e5f6-a7b8-4901-c234-56789abcdef0",
+      "name": "Vigia-a7b89012",
+      "nickname": "Cozinha",
+      "mac_address": "AA:BB:CC:DD:EE:03",
+      "room": "Kitchen"
+    },
+    {
+      "id": "d4e5f6a7-b8c9-4012-d345-6789abcdef01",
+      "name": "Vigia-b8c90123",
+      "nickname": "Escritório",
+      "mac_address": "AA:BB:CC:DD:EE:04",
+      "room": "Office"
+    },
+    {
+      "id": "e5f6a7b8-c9d0-4123-e456-789abcdef012",
+      "name": "Vigia-c9d01234",
+      "nickname": "Banheiro",
+      "mac_address": "AA:BB:CC:DD:EE:05",
+      "room": "Bathroom"
+    },
+    {
+      "id": "f6a7b8c9-d0e1-4234-f567-89abcdef0123",
+      "name": "Vigia-d0e12345",
+      "nickname": "Garagem",
+      "mac_address": "AA:BB:CC:DD:EE:06",
+      "room": "Garage"
+    },
+    {
+      "id": "07b8c9d0-e1f2-4345-a678-9abcdef01234",
+      "name": "Vigia-e1f23456",
+      "nickname": "Quintal",
+      "mac_address": "AA:BB:CC:DD:EE:07",
+      "room": "Backyard"
+    }
+  ],
+  "reserved_edge_ids": [
+    "b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"
+  ]
+}

@@ -1,0 +1,2 @@
+# Shell hooks (MediaMTX Alpine) break with CRLF: `set: illegal option -`
+*.sh text eol=lf

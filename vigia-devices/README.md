@@ -53,6 +53,12 @@ Alterar o pool exige atualizar **os dois**:
 1. `vigia-api/Libraries/Vigia.Models/Seed/MockDevicesSeed.cs`
 2. `vigia-devices/device_pool.json`
 
+## Docker / release
+
+Imagem: `pedroreis16/vigia-devices:latest` (`docker-compose/dockerfiles/vigia-devices.dockerfile`). Os MP4 de `assets/videos/` vão para dentro da imagem; o build falha se a pasta estiver vazia.
+
+Pipeline manual: `.github/workflows/worker-release.yml` (testes → segurança → Docker Hub → Portainer via `PORTAINER_DEVICES_WEBHOOK_URL` → tag rolling `worker`).
+
 ## Testes
 
 ```bash

@@ -8,9 +8,14 @@
 **/node_modules/
 **/dist/
 **/__pycache__/
+**/.venv/
+**/.pytest_cache/
 docker-compose/local/minio_data/
 
-# Not needed for vigia-api / vigia-web image builds (fall-detection CI uses its own path filters)
+# Not needed for vigia-api / vigia-web / vigia-devices image builds
 vigia-fall/
+vigia-bootstrap/
+vigia-onboard/
 vigia_ui/
 seed-codes/
+edge-data/

@@ -72,7 +72,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 
 - **Plataforma:** GitHub Actions
 - **CI:** PRs para `develop`/`master` — quality gate por projeto (bandit, pytest, dotnet test, flutter analyze/test, Angular pnpm lint/test/build, gitleaks)
-- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `web`, `bootstrap`, `onboard`, `mobile`
+- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `web`, `worker`, `bootstrap`, `onboard`, `mobile`
 
 ---
 
@@ -365,6 +365,8 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Testes:** `vigia-devices/tests/` (pytest). CI: quality gate Python em `continuos-integration.yml` quando a pasta muda.
 
+**Release:** `worker-release.yml` → Docker Hub `pedroreis16/vigia-devices:latest` (MP4s de `assets/videos/` embutidos) → Portainer (`PORTAINER_DEVICES_WEBHOOK_URL`) → tag rolling `worker`. Dockerfile: `docker-compose/dockerfiles/vigia-devices.dockerfile`.
+
 ---
 
 ### seed-codes
@@ -408,7 +410,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
 | `docker-compose/deploy/infrastructure-compose.yaml` | Compose alternativo com stack completa + Portainer |
 | `docker-compose/deploy/.env.example` | Template de env de produção |
-| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `vigia-web.dockerfile` + nginx SPA local, `mediamtx.dockerfile`) |
+| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `vigia-devices.dockerfile`, `vigia-web.dockerfile` + nginx SPA local, `mediamtx.dockerfile`) |
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
@@ -428,6 +430,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 |----------|---------|-----------------|
 | `continuos-integration.yml` | PR → `develop`/`master` | Quality gate por projeto (Python incl. `vigia-devices`, .NET, Flutter, Angular), gitleaks, AI attribution check |
 | `service-release.yml` | Manual | Build Docker → Docker Hub `pedroreis16/vigia-api:latest` → deploy Portainer → tag rolling `service` |
+| `worker-release.yml` | Manual | Build Docker (com `assets/videos/`) → Docker Hub `pedroreis16/vigia-devices:latest` → Portainer (`PORTAINER_DEVICES_WEBHOOK_URL`) → tag rolling `worker` |
 | `web-release.yml` | Manual | Build Angular → Cloudflare Pages (`vigia-web` / `vigiadeteccoes.com.br`) → tag rolling `web` |
 | `bootstrap-pipeline.yml` | Manual | Test amd64 → build ARM64 → `vigia-bootstrap-deploy.zip` → tag rolling `bootstrap` |
 | `onboard-release.yml` | Manual | Build ARM64 → deploy zip + OTA tarball → tag rolling `onboard`; upload opcional para API |
@@ -686,6 +689,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
 - [2026-11-07] vigia-devices: worker mock não claima `TestDeviceSeed` (edge); pool só `MockDevicesSeed` (7) + `reserved_edge_ids`
 - [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + seed DEBUG (`TestDeviceSeed` + `MockDevicesSeed`) + gate CI Python
 - [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)

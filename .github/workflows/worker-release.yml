@@ -1,0 +1,312 @@
+name: Vigia Devices — Worker Pipeline
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+run-name: "Worker Build"
+
+permissions:
+  contents: write
+  security-events: write
+  deployments: write
+
+env:
+  SERVICE_PATH: vigia-devices
+  DOCKERFILE_PATH: docker-compose/dockerfiles/vigia-devices.dockerfile
+  IMAGE_NAME: vigia-devices
+  PYTHON_VERSION: "3.12"
+  IMAGE_TAG: latest
+  RELEASE_TAG: worker
+
+jobs:
+  #------------------------------------------
+  # 1. Test (Python)
+  #------------------------------------------
+  test:
+    name: Tests — unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.SERVICE_PATH }}/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Test
+        run: python -m pytest -q --junitxml=TestResults/junit.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-vigia-devices
+          path: ${{ env.SERVICE_PATH }}/TestResults
+          retention-days: 7
+          if-no-files-found: ignore
+
+  #------------------------------------------
+  # 2. Security (secrets + Dockerfile)
+  #------------------------------------------
+  security:
+    name: Security — secrets & Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Secret scan (gitleaks, working tree)
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-git --source . --redact -v --exit-code=2
+
+      - name: Dockerfile lint (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ env.DOCKERFILE_PATH }}
+          failure-threshold: error
+
+      - name: Assert mock videos present in tree
+        run: |
+          set -euo pipefail
+          count="$(find "${{ env.SERVICE_PATH }}/assets/videos" -type f \
+            \( -iname '*.mp4' -o -iname '*.avi' -o -iname '*.mkv' -o -iname '*.mov' \) \
+            | wc -l)"
+          if [ "${count}" -lt 1 ]; then
+            echo "::error::Nenhum vídeo em ${{ env.SERVICE_PATH }}/assets/videos — a imagem precisa dos mocks embutidos."
+            exit 1
+          fi
+          echo "✓ ${count} vídeo(s) mock prontos para o build da imagem."
+
+  #------------------------------------------
+  # 3. Publish — Docker image (rolling tags)
+  #------------------------------------------
+  publish:
+    name: Publish — Docker Hub
+    needs: [test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build Docker image (local, pre-scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          # Attestations geram manifest list incompatível com `load` + `docker push`.
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-to: type=gha,mode=max,scope=vigia-devices-publish
+
+      - name: Verify videos inside image
+        run: |
+          set -euo pipefail
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          count="$(docker run --rm --entrypoint sh "$IMAGE" -c \
+            "find /app/assets/videos -type f \\( -iname '*.mp4' -o -iname '*.avi' -o -iname '*.mkv' -o -iname '*.mov' \\) | wc -l")"
+          if [ "${count}" -lt 1 ]; then
+            echo "::error::Imagem $IMAGE sem vídeos em /app/assets/videos."
+            exit 1
+          fi
+          echo "✓ Imagem contém ${count} vídeo(s) mock."
+
+      - name: Trivy — generate SARIF report
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "0"
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: hashFiles('trivy-results.sarif') != ''
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy — block on unfixed CRITICAL/HIGH CVEs
+        uses: aquasecurity/trivy-action@v0.24.0
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          format: table
+          ignore-unfixed: true
+
+      - name: Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha,scope=vigia-devices-publish
+
+  #------------------------------------------
+  # 4. Portainer deploy — production only
+  #------------------------------------------
+  portainer_deploy:
+    name: Deploy — Portainer webhook
+    needs: [publish]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Portainer stack redeploy
+        env:
+          WEBHOOK_URL: ${{ secrets.PORTAINER_DEVICES_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          WEBHOOK_URL=$(echo "$WEBHOOK_URL" | tr -d '[:space:]')
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::error::Secret PORTAINER_DEVICES_WEBHOOK_URL não configurado."
+            exit 1
+          fi
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$WEBHOOK_URL")
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "204" ]]; then
+            echo "::error::Portainer webhook falhou com HTTP ${HTTP_STATUS}."
+            exit 1
+          fi
+          echo "✓ Portainer redeploy acionado — vigia-devices:${{ env.IMAGE_TAG }} (HTTP ${HTTP_STATUS})."
+
+  #------------------------------------------
+  # 5. Publish — mesma tag git (rolling)
+  #------------------------------------------
+  release:
+    name: Publish — tag worker
+    needs: [publish, portainer_deploy]
+    if: |
+      always() &&
+      needs.publish.result == 'success' &&
+      (needs.portainer_deploy.result == 'success' || needs.portainer_deploy.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move mutable tag to HEAD
+        env:
+          TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" -m "Vigia Devices / Worker (rolling)"
+          git push origin "refs/tags/${TAG}" --force
+          echo "✓ Tag '$TAG' apontada para $(git rev-parse --short HEAD)."
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Vigia Devices / Worker
+          body: |
+            Release rolling do **vigia-devices** (worker mock).
+
+            Cada execução desta pipeline sobrescreve esta release e a tag `worker`.
+            Não há versionamento SemVer no GitHub.
+
+            A imagem inclui os MP4 de `vigia-devices/assets/videos/`.
+
+            ### Docker Hub
+            - Rolling: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-devices:latest`
+            - Commit: `${{ secrets.DOCKERHUB_USERNAME }}/vigia-devices:${{ github.sha }}`
+          draft: false
+          prerelease: false
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  #------------------------------------------
+  # 6. Deployment audit (produção)
+  #------------------------------------------
+  deployment_audit:
+    name: Deployment audit — GitHub Deployment
+    needs: [portainer_deploy, release]
+    if: |
+      always() &&
+      needs.portainer_deploy.result == 'success' &&
+      needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Create GitHub Deployment record
+        id: create_deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg environment "production" \
+            --arg description "Deploy vigia-devices:latest" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              description: $description,
+              auto_merge: false,
+              required_contexts: []
+            }')
+
+          DEPLOYMENT_ID=$(printf '%s' "$PAYLOAD" | gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments" \
+            --input - \
+            --jq '.id')
+
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "✓ Deployment registrado: ID=$DEPLOYMENT_ID"
+
+      - name: Mark deployment as success
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f description="vigia-devices:latest em produção"

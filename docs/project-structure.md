@@ -72,7 +72,7 @@ O VIGIA é um sistema doméstico de monitoramento de quedas que combina disposit
 
 - **Plataforma:** GitHub Actions
 - **CI:** PRs para `develop`/`master` — quality gate por projeto (bandit, pytest, dotnet test, flutter analyze/test, Angular pnpm lint/test/build, gitleaks)
-- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `web`, `bootstrap`, `onboard`, `mobile`
+- **Releases:** manuais (`workflow_dispatch`) com tags rolling mutáveis: `service`, `web`, `worker`, `bootstrap`, `onboard`, `mobile`
 
 ---
 
@@ -84,6 +84,7 @@ vigia/
 ├── vigia-bootstrap/        # Control plane Pi: BLE, Wi-Fi, LCD, OTA, identidade
 ├── vigia-fall/             # Detecção de quedas: câmera, YOLO, MQTT, upload de frames
 ├── vigia-onboard/          # Onboard edge: captura YOLO (export on-demand) e artefatos de release
+├── vigia-devices/          # Worker mock: loop de vídeo → RTMP/thumbnail/queda+clipe (demo)
 ├── vigia_ui/               # App mobile Flutter (Android/iOS)
 ├── vigia-web/              # Frontend web Angular (camadas core/pages/shared)
 ├── docker-compose/         # Stacks local (dev) e deploy (prod), Dockerfiles
@@ -348,6 +349,26 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 ---
 
+### vigia-devices
+
+**Propósito:** Worker mock de dispositivos para demos acadêmicas — loop de vídeo local, RTMP sob demanda (MediaMTX), thumbnail periódica, quedas aleatórias via MQTT Ultralight + upload de clipe. Sem YOLO/BLE/LCD/OTA.
+
+**Tecnologias:** Python 3.12+, OpenCV (headless), FFmpeg, paho-mqtt (WebSocket), Redis (claim de ID), python-dotenv.
+
+**Ponto de entrada:** `vigia-devices/main.py`
+
+**Pool:** 7 IDs exclusivos em `device_pool.json` (= `MockDevicesSeed`). O `TestDeviceSeed` (`Vigia-a1b2c3d4`) fica só para edge/seed-codes e está em `reserved_edge_ids` — o worker recusa claimá-lo. No arranque claima um ID livre (`SET vigia:mock-device:{id} NX`) e escolhe 1 MP4 em `assets/videos/`.
+
+**Módulos (`worker/`):** `claim`, `playback`, `rtmp`, `mqtt`, `thumbs`, `clips`, `fall_sim`, `frame_bus`, `settings`.
+
+**Contratos:** mesmos do edge — RTMP `/live/{deviceId}`, `POST /devices/{id}/frame`, `POST /devices/{id}/clips` + frames PNG, attrs `fall|{state}`, cmds `stream_on`/`stream_off`.
+
+**Testes:** `vigia-devices/tests/` (pytest). CI: quality gate Python em `continuos-integration.yml` quando a pasta muda.
+
+**Release:** `worker-release.yml` → Docker Hub `pedroreis16/vigia-devices:latest` (MP4s de `assets/videos/` embutidos) → Portainer (`PORTAINER_DEVICES_WEBHOOK_URL`) → tag rolling `worker`. Dockerfile: `docker-compose/dockerfiles/vigia-devices.dockerfile`.
+
+---
+
 ### seed-codes
 
 **Propósito:** Utilitários de desenvolvimento — frame de teste, clipe a partir de um vídeo e mock do edge local (sem Pi/BLE).
@@ -389,7 +410,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `docker-compose/deploy/infra.sh` | Deploy completo via `docker run` individual (prod) |
 | `docker-compose/deploy/infrastructure-compose.yaml` | Compose alternativo com stack completa + Portainer |
 | `docker-compose/deploy/.env.example` | Template de env de produção |
-| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `vigia-web.dockerfile` + nginx SPA local, `mediamtx.dockerfile`) |
+| `docker-compose/dockerfiles/` | Dockerfiles (`vigia-api.dockerfile`, `vigia-devices.dockerfile`, `vigia-web.dockerfile` + nginx SPA local, `mediamtx.dockerfile`) |
 
 **Rede Docker:** `vigia-network` (externa no deploy)
 
@@ -399,7 +420,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens. No upsert, o usuário entra nos grupos dos quais já é `owner`.
 
-**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do device de teste + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
+**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do edge de teste + pool mock (`TestDeviceSeed` + `MockDevicesSeed`) e `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
 ---
 
@@ -407,8 +428,9 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 | Workflow | Gatilho | Artefato / Ação |
 |----------|---------|-----------------|
-| `continuos-integration.yml` | PR → `develop`/`master` | Quality gate por projeto (Python, .NET, Flutter, Angular), gitleaks, AI attribution check |
+| `continuos-integration.yml` | PR → `develop`/`master` | Quality gate por projeto (Python incl. `vigia-devices`, .NET, Flutter, Angular), gitleaks, AI attribution check |
 | `service-release.yml` | Manual | Build Docker → Docker Hub `pedroreis16/vigia-api:latest` → deploy Portainer → tag rolling `service` |
+| `worker-release.yml` | Manual | Build Docker (com `assets/videos/`) → Docker Hub `pedroreis16/vigia-devices:latest` → Portainer (`PORTAINER_DEVICES_WEBHOOK_URL`) → tag rolling `worker` |
 | `web-release.yml` | Manual | Build Angular → Cloudflare Pages (`vigia-web` / `vigiadeteccoes.com.br`) → tag rolling `web` |
 | `bootstrap-pipeline.yml` | Manual | Test amd64 → build ARM64 → `vigia-bootstrap-deploy.zip` → tag rolling `bootstrap` |
 | `onboard-release.yml` | Manual | Build ARM64 → deploy zip + OTA tarball → tag rolling `onboard`; upload opcional para API |
@@ -433,7 +455,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 6. **Deploy cloud separado por camada** — API/infra em compose mínimo EC2 + Traefik (`services.…`); web estático em Cloudflare Pages (`vigiadeteccoes.com.br`). Local: SPA no Traefik `:81` via container nginx.
 
-7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda device de teste via `TestDeviceSeed`.
+7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock. `SeedDeviceFramesWorker` preenche thumbnails no Redis (JPEG embutidos) quando o frame ainda não existe.
 
 8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Inbox server-side (`GET /notifications`) sincroniza lidas entre clientes; FCM continua como entrega. Web: service worker + sino; Flutter Android: tray + sino no AppBar.
 
@@ -474,7 +496,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
 | OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
-| Device de teste em DEBUG: `Vigia-a1b2c3d4`, já no grupo do usuário `admin` | `TestDeviceSeed` + `TestDeviceLocalSeed` |
+| Seed DEBUG: `TestDeviceSeed` (edge) + 7 `MockDevicesSeed` no grupo do `admin`; `vigia-devices` só claima o pool mock (nunca o ID do edge) | `TestDeviceSeed`, `MockDevicesSeed`, `TestDeviceLocalSeed`, `device_pool.json` (`reserved_edge_ids`) |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Landing de convite: `Invite:WebInviteBase` + token. Produção `https://vigiadeteccoes.com.br/invite/{token}`; local `http://localhost:4200/invite/{token}` (`ng serve`). Desktop recebe redirect HTTP; celular tenta o app e cai na web sem página de escolha | `appsettings.json`, `appsettings.Development.json`, `docker-compose/local/default.env`; `InviteRedirectController` |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
@@ -670,6 +692,11 @@ flowchart LR
 - [2026-10-27] Mobile release: upload do APK via script Python com `supportsAllDrives` (Shared Drive; `upload-apk-gdrive.py`)
 - [2026-10-26] Mobile release: APK assinado publicado no Google Drive ao final do pipeline (`GDRIVE_CREDENTIALS`, `GDRIVE_FOLDER_ID`)
 - [2026-10-26] vigia-web: `apiKey`/`vapidKey` Firebase fora do tree versionado (placeholders em `environment.ts` / `firebase-config.js`; prod via `FIREBASE_WEB_CONFIG_JSON_BASE64`)
+- [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
+- [2026-11-07] MediaMTX hooks: normalizar LF + `.gitattributes` `*.sh eol=lf` (CRLF quebrava `runOnDemand` / `stream_on`)
+- [2026-11-07] API DEBUG: seed de thumbnails JPEG embutidos no Redis para edge + pool mock (`SeedDeviceFramesWorker`, `Seed/Frames/*.jpg`)
+- [2026-11-07] vigia-devices: worker mock não claima `TestDeviceSeed` (edge); pool só `MockDevicesSeed` (7) + `reserved_edge_ids`
+- [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + seed DEBUG (`TestDeviceSeed` + `MockDevicesSeed`) + gate CI Python
 - [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)
 - [2026-10-18] Perfil web aplica troca ou remoção da foto só ao salvar; cancelar descarta a prévia (`vigia-web /profile`)
 - [2026-10-18] App: lista e reprodução dos clipes de queda a partir do detalhe do dispositivo (`vigia_ui`)

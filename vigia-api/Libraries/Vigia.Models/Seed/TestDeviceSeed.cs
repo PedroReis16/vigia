@@ -4,7 +4,8 @@ using Vigia.Models.Enums;
 namespace Vigia.Models.Seed;
 
 /// <summary>
-/// Dispositivo de teste usado apenas em builds DEBUG (seed no banco + provisionamento FIWARE).
+/// Dispositivo de teste do edge local (seed-codes / vigia-onboard).
+/// Não faz parte do pool claimável pelo <c>vigia-devices</c>.
 /// </summary>
 public static class TestDeviceSeed
 {
@@ -36,6 +37,6 @@ public static class TestDeviceSeed
         GroupId = GroupId,
         CreatedAt = CreatedAt,
         UpdatedAt = null,
-        DeletedAt = null
+        DeletedAt = null,
     };
 }

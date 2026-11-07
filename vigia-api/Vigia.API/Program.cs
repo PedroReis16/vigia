@@ -90,6 +90,9 @@ builder.Services.AddSingleton<IClipAssemblyQueue>(sp => sp.GetRequiredService<Cl
 builder.Services.AddSingleton<IClipAssembler, FfmpegClipAssembler>();
 builder.Services.AddTransient<IClipIngestService, ClipIngestService>();
 builder.Services.AddHostedService<ClipAssemblyWorker>();
+#if DEBUG
+builder.Services.AddHostedService<SeedDeviceFramesWorker>();
+#endif
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT

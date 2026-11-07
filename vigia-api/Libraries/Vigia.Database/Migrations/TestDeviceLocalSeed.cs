@@ -18,8 +18,9 @@ internal static class TestDeviceLocalSeed
             return;
 
         logger?.LogInformation(
-            "Seed mock: {CreatedCount} device(s) criados; pool={PoolSize}; admin={UserId} (DEBUG)",
+            "Seed DEBUG: {CreatedCount} device(s); edge={EdgeId}; mockPool={MockCount}; admin={UserId}",
             createdDevices,
+            TestDeviceSeed.Id,
             MockDevicesSeed.All.Count,
             TestDeviceSeed.OwnerId);
     }
@@ -53,8 +54,19 @@ internal static class TestDeviceLocalSeed
     private static int EnsureDevices(VigiaDbContext db)
     {
         int created = 0;
+
+        if (!db.Devices.Any(d => d.Id == TestDeviceSeed.Id))
+        {
+            db.Devices.Add(TestDeviceSeed.Create());
+            created++;
+        }
+
         foreach (MockDeviceDefinition definition in MockDevicesSeed.All)
         {
+            if (definition.Id == TestDeviceSeed.Id)
+                throw new InvalidOperationException(
+                    "MockDevicesSeed não pode incluir o ID do TestDeviceSeed (edge real).");
+
             if (db.Devices.Any(d => d.Id == definition.Id))
                 continue;
 

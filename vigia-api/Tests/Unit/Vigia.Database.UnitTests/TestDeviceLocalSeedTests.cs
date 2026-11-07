@@ -7,14 +7,19 @@ namespace Vigia.Database.UnitTests;
 public class TestDeviceLocalSeedTests
 {
     [Fact]
-    public void Apply_SeedsFullMockPoolAndLinksAdmin()
+    public void Apply_SeedsEdgeTestDeviceAndMockPool()
     {
         using VigiaDbContext context = CreateContext();
 
         TestDeviceLocalSeed.Apply(context, logger: null);
         TestDeviceLocalSeed.Apply(context, logger: null);
 
-        Assert.Equal(MockDevicesSeed.All.Count, context.Devices.Count());
+        int expectedCount = 1 + MockDevicesSeed.All.Count;
+        Assert.Equal(expectedCount, context.Devices.Count());
+
+        Assert.Equal(TestDeviceSeed.GroupId, context.Devices.Single(d => d.Id == TestDeviceSeed.Id).GroupId);
+        Assert.DoesNotContain(MockDevicesSeed.All, d => d.Id == TestDeviceSeed.Id);
+
         Assert.All(
             MockDevicesSeed.All,
             definition =>
@@ -34,11 +39,11 @@ public class TestDeviceLocalSeedTests
     }
 
     [Fact]
-    public void TestDeviceSeed_MatchesPrimaryMockSlot()
+    public void MockPool_NeverIncludesEdgeTestDevice()
     {
-        Assert.Equal(TestDeviceSeed.Id, MockDevicesSeed.Primary.Id);
-        Assert.Equal(TestDeviceSeed.Name, MockDevicesSeed.Primary.Name);
-        Assert.Equal(TestDeviceSeed.MacAddress, MockDevicesSeed.Primary.MacAddress);
+        Assert.DoesNotContain(MockDevicesSeed.All, d => d.Id == TestDeviceSeed.Id);
+        Assert.DoesNotContain(MockDevicesSeed.All, d => d.Name == TestDeviceSeed.Name);
+        Assert.DoesNotContain(MockDevicesSeed.All, d => d.MacAddress == TestDeviceSeed.MacAddress);
     }
 
     private static VigiaDbContext CreateContext()

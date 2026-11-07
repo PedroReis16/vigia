@@ -4,30 +4,23 @@ using Vigia.Models.Enums;
 namespace Vigia.Models.Seed;
 
 /// <summary>
-/// Pool de dispositivos mock (DEBUG / vigia-devices). Todos no grupo do admin.
+/// Pool exclusivo do worker <c>vigia-devices</c> (DEBUG). Todos no grupo do admin.
+/// Não inclui <see cref="TestDeviceSeed"/> (edge real / seed-codes).
 /// Espelhar IDs em <c>vigia-devices/device_pool.json</c> ao alterar.
 /// </summary>
 public static class MockDevicesSeed
 {
-    /// <summary>Grupo do Admin (<c>GroupsConfiguration</c>).</summary>
-    public static readonly Guid GroupId = new("80eed123-8e77-47a3-8fae-cedb1ab3eef7");
+    /// <summary>Grupo do Admin — mesmo de <see cref="TestDeviceSeed.GroupId"/>.</summary>
+    public static readonly Guid GroupId = TestDeviceSeed.GroupId;
 
-    /// <summary>Mesmo UUID do usuário <c>admin</c> do realm Keycloak <c>vigia</c>.</summary>
-    public static readonly Guid OwnerId = new("05ae0d5a-5ef8-44c4-a6de-df0725cdd39b");
-    public const string OwnerEmail = "admin@vigia.local";
-    public const string OwnerPhone = "11999999999";
+    public static readonly DateTime CreatedAt = TestDeviceSeed.CreatedAt;
 
-    public static readonly DateTime CreatedAt =
-        new DateTime(2026, 7, 27, 17, 42, 22, 525, DateTimeKind.Utc).AddTicks(2940);
-
+    /// <summary>
+    /// Devices só para o worker mock. Nunca reutilizar o ID de
+    /// <see cref="TestDeviceSeed"/> nem de placas reais.
+    /// </summary>
     public static IReadOnlyList<MockDeviceDefinition> All { get; } =
     [
-        new(
-            Id: new Guid("b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"),
-            Name: "Vigia-a1b2c3d4",
-            Nickname: "Câmera Teste",
-            MacAddress: "AA:BB:CC:DD:EE:FF",
-            Room: DeviceRooms.LivingRoom),
         new(
             Id: new Guid("a1b2c3d4-e5f6-4789-a012-3456789abcde"),
             Name: "Vigia-e5f67890",
@@ -71,8 +64,6 @@ public static class MockDevicesSeed
             MacAddress: "AA:BB:CC:DD:EE:07",
             Room: DeviceRooms.Backyard),
     ];
-
-    public static MockDeviceDefinition Primary => All[0];
 
     public static Device Create(MockDeviceDefinition definition) => new()
     {

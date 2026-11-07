@@ -357,7 +357,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Ponto de entrada:** `vigia-devices/main.py`
 
-**Pool:** 8 IDs fixos em `device_pool.json`, espelhados em `MockDevicesSeed` (API DEBUG). No arranque o worker claima um ID livre (`SET vigia:mock-device:{id} NX`) e escolhe 1 MP4 aleatório em `assets/videos/`.
+**Pool:** 7 IDs exclusivos em `device_pool.json` (= `MockDevicesSeed`). O `TestDeviceSeed` (`Vigia-a1b2c3d4`) fica só para edge/seed-codes e está em `reserved_edge_ids` — o worker recusa claimá-lo. No arranque claima um ID livre (`SET vigia:mock-device:{id} NX`) e escolhe 1 MP4 em `assets/videos/`.
 
 **Módulos (`worker/`):** `claim`, `playback`, `rtmp`, `mqtt`, `thumbs`, `clips`, `fall_sim`, `frame_bus`, `settings`.
 
@@ -418,7 +418,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **RabbitMQ local:** `rabbitmq:3-management` na rede `vigia-network` (`5672`, management `15672`). O provider publica em `vigia.users.direct_exchange` / `users.sync`. A API declara a fila `vigia.users.sync` (quorum + DLQ) e grava o usuário com o UUID do Keycloak (`users.id`, o `sub` do access token). `upsert` em cadastro, login e atualização de perfil; `delete` faz soft-delete do usuário e dos push tokens. No upsert, o usuário entra nos grupos dos quais já é `owner`.
 
-**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do pool mock (`MockDevicesSeed`, 8 devices) + `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
+**FIWARE local (dev):** proxy Traefik na porta `81` → `http://host.docker.internal:81/vigia/fiware/`. Routers Traefik aceitam Host `localhost`, `127.0.0.1`, `host.docker.internal` e IPs. A API local é buildada em **Debug** para seed do edge de teste + pool mock (`TestDeviceSeed` + `MockDevicesSeed`) e `EnsureSeedDeviceAsync`. Web SPA local em `http://localhost:81/` (priority Traefik baixa); API em `/vigia`, stream em `/live`, Keycloak em `/auth`.
 
 ---
 
@@ -452,7 +452,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 6. **Deploy cloud separado por camada** — API/infra em compose mínimo EC2 + Traefik (`services.…`); web estático em Cloudflare Pages (`vigiadeteccoes.com.br`). Local: SPA no Traefik `:81` via container nginx.
 
-7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda o pool mock (`MockDevicesSeed`, 8 devices no grupo do admin) e o FIWARE job chama `EnsureSeedDeviceAsync` para o pool inteiro.
+7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock.
 
 8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Inbox server-side (`GET /notifications`) sincroniza lidas entre clientes; FCM continua como entrega. Web: service worker + sino; Flutter Android: tray + sino no AppBar.
 
@@ -493,7 +493,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `ObjectId` Ultralight deve ser único e curto; `Type` NGSI com capitalização correta (`Text`, `Boolean`, `Number`) | README seção FIWARE + validação no sync |
 | Formato MQTT Ultralight no edge: `{deviceId}@{command}\|{value}` | `vigia-fall/shared/fiware_commands.py` |
 | OTA pendente gravado em `/var/lib/vigia/ota/pending.json` (placa); em debug local com `DATA_DIR` ≠ `/opt/vigia` → `{DATA_DIR}/ota/pending.json` | `vigia-fall` / `vigia-bootstrap` (`resolve_ota_dir`) |
-| Pool mock em DEBUG: 8 devices (`MockDevicesSeed`, slot 0 = `Vigia-a1b2c3d4`) no grupo do `admin`; workers `vigia-devices` claimam IDs via Redis | `MockDevicesSeed`, `TestDeviceLocalSeed`, `EnsureSeedDeviceAsync`, `vigia-devices/device_pool.json` |
+| Seed DEBUG: `TestDeviceSeed` (edge) + 7 `MockDevicesSeed` no grupo do `admin`; `vigia-devices` só claima o pool mock (nunca o ID do edge) | `TestDeviceSeed`, `MockDevicesSeed`, `TestDeviceLocalSeed`, `device_pool.json` (`reserved_edge_ids`) |
 | Deep link de convite: `vigia://invite/{token}` | `appsettings.json` (`Invite:DeepLinkBase`) |
 | Landing de convite: `Invite:WebInviteBase` + token. Produção `https://vigiadeteccoes.com.br/invite/{token}`; local `http://localhost:4200/invite/{token}` (`ng serve`). Desktop recebe redirect HTTP; celular tenta o app e cai na web sem página de escolha | `appsettings.json`, `appsettings.Development.json`, `docker-compose/local/default.env`; `InviteRedirectController` |
 | Salas de device mapeadas via enum `DeviceRooms` (API + Flutter) | `Vigia.Models/Enums/DeviceRooms.cs`, `vigia_ui/lib/domain/enums/device_rooms.dart` |
@@ -686,7 +686,8 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
-- [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + pool `MockDevicesSeed` (8 devices no admin) + gate CI Python (`vigia-devices/`, `TestDeviceLocalSeed`, `EnsureSeedDeviceAsync`)
+- [2026-11-07] vigia-devices: worker mock não claima `TestDeviceSeed` (edge); pool só `MockDevicesSeed` (7) + `reserved_edge_ids`
+- [2026-11-07] vigia-devices: worker mock (RTMP/thumbnail/queda+clipe) + seed DEBUG (`TestDeviceSeed` + `MockDevicesSeed`) + gate CI Python
 - [2026-10-18] App: guia de perfil alinhada à web (edição, exclusão e prévia do plano ativo) e a barra inferior usa a foto (`vigia_ui`)
 - [2026-10-18] Perfil web aplica troca ou remoção da foto só ao salvar; cancelar descarta a prévia (`vigia-web /profile`)
 - [2026-10-18] App: lista e reprodução dos clipes de queda a partir do detalhe do dispositivo (`vigia_ui`)

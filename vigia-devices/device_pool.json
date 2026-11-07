@@ -1,13 +1,6 @@
 {
   "devices": [
     {
-      "id": "b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c",
-      "name": "Vigia-a1b2c3d4",
-      "nickname": "Câmera Teste",
-      "mac_address": "AA:BB:CC:DD:EE:FF",
-      "room": "LivingRoom"
-    },
-    {
       "id": "a1b2c3d4-e5f6-4789-a012-3456789abcde",
       "name": "Vigia-e5f67890",
       "nickname": "Sala TV",
@@ -56,5 +49,8 @@
       "mac_address": "AA:BB:CC:DD:EE:07",
       "room": "Backyard"
     }
+  ],
+  "reserved_edge_ids": [
+    "b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"
   ]
 }

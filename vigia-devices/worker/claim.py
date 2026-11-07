@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import redis
 
-from worker.settings import DeviceInfo
+from worker.settings import DEFAULT_RESERVED_EDGE_IDS, DeviceInfo
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,18 @@ def default_worker_id() -> str:
     return f"{socket.gethostname()}:{os.getpid()}"
 
 
+def _assert_not_reserved(
+    device_id: str,
+    reserved_ids: frozenset[str] | None = None,
+) -> None:
+    reserved = reserved_ids or DEFAULT_RESERVED_EDGE_IDS
+    if device_id.strip().lower() in reserved:
+        raise ValueError(
+            f"DEVICE_ID {device_id} é reservado ao edge real e não pode ser "
+            "claimado pelo vigia-devices"
+        )
+
+
 def claim_device(
     redis_client: redis.Redis,
     pool: list[DeviceInfo],
@@ -81,16 +93,22 @@ def claim_device(
     device_id: str | None = None,
     ttl_s: int = 30,
     worker_id: str | None = None,
+    reserved_ids: frozenset[str] | None = None,
 ) -> DeviceClaim:
     """Claima o primeiro device livre (ou o DEVICE_ID forçado)."""
     if not pool:
         raise ValueError("Pool de devices vazio")
+
+    reserved = reserved_ids or DEFAULT_RESERVED_EDGE_IDS
+    for device in pool:
+        _assert_not_reserved(device.id, reserved)
 
     holder = worker_id or default_worker_id()
     stop = threading.Event()
 
     candidates = pool
     if device_id:
+        _assert_not_reserved(device_id, reserved)
         match = next((d for d in pool if d.id == device_id), None)
         if match is None:
             raise ValueError(f"DEVICE_ID {device_id} não está no device_pool.json")

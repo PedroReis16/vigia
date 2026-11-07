@@ -69,6 +69,19 @@ def load_settings(env_file: Path | None = None) -> Settings:
     )
 
 
+# ID do TestDeviceSeed / edge local — nunca claimável pelo worker.
+DEFAULT_RESERVED_EDGE_IDS = frozenset({"b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"})
+
+
+def load_reserved_edge_ids(payload: dict) -> frozenset[str]:
+    raw = payload.get("reserved_edge_ids")
+    if raw is None:
+        return DEFAULT_RESERVED_EDGE_IDS
+    if not isinstance(raw, list):
+        raise ValueError("reserved_edge_ids deve ser uma lista")
+    return frozenset(str(item).strip().lower() for item in raw if str(item).strip())
+
+
 def load_device_pool(path: Path | None = None) -> list[DeviceInfo]:
     pool_path = path or DEFAULT_POOL_PATH
     payload = json.loads(pool_path.read_text(encoding="utf-8"))
@@ -76,11 +89,18 @@ def load_device_pool(path: Path | None = None) -> list[DeviceInfo]:
     if not isinstance(devices, list) or not devices:
         raise ValueError(f"device_pool vazio ou inválido: {pool_path}")
 
+    reserved = load_reserved_edge_ids(payload)
     result: list[DeviceInfo] = []
     for entry in devices:
+        device_id = str(entry["id"]).strip()
+        if device_id.lower() in reserved:
+            raise ValueError(
+                f"device_pool inclui ID reservado ao edge real: {device_id}. "
+                "Remova-o do pool claimável do vigia-devices."
+            )
         result.append(
             DeviceInfo(
-                id=str(entry["id"]),
+                id=device_id,
                 name=str(entry["name"]),
                 nickname=str(entry.get("nickname", entry["name"])),
                 mac_address=str(entry.get("mac_address", "")),

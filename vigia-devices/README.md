@@ -4,9 +4,11 @@ Worker mock que simula dispositivos Vigia na cloud: loop de vídeo → RTMP sob 
 
 Sem YOLO, BLE, LCD ou OTA. Os IDs vêm de [`device_pool.json`](device_pool.json) e devem espelhar `MockDevicesSeed` na API (.NET).
 
+O worker **nunca** claima o device de edge/teste (`Vigia-a1b2c3d4` / `TestDeviceSeed`). Esse ID fica em `reserved_edge_ids` e é rejeitado no load do pool e no claim.
+
 ## Pré-requisitos
 
-- Stack local (`docker-compose/local`) com API em **Debug** (seed dos 8 devices no grupo do admin + FIWARE)
+- Stack local (`docker-compose/local`) com API em **Debug** (seed do edge de teste + 7 mock no grupo do admin + FIWARE)
 - Redis acessível (`localhost:6379`)
 - MediaMTX + Mosquitto (Traefik `:81`)
 - Python ≥ 3.12, FFmpeg no PATH
@@ -30,10 +32,10 @@ cp .env.example .env
 python main.py
 ```
 
-Cada instância claima um ID livre via Redis (`vigia:mock-device:{id}`). Para forçar um slot:
+Cada instância claima um ID livre via Redis (`vigia:mock-device:{id}`). Para forçar um slot do pool mock (nunca o edge):
 
 ```bash
-DEVICE_ID=b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c python main.py
+DEVICE_ID=a1b2c3d4-e5f6-4789-a012-3456789abcde python main.py
 ```
 
 Para demos curtas de queda:

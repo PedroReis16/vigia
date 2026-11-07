@@ -954,9 +954,14 @@ internal class FiwareService : IFiwareService
 #if DEBUG
     public async Task<bool> EnsureSeedDeviceAsync()
     {
-        bool allReady = true;
+        bool allReady = await RegisterSensorAsync(TestDeviceSeed.Id, TestDeviceSeed.Name);
+
         foreach (MockDeviceDefinition definition in MockDevicesSeed.All)
         {
+            if (definition.Id == TestDeviceSeed.Id)
+                throw new InvalidOperationException(
+                    "MockDevicesSeed não pode incluir o ID do TestDeviceSeed (edge real).");
+
             if (!await RegisterSensorAsync(definition.Id, definition.Name))
                 allReady = false;
         }

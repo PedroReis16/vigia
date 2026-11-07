@@ -89,3 +89,24 @@ def test_claim_raises_when_pool_exhausted():
     finally:
         a.release()
         b.release()
+
+
+def test_claim_rejects_reserved_edge_device_id():
+    client: Any = FakeRedis()
+    reserved = frozenset({"b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c"})
+    with pytest.raises(ValueError, match="reservado ao edge real"):
+        claim_device(
+            client,
+            _pool(),
+            device_id="b7e3c9a1-4f2d-4e8b-9c1a-6d5e4f3a2b1c",
+            worker_id="w1",
+            ttl_s=30,
+            reserved_ids=reserved,
+        )
+
+
+def test_claim_rejects_pool_entry_in_reserved_set():
+    client: Any = FakeRedis()
+    reserved = frozenset({"id-1"})
+    with pytest.raises(ValueError, match="reservado ao edge real"):
+        claim_device(client, _pool(), worker_id="w1", ttl_s=30, reserved_ids=reserved)

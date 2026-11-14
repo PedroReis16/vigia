@@ -71,8 +71,10 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
-      # URL pública (Traefik). A API e o keycloak-setup falam com keycloak:8080 pela rede.
-      KC_HOSTNAME: https://services.vigiadeteccoes.com.br/auth
+      # URL pública: o vigia-web (Cloudflare Pages) repassa vigiadeteccoes.com.br/auth
+      # para o router abaixo (vigia-web/public/_worker.js). A API e o keycloak-setup
+      # falam com keycloak:8080 pela rede.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-https://vigiadeteccoes.com.br/auth}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded

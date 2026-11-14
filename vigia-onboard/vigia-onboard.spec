@@ -23,9 +23,9 @@ datas = [
 binaries = []
 hiddenimports = []
 
-_gru = Path("core/models/gru_2classes.onnx")
+_gru = Path("models/gru37/gru_v3_f37_candidato.onnx")
 if _gru.is_file():
-    datas.append((str(_gru), "core/models"))
+    datas.append((str(_gru), "models/gru37"))
 
 # pkg_resources → jaraco.* (namespaces; collect_submodules("jaraco") não basta).
 for pkg in ("jaraco.text", "jaraco.functools", "jaraco.context"):

@@ -251,7 +251,9 @@ vigia/
 | `frame_worker.py` | `save_points` (fila) + worker: filtra/valida → classifica → enqueue `fall_state` |
 | `frame_queue.py` | Fila in-process (`FRAME_RATE`, max 2, backpressure) |
 | `classifiers/` | `math` (default) e `gru`; lê a chave `classifier` de `device.json` no arranque da sessão (fallback `CLASSIFIER` se a chave não existir); restart via `capture.restart`, sem hot-swap |
-| `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU |
+| `models/` | Kalman, janela por ID, FallDetector, PersonRuntimeStore, ONNX GRU 37 (`pose_features` + `resample` @ 10 fps) |
+
+**Artefatos ML (`models/` na raiz do onboard):** `models/gru37/gru_v3_f37_candidato.onnx` (cópia versionada do candidato `vigia-lab/models/gru38`); o classificador `gru` e o PyInstaller leem este path.
 
 **Módulos principais (`stream/`):** biblioteca do capture (não é serviço Make).
 
@@ -692,6 +694,7 @@ flowchart LR
 - [2026-10-27] Mobile release: upload do APK via script Python com `supportsAllDrives` (Shared Drive; `upload-apk-gdrive.py`)
 - [2026-10-26] Mobile release: APK assinado publicado no Google Drive ao final do pipeline (`GDRIVE_CREDENTIALS`, `GDRIVE_FOLDER_ID`)
 - [2026-10-26] vigia-web: `apiKey`/`vapidKey` Firebase fora do tree versionado (placeholders em `environment.ts` / `firebase-config.js`; prod via `FIREBASE_WEB_CONFIG_JSON_BASE64`)
+- [2026-11-14] Onboard: GRU 37 em `models/gru37/` (path + features 37-D / resample 10 fps; cópia de `vigia-lab/models/gru38`)
 - [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
 - [2026-11-07] MediaMTX hooks: normalizar LF + `.gitattributes` `*.sh eol=lf` (CRLF quebrava `runOnDemand` / `stream_on`)
 - [2026-11-07] API DEBUG: seed de thumbnails JPEG embutidos no Redis para edge + pool mock (`SeedDeviceFramesWorker`, `Seed/Frames/*.jpg`)

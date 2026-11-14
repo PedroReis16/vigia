@@ -9,7 +9,7 @@ O instalador sobe **um único serviço**, `vigia.service` (nome **Vigia**). O bi
 - **`make`** e **Python 3.12**.
 - O export NCNN em `capture/models/yolo/{stem}_ncnn_model/` é gerado por `make ensure-model` (Ultralytics, `YOLO_MODEL`, default `yolo26s-pose`, `YOLO_IMGSZ` default 320) se faltar. Exports YOLO não se commitam.
 - Só o **NCNN** do YOLO entra no bundle (ONNX no Windows e CoreML no macOS ficam para desenvolvimento). No executável congelado a inferência usa esse NCNN.
-- Se existir `core/models/gru_2classes.onnx`, o classificador `gru` também entra no bundle.
+- Se existir `models/gru37/gru_v3_f37_candidato.onnx`, o classificador `gru` também entra no bundle.
 - **Caminho do build** (`make build-linux-arm64`):
   - **Linux aarch64/arm64** — compilação nativa (CI `ubuntu-24.04-arm`, placa).
   - **Outros hosts** (macOS, Linux amd64) — Docker + buildx (`deploy/Dockerfile.linux-arm64-binary`).

@@ -92,7 +92,7 @@ vigia/
 ├── seed-codes/             # Utilitários dev: frame de teste, clipe a partir de vídeo, seed do edge local
 ├── edge-data/              # Mock local device.json + identity/network/classifier (gerado; gitignored)
 ├── docs/                   # Documentação viva do projeto (este arquivo)
-├── README.md               # Guia operacional Pi + FIWARE (referência detalhada)
+├── README.md               # Visão geral, execução e deploy (guias Pi/FIWARE em docs/)
 ├── .cursor/rules/          # Regras Cursor (project-documentation.mdc)
 └── .vscode/                # Launch configs (API, UI, Bootstrap, Fall, Onboard) e tasks do workspace
 ```

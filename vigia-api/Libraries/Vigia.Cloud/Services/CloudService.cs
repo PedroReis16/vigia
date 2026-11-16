@@ -79,6 +79,72 @@ internal class CloudService(IAmazonS3 s3Client) : ICloudService
         }
     }
 
+    public async Task<long?> TryGetObjectLengthAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        try
+        {
+            GetObjectMetadataResponse metadata = await _s3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
+            {
+                BucketName = bucketName,
+                Key = key,
+            }, cancellationToken);
+
+            return metadata.ContentLength;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public async Task<CloudObjectRead> OpenRangeAsync(
+        string bucketName,
+        string key,
+        long? start,
+        long? end,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (start.HasValue != end.HasValue)
+            throw new ArgumentException("The range start and end must be provided together.");
+
+        long? total = await TryGetObjectLengthAsync(bucketName, key, cancellationToken);
+        if (total == null)
+            throw new FileNotFoundException($"Object '{key}' was not found in bucket '{bucketName}'.");
+
+        GetObjectRequest request = new()
+        {
+            BucketName = bucketName,
+            Key = key,
+        };
+
+        long rangeStart = 0;
+        long rangeEnd = total.Value == 0 ? -1 : total.Value - 1;
+        if (start.HasValue && end.HasValue && total.Value > 0)
+        {
+            rangeStart = start.Value;
+            rangeEnd = end.Value;
+            request.ByteRange = new ByteRange(rangeStart, rangeEnd);
+        }
+
+        try
+        {
+            GetObjectResponse response = await _s3Client.GetObjectAsync(request, cancellationToken);
+            return new CloudObjectRead(new S3DownloadStream(response), total.Value, rangeStart, rangeEnd);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new FileNotFoundException($"Object '{key}' was not found in bucket '{bucketName}'.", ex);
+        }
+    }
+
     public async Task<IReadOnlyList<string>> ListKeysAsync(
         string bucketName,
         CancellationToken cancellationToken = default)

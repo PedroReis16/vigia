@@ -17,13 +17,21 @@ public class GroupRealtimeNotifier(
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly ILogger<GroupRealtimeNotifier> _logger = logger;
 
+    public const string DevicesChangedType = "devices_changed";
+
     public Task NotifyMembershipJoinedAsync(Guid groupId, Guid userId) =>
         NotifyAsync(groupId, userId, "joined");
 
     public Task NotifyMembershipRemovedAsync(Guid groupId, Guid userId) =>
         NotifyAsync(groupId, userId, "removed");
 
-    private async Task NotifyAsync(Guid groupId, Guid affectedUserId, string changeType)
+    public Task NotifyDevicesChangedAsync(Guid groupId, Guid affectedUserId, Guid deviceId) =>
+        NotifyAsync(groupId, affectedUserId, DevicesChangedType, deviceId);
+
+    private Task NotifyAsync(Guid groupId, Guid affectedUserId, string changeType) =>
+        NotifyAsync(groupId, affectedUserId, changeType, null);
+
+    private async Task NotifyAsync(Guid groupId, Guid affectedUserId, string changeType, Guid? extraDeviceId)
     {
         try
         {
@@ -39,6 +47,8 @@ public class GroupRealtimeNotifier(
                 memberIds.Add(affectedUserId);
 
             List<Guid> deviceIds = await devicesDao.GetDeviceIdsByGroupAsync(groupId);
+            if (extraDeviceId.HasValue && !deviceIds.Contains(extraDeviceId.Value))
+                deviceIds.Add(extraDeviceId.Value);
 
             GroupMembershipChangedDTO payload = new()
             {
@@ -48,16 +58,11 @@ public class GroupRealtimeNotifier(
                 DeviceIds = deviceIds,
             };
 
-            // Prefer explicit per-user SignalR groups (joined in OnConnectedAsync).
-            // Also fan-out via Clients.User as a secondary path.
             foreach (Guid memberId in memberIds)
             {
                 string key = memberId.ToString();
                 await _hubContext.Clients
                     .Group(DeviceGroupsHub.UserGroupName(key))
-                    .SendAsync(MembershipChangedEvent, payload);
-                await _hubContext.Clients
-                    .User(key)
                     .SendAsync(MembershipChangedEvent, payload);
             }
 

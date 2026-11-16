@@ -40,4 +40,13 @@ class GroupMembershipChanged {
 
   bool get wasRemoved => changeType == 'removed';
   bool get wasJoined => changeType == 'joined';
+
+  bool includesDevice(String deviceId) => deviceIds.any(
+        (id) => id.toLowerCase() == deviceId.toLowerCase(),
+      );
+
+  bool removesUserFromDevice(String userId, String deviceId) =>
+      wasRemoved &&
+      affectedUserId.toLowerCase() == userId.toLowerCase() &&
+      includesDevice(deviceId);
 }

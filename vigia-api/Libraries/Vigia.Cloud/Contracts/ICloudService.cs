@@ -16,6 +16,18 @@ public interface ICloudService
         string key,
         CancellationToken cancellationToken = default);
 
+    Task<long?> TryGetObjectLengthAsync(
+        string bucketName,
+        string key,
+        CancellationToken cancellationToken = default);
+
+    Task<CloudObjectRead> OpenRangeAsync(
+        string bucketName,
+        string key,
+        long? start,
+        long? end,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<string>> ListKeysAsync(
         string bucketName,
         CancellationToken cancellationToken = default);

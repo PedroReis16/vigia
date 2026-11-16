@@ -1,28 +1,37 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Vigia.API.Config;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Alerts;
 using Vigia.Database.Contracts;
 using Vigia.Fiware.Config;
 using Vigia.Models.Entities;
+using Vigia.Models.Enums;
 
 namespace Vigia.API.Services;
 
 internal class AlertService(
     ILogger<AlertService> logger,
     IOptionsSnapshot<SubscriptionSchemaOptions> subscriptionOptions,
+    IOptions<AlertOptions> alertOptions,
     IDevicesDao devicesDao,
     IUserDao userDao,
     IUserPushTokenDao pushTokenDao,
+    IFallAlertEpisodeDao episodeDao,
+    IUserNotificationDao notificationDao,
     IPushNotificationService pushNotificationService) : IAlertService
 {
     private const string OrionEntityPrefix = "urn:ngsi-ld:";
+    private const string FallNotificationType = "fall";
 
     private readonly ILogger<AlertService> _logger = logger;
     private readonly SubscriptionSchemaOptions _subscriptions = subscriptionOptions.Value;
+    private readonly AlertOptions _alertOptions = alertOptions.Value;
     private readonly IDevicesDao _devicesDao = devicesDao;
     private readonly IUserDao _userDao = userDao;
     private readonly IUserPushTokenDao _pushTokenDao = pushTokenDao;
+    private readonly IFallAlertEpisodeDao _episodeDao = episodeDao;
+    private readonly IUserNotificationDao _notificationDao = notificationDao;
     private readonly IPushNotificationService _pushNotificationService = pushNotificationService;
 
     public async Task HandleFallWebhookAsync(OrionAlertNotificationDTO notification)
@@ -82,6 +91,16 @@ internal class AlertService(
             return;
         }
 
+        FallAlertEpisode? active = await _episodeDao.FindActiveByDeviceAsync(device.Id);
+        if (active is not null)
+        {
+            _logger.LogInformation(
+                "Alerta de queda ignorado: episódio Active já existe. Device={DeviceId} Episode={EpisodeId}",
+                device.Id,
+                active.Id);
+            return;
+        }
+
         List<User> groupUsers = await _userDao.GetUsersByGroupAsync(device.Group.Id);
         if (groupUsers.Count == 0)
         {
@@ -91,18 +110,50 @@ internal class AlertService(
             return;
         }
 
+        DateTime now = DateTime.UtcNow;
+        string displayName = string.IsNullOrWhiteSpace(device.Nickname) ? device.Name : device.Nickname!;
+        string title = "Alerta de queda";
+        string body = $"Queda detectada em {displayName}";
+
+        FallAlertEpisode episode = new()
+        {
+            DeviceId = device.Id,
+            GroupId = device.Group.Id,
+            Status = FallAlertEpisodeStatus.Active,
+            FirstDetectedAt = now,
+            LastNotifiedAt = now,
+            NotifyCount = 1,
+            NextRetryAt = now.AddSeconds(Math.Max(1, _alertOptions.RetryIntervalSeconds)),
+        };
+
+        await _episodeDao.AddAsync(episode);
+
+        List<UserNotification> inboxItems = groupUsers.Select(user => new UserNotification
+        {
+            UserId = user.Id,
+            EpisodeId = episode.Id,
+            DeviceId = device.Id,
+            Type = FallNotificationType,
+            Title = title,
+            Body = body,
+            CreatedAt = now,
+        }).ToList();
+
+        await _notificationDao.AddRangeAsync(inboxItems);
+
         List<string> tokens = await _pushTokenDao.GetTokensByUserIdsAsync(groupUsers.Select(u => u.Id));
         if (tokens.Count == 0)
         {
             _logger.LogWarning(
-                "Alerta de queda reconhecido, porém nenhum token FCM ativo encontrado (linhas soft-deleted no banco não contam). Device={DeviceId} Group={GroupId}",
+                "Episódio de queda criado sem tokens FCM ativos. Device={DeviceId} Episode={EpisodeId} Group={GroupId}",
                 device.Id,
+                episode.Id,
                 device.Group.Id);
             return;
         }
 
         PushNotificationResult result = await _pushNotificationService.SendFallAlertAsync(
-            new FallAlertPushRequest(device.Id, device.Name, device.Nickname, tokens));
+            new FallAlertPushRequest(episode.Id, device.Id, device.Name, device.Nickname, tokens));
 
         if (result.InvalidTokens.Count > 0)
             await _pushTokenDao.DeleteTokensAsync(result.InvalidTokens);
@@ -115,7 +166,6 @@ internal class AlertService(
 
         string id = entityId.Trim();
 
-        // Clone IoT Agent: Sensor:{deviceId}
         const string sensorPrefix = "Sensor:";
         if (id.StartsWith(sensorPrefix, StringComparison.OrdinalIgnoreCase))
         {

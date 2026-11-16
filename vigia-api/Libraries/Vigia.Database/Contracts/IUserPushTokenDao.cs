@@ -8,4 +8,5 @@ public interface IUserPushTokenDao : IRepository<UserPushToken>
     Task DeleteByTokenAsync(string token);
     Task<List<string>> GetTokensByUserIdsAsync(IEnumerable<Guid> userIds);
     Task DeleteTokensAsync(IEnumerable<string> tokens);
+    Task DeleteByUserIdAsync(Guid userId);
 }

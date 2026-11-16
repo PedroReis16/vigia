@@ -17,6 +17,7 @@ public static class FiwareExtension
     {
         services.Configure<DeviceSchemaOptions>(configuration.GetSection(DeviceSchemaOptions.SectionName));
         services.Configure<SubscriptionSchemaOptions>(configuration.GetSection(SubscriptionSchemaOptions.SectionName));
+        services.Configure<OrionNotificationAuthOptions>(configuration.GetSection(OrionNotificationAuthOptions.SectionName));
 
         services.AddHttpClient<IFiwareService, FiwareService>(httpClient =>
         {

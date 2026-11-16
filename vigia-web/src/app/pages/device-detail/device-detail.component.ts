@@ -14,7 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ButtonModule } from '@openng/optimus-ui/button';
-import { Device, DeviceUser } from '@core/entities';
+import { currentUserLostDevice, Device, DeviceUser, eventIncludesDevice } from '@core/entities';
 import { deviceWhepUrl } from '@core/helpers';
 import {
   DeviceGroupsRealtimeService,
@@ -28,9 +28,9 @@ import {
 } from '@core/helpers/device-card-bounds.helper';
 import { ElementBounds } from '@core/helpers/element-bounds.helper';
 import {
+  AcknowledgeDeviceAlertsService,
   GetDeviceService,
   GetDeviceUsersService,
-  StartDeviceStreamingService,
   DevicesUseCaseError,
 } from '@core/usecases';
 import { AuthSessionService } from '@core/services';
@@ -59,7 +59,7 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly getDevice = inject(GetDeviceService);
   private readonly getDeviceUsers = inject(GetDeviceUsersService);
-  private readonly startStreaming = inject(StartDeviceStreamingService);
+  private readonly acknowledgeDeviceAlerts = inject(AcknowledgeDeviceAlertsService);
   private readonly realtime = inject(DeviceGroupsRealtimeService);
   private readonly authSession = inject(AuthSessionService);
   private readonly transition = inject(DeviceDetailTransitionService);
@@ -144,6 +144,7 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
       const device = await this.getDevice.execute(this.deviceId);
       this.device.set(device);
       this.state.set('ready');
+      void this.acknowledgeDeviceAlerts.execute(this.deviceId);
       void this.startLive();
     } catch (error: unknown) {
       if (error instanceof DevicesUseCaseError && error.message === 'DEVICES.ERRORS.NOT_FOUND') {
@@ -207,17 +208,19 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.realtime.membershipChanged$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => {
-        if (!event.deviceIds.includes(this.deviceId)) {
+        if (!eventIncludesDevice(event, this.deviceId)) {
           return;
         }
 
-        const currentUserId = this.authSession.getUserId();
-        if (event.changeType === 'removed' && event.affectedUserId === currentUserId) {
+        if (currentUserLostDevice(event, this.authSession.getUserId(), this.deviceId)) {
           void this.leave('/devices');
           return;
         }
 
-        void this.loadDevice();
+        if (event.changeType === 'devices_changed') {
+          void this.loadDevice();
+        }
+
         void this.loadUsers();
       });
   }
@@ -237,7 +240,6 @@ export class DeviceDetailComponent implements OnInit, AfterViewInit, OnDestroy {
     this.session.beginConnecting();
 
     try {
-      await this.startStreaming.execute(this.deviceId);
       await this.session.connect();
     } catch (error) {
       this.session.markError(error);

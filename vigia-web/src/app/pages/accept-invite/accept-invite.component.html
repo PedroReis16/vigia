@@ -1,6 +1,13 @@
 <section class="accept-invite" data-testid="accept-invite-page">
   <div class="accept-invite__content">
-    <i class="pi pi-spin pi-spinner accept-invite__spinner" aria-hidden="true"></i>
-    <p>{{ 'INVITE.ACCEPTING' | translate }}</p>
+    @if (failed()) {
+      <p>{{ 'INVITE.ERROR' | translate }}</p>
+      <button type="button" data-testid="accept-invite-retry" (click)="retry()">
+        {{ 'DEVICES.RETRY' | translate }}
+      </button>
+    } @else {
+      <i class="pi pi-spin pi-spinner accept-invite__spinner" aria-hidden="true"></i>
+      <p>{{ 'INVITE.ACCEPTING' | translate }}</p>
+    }
   </div>
 </section>

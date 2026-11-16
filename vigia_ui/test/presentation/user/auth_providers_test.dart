@@ -1,12 +1,35 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vigia_ui/core/providers/repository_providers/auth_repository_provider.dart';
 import 'package:vigia_ui/core/providers/token_storage_provider.dart';
+import 'package:vigia_ui/data/repositories/auth_repository.dart';
+import 'package:vigia_ui/data/services/keycloak_auth_client.dart';
 import 'package:vigia_ui/presentation/devices/providers/pending_invite_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_exit_transition_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/auth_session_provider.dart';
 import 'package:vigia_ui/presentation/user/providers/cold_start_provider.dart';
 
 import '../../helpers/fake_token_storage.dart';
+
+class _LogoutStatus extends AuthRepository {
+  _LogoutStatus(this.statusCode)
+    : super(
+        KeycloakAuthClient(Dio(), realm: 'vigia', clientId: 'vigia-app'),
+        Dio(),
+      );
+
+  final int statusCode;
+
+  @override
+  Future<void> logout({required String refreshToken, String? pushToken}) {
+    final options = RequestOptions(path: '/users/logout');
+    throw DioException(
+      requestOptions: options,
+      response: Response(requestOptions: options, statusCode: statusCode),
+    );
+  }
+}
 
 void main() {
   group('AuthSession', () {
@@ -53,6 +76,56 @@ void main() {
       expect(storage.refreshToken, 'refresh');
       expect(container.read(authSessionProvider).asData?.value, isTrue);
     });
+
+    test(
+      'signOut clears the session when logout rejects a dead token',
+      () async {
+        final storage = FakeTokenStorage(
+          accessToken: 'expired',
+          refreshToken: 'refresh',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            tokenStorageProvider.overrideWithValue(storage),
+            authRepositoryProvider.overrideWith((ref) => _LogoutStatus(401)),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(authSessionProvider.future);
+        await container.read(authSessionProvider.notifier).signOut();
+
+        expect(storage.accessToken, isNull);
+        expect(storage.refreshToken, isNull);
+        expect(container.read(authSessionProvider).asData?.value, isFalse);
+      },
+    );
+
+    test(
+      'signOut keeps the session when logout fails for another reason',
+      () async {
+        final storage = FakeTokenStorage(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            tokenStorageProvider.overrideWithValue(storage),
+            authRepositoryProvider.overrideWith((ref) => _LogoutStatus(500)),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(authSessionProvider.future);
+        await expectLater(
+          container.read(authSessionProvider.notifier).signOut(),
+          throwsA(isA<DioException>()),
+        );
+
+        expect(storage.refreshToken, 'refresh');
+        expect(container.read(authSessionProvider).asData?.value, isTrue);
+      },
+    );
 
     test('clearSession clears tokens and marks session false', () async {
       final storage = FakeTokenStorage(

@@ -27,6 +27,7 @@ describe('DevicesComponent', () => {
     null,
     true,
     false,
+    false,
   );
 
   beforeEach(async () => {

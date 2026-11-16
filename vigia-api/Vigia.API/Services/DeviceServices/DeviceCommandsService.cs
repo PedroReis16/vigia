@@ -79,7 +79,13 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
         }
     }
 
-    public async Task<bool> SendUndemandStopStreamingAsync(Guid deviceId)
+    public Task<bool> SendDemandStartStreamingAsync(Guid deviceId) =>
+        SendMediaMtxStreamingCommandAsync(deviceId, DeviceCommands.START_STREAMING);
+
+    public Task<bool> SendUndemandStopStreamingAsync(Guid deviceId) =>
+        SendMediaMtxStreamingCommandAsync(deviceId, DeviceCommands.STOP_STREAMING);
+
+    private async Task<bool> SendMediaMtxStreamingCommandAsync(Guid deviceId, DeviceCommands command)
     {
         try
         {
@@ -95,14 +101,14 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
 
             bool result = await fiwareService.SendCommandAsync(
                 deviceName: device.Name,
-                command: DeviceCommands.STOP_STREAMING,
+                command: command,
                 commandValue: null);
 
             if (!result)
             {
                 throw new HttpResponseException(
                     StatusCodes.Status502BadGateway,
-                    $"Falha ao enviar STOP_STREAMING para o dispositivo '{device.Name}' via FIWARE.",
+                    $"Falha ao enviar {command} para o dispositivo '{device.Name}' via FIWARE.",
                     ErrorCodes.FIWARE_COMMAND_FAILED);
             }
 
@@ -110,7 +116,7 @@ internal class DeviceCommandsService(ILogger<DeviceCommandsService> logger, ISer
         }
         catch (Exception ex) when (ex is not EntityValidationException and not HttpResponseException)
         {
-            _logger.LogError(ex, "Error sending undemand STOP_STREAMING to device {DeviceId}", deviceId);
+            _logger.LogError(ex, "Error sending MediaMTX {Command} to device {DeviceId}", command, deviceId);
             throw;
         }
     }

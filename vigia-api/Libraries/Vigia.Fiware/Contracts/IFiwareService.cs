@@ -44,7 +44,7 @@ public interface IFiwareService
 
 #if DEBUG
     /// <summary>
-    /// Garante que o dispositivo de teste (<c>TestDeviceSeed</c>) esteja provisionado
+    /// Garante que o pool mock (<c>MockDevicesSeed</c>) esteja provisionado
     /// no IoT Agent, com registration de comandos e subscrições do Orion. Idempotente.
     /// </summary>
     Task<bool> EnsureSeedDeviceAsync();

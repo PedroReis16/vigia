@@ -12,6 +12,7 @@ export interface UpdateDeviceInput {
   nickname?: string | null;
   room?: DeviceRooms | null;
   isClipsEnabled?: boolean | null;
+  isBlurEnabled?: boolean | null;
 }
 
 @Injectable({
@@ -26,6 +27,7 @@ export class UpdateDeviceService {
       nickname: input.nickname,
       room: input.room,
       isClipsEnabled: input.isClipsEnabled,
+      isBlurEnabled: input.isBlurEnabled,
     };
 
     try {

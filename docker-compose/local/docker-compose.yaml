@@ -1,4 +1,199 @@
 services:
+  # ─── POSTGRES ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15
+    container_name: vigia-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=vigia
+      - POSTGRES_PASSWORD=vigia123
+      - POSTGRES_DB=vigia
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vigia -d vigia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vigia-network
+
+  # ─── RABBITMQ ─────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: vigia-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: vigia
+      RABBITMQ_DEFAULT_PASS: vigia123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - vigia-network
+
+  # ─── MAILHOG (SMTP local do fluxo de autenticação) ─────────────────────
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: vigia-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP (Keycloak na rede usa mailhog:1025)
+      - "8025:8025" # UI http://localhost:8025
+    networks:
+      - vigia-network
+
+  # ─── KEYCLOAK ─────────────────────────────────────────────────────────────
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    image: vigia-keycloak:local
+    container_name: keycloak
+    restart: unless-stopped
+    # --import-realm lê /opt/keycloak/data/import/*-realm.json só se o realm ainda não existir
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/vigia?currentSchema=keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: senha_forte
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Traefik encaminha /auth sem strip; o console usa o Host da requisição (localhost e :81)
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_HOST: rabbitmq
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PORT: "5672"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_USERNAME: vigia
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PASSWORD: vigia123
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_EXCHANGE: vigia.users.direct_exchange
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_ROUTING_KEY: users.sync
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./keycloak/themes/vigia:/opt/keycloak/themes/vigia:ro
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/vigia-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      traefik:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.routers.keycloak.priority=40"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
+  # Reaplica SMTP e o perfil de usuário (phone) no realm vigia: --import-realm ignora realm que já existe.
+  keycloak-realm-smtp:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-smtp
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-smtp.sh"]
+    volumes:
+      - ./keycloak/apply-smtp.sh:/apply-smtp.sh:ro
+      - ./keycloak/user-profile.json:/user-profile.json:ro
+    networks:
+      - vigia-network
+
+  # Reaplica redirects, PKCE e audience do cliente vigia-web: --import-realm ignora realm que já existe.
+  keycloak-web-client:
+    image: vigia-keycloak:local
+    container_name: keycloak-web-client
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-web-client.sh"]
+    volumes:
+      - ./keycloak/apply-web-client.sh:/apply-web-client.sh:ro
+    networks:
+      - vigia-network
+
+  # Cria ou reaplica o cliente público vigia-app: --import-realm ignora realm que já existe.
+  keycloak-app-client:
+    image: vigia-keycloak:local
+    container_name: keycloak-app-client
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-app-client.sh"]
+    volumes:
+      - ./keycloak/apply-app-client.sh:/apply-app-client.sh:ro
+    networks:
+      - vigia-network
+
+  # Garante o usuário admin do realm vigia: --import-realm ignora realm que já existe.
+  keycloak-realm-admin:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-admin
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-realm-admin.sh"]
+    volumes:
+      - ./keycloak/apply-realm-admin.sh:/apply-realm-admin.sh:ro
+    networks:
+      - vigia-network
+
+  # Reaplica locales (en, pt-BR; padrão pt-BR): --import-realm ignora realm que já existe.
+  keycloak-realm-locales:
+    image: vigia-keycloak:local
+    container_name: keycloak-realm-locales
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KEYCLOAK_URL: http://keycloak:8080/auth
+    entrypoint: ["/bin/bash", "/apply-locales.sh"]
+    volumes:
+      - ./keycloak/apply-locales.sh:/apply-locales.sh:ro
+    networks:
+      - vigia-network
+
   # ─── REDIS ────────────────────────────────────────────────────────────────
   redis:
     image: redis:latest
@@ -24,27 +219,10 @@ services:
       - vigia-network
     depends_on:
       - redis
-  # ─── POSTGRES ────────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:15
-    container_name: vigia-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_USER=vigia
-      - POSTGRES_PASSWORD=vigia123
-      - POSTGRES_DB=vigia
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d vigia"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - vigia-network
+
   # ─── Minio ────────────────────────────────────────────────────────────────
   minio:
-    image: quay.io/minio/minio:latest
+    image: pedroreis16/minio:latest
     container_name: minio
     ports:
       - "9000:9000"
@@ -88,6 +266,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -258,6 +438,13 @@ services:
       - IOTA_TIMESTAMP=true
       - IOTA_AUTOCAST=true
       - IOTA_PROVIDER_URL=http://iot-agent:4041
+      - IOTA_AMQP_DISABLED=true
+    healthcheck:
+      test: ["CMD", "node", "/opt/iotaul/bin/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.iot.rule=(Host(`localhost`) || Host(`127.0.0.1`) || Host(`host.docker.internal`) || HostRegexp(`^[0-9.]+$`)) && PathPrefix(`/vigia/fiware/iot`)"
@@ -295,7 +482,7 @@ services:
   #  ──  MEDIAMTX (VIDEO STREAMING) ───────────────────────────────────────────────────
 
   mediamtx:
-    # Official image is scratch (no curl/sh/jq). Build adds Alpine for runOnUnread hooks.
+    # Official image is scratch (no curl/sh). Build adds Alpine for runOnDemand hooks.
     build:
       context: ..
       dockerfile: dockerfiles/mediamtx.dockerfile
@@ -305,10 +492,10 @@ services:
     depends_on:
       - vigia-api
     environment:
-      # API in compose (vigia-api). Token = MediaMTX:WebhookToken.
+      # API in compose (vigia-api). Basic = ServiceBasic:MediaMtx.
       VIGIA_API_BASE: http://vigia-api:8080
-      VIGIA_MEDIAMTX_TOKEN: dev-mediamtx-webhook-token
-      UNDEMAND_GRACE_SECONDS: "3"
+      VIGIA_MEDIAMTX_USER: mediamtx
+      VIGIA_MEDIAMTX_PASSWORD: dev-mediamtx-password
     ports:
       # Ingest RTMP direto (mais estável que TCP proxy do Traefik)
       - "1935:1935"
@@ -326,7 +513,8 @@ services:
       - "traefik.http.services.mediamtx-play.loadbalancer.server.port=8889"
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
-      - ../mediamtx-hooks/on_unread_stop_streaming.sh:/hooks/on_unread_stop_streaming.sh:ro
+      - ../mediamtx-hooks/on_demand_start_streaming.sh:/hooks/on_demand_start_streaming.sh:ro
+      - ../mediamtx-hooks/on_undemand_stop_streaming.sh:/hooks/on_undemand_stop_streaming.sh:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

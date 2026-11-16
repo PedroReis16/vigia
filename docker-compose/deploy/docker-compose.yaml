@@ -1,4 +1,125 @@
+# Stack de aplicação da VM (API, worker, Keycloak, RabbitMQ).
+# Redis, Postgres, MinIO, Traefik, MediaMTX, Portainer e FIWARE sobem pelo infra.sh.
+#
+# Na VM (/home/ubuntu/dockers):
+#   docker compose -p vigia up -d
+#
+# Segredos vêm do .env ao lado deste arquivo (ver .env.example, seção "Stack").
+# A API lê o default.env (ver default.env.example).
 services:
+  # ─── RABBITMQ (sync de usuários do Keycloak → API) ────────────────────────
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: vigia-rabbitmq
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-vigia}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD is required}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - vigia-network
+
+  # ─── KEYCLOAK: role e schema no Postgres (idempotente) ────────────────────
+  keycloak-db-init:
+    image: postgres:15
+    container_name: keycloak-db-init
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_ADMIN_USER:-admin}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD:?POSTGRES_ADMIN_PASSWORD is required}
+      PGDATABASE: vigia
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -eu
+        until pg_isready -q; do sleep 2; done
+        psql -v ON_ERROR_STOP=1 -v pw="$$KC_DB_PASSWORD" <<'SQL'
+        SELECT format('CREATE ROLE keycloak WITH LOGIN PASSWORD %L', :'pw')
+          WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'keycloak') \gexec
+        SELECT format('ALTER ROLE keycloak WITH LOGIN PASSWORD %L', :'pw') \gexec
+        CREATE SCHEMA IF NOT EXISTS keycloak AUTHORIZATION keycloak;
+        REVOKE ALL ON SCHEMA keycloak FROM PUBLIC;
+        GRANT USAGE, CREATE ON SCHEMA keycloak TO keycloak;
+        ALTER ROLE keycloak SET search_path TO keycloak;
+        REVOKE ALL ON SCHEMA public FROM keycloak;
+        SQL
+        echo "Role e schema keycloak prontos"
+    networks:
+      - vigia-network
+
+  # ─── KEYCLOAK ─────────────────────────────────────────────────────────────
+  keycloak:
+    image: pedroreis16/vigia-keycloak:latest
+    container_name: keycloak
+    restart: unless-stopped
+    # Imagem já buildada (kc.sh build): start --optimized --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/vigia?currentSchema=keycloak
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      # URL pública: o vigia-web (Cloudflare Pages) repassa vigiadeteccoes.com.br/auth
+      # para o router abaixo (vigia-web/public/_worker.js). A API e o keycloak-setup
+      # falam com keycloak:8080 pela rede.
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-https://vigiadeteccoes.com.br/auth}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      JAVA_OPTS_KC_HEAP: "-XX:InitialRAMPercentage=10 -XX:MaxRAMPercentage=15"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_HOST: rabbitmq
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PORT: "5672"
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_USERNAME: ${RABBITMQ_USER:-vigia}
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_PASSWORD: ${RABBITMQ_PASSWORD}
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_EXCHANGE: vigia.users.direct_exchange
+      KC_SPI_EVENTS_LISTENER_VIGIA_WEBHOOK_ROUTING_KEY: users.sync
+    depends_on:
+      keycloak-db-init:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`services.vigiadeteccoes.com.br`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.keycloak.priority=40"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    networks:
+      - vigia-network
+
+  # Reaplica a configuração do realm (o --import-realm ignora realm existente).
+  keycloak-setup:
+    image: pedroreis16/vigia-keycloak:latest
+    container_name: keycloak-setup
+    restart: "no"
+    entrypoint: ["/bin/bash", "/opt/keycloak/setup/setup-realm.sh"]
+    command: []
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080/auth
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      REALM_ADMIN_PASSWORD: ${KEYCLOAK_REALM_ADMIN_PASSWORD:-}
+      WEB_REDIRECT_URIS: '["https://vigiadeteccoes.com.br/*","https://www.vigiadeteccoes.com.br/*"]'
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - vigia-network
+
   # ─── VIGIA API ────────────────────────────────────────────────────────────
   vigia:
     image: pedroreis16/vigia-api:latest
@@ -8,6 +129,14 @@ services:
       - /home/ubuntu/dockers/default.env
     ports:
       - "8090:8080"
+    volumes:
+      - ./certificates:/certificates:ro
+      - vigia-api-versions:/versions
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vigia.rule=Host(`services.vigiadeteccoes.com.br`) && PathPrefix(`/vigia`)"
@@ -17,8 +146,46 @@ services:
       - "traefik.http.services.vigia.loadbalancer.server.port=8080"
       - "traefik.http.routers.vigia.priority=50"
       - "traefik.http.routers.vigia.middlewares=cors@file"
+      # mTLS das placas (DeviceAuth__RequireClientCertificate=true) fica desligado por ora:
+      # placas já registradas e o vigia-devices não enviam certificado de cliente.
+      # Para ligar, descomente o router abaixo e ajuste o default.env.
+      # - "traefik.http.routers.vigia-devices.rule=Host(`services.vigiadeteccoes.com.br`) && ((Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/frame$$`)) || (Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/clips$$`)) || (Method(`POST`) && PathRegexp(`^/vigia/devices/[0-9a-fA-F-]{36}/clips/[0-9a-fA-F-]{36}/frames/[0-9]+$$`)) || (Method(`GET`) && Path(`/vigia/devices/updates/current`)) || (Method(`GET`) && Path(`/vigia/devices/updates/download`)))"
+      # - "traefik.http.routers.vigia-devices.entrypoints=websecure"
+      # - "traefik.http.routers.vigia-devices.tls=true"
+      # - "traefik.http.routers.vigia-devices.tls.certresolver=letsencrypt"
+      # - "traefik.http.routers.vigia-devices.tls.options=device-mtls@file"
+      # - "traefik.http.routers.vigia-devices.priority=100"
+      # - "traefik.http.routers.vigia-devices.middlewares=pass-device-cert@file"
+      # - "traefik.http.routers.vigia-devices.service=vigia"
     networks:
       - vigia-network
+
+  # ─── WORKER (placas simuladas) ────────────────────────────────────────────
+  vigia-devices:
+    image: pedroreis16/vigia-devices:latest
+    container_name: vigia-devices
+    restart: unless-stopped
+    environment:
+      # HTTPS público: o MQTT deriva para wss://mosquitto.vigiadeteccoes.com.br
+      API_BASE_URL: https://services.vigiadeteccoes.com.br/vigia
+      FIWARE_API_KEY: VIGIA
+      STREAM_INGEST_URL: rtmp://vigia-mediamtx:1935
+      REDIS_URL: redis://redis:6379/0
+      FALL_MIN_S: ${WORKER_FALL_MIN_S:-300}
+      FALL_MAX_S: ${WORKER_FALL_MAX_S:-900}
+      LOG_LEVEL: INFO
+    # mosquitto.* é DNS-only e a 443 do IP público não responde de dentro da VM:
+    # resolve para o host, onde o Traefik publica a 443 (WSS → fiware-mosquitto).
+    extra_hosts:
+      - "mosquitto.vigiadeteccoes.com.br:host-gateway"
+    depends_on:
+      - vigia
+    networks:
+      - vigia-network
+
+volumes:
+  rabbitmq-data:
+  vigia-api-versions:
 
 networks:
   vigia-network:

@@ -1,74 +1,49 @@
 import { TestBed } from '@angular/core/testing';
-import { AUTH_STORAGE_KEYS } from '@core/constants';
+import { vi } from 'vitest';
 import { AuthSessionService } from './auth-session.service';
-import { StorageService } from '../storage/storage.service';
+import { KeycloakAuthService } from './keycloak-auth.service';
 
 describe('AuthSessionService', () => {
   let service: AuthSessionService;
-  let storage: Record<string, string>;
+  let keycloak: {
+    authenticated: boolean;
+    token: string | null;
+    userId: string | null;
+    updateToken: ReturnType<typeof vi.fn>;
+    clearToken: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
-    storage = {};
+    keycloak = {
+      authenticated: true,
+      token: 'access',
+      userId: 'user-1',
+      updateToken: vi.fn().mockResolvedValue('access'),
+      clearToken: vi.fn(),
+    };
+
     TestBed.configureTestingModule({
-      providers: [
-        AuthSessionService,
-        {
-          provide: StorageService,
-          useValue: {
-            getItem: (key: string) => storage[key] ?? null,
-            setItem: (key: string, value: string) => {
-              storage[key] = value;
-            },
-            removeItem: (key: string) => {
-              delete storage[key];
-            },
-          },
-        },
-      ],
+      providers: [{ provide: KeycloakAuthService, useValue: keycloak }],
     });
     service = TestBed.inject(AuthSessionService);
   });
 
-  it('is authenticated when refresh token exists', () => {
-    expect(service.isAuthenticated()).toBe(false);
-    const accessToken = [
-      btoa(JSON.stringify({ alg: 'none' })),
-      btoa(JSON.stringify({ sub: 'user-1' })),
-      '',
-    ].join('.');
-    
-    service.setSession({
-      accessToken: accessToken, //gitleaks:allow
-      refreshToken: 'refresh',
-    });
+  it('reads the Keycloak session', () => {
     expect(service.isAuthenticated()).toBe(true);
-    expect(service.getAccessToken()).toBe(accessToken);
-    expect(service.getRefreshToken()).toBe('refresh');
+    expect(service.getAccessToken()).toBe('access');
     expect(service.getUserId()).toBe('user-1');
   });
 
-  it('stores tokens without user id when JWT has no sub', () => {
-    service.setSession({
-      accessToken: `h.${btoa(JSON.stringify({ email: 'a@b.com' }))}.s`,
-      refreshToken: 'r',
-    });
-    expect(service.getUserId()).toBeNull();
-    expect(storage[AUTH_STORAGE_KEYS.userId]).toBeUndefined();
+  it('refreshes and forces a new access token', async () => {
+    await service.ensureFreshAccessToken();
+    await service.forceRefreshAccessToken();
+
+    expect(keycloak.updateToken).toHaveBeenNthCalledWith(1, 30);
+    expect(keycloak.updateToken).toHaveBeenNthCalledWith(2, -1);
   });
 
-  it('treats empty refresh token as unauthenticated', () => {
-    storage[AUTH_STORAGE_KEYS.refreshToken] = '';
-    expect(service.isAuthenticated()).toBe(false);
-  });
-
-  it('clears all session keys', () => {
-    service.setSession({ accessToken: 'a.b.c', refreshToken: 'r' });
+  it('clears the Keycloak token', () => {
     service.clearSession();
-    expect(service.getAccessToken()).toBeNull();
-    expect(service.getRefreshToken()).toBeNull();
-    expect(service.getUserId()).toBeNull();
-    expect(storage[AUTH_STORAGE_KEYS.accessToken]).toBeUndefined();
-    expect(storage[AUTH_STORAGE_KEYS.refreshToken]).toBeUndefined();
-    expect(storage[AUTH_STORAGE_KEYS.userId]).toBeUndefined();
+    expect(keycloak.clearToken).toHaveBeenCalled();
   });
 });

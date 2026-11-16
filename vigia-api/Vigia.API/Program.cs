@@ -4,8 +4,11 @@ using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.OpenApi;
 using Vigia.API.Config;
 using Vigia.API.Contracts;
+using Vigia.API.Contracts.Clips;
 using Vigia.API.Hubs;
 using Vigia.API.Services;
+using Vigia.API.Services.Users;
+using Vigia.API.Services.Clips;
 using Vigia.Database.Extensions;
 using Vigia.Cache.Extensions;
 using Vigia.API.Contracts.CacheServices;
@@ -19,6 +22,7 @@ using Vigia.Fiware.Extensions;
 using Microsoft.AspNetCore.SignalR;
 using Vigia.API.Extensions;
 using Vigia.Cloud.Extensions;
+using Vigia.AMQP.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -56,18 +60,39 @@ builder.Services.AddCloudServices(builder.Configuration);
 // Firebase push notifications
 builder.Services.AddFirebasePushNotifications(builder.Configuration);
 
+builder.Services.AddRabbitMq();
+builder.Services.AddScoped<IKeycloakUserSyncService, KeycloakUserSyncService>();
+builder.Services.AddHostedService<KeycloakUserSyncConsumer>();
+
 // Services
-builder.Services.AddTransient<IUserService, UserService>();
+builder.Services.Configure<KeycloakOptions>(builder.Configuration.GetSection(KeycloakOptions.SectionName));
+builder.Services.AddHttpClient<IKeycloakSessionClient, KeycloakSessionClient>();
+builder.Services.AddHttpClient<IKeycloakAdminClient, KeycloakAdminClient>();
 builder.Services.AddTransient<IUserPushTokenService, UserPushTokenService>();
+builder.Services.AddTransient<IUserLogoutService, UserLogoutService>();
+builder.Services.AddTransient<UserProfileService>();
+builder.Services.AddTransient<IUserProfileService>(sp => sp.GetRequiredService<UserProfileService>());
+builder.Services.AddTransient<IUserPictureCleaner>(sp => sp.GetRequiredService<UserProfileService>());
 builder.Services.AddTransient<IDevicesService, DevicesService>();
 builder.Services.AddTransient<IDeviceUsersService, DeviceUsersService>();
 builder.Services.AddTransient<IDeviceShareService, DeviceShareService>();
-builder.Services.AddTransient<IAuthService, AuthService>();
 builder.Services.AddTransient<IDeviceCommandsService, DeviceCommandsService>();
 builder.Services.AddSingleton<IGroupRealtimeNotifier, GroupRealtimeNotifier>();
 builder.Services.AddSingleton<IUserIdProvider, JwtUserIdProvider>();
 builder.Services.AddTransient<IVersionService, VersionService>();
+builder.Services.Configure<AlertOptions>(builder.Configuration.GetSection(AlertOptions.SectionName));
 builder.Services.AddTransient<IAlertService, AlertService>();
+builder.Services.AddTransient<INotificationInboxService, NotificationInboxService>();
+builder.Services.AddHostedService<FallAlertRetryWorker>();
+builder.Services.Configure<ClipOptions>(builder.Configuration.GetSection(ClipOptions.SectionName));
+builder.Services.AddSingleton<ClipAssemblyQueue>();
+builder.Services.AddSingleton<IClipAssemblyQueue>(sp => sp.GetRequiredService<ClipAssemblyQueue>());
+builder.Services.AddSingleton<IClipAssembler, FfmpegClipAssembler>();
+builder.Services.AddTransient<IClipIngestService, ClipIngestService>();
+builder.Services.AddHostedService<ClipAssemblyWorker>();
+#if DEBUG
+builder.Services.AddHostedService<SeedDeviceFramesWorker>();
+#endif
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton<JwtConverterService>(); // Singleton para Encode e Decode de tokens JWT
@@ -78,11 +103,16 @@ builder.Services.AddRepositoryServices();
 // Cache Services
 builder.Services.AddSingleton<IRevokedTokensCacheService, RevokedTokensCacheService>();
 builder.Services.AddSingleton<IDeviceFrameCacheService, DeviceFrameCacheService>();
-builder.Services.AddSingleton<IDeviceIdentityCacheService, DeviceIdentityCacheService>();
 builder.Services.AddSingleton<IFrameAccessCacheService, FrameAccessCacheService>();
+builder.Services.AddSingleton<IClipAccessCacheService, ClipAccessCacheService>();
+builder.Services.AddSingleton<IPictureAccessCacheService, PictureAccessCacheService>();
 
-builder.Services.AddSingleton<IDeviceSignPublicKeyProvider, DeviceSignPublicKeyProvider>();
 builder.Services.AddSingleton<IFrameAccessTokenProvider, FrameAccessTokenProvider>();
+builder.Services.AddSingleton<IClipAccessTokenProvider, ClipAccessTokenProvider>();
+builder.Services.AddSingleton<IPictureAccessTokenProvider, PictureAccessTokenProvider>();
+builder.Services.AddSingleton<DeviceCertificateAuthority>();
+builder.Services.AddSingleton<IDeviceCertificateAuthority>(provider => provider.GetRequiredService<DeviceCertificateAuthority>());
+builder.Services.AddSingleton<IDeviceCertificateAuthenticator>(provider => provider.GetRequiredService<DeviceCertificateAuthority>());
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

@@ -23,10 +23,6 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo é obrigatório", ErrorCodes.MAC_ADDRESS_REQUIRED);
             if (!Models.Helpers.Validators.IsValidMacAddress(device.MacAddress))
                 throw new EntityValidationException(nameof(device.MacAddress), "O endereço MAC do dispositivo não é válido", ErrorCodes.INVALID_MAC_ADDRESS);
-            if (string.IsNullOrWhiteSpace(device.SignPublicKey))
-                throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo é obrigatória", ErrorCodes.SIGN_PUBLIC_KEY_REQUIRED);
-            if (!Models.Helpers.Validators.IsValidEd25519PublicKeyHex(device.SignPublicKey))
-                throw new EntityValidationException(nameof(device.SignPublicKey), "A chave pública do dispositivo não é válida", ErrorCodes.INVALID_SIGN_PUBLIC_KEY);
         }
         return Task.CompletedTask;
     }
@@ -79,7 +75,6 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         {
             trackedDevice.Name = newDevice.Name;
             trackedDevice.MacAddress = newDevice.MacAddress;
-            trackedDevice.SignPublicKey = newDevice.SignPublicKey;
             trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
             trackedDevice.DeletedAt = null;
 
@@ -145,6 +140,35 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
             .FirstOrDefaultAsync();
     }
 
+    public async Task UpdateClientCertificateAsync(
+        Guid deviceId,
+        string serial,
+        DateTime notAfterUtc,
+        CancellationToken cancellationToken = default)
+    {
+        Device? trackedDevice = await Context.Set<Device>()
+            .Where(d => d.Id == deviceId && d.DeletedAt == null)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (trackedDevice == null)
+            throw new EntityValidationException(nameof(Device), $"O dispositivo '{deviceId}' não foi encontrado", ErrorCodes.DEVICE_NOT_FOUND);
+
+        trackedDevice.ClientCertificateSerial = serial;
+        trackedDevice.ClientCertificateNotAfter = notAfterUtc;
+        trackedDevice.UpdatedAt = DateTime.UtcNow;
+        Cache?.RemoveEntity(trackedDevice);
+        await Context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<Device?> FindByClientCertificateSerialAsync(string serial, CancellationToken cancellationToken = default)
+    {
+        string normalized = serial.Trim().ToUpperInvariant();
+        return Context.Set<Device>()
+            .Where(d => d.DeletedAt == null && d.ClientCertificateSerial == normalized)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public async Task<List<Device>> GetUserDevicesAsync(Guid userId, string? nickname = null, DeviceRooms? room = null, bool onlyShared = false, bool onlyOwned = false, int page = 1, int pageSize = 10)
     {
         DbSet<Device> dbSet = Context.Set<Device>();
@@ -197,6 +221,7 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
         trackedDevice.Nickname = updatedDevice.Nickname ?? trackedDevice.Nickname;
         trackedDevice.Room = updatedDevice.Room ?? trackedDevice.Room;
         trackedDevice.IsClipsEnabled = updatedDevice.IsClipsEnabled;
+        trackedDevice.IsBlurEnabled = updatedDevice.IsBlurEnabled;
         trackedDevice.UpdatedAt = DateTime.Now.ToUniversalTime();
 
         dbSet.Update(trackedDevice);

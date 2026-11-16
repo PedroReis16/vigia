@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/repository_providers/devices_repository_provider.dart';
-import 'package:vigia_ui/data/services/app_identity_service.dart';
 import 'package:vigia_ui/data/services/ble_pairing_service.dart';
 import 'package:vigia_ui/domain/DTOs/device_identity.dart';
 import 'package:vigia_ui/domain/DTOs/device_provision_config.dart';
@@ -44,12 +43,13 @@ class DevicePairingState {
 @riverpod
 class DevicePairing extends _$DevicePairing {
   final BlePairingService _ble = BlePairingService();
-  final AppIdentityService _identity = AppIdentityService();
 
   StreamSubscription<ScanResult>? _scanSubscription;
   BluetoothDevice? _connectedBleDevice;
   DeviceIdentity? _deviceIdentity;
   DeviceProvisionConfig? _provisionConfig;
+  String? _clientCertificate;
+  String? _clientPrivateKey;
   String? _bleName;
   var _started = false;
   var _registered = false;
@@ -126,6 +126,8 @@ class DevicePairing extends _$DevicePairing {
         apiBaseUrl: Environments.apiUrl,
         fiwareApiKey: provisionConfig.fiwareApiKey,
         streamIngestUrl: provisionConfig.streamIngestUrl,
+        clientCert: _clientCertificate,
+        clientKey: _clientPrivateKey,
       );
 
       final status = await _ble.pollProvisionStatus(device);
@@ -195,23 +197,12 @@ class DevicePairing extends _$DevicePairing {
           : result.device.platformName.trim();
       _bleName = name;
 
-      state = const DevicePairingState(
-        stage: DevicePairingStage.authenticating,
-      );
-
       final identity = await _ble.readIdentity(result.device);
       _deviceIdentity = identity;
-
-      final appPub = await _identity.publicKeyHex();
-      await _ble.authenticate(
-        result.device,
-        appSignPubHex: appPub,
-        signNonce: _identity.signHex,
-      );
     } catch (error) {
       state = DevicePairingState(
         stage: DevicePairingStage.error,
-        errorMessage: 'Não foi possível autenticar: $error',
+        errorMessage: 'Não foi possível ler o dispositivo: $error',
       );
       return;
     }
@@ -245,19 +236,15 @@ class DevicePairing extends _$DevicePairing {
 
   Future<void> _registerDevice(DeviceIdentity identity) async {
     final repo = ref.read(devicesRepositoryProvider);
-    final newDevice = _toNewDevice(identity);
-
-    final existing = await repo.getDevice(newDevice.id);
-    if (existing == null) {
-      await repo.registerDevice(newDevice);
-    }
+    final material = await repo.registerDevice(_toNewDevice(identity));
+    _clientCertificate = material?.certificate;
+    _clientPrivateKey = material?.privateKey;
   }
 
   NewDevice _toNewDevice(DeviceIdentity identity) {
     return NewDevice(
       id: identity.deviceId,
       name: identity.name.isNotEmpty ? identity.name : (_bleName ?? 'Vigia'),
-      signPublicKey: identity.signPub,
       macAddress: identity.macAddress,
     );
   }
@@ -269,6 +256,8 @@ class DevicePairing extends _$DevicePairing {
     _connectedBleDevice = null;
     _deviceIdentity = null;
     _provisionConfig = null;
+    _clientCertificate = null;
+    _clientPrivateKey = null;
     _bleName = null;
     _registered = false;
   }

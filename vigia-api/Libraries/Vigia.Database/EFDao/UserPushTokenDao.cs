@@ -112,4 +112,28 @@ internal class UserPushTokenDao(VigiaDbContext context) : BaseDao<UserPushToken>
         dbSet.UpdateRange(existing);
         await Context.SaveChangesAsync();
     }
+
+    public async Task DeleteByUserIdAsync(Guid userId)
+    {
+        if (userId == Guid.Empty)
+            return;
+
+        DbSet<UserPushToken> dbSet = Context.Set<UserPushToken>();
+        List<UserPushToken> existing = await dbSet
+            .Where(t => t.UserId == userId && t.DeletedAt == null)
+            .ToListAsync();
+
+        if (existing.Count == 0)
+            return;
+
+        DateTime now = DateTime.UtcNow;
+        foreach (UserPushToken pushToken in existing)
+        {
+            pushToken.DeletedAt = now;
+            pushToken.UpdatedAt = now;
+        }
+
+        dbSet.UpdateRange(existing);
+        await Context.SaveChangesAsync();
+    }
 }

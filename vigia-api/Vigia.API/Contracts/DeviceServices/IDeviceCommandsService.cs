@@ -7,7 +7,12 @@ public interface IDeviceCommandsService
     Task<bool> SendCommandAsync(Guid deviceId, Guid userId, DeviceCommandDTO deviceCommand);
 
     /// <summary>
-    /// Envia STOP_STREAMING sem checagem de ACL de usuário (caller confiável: MediaMTX).
+    /// Envia START_STREAMING sem checagem de ACL de usuário (caller confiável: MediaMTX runOnDemand).
+    /// </summary>
+    Task<bool> SendDemandStartStreamingAsync(Guid deviceId);
+
+    /// <summary>
+    /// Envia STOP_STREAMING sem checagem de ACL de usuário (caller confiável: MediaMTX runOnUnDemand).
     /// </summary>
     Task<bool> SendUndemandStopStreamingAsync(Guid deviceId);
 }

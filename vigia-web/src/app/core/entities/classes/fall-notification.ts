@@ -1,6 +1,9 @@
+export type DeviceAlertType = 'fall' | 'device_offline';
+
 export interface FallNotification {
   id: string;
-  type: 'fall';
+  episodeId?: string;
+  type: DeviceAlertType;
   deviceId: string;
   deviceName: string;
   nickname: string;
@@ -15,6 +18,7 @@ export interface FallAlertPayload {
   deviceId?: string;
   deviceName?: string;
   nickname?: string;
+  alertId?: string;
 }
 
 export interface FallAlertNotificationContent {

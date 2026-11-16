@@ -8,7 +8,6 @@ namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
 [Route("devices/{deviceId}/users")]
-[Authorize]
 public class DevicesUsersController(IDeviceUsersService service, IDevicesService devicesService) : ControllerBase
 {
     private readonly IDeviceUsersService _service = service;

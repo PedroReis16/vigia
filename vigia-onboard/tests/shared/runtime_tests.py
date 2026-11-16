@@ -1,0 +1,278 @@
+"""Testes unitários para shared.runtime e shared.paths."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from shared import paths
+from shared import runtime
+
+
+def test_onboard_root_ApontaParaRaizDoOnboard():
+    root = paths.onboard_root()
+    assert (root / "shared" / "paths.py").is_file()
+    assert paths.capture_root() == root / "capture"
+    assert paths.core_root() == root / "core"
+    assert paths.requirements_file() == root / "requirements.txt"
+    assert paths.venv_dir() == root / ".venv"
+
+
+def test_venv_python_Unix():
+    with patch.object(paths.sys, "platform", "darwin"):
+        assert paths.venv_python(Path("/tmp/v")) == Path("/tmp/v/bin/python")
+
+
+def test_venv_python_Windows():
+    with patch.object(paths.sys, "platform", "win32"):
+        assert paths.venv_python(Path("C:/v")) == Path("C:/v/Scripts/python.exe")
+
+
+def test_ensure_venv_JaExiste_NaoRecria(tmp_path: Path):
+    venv = tmp_path / ".venv"
+    python = paths.venv_python(venv)
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+
+    with patch.object(runtime, "read_python_version", return_value=(3, 12)), patch.object(
+        runtime.venv, "EnvBuilder"
+    ) as builder_cls:
+        result = runtime.ensure_venv(venv)
+
+    assert result == python
+    builder_cls.assert_not_called()
+
+
+def test_ensure_venv_PythonAntigo_Recria(tmp_path: Path):
+    venv = tmp_path / ".venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+
+    def _create(root: Path) -> None:
+        dest = Path(root) / "bin" / "python"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("", encoding="utf-8")
+
+    builder = MagicMock()
+    builder.create.side_effect = _create
+
+    with patch.object(runtime, "read_python_version", return_value=(3, 9)), patch.object(
+        runtime.venv, "EnvBuilder", return_value=builder
+    ), patch.object(runtime, "venv_python", return_value=python):
+        result = runtime.ensure_venv(venv)
+
+    builder.create.assert_called_once_with(venv)
+    assert result == python
+
+
+def test_resolve_host_python_AtualSuficiente():
+    with patch.object(runtime.sys, "version_info", (3, 13, 0)):
+        assert runtime.resolve_host_python() == Path(runtime.sys.executable)
+
+
+def test_host_python_candidates_WindowsIncluiPyEPython():
+    names = runtime.host_python_candidates("win32")
+    assert names[0] == "py"
+    assert "python" in names
+    assert "python3.12" in names
+
+
+def test_host_python_candidates_UnixPreferePython3():
+    assert runtime.host_python_candidates("darwin") == ("python3.13", "python3.12")
+    assert runtime.host_python_candidates("linux") == ("python3.13", "python3.12")
+
+
+def test_ensure_venv_Ausente_Cria(tmp_path: Path):
+    venv = tmp_path / ".venv"
+
+    def _create(root: Path) -> None:
+        dest = Path(root) / "bin" / "python"
+        dest.parent.mkdir(parents=True)
+        dest.write_text("", encoding="utf-8")
+
+    builder = MagicMock()
+    builder.create.side_effect = _create
+
+    with patch.object(runtime.venv, "EnvBuilder", return_value=builder), patch.object(
+        runtime, "venv_python", return_value=venv / "bin" / "python"
+    ):
+        result = runtime.ensure_venv(venv)
+
+    builder.create.assert_called_once_with(venv)
+    assert result == venv / "bin" / "python"
+
+
+def test_dependencies_are_current_StampIgual(tmp_path: Path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("foo==1\n", encoding="utf-8")
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    digest = runtime._hash_file(req)
+    (venv / runtime._STAMP_NAME).write_text(digest + "\n", encoding="utf-8")
+
+    assert runtime.dependencies_are_current(venv, req) is True
+
+
+def test_dependencies_are_current_StampAusente(tmp_path: Path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("foo==1\n", encoding="utf-8")
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+
+    assert runtime.dependencies_are_current(venv, req) is False
+
+
+def test_ensure_dependencies_JaSincronizado_NaoInstala(tmp_path: Path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("foo==1\n", encoding="utf-8")
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    python = venv / "bin" / "python"
+    python.parent.mkdir()
+    python.write_text("", encoding="utf-8")
+    (venv / runtime._STAMP_NAME).write_text(
+        runtime._hash_file(req) + "\n", encoding="utf-8"
+    )
+
+    with patch.object(runtime.subprocess, "check_call") as pip:
+        runtime.ensure_dependencies(python, req)
+
+    pip.assert_not_called()
+
+
+def test_ensure_dependencies_StampVelho_Instala(tmp_path: Path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("foo==1\n", encoding="utf-8")
+    venv = tmp_path / ".venv"
+    bin_dir = venv / "bin"
+    bin_dir.mkdir(parents=True)
+    python = bin_dir / "python"
+    python.write_text("", encoding="utf-8")
+
+    with patch.object(runtime.subprocess, "check_call") as pip:
+        runtime.ensure_dependencies(python, req)
+
+    assert pip.call_count == 2
+    assert (venv / runtime._STAMP_NAME).is_file()
+
+
+def test_ensure_venv_scripts_on_path_PrependeScripts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    monkeypatch.setenv("PATH", "/usr/bin")
+
+    runtime.ensure_venv_scripts_on_path(python)
+
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(python.parent)
+
+
+def test_disable_ultralytics_autoinstall_DefineDefault(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("YOLO_AUTOINSTALL", raising=False)
+    runtime.disable_ultralytics_autoinstall()
+    assert os.environ["YOLO_AUTOINSTALL"] == "false"
+
+
+def test_disable_ultralytics_autoinstall_RespeitaOverride(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("YOLO_AUTOINSTALL", "true")
+    runtime.disable_ultralytics_autoinstall()
+    assert os.environ["YOLO_AUTOINSTALL"] == "true"
+
+
+def test_ensure_venv_scripts_on_path_NaoDuplica(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    scripts = str(python.parent)
+    monkeypatch.setenv("PATH", f"{scripts}{os.pathsep}/usr/bin")
+
+    runtime.ensure_venv_scripts_on_path(python)
+
+    assert os.environ["PATH"].split(os.pathsep).count(scripts) == 1
+
+
+def test_ensure_env_file_CopiaExample(tmp_path: Path):
+    (tmp_path / ".env.example").write_text("YOLO_MODEL=yolo26s-pose\n", encoding="utf-8")
+
+    with patch.object(runtime, "onboard_root", return_value=tmp_path):
+        dest = runtime.ensure_env_file()
+
+    assert dest == tmp_path / ".env"
+    assert dest is not None
+    assert dest.read_text(encoding="utf-8") == "YOLO_MODEL=yolo26s-pose\n"
+
+
+def test_ensure_env_file_JaExiste_NaoSobrescreve(tmp_path: Path):
+    (tmp_path / ".env.example").write_text("NEW=1\n", encoding="utf-8")
+    existing = tmp_path / ".env"
+    existing.write_text("OLD=1\n", encoding="utf-8")
+
+    with patch.object(runtime, "onboard_root", return_value=tmp_path):
+        dest = runtime.ensure_env_file()
+
+    assert dest == existing
+    assert existing.read_text(encoding="utf-8") == "OLD=1\n"
+
+
+def test_prepare_runtime_ForaDoVenv_Reexecuta():
+    python = Path("/tmp/fake-venv/bin/python")
+
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=False
+    ), patch.object(
+        runtime, "_reexec_in_venv", side_effect=SystemExit(0)
+    ) as reexec, patch.object(runtime, "ensure_dependencies") as deps, patch.object(
+        runtime, "ensure_model"
+    ) as model:
+        with pytest.raises(SystemExit):
+            runtime.prepare_runtime(reexec_module="capture")
+
+    reexec.assert_called_once_with(python, "capture")
+    deps.assert_not_called()
+    model.assert_not_called()
+
+
+def test_prepare_runtime_NoVenv_InstalaSemModelo(tmp_path: Path):
+    python = tmp_path / ".venv" / "bin" / "python"
+
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=True
+    ), patch.object(
+        runtime, "ensure_dependencies"
+    ) as deps, patch.object(
+        runtime, "ensure_model", return_value=tmp_path / "m.onnx"
+    ) as model:
+        result = runtime.prepare_runtime(reexec_module="core", skip_model=True)
+
+    assert result == python
+    deps.assert_called_once_with(python)
+    model.assert_not_called()
+
+
+def test_prepare_runtime_NoVenv_InstalaEExporta(tmp_path: Path):
+    python = tmp_path / ".venv" / "bin" / "python"
+
+    with patch.object(runtime, "ensure_supported_interpreter"), patch.object(
+        runtime, "ensure_env_file"
+    ), patch.object(runtime, "ensure_venv", return_value=python), patch.object(
+        runtime, "is_running_in_venv", return_value=True
+    ), patch.object(
+        runtime, "ensure_dependencies"
+    ) as deps, patch.object(
+        runtime, "ensure_model", return_value=tmp_path / "m.onnx"
+    ) as model:
+        result = runtime.prepare_runtime(reexec_module="capture", skip_model=False)
+
+    assert result == python
+    deps.assert_called_once_with(python)
+    model.assert_called_once()

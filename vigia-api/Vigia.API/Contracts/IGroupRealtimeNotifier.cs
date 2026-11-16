@@ -6,4 +6,5 @@ public interface IGroupRealtimeNotifier
 {
     Task NotifyMembershipJoinedAsync(Guid groupId, Guid userId);
     Task NotifyMembershipRemovedAsync(Guid groupId, Guid userId);
+    Task NotifyDevicesChangedAsync(Guid groupId, Guid affectedUserId, Guid deviceId);
 }

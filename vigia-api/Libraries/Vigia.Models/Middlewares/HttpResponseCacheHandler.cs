@@ -15,6 +15,13 @@ public class HttpResponseCacheHandler : IMiddleware
     }
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
+        string path = context.Request.Path.Value ?? string.Empty;
+        if (path.Contains("/hubs/", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context);
+            return;
+        }
+
         if (_maxAge.TotalSeconds > 0)
         {
             IResponseCachingFeature? cachingFeature = context.Features.Get<IResponseCachingFeature>();

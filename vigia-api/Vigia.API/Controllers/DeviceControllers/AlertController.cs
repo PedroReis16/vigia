@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vigia.API.Contracts;
 using Vigia.API.Models.DTOs.Alerts;
+using Vigia.Models.Middlewares;
 
 namespace Vigia.API.Controllers.DeviceControllers;
 
@@ -15,7 +16,7 @@ public class AlertController(IAlertService service) : ControllerBase
     /// Webhook do Orion: recebe notificação quando <c>fall_state</c> passa a <c>fall</c>.
     /// </summary>
     [HttpPost]
-    [AllowAnonymous]
+    [Authorize(AuthenticationSchemes = ServiceBasicDefaults.AuthenticationScheme, Roles = ServiceBasicDefaults.OrionRole)]
     [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

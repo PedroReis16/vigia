@@ -1,6 +1,4 @@
 import {
-  HttpBackend,
-  HttpClient,
   HttpErrorResponse,
   HttpEvent,
   HttpHandler,
@@ -8,15 +6,12 @@ import {
   HttpRequest,
 } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { AuthTokensDto } from '@core/entities/DTOs/auth.dto';
 import { AuthSessionService } from '@core/services/auth/auth-session.service';
-import { environment } from '@environments/environment';
-import { catchError, Observable, switchMap, throwError } from 'rxjs';
+import { catchError, from, Observable, switchMap, throwError } from 'rxjs';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
   private readonly session = inject(AuthSessionService);
-  private readonly refreshHttp = new HttpClient(inject(HttpBackend));
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     const skipAuth = req.headers.get('Skip-Auth') === 'true';
@@ -43,44 +38,27 @@ export class AuthInterceptor implements HttpInterceptor {
           return throwError(() => error);
         }
 
-        if (skipAuth || this.isPublicAuthPath(request.url) || req.headers.has('X-Auth-Retry')) {
+        if (skipAuth || req.headers.has('X-Auth-Retry')) {
           return throwError(() => error);
         }
 
-        const refreshToken = this.session.getRefreshToken();
-        if (!refreshToken) {
-          this.session.clearSession();
-          return throwError(() => error);
-        }
-
-        const base = environment.apiUrl.replace(/\/$/, '');
-        return this.refreshHttp
-          .post<AuthTokensDto>(`${base}/auth/refresh`, { refreshToken })
-          .pipe(
-            switchMap((tokens) => {
-              this.session.setSession(tokens);
-              const retryReq = req.clone({
-                setHeaders: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                  'X-Auth-Retry': 'true',
-                },
-              });
-              return next.handle(retryReq);
-            }),
-            catchError((refreshError: unknown) => {
+        return from(this.session.forceRefreshAccessToken()).pipe(
+          switchMap((accessToken) => {
+            if (!accessToken) {
               this.session.clearSession();
-              return throwError(() => refreshError);
-            }),
-          );
-      }),
-    );
-  }
+              return throwError(() => error);
+            }
 
-  private isPublicAuthPath(url: string): boolean {
-    return (
-      url.includes('/auth/login') ||
-      url.includes('/auth/register') ||
-      url.includes('/auth/refresh')
+            const retryReq = req.clone({
+              setHeaders: {
+                Authorization: `Bearer ${accessToken}`,
+                'X-Auth-Retry': 'true',
+              },
+            });
+            return next.handle(retryReq);
+          }),
+        );
+      }),
     );
   }
 }

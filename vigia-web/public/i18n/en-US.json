@@ -9,6 +9,85 @@
       "LIGHT": "Light"
     }
   },
+  "PROFILE": {
+    "TITLE": "Profile",
+    "MENU": "My profile",
+    "BACK": "Back",
+    "EDIT": "Edit",
+    "NAME": "Name",
+    "FIRST_NAME": "First name",
+    "LAST_NAME": "Last name",
+    "EMAIL": "Email",
+    "PHONE": "Phone",
+    "SAVE": "Save",
+    "SAVED": "Profile updated.",
+    "SAVE_ERROR": "Could not save the profile.",
+    "NAME_INVALID": "Enter a first and last name.",
+    "PHONE_INVALID": "Enter a valid phone number.",
+    "CHANGE_PICTURE": "Change photo",
+    "REMOVE_PICTURE": "Remove photo",
+    "PICTURE_INVALID": "Choose a JPEG, PNG, or WebP image up to 2 MB.",
+    "PICTURE_ERROR": "Could not update the photo.",
+    "LOAD_ERROR": "Could not load the profile.",
+    "DELETE_ACCOUNT": "Delete account",
+    "DELETE_HINT": "The account, photo, and access to devices are removed.",
+    "DELETE_TITLE": "Delete account",
+    "DELETE_MESSAGE": "This cannot be undone. Delete the account?",
+    "DELETE_CONFIRM": "Delete",
+    "DELETE_ERROR": "Could not delete the account.",
+    "DELETE_FORBIDDEN": "The super admin cannot delete the account.",
+    "PLAN": {
+      "TITLE": "Plan",
+      "PREVIEW_HINT": "Sample data for now. Nothing is charged.",
+      "ACTIVE": "Active plan",
+      "EDIT": "Edit my plan",
+      "EDIT_HINT": "Choose a package to preview a change. The active plan stays the same in this preview.",
+      "DRAFT_HINT": "Preview only. Nothing is charged and the active plan stays the same.",
+      "CURRENT": "Current plan",
+      "RENEWS": "Renews on {{date}}",
+      "PER_MONTH": "/month",
+      "STATUS": {
+        "ACTIVE": "Active"
+      },
+      "PAYMENT_METHOD": "Card",
+      "EXPIRES": "Expires {{expiry}}",
+      "USAGE_DEVICES": "{{used}} of {{limit}} devices",
+      "USAGE_STORAGE": "{{used}} of {{limit}} GB of clips",
+      "OVER_LIMIT": "Over this package's limit",
+      "PACKAGES": "Packages",
+      "PACKAGE_CURRENT": "Current plan",
+      "PACKAGE_PREVIEWING": "Previewing",
+      "PACKAGE_PREVIEW": "See this package",
+      "PAYMENTS": "Payments",
+      "INVOICE_STATUS": {
+        "PAID": "Paid",
+        "SCHEDULED": "Scheduled"
+      },
+      "CATALOG": {
+        "ESSENTIAL": {
+          "NAME": "Essential",
+          "HINT": "One room, with realtime alerts."
+        },
+        "FAMILY": {
+          "NAME": "Family care",
+          "HINT": "More than one Vigia, with fall clips."
+        },
+        "HOME": {
+          "NAME": "Residential",
+          "HINT": "Several rooms, long history, and priority support."
+        }
+      },
+      "FEATURES": {
+        "DEVICE": "1 device",
+        "DEVICES": "{{count}} devices",
+        "HISTORY": "{{days}} days of history",
+        "STORAGE": "{{gb}} GB for clips",
+        "ALERTS": "Realtime alerts",
+        "CLIPS": "Fall clips",
+        "PRIORITY": "Priority support"
+      }
+    }
+  },
   "AUTH": {
     "LOGOUT": "Sign out",
     "WELCOME": "Welcome to Vigia",
@@ -57,6 +136,7 @@
       "NOT_FOUND": "Device not found.",
       "UPDATE": "Could not update the device.",
       "USERS": "Could not load users.",
+      "CLIPS": "Could not load clips.",
       "SHARE": "Could not generate the share link.",
       "REMOVE_USER": "Could not remove the user.",
       "STREAM_COMMAND": "Could not start streaming."
@@ -72,9 +152,11 @@
     },
     "EDIT": {
       "TITLE": "Edit device",
-      "DESCRIPTION": "Name, room, and clip recording",
+      "DESCRIPTION": "Name, room, clips, and blur",
       "SAVE_CLIPS": "Save clips",
       "CLIPS_INFO": "When enabled, Vigia will store short video clips for later analysis of possible fall situations.",
+      "BLUR_CAPTURES": "Blur people",
+      "BLUR_INFO": "When enabled, people appear blurred in the stream, clips, and thumbnail.",
       "SAVE": "Save changes",
       "SUCCESS": "Device updated successfully",
       "ERROR": "Could not update the device",
@@ -93,8 +175,12 @@
       "COUNT": "{{current}}/{{max}}",
       "SHARE": "Share",
       "SHARE_LIMIT": "User limit reached",
-      "SHARE_SUBJECT": "Vigia invite",
       "SHARE_COPIED": "Link copied. Share it with who you want to invite.",
+      "SHARE_COPY": "Copy link",
+      "SHARE_COPIED_ACTION": "Copied",
+      "SHARE_COPY_ERROR": "Could not copy the link",
+      "SHARE_LINK": "Invite link",
+      "SHARE_EXPIRES": "Expires at {{time}}",
       "SHARE_ERROR": "Could not generate the share link",
       "REMOVE_TITLE": "Remove user",
       "REMOVE_MESSAGE": "Remove {{name}} from access to this group's devices?",
@@ -111,9 +197,19 @@
     "CLIPS": {
       "TITLE": "Clips",
       "DESCRIPTION": "Review device recordings",
-      "WEB_SOON": "Coming soon on web",
       "VIEW": "View clips",
-      "STUB": "Clips playback is not available on the web yet."
+      "ENABLED": "Storage on",
+      "DISABLED": "Storage off",
+      "STORAGE_OFF": "Clip storage is off. Turn it on in device settings to record new falls.",
+      "EMPTY": "No fall clips yet.",
+      "LOADING": "Loading clips…",
+      "PLAY_ERROR": "Could not play the clip.",
+      "STATUS": {
+        "Receiving": "Receiving",
+        "Assembling": "Assembling",
+        "Ready": "Ready",
+        "Failed": "Failed"
+      }
     },
     "ROOMS": {
       "Bedroom": "Bedroom",

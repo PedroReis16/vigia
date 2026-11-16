@@ -1,138 +1,43 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { convertToParamMap, provideRouter, ActivatedRoute } from '@angular/router';
-import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideOptimus } from '@openng/optimus-ui/config';
-import { TranslateModule } from '@ngx-translate/core';
-import { BehaviorSubject } from 'rxjs';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { vi } from 'vitest';
-import { LoginService, RegisterService } from '@core/usecases';
-import { MessageService, AuthExitTransitionService } from '@core/services';
-import { VigiaTheme } from '@shared/theme/vigia.theme';
+import { PendingInviteService } from '@core/services';
+import { BeginKeycloakAuthService } from '@core/usecases';
 import { AuthComponent } from './auth.component';
 
 describe('AuthComponent', () => {
-  let fixture: ComponentFixture<AuthComponent>;
-  let component: AuthComponent;
-  let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let beginAuth: { execute: ReturnType<typeof vi.fn> };
+  let pendingInvite: { getPostAuthPath: ReturnType<typeof vi.fn> };
 
-  async function setup(mode?: string): Promise<void> {
-    queryParamMap$ = new BehaviorSubject(
-      convertToParamMap(mode ? { mode } : {}),
-    );
+  async function create(mode: string | null): Promise<ComponentFixture<AuthComponent>> {
+    beginAuth = { execute: vi.fn().mockResolvedValue(undefined) };
+    pendingInvite = { getPostAuthPath: vi.fn(() => '/devices') };
 
     await TestBed.configureTestingModule({
-      imports: [AuthComponent, TranslateModule.forRoot()],
+      imports: [AuthComponent],
       providers: [
-        { provide: LoginService, useValue: { execute: vi.fn() } },
-        { provide: RegisterService, useValue: { execute: vi.fn() } },
-        MessageService,
-        provideRouter([{ path: 'devices', children: [] }]),
+        { provide: BeginKeycloakAuthService, useValue: beginAuth },
+        { provide: PendingInviteService, useValue: pendingInvite },
         {
           provide: ActivatedRoute,
-          useValue: {
-            snapshot: {
-              queryParamMap: convertToParamMap(mode ? { mode } : {}),
-            },
-            queryParamMap: queryParamMap$.asObservable(),
-          },
+          useValue: { snapshot: { queryParamMap: convertToParamMap(mode ? { mode } : {}) } },
         },
-        provideAnimationsAsync(),
-        provideOptimus({
-          theme: {
-            preset: VigiaTheme,
-            options: { darkModeSelector: false },
-          },
-        }),
       ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(AuthComponent);
-    component = fixture.componentInstance;
+    const fixture = TestBed.createComponent(AuthComponent);
     fixture.detectChanges();
+    return fixture;
   }
 
-  it('should create and render logo', async () => {
-    await setup();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(component).toBeTruthy();
-    expect(compiled.querySelector('[data-testid="auth-logo"]')).toBeTruthy();
-    expect(compiled.querySelector('[data-testid="login-panel"]')).toBeTruthy();
-    expect(compiled.querySelector('[data-mode="login"]')).toBeTruthy();
+  it('redirects to Keycloak login', async () => {
+    const fixture = await create(null);
+    expect(fixture.nativeElement.querySelector('[data-testid="auth-page"]')).toBeTruthy();
+    expect(beginAuth.execute).toHaveBeenCalledWith('login', '/devices');
   });
 
-  it('toggles between login and register modes', async () => {
-    await setup();
-    const compiled = fixture.nativeElement as HTMLElement;
-
-    compiled
-      .querySelector<HTMLButtonElement>('[data-testid="go-register"]')!
-      .click();
-    fixture.detectChanges();
-
-    expect(component.mode()).toBe('register');
-    expect(compiled.querySelector('[data-mode="register"]')).toBeTruthy();
-    expect(
-      compiled
-        .querySelector('[data-testid="register-panel"]')
-        ?.getAttribute('aria-hidden'),
-    ).toBe('false');
-    expect(
-      compiled
-        .querySelector('[data-testid="login-panel"]')
-        ?.getAttribute('aria-hidden'),
-    ).toBe('true');
-
-    compiled
-      .querySelector<HTMLButtonElement>('[data-testid="go-login"]')!
-      .click();
-    fixture.detectChanges();
-
-    expect(component.mode()).toBe('login');
-    expect(compiled.querySelector('[data-mode="login"]')).toBeTruthy();
-  });
-
-  it('opens register mode from ?mode=register', async () => {
-    await setup('register');
-    expect(component.mode()).toBe('register');
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector(
-        '[data-mode="register"]',
-      ),
-    ).toBeTruthy();
-  });
-
-  it('completes logout handoff after auth page paints', async () => {
-    await setup();
-    const transition = TestBed.inject(AuthExitTransitionService);
-    transition.armLogout(null, 80);
-    transition.activateLogoutBridge();
-    transition.setHandoffLogo({ top: 100, left: 120, height: 240 });
-
-    const rafCallbacks: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      rafCallbacks.push(callback);
-      return rafCallbacks.length;
-    });
-
-    fixture = TestBed.createComponent(AuthComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-    await Promise.resolve();
-
-    const flushRaf = (): void => {
-      const pending = [...rafCallbacks];
-      rafCallbacks.length = 0;
-      pending.forEach((callback) => callback(0));
-    };
-
-    for (let i = 0; i < 40; i += 1) {
-      flushRaf();
-      await Promise.resolve();
-    }
-
-    expect(component.introReady()).toBe(true);
-    expect(transition.settled()).toBe(true);
-    expect(transition.bridgeActive()).toBe(false);
-    expect(transition.handoffLogo()).toBeNull();
+  it('redirects to Keycloak registration', async () => {
+    await create('register');
+    expect(beginAuth.execute).toHaveBeenCalledWith('register', '/devices');
   });
 });

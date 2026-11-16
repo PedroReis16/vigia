@@ -4,7 +4,7 @@
   /* Below auth morph overlay (1100) so handoff stays same-color without popping. */
   z-index: 1099;
   background-color: #669cee;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .auth-handoff-logo {

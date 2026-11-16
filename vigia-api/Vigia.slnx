@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Libraries/">
+    <Project Path="Libraries/Vigia.AMQP/Vigia.AMQP.csproj" />
     <Project Path="Libraries/Vigia.Cache/Vigia.Cache.csproj" />
     <Project Path="Libraries/Vigia.Cloud/Vigia.Cloud.csproj" />
     <Project Path="Libraries/Vigia.Database/Vigia.Database.csproj" />

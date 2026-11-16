@@ -1,9 +1,23 @@
 :host {
-  display: contents;
+  display: block;
+  height: 100%;
+  min-height: 100%;
 }
 
 .auth-shell-transition {
-  display: contents;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+.auth-shell-transition__content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 .auth-shell-transition__veil,

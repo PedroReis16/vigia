@@ -19,11 +19,12 @@ permissions:
   contents: write
 
 env:
-  SERVICE_PATH: vigia-fall
-  APP_NAME: vigia-fall-detection
+  SERVICE_PATH: vigia-onboard
+  APP_NAME: vigia-onboard
+  LG_VERSION: "0.2.2"
   # Tag/release mutável — nunca versionada; cada run sobrescreve a mesma.
   RELEASE_TAG: onboard
-  ARTIFACT_NAME: vigia-fall-detection-linux-arm64
+  ARTIFACT_NAME: vigia-onboard-linux-arm64
   # Nome do pacote OTA / chave rolling na API (alinhado à tag GitHub).
   OTA_PACKAGE: onboard
 
@@ -43,19 +44,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install system dependencies
+      - name: Cache liblgpio
+        id: cache-liblgpio
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vigia-liblgpio-${{ env.LG_VERSION }}
+          key: liblgpio-${{ runner.os }}-${{ runner.arch }}-${{ env.LG_VERSION }}
+
+      - name: Install system dependencies + liblgpio
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
+            ca-certificates \
             ffmpeg \
+            swig \
+            wget \
             zip \
             libglib2.0-0 \
             libgomp1 \
             libgl1 \
             libsm6 \
             libxext6
+          bash "${{ github.workspace }}/.github/scripts/install-liblgpio.sh"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -68,11 +80,10 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.cache/ultralytics
-            ${{ env.SERVICE_PATH }}/models/yolo/yolo26s-pose_ncnn_model
-          key: fall-arm64-ncnn-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
+            ${{ env.SERVICE_PATH }}/capture/models/yolo/yolo26s-pose_ncnn_model
+          key: onboard-arm64-ncnn-${{ hashFiles(format('{0}/requirements.txt', env.SERVICE_PATH), format('{0}/requirements-build.txt', env.SERVICE_PATH)) }}
           restore-keys: |
-            fall-arm64-ncnn-
-            fall-arm64-
+            onboard-arm64-ncnn-
 
       - name: Install Python build dependencies
         run: make install-build-deps
@@ -99,7 +110,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/release-assets"
           cp "dist/${{ env.APP_NAME }}-deploy.zip" \
-             "dist/vigia-fall-ota-${OTA_PACKAGE}.tar.gz" \
+             "dist/vigia-onboard-ota-${OTA_PACKAGE}.tar.gz" \
              "${{ github.workspace }}/release-assets/"
 
       - name: Upload build artifacts
@@ -158,24 +169,24 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           name: Vigia Onboard
           body: |
-            Pacote rolling do **vigia-fall** / onboard (Linux ARM64).
+            Pacote rolling do serviço **Vigia** (`vigia-onboard`, Linux ARM64 / Raspberry Pi OS).
 
             Cada execução desta pipeline sobrescreve esta release e a tag `onboard`.
-            Baixe **`vigia-fall-detection-deploy.zip`** para instalação manual.
+            Baixe **`vigia-onboard-deploy.zip`** para instalação manual. Um único serviço: `vigia.service`.
 
             ### Instalação manual na placa
             ```bash
-            scp vigia-fall-detection-deploy.zip usuario@placa:/tmp/
+            scp vigia-onboard-deploy.zip usuario@placa:/tmp/
             ssh usuario@placa
             cd /tmp
-            unzip -o vigia-fall-detection-deploy.zip -d vigia-fall-detection-deploy
-            sudo ./vigia-fall-detection-deploy/install-on-board.sh
+            unzip -o vigia-onboard-deploy.zip -d vigia-onboard-deploy
+            sudo ./vigia-onboard-deploy/install-on-board.sh
             ```
 
             OTA na API é opcional (checkbox `upload_to_api` ao disparar o workflow).
           files: |
             ./artifacts/${{ env.APP_NAME }}-deploy.zip
-            ./artifacts/vigia-fall-ota-${{ env.OTA_PACKAGE }}.tar.gz
+            ./artifacts/vigia-onboard-ota-${{ env.OTA_PACKAGE }}.tar.gz
           draft: false
           prerelease: false
           make_latest: false
@@ -198,7 +209,7 @@ jobs:
           fi
 
           BASE_URL="${VIGIA_API_BASE_URL%/}"
-          ARTIFACT="./artifacts/vigia-fall-ota-${OTA_PACKAGE}.tar.gz"
+          ARTIFACT="./artifacts/vigia-onboard-ota-${OTA_PACKAGE}.tar.gz"
           if [ ! -f "$ARTIFACT" ]; then
             echo "::error::Artefato OTA não encontrado: $ARTIFACT"
             ls -la ./artifacts || true

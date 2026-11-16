@@ -1,13 +1,155 @@
 <section class="device-clips" data-testid="device-clips-page">
   <header class="device-clips__header">
-    <a [routerLink]="['/devices', deviceId]" class="device-clips__back">
-      <i class="pi pi-arrow-left" aria-hidden="true"></i>
+    <a
+      [routerLink]="['/devices', deviceId]"
+      class="device-clips__back"
+      [attr.aria-label]="'DEVICES.DETAIL.BACK' | translate"
+    >
+      <i class="pi pi-chevron-left" aria-hidden="true"></i>
     </a>
-    <h1>{{ 'DEVICES.CLIPS.TITLE' | translate }}</h1>
+    <div class="min-w-0">
+      <h1>{{ 'DEVICES.CLIPS.TITLE' | translate }}</h1>
+      @if (device(); as device) {
+        <p class="device-clips__device">{{ device.displayName }}</p>
+      }
+    </div>
   </header>
 
-  <p class="device-clips__stub">{{ 'DEVICES.CLIPS.STUB' | translate }}</p>
   @if (device(); as device) {
-    <p class="device-clips__device">{{ device.displayName }} · {{ device.id }}</p>
+    @if (!device.isClipsEnabled) {
+      <p class="device-clips__notice" data-testid="device-clips-disabled">
+        {{ 'DEVICES.CLIPS.STORAGE_OFF' | translate }}
+      </p>
+    }
+  }
+
+  @if (loading()) {
+    <div class="device-clips-grid" data-testid="device-clips-loading">
+      @for (slot of skeletonSlots; track slot) {
+        <p-card styleClass="device-clip-card overflow-hidden !p-0 h-full">
+          <ng-template #content>
+            <div class="device-clip-card__frame flex flex-col" aria-hidden="true">
+              <div class="device-clip-card__thumb grow basis-0 bg-surface-200 animate-pulse"></div>
+              <div class="device-clip-card__meta shrink-0 flex flex-col gap-2 p-2">
+                <div class="h-5 w-3/4 rounded bg-surface-200 animate-pulse"></div>
+                <div class="flex justify-between gap-2">
+                  <div class="h-4 w-1/3 rounded bg-surface-200 animate-pulse"></div>
+                  <div class="h-4 w-1/4 rounded bg-surface-200 animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </ng-template>
+        </p-card>
+      }
+    </div>
+  } @else if (error()) {
+    <div
+      class="flex min-h-60 flex-1 flex-col items-center justify-center gap-4 text-center"
+      data-testid="device-clips-error"
+    >
+      <p class="m-0 text-lg text-surface-600">{{ 'DEVICES.ERRORS.CLIPS' | translate }}</p>
+      <p-button
+        [label]="'DEVICES.RETRY' | translate"
+        icon="pi pi-refresh"
+        data-testid="device-clips-retry"
+        (onClick)="onRetry()"
+      />
+    </div>
+  } @else {
+    @if (videoUrl(); as url) {
+      <p-card styleClass="device-clips__player-card overflow-hidden !p-0">
+        <ng-template #content>
+          <video
+            #player
+            class="device-clips__player"
+            [src]="url"
+            [poster]="posterUrl()"
+            controls
+            playsinline
+            data-testid="device-clips-player"
+            (error)="onVideoError()"
+          ></video>
+        </ng-template>
+      </p-card>
+    }
+
+    @if (videoError()) {
+      <p class="device-clips__play-error" data-testid="device-clips-play-error">
+        {{ 'DEVICES.CLIPS.PLAY_ERROR' | translate }}
+      </p>
+    }
+
+    @if (clips().length === 0) {
+      <div
+        class="flex min-h-60 flex-1 items-center justify-center text-center text-surface-600"
+        data-testid="device-clips-empty"
+      >
+        <p class="m-0 text-lg">{{ 'DEVICES.CLIPS.EMPTY' | translate }}</p>
+      </div>
+    } @else {
+      <ul class="device-clips-grid" data-testid="device-clips-list">
+        @for (clip of clips(); track clip.id) {
+          <li>
+            <p-card
+              [styleClass]="
+                'device-clip-card overflow-hidden !p-0 h-full' +
+                (playingId() === clip.id ? ' device-clip-card--active' : '')
+              "
+            >
+              <ng-template #content>
+                <button
+                  type="button"
+                  class="device-clips__item"
+                  [disabled]="!clip.isReady"
+                  [attr.aria-pressed]="playingId() === clip.id"
+                  [attr.data-testid]="'device-clip-' + clip.id"
+                  (click)="play(clip)"
+                >
+                  <div class="device-clip-card__frame flex flex-col">
+                    <div class="device-clip-card__thumb relative grow basis-0 overflow-hidden bg-surface-200">
+                      @if (clip.thumbnailUrl && !failedThumbs().has(clip.id)) {
+                        <img
+                          class="absolute inset-0 h-full w-full object-cover"
+                          [src]="clip.thumbnailUrl"
+                          [alt]="formatCreatedAt(clip)"
+                          [attr.data-testid]="'device-clip-thumb-' + clip.id"
+                          (error)="onThumbError(clip.id)"
+                        />
+                      } @else {
+                        <div class="absolute inset-0 flex items-center justify-center text-surface-500">
+                          <i
+                            class="pi pi-video text-3xl"
+                            aria-hidden="true"
+                            [attr.data-testid]="'device-clip-thumb-fallback-' + clip.id"
+                          ></i>
+                        </div>
+                      }
+                    </div>
+                    <div class="device-clip-card__meta shrink-0 flex flex-col gap-1 p-2">
+                      <h3 class="device-clip-card__title m-0 text-base font-semibold leading-snug">
+                        {{ formatCreatedAt(clip) }}
+                      </h3>
+                      <div class="flex items-center justify-between gap-2 text-sm text-surface-600">
+                        <span class="truncate">{{ clip.durationLabel }}</span>
+                        <span class="inline-flex shrink-0 items-center gap-1">
+                          {{ clip.statusKey | translate }}
+                          <span
+                            class="inline-block h-2 w-2 rounded-full"
+                            [class.bg-green-500]="clip.isReady"
+                            [class.bg-amber-500]="clip.isPending"
+                            [class.bg-red-500]="!clip.isReady && !clip.isPending"
+                            aria-hidden="true"
+                          ></span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </ng-template>
+            </p-card>
+          </li>
+        }
+      </ul>
+    }
   }
 </section>

@@ -33,6 +33,8 @@ void main() {
       expect(event.deviceIds, ['d3']);
       expect(event.wasRemoved, isTrue);
       expect(event.wasJoined, isFalse);
+      expect(event.removesUserFromDevice('U2', 'D3'), isTrue);
+      expect(event.removesUserFromDevice('u9', 'd3'), isFalse);
     });
 
     test('tryParse returns event for valid map and null otherwise', () {

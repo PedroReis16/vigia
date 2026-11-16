@@ -8,7 +8,6 @@ namespace Vigia.API.Controllers.DeviceControllers;
 
 [ApiController]
 [Route("devices")]
-[Authorize]
 public class DeviceShareController(IDeviceShareService service) : ControllerBase
 {
     private readonly IDeviceShareService _service = service;

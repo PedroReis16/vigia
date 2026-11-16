@@ -1,0 +1,188 @@
+<section
+  class="profile-plan"
+  data-testid="profile-plan"
+  [attr.aria-label]="'PROFILE.PLAN.TITLE' | translate"
+>
+  @if (active(); as plan) {
+    <header class="profile-plan__header">
+      <h3 class="profile-plan__title">{{ 'PROFILE.PLAN.TITLE' | translate }}</h3>
+      <p class="profile-plan__hint">{{ 'PROFILE.PLAN.PREVIEW_HINT' | translate }}</p>
+    </header>
+
+    <p-card styleClass="profile__card">
+      <ng-template #content>
+        <div class="profile-plan__body" data-testid="profile-plan-active">
+          <h4 class="profile-plan__subtitle">{{ 'PROFILE.PLAN.ACTIVE' | translate }}</h4>
+
+          <div class="profile-plan__summary">
+            <div>
+              <p class="profile-plan__name" data-testid="profile-plan-name">
+                {{ plan.nameKey | translate }}
+              </p>
+              <p class="profile-plan__meta">
+                {{ 'PROFILE.PLAN.RENEWS' | translate: { date: plan.renewalLabel } }}
+              </p>
+            </div>
+            <div class="profile-plan__price-block">
+              <span
+                class="profile-plan__pill"
+                data-status="active"
+                data-testid="profile-plan-status"
+              >
+                {{ 'PROFILE.PLAN.STATUS.ACTIVE' | translate }}
+              </span>
+              <p class="profile-plan__price" data-testid="profile-plan-price">
+                {{ plan.priceLabel }}
+                <span>{{ 'PROFILE.PLAN.PER_MONTH' | translate }}</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="profile-plan__usage">
+            @for (usage of plan.usages; track usage.id) {
+              <div>
+                <p class="profile-plan__usage-label">
+                  {{
+                    usage.labelKey | translate: { used: usage.usedLabel, limit: usage.limitLabel }
+                  }}
+                </p>
+                <div
+                  class="profile-plan__meter"
+                  role="meter"
+                  [attr.aria-valuemin]="0"
+                  [attr.aria-valuemax]="usage.limit"
+                  [attr.aria-valuenow]="usage.used"
+                  [attr.aria-label]="
+                    usage.labelKey | translate: { used: usage.usedLabel, limit: usage.limitLabel }
+                  "
+                >
+                  <span class="profile-plan__meter-fill" [style.width.%]="usage.percent"></span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <ul class="profile-plan__features">
+            @for (feature of plan.features; track feature.key) {
+              <li>
+                <i class="pi pi-check" aria-hidden="true"></i>
+                <span>{{ feature.key | translate: feature.params }}</span>
+              </li>
+            }
+          </ul>
+
+          <div class="profile-plan__group">
+            <h5 class="profile-plan__group-title">
+              {{ 'PROFILE.PLAN.PAYMENT_METHOD' | translate }}
+            </h5>
+            <div class="profile-plan__payment">
+              <i class="pi pi-credit-card" aria-hidden="true"></i>
+              <div>
+                <p class="profile-plan__payment-card" data-testid="profile-plan-card">
+                  {{ plan.cardLabel }}
+                </p>
+                <p class="profile-plan__meta">
+                  {{ 'PROFILE.PLAN.EXPIRES' | translate: { expiry: plan.expiryLabel } }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="profile-plan__group">
+            <h5 class="profile-plan__group-title">{{ 'PROFILE.PLAN.PAYMENTS' | translate }}</h5>
+            <ul class="profile-plan__invoices">
+              @for (invoice of plan.invoices; track invoice.id) {
+                <li data-testid="profile-plan-invoice">
+                  <div>
+                    <p class="profile-plan__invoice-date">{{ invoice.dateLabel }}</p>
+                    <p class="profile-plan__meta">{{ invoice.packageNameKey | translate }}</p>
+                  </div>
+                  <div class="profile-plan__invoice-amount">
+                    <p>{{ invoice.amountLabel }}</p>
+                    <span class="profile-plan__pill" [attr.data-status]="invoice.status">
+                      {{ invoice.statusKey | translate }}
+                    </span>
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+      </ng-template>
+    </p-card>
+
+    <!-- <p-card styleClass="profile__card">
+      <ng-template #content>
+        <div class="profile-plan__body" data-testid="profile-plan-edit">
+          <h4 class="profile-plan__subtitle">{{ 'PROFILE.PLAN.EDIT' | translate }}</h4>
+          <p class="profile-plan__hint">{{ 'PROFILE.PLAN.EDIT_HINT' | translate }}</p>
+
+          <div class="profile-plan__packages">
+            @for (item of plan.packages; track item.id) {
+              <button
+                type="button"
+                class="profile-plan__package"
+                [class.profile-plan__package--selected]="previewPackageId() === item.id"
+                [attr.aria-pressed]="previewPackageId() === item.id"
+                [attr.data-testid]="'profile-plan-package-' + item.id"
+                (click)="onPreviewPackage(item.id)"
+              >
+                <span class="profile-plan__package-name">{{ item.nameKey | translate }}</span>
+                <span class="profile-plan__package-price">
+                  {{ item.priceLabel }}
+                  <span>{{ 'PROFILE.PLAN.PER_MONTH' | translate }}</span>
+                </span>
+                <span class="profile-plan__meta">{{ item.hintKey | translate }}</span>
+                <span class="profile-plan__package-tag">
+                  @if (previewPackageId() === item.id) {
+                    {{ 'PROFILE.PLAN.PACKAGE_PREVIEWING' | translate }}
+                  } @else if (item.actual) {
+                    {{ 'PROFILE.PLAN.PACKAGE_CURRENT' | translate }}
+                  } @else {
+                    {{ 'PROFILE.PLAN.PACKAGE_PREVIEW' | translate }}
+                  }
+                </span>
+              </button>
+            }
+          </div>
+
+          @if (draft(); as next) {
+            <div class="profile-plan__draft" data-testid="profile-plan-draft">
+              <p class="profile-plan__eyebrow">
+                {{ 'PROFILE.PLAN.PACKAGE_PREVIEWING' | translate }}
+              </p>
+              <div class="profile-plan__summary">
+                <p class="profile-plan__name" data-testid="profile-plan-draft-name">
+                  {{ next.nameKey | translate }}
+                </p>
+                <p class="profile-plan__price" data-testid="profile-plan-draft-price">
+                  {{ next.priceLabel }}
+                  <span>{{ 'PROFILE.PLAN.PER_MONTH' | translate }}</span>
+                </p>
+              </div>
+              <ul class="profile-plan__features">
+                @for (feature of next.features; track feature.key) {
+                  <li>
+                    <i class="pi pi-check" aria-hidden="true"></i>
+                    <span>{{ feature.key | translate: feature.params }}</span>
+                  </li>
+                }
+              </ul>
+              @for (usage of next.usages; track usage.id) {
+                @if (usage.overLimit) {
+                  <p class="profile-plan__over" data-testid="profile-plan-over-limit">
+                    {{
+                      usage.labelKey | translate: { used: usage.usedLabel, limit: usage.limitLabel }
+                    }}
+                    — {{ 'PROFILE.PLAN.OVER_LIMIT' | translate }}
+                  </p>
+                }
+              }
+              <p class="profile-plan__meta">{{ 'PROFILE.PLAN.DRAFT_HINT' | translate }}</p>
+            </div>
+          }
+        </div>
+      </ng-template>
+    </p-card> -->
+  }
+</section>

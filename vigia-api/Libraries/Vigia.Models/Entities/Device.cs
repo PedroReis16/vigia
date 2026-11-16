@@ -8,10 +8,16 @@ public class Device : BaseEntity
     public string? Nickname { get; set; }
     public string MacAddress { get; set; } = null!;
     public DeviceRooms? Room { get; set; }
-    /// <summary>Ed25519 public key (raw 32 bytes as hex).</summary>
-    public string SignPublicKey { get; set; } = null!;
-
+    
     public bool IsClipsEnabled { get; set; }
+
+    public bool IsBlurEnabled { get; set; }
+
+    public DateTime? LastHeartbeatAt { get; set; }
+
+    public string? ClientCertificateSerial { get; set; }
+
+    public DateTime? ClientCertificateNotAfter { get; set; }
 
     public Guid? GroupId { get; set; }
     public Group? Group { get; set; } = null;   // Group != null -> Dispositivo vinculado a um grupo de usuários

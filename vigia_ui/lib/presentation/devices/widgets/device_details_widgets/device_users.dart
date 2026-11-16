@@ -57,7 +57,11 @@ class _DeviceUsersState extends ConsumerState<DeviceUsers> {
           .read(deviceShareActionsProvider.notifier)
           .generateShareLink(widget.deviceId);
 
-      await Clipboard.setData(ClipboardData(text: invite.inviteUrl));
+      if (!mounted) return;
+
+      try {
+        await Clipboard.setData(ClipboardData(text: invite.inviteUrl));
+      } catch (_) {}
 
       if (!mounted) return;
 

@@ -43,11 +43,31 @@ public class DevicesCommandController(IDeviceCommandsService service) : Controll
     }
 
     /// <summary>
-    /// Hook do MediaMTX (runOnUnread when last reader leaves): envia STOP_STREAMING sem JWT de usuário.
-    /// Autenticado pelo header X-MediaMTX-Token.
+    /// Hook do MediaMTX (runOnDemand when the first reader arrives and nobody is publishing):
+    /// envia START_STREAMING sem JWT de usuário. Autenticado por Basic da conta mediamtx.
+    /// </summary>
+    [HttpPatch("demand")]
+    [Authorize(AuthenticationSchemes = ServiceBasicDefaults.AuthenticationScheme, Roles = ServiceBasicDefaults.MediaMtxRole)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> DemandStartStreaming(
+        Guid deviceId,
+        [FromBody] DeviceCommandDTO? command = null)
+    {
+        if (command is not null && command.Command != DeviceCommands.START_STREAMING)
+            return BadRequest("Somente START_STREAMING é permitido neste endpoint");
+
+        await _service.SendDemandStartStreamingAsync(deviceId);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Hook do MediaMTX (runOnUnDemand after runOnDemandCloseAfter with no readers):
+    /// envia STOP_STREAMING sem JWT de usuário. Autenticado por Basic da conta mediamtx.
     /// </summary>
     [HttpPatch("undemand")]
-    [Authorize(AuthenticationSchemes = MediaMtxTokenDefaults.AuthenticationScheme)]
+    [Authorize(AuthenticationSchemes = ServiceBasicDefaults.AuthenticationScheme, Roles = ServiceBasicDefaults.MediaMtxRole)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

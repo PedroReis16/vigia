@@ -1,0 +1,5 @@
+numpy>=1.26
+opencv-python-headless>=4.8
+paho-mqtt>=2.0
+python-dotenv>=1.0
+redis>=5.0

@@ -10,13 +10,13 @@ describe('AcceptInviteComponent', () => {
   let component: AcceptInviteComponent;
   let fixture: ComponentFixture<AcceptInviteComponent>;
   let acceptInvite: { execute: ReturnType<typeof vi.fn> };
-  let pendingInvite: { clear: ReturnType<typeof vi.fn> };
+  let pendingInvite: { clear: ReturnType<typeof vi.fn>; setToken: ReturnType<typeof vi.fn> };
   let messageService: MessageService;
   let router: Router;
 
   beforeEach(async () => {
     acceptInvite = { execute: vi.fn().mockResolvedValue(undefined) };
-    pendingInvite = { clear: vi.fn() };
+    pendingInvite = { clear: vi.fn(), setToken: vi.fn() };
 
     await TestBed.configureTestingModule({
       imports: [AcceptInviteComponent, TranslateModule.forRoot()],
@@ -55,12 +55,16 @@ describe('AcceptInviteComponent', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/devices');
   });
 
-  it('shows error and navigates to devices on failure', async () => {
+  it('keeps the pending token and stays on the page when accept fails', async () => {
     acceptInvite.execute.mockRejectedValue(new Error('failed'));
     fixture.detectChanges();
     await fixture.whenStable();
+    fixture.detectChanges();
 
+    expect(pendingInvite.clear).not.toHaveBeenCalled();
+    expect(pendingInvite.setToken).toHaveBeenCalledWith('invite-token');
     expect(messageService.getMessages()()?.type).toBe('error');
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/devices');
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('[data-testid="accept-invite-retry"]')).toBeTruthy();
   });
 });

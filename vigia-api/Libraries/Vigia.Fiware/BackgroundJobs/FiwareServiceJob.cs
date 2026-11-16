@@ -89,18 +89,18 @@ public class FiwareServiceJob(ILogger<FiwareServiceJob> logger, IServiceScopeFac
                         toProvision.Count);
 
 #if DEBUG
-                    //5. Garante o dispositivo de teste (mesmo da seed do banco) no IoT Agent / Orion
+                    //5. Garante o pool mock (mesmo da seed do banco) no IoT Agent / Orion
                     bool seedDeviceReady = await fiwareService.EnsureSeedDeviceAsync();
                     if (!seedDeviceReady)
                     {
                         _logger.LogWarning(
-                            "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o device seed no FIWARE",
+                            "Tentativa {Attempt}/{MaxAttempts}: não foi possível garantir o pool mock no FIWARE",
                             attempt,
                             maxAttempts);
                         continue;
                     }
 
-                    _logger.LogInformation("Device seed provisionado/confirmado no FIWARE com sucesso");
+                    _logger.LogInformation("Pool mock provisionado/confirmado no FIWARE com sucesso");
 #endif
                     return;
                 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Vigia.Models.Middlewares;
 using Vigia.API.Config;
 using Vigia.API.Contracts.Devices;
 
@@ -22,6 +23,7 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// </summary>
     [HttpGet("current")]
     [AllowAnonymous]
+    [DeviceCertificate]
     public async Task<IActionResult> GetCurrentUpdate()
     {
         DeviceUpdateInfo? info = await _service.GetCurrentUpdateAsync();
@@ -36,6 +38,7 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// </summary>
     [HttpGet("download")]
     [AllowAnonymous]
+    [DeviceCertificate]
     public async Task<IActionResult> DownloadCurrentUpdate()
     {
         Stream stream = await _service.DownloadCurrentUpdateAsync();
@@ -47,7 +50,6 @@ public class DeviceUpdatesController(IVersionService service, IConfiguration con
     /// Form: fileChunk, fileId, chunkIndex, totalChunks, revision (ex.: git SHA).
     /// </summary>
     [HttpPost]
-    [AllowAnonymous]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadDeviceUpdate(
         IFormFile fileChunk,

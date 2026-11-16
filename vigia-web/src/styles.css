@@ -21,6 +21,73 @@ html.auth-transition-bridge body {
   background-color: #669cee;
 }
 
+/* Detail ↔ clips: slide and fade the page content; the toolbar stays put. */
+html[data-page-transition] .layout__content {
+  background-color: var(--p-surface-50);
+}
+
+html[data-page-transition] ::view-transition-old(root),
+html[data-page-transition] ::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-page-transition] ::view-transition-group(device-page) {
+  overflow: hidden;
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+html[data-page-transition] ::view-transition-old(device-page),
+html[data-page-transition] ::view-transition-new(device-page) {
+  mix-blend-mode: normal;
+  height: 100%;
+}
+
+html[data-page-transition='forward'] ::view-transition-old(device-page) {
+  animation: 420ms cubic-bezier(0.33, 1, 0.68, 1) both page-leave-forward;
+}
+
+html[data-page-transition='forward'] ::view-transition-new(device-page) {
+  animation: 420ms cubic-bezier(0.33, 1, 0.68, 1) both page-enter-forward;
+}
+
+html[data-page-transition='back'] ::view-transition-old(device-page) {
+  animation: 420ms cubic-bezier(0.33, 1, 0.68, 1) both page-leave-back;
+}
+
+html[data-page-transition='back'] ::view-transition-new(device-page) {
+  animation: 420ms cubic-bezier(0.33, 1, 0.68, 1) both page-enter-back;
+}
+
+@keyframes page-leave-forward {
+  to {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+@keyframes page-enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes page-leave-back {
+  to {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes page-enter-back {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
 /* Cards use Optimus content tokens (Flutter AppColors.surface) */
 .p-card {
   background: var(--p-content-background);

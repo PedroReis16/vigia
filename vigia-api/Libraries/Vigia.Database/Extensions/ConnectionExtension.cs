@@ -32,14 +32,15 @@ public static class ConnectionExtension
         services.AddTransient<IDevicesDao, DevicesDao>();
         services.AddTransient<IGroupDao, GroupDao>();
         services.AddTransient<IGroupInviteDao, GroupInviteDao>();
-        services.AddTransient<IRefreshTokenDao, RefreshTokenDao>();
-        services.AddTransient<IUserDao, UserDao>();
         services.AddTransient<IFiwarePropertiesDao, FiwarePropertiesDao>();
         services.AddTransient<IUserPushTokenDao, UserPushTokenDao>();
+        services.AddTransient<IUserDao, UserDao>();
+        services.AddTransient<IDeviceClipDao, DeviceClipDao>();
+        services.AddTransient<IFallAlertEpisodeDao, FallAlertEpisodeDao>();
+        services.AddTransient<IUserNotificationDao, UserNotificationDao>();
 
         // Cache Services
         services.AddTransient<IDevicesDaoCache, DevicesDaoCache>();
         services.AddTransient<IGroupDaoCache, GroupDaoCache>();
-        services.AddTransient<IUserDaoCache, UserDaoCache>();
     }
 }

@@ -6,6 +6,7 @@ ARG BUILD_CONFIGURATION=Release
 
 # Project files first (restore cache)
 COPY vigia-api/Vigia.API/Vigia.API.csproj Vigia.API/
+COPY vigia-api/Libraries/Vigia.AMQP/Vigia.AMQP.csproj Libraries/Vigia.AMQP/
 COPY vigia-api/Libraries/Vigia.Models/Vigia.Models.csproj Libraries/Vigia.Models/
 COPY vigia-api/Libraries/Vigia.Database/Vigia.Database.csproj Libraries/Vigia.Database/
 COPY vigia-api/Libraries/Vigia.Cache/Vigia.Cache.csproj Libraries/Vigia.Cache/
@@ -26,7 +27,10 @@ RUN dotnet publish Vigia.API/Vigia.API.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
-RUN mkdir -p /versions
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /versions
 
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://+:8080 \

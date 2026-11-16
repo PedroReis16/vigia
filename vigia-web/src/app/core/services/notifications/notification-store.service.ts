@@ -1,42 +1,42 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { FallNotification } from '@core/entities/classes/fall-notification';
-import { AuthSessionService } from '@core/services/auth/auth-session.service';
-
-const MAX_NOTIFICATIONS = 50;
-const STORAGE_PREFIX = 'vigia:notifications:';
 
 @Injectable({
   providedIn: 'root',
 })
 export class NotificationStoreService {
-  private readonly session = inject(AuthSessionService);
-
   private readonly notificationsState = signal<FallNotification[]>([]);
-  private storageKey: string | null = null;
+  private readonly unreadCountState = signal(0);
 
   readonly notifications = this.notificationsState.asReadonly();
-  readonly unreadCount = computed(
-    () => this.notificationsState().filter((notification) => !notification.read).length,
-  );
+  readonly unreadCount = computed(() => this.unreadCountState());
 
   bindToCurrentUser(): void {
-    const userId = this.session.getUserId();
-    this.storageKey = userId ? `${STORAGE_PREFIX}${userId}` : null;
-    this.notificationsState.set(this.loadFromStorage());
+    // Inbox is loaded from the API via LoadNotificationsService.
   }
 
   clearForLogout(): void {
-    this.storageKey = null;
     this.notificationsState.set([]);
+    this.unreadCountState.set(0);
   }
 
-  add(notification: FallNotification): void {
-    const next = [notification, ...this.notificationsState()]
-      .slice(0, MAX_NOTIFICATIONS)
-      .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt));
+  replaceAll(notifications: FallNotification[], unreadCount: number): void {
+    this.notificationsState.set(notifications);
+    this.unreadCountState.set(unreadCount);
+  }
 
+  upsert(notification: FallNotification): void {
+    const existing = this.notificationsState();
+    const withoutDupes = existing.filter(
+      (item) =>
+        item.id !== notification.id &&
+        !(notification.episodeId && item.episodeId === notification.episodeId),
+    );
+    const next = [notification, ...withoutDupes].sort((left, right) =>
+      right.receivedAt.localeCompare(left.receivedAt),
+    );
     this.notificationsState.set(next);
-    this.persist();
+    this.unreadCountState.set(next.filter((item) => !item.read).length);
   }
 
   markRead(id: string): void {
@@ -44,7 +44,7 @@ export class NotificationStoreService {
       notification.id === id ? { ...notification, read: true } : notification,
     );
     this.notificationsState.set(next);
-    this.persist();
+    this.unreadCountState.set(next.filter((item) => !item.read).length);
   }
 
   markAllRead(): void {
@@ -53,42 +53,6 @@ export class NotificationStoreService {
       read: true,
     }));
     this.notificationsState.set(next);
-    this.persist();
-  }
-
-  private loadFromStorage(): FallNotification[] {
-    if (!this.storageKey || typeof localStorage === 'undefined') {
-      return [];
-    }
-
-    try {
-      const raw = localStorage.getItem(this.storageKey);
-      if (!raw) {
-        return [];
-      }
-
-      const parsed = JSON.parse(raw) as FallNotification[];
-      if (!Array.isArray(parsed)) {
-        return [];
-      }
-
-      return parsed
-        .filter((item) => item?.type === 'fall' && typeof item.deviceId === 'string')
-        .slice(0, MAX_NOTIFICATIONS);
-    } catch {
-      return [];
-    }
-  }
-
-  private persist(): void {
-    if (!this.storageKey || typeof localStorage === 'undefined') {
-      return;
-    }
-
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.notificationsState()));
-    } catch {
-      // Ignore quota or privacy mode errors.
-    }
+    this.unreadCountState.set(0);
   }
 }

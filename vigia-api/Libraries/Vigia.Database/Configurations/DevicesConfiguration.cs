@@ -26,15 +26,31 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.Property(e => e.Room)
             .HasColumnName("room");
 
-        _ = builder.Property(e => e.SignPublicKey)
-            .IsRequired()
-            .HasColumnName("sign_public_key")
-            .HasMaxLength(64);
-
         _ = builder.Property(e => e.IsClipsEnabled)
             .IsRequired()
             .HasColumnName("is_clips_enabled")
             .HasDefaultValue(false);
+
+        _ = builder.Property(e => e.IsBlurEnabled)
+            .IsRequired()
+            .HasColumnName("is_blur_enabled")
+            .HasDefaultValue(false);
+
+        _ = builder.Property(e => e.LastHeartbeatAt)
+            .HasColumnName("last_heartbeat_at")
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        _ = builder.Property(e => e.ClientCertificateSerial)
+            .HasColumnName("client_certificate_serial")
+            .HasMaxLength(64);
+
+        _ = builder.Property(e => e.ClientCertificateNotAfter)
+            .HasColumnName("client_certificate_not_after")
+            .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        _ = builder.HasIndex(e => e.ClientCertificateSerial)
+            .IsUnique()
+            .HasFilter("client_certificate_serial IS NOT NULL");
 
         _ = builder.HasOne(e => e.Group)
             .WithMany(g => g.Devices)
@@ -45,5 +61,7 @@ internal class DevicesConfiguration : BaseConfiguration<Device>
         _ = builder.HasIndex(e => e.MacAddress);
         _ = builder.HasIndex(e => e.Room);
         _ = builder.HasIndex(e => e.IsClipsEnabled);
+        _ = builder.HasIndex(e => e.IsBlurEnabled);
+        _ = builder.HasIndex(e => e.LastHeartbeatAt);
     }
 }

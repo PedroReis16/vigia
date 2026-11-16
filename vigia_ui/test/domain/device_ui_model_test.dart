@@ -29,6 +29,7 @@ void main() {
         room: DeviceRooms.livingRoom,
         isOwner: true,
         isClipsEnabled: true,
+        isBlurEnabled: true,
       );
 
       final cleared = model.copyWith(clearRoom: true);
@@ -37,16 +38,19 @@ void main() {
       expect(cleared.nickname, 'Sala');
       expect(cleared.isOwner, isTrue);
       expect(cleared.isClipsEnabled, isTrue);
+      expect(cleared.isBlurEnabled, isTrue);
 
       final updated = model.copyWith(
         nickname: 'Quarto',
         room: DeviceRooms.bedroom,
         isClipsEnabled: false,
+        isBlurEnabled: false,
       );
 
       expect(updated.nickname, 'Quarto');
       expect(updated.room, DeviceRooms.bedroom);
       expect(updated.isClipsEnabled, isFalse);
+      expect(updated.isBlurEnabled, isFalse);
     });
   });
 }

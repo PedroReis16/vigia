@@ -8,4 +8,12 @@ class Environments {
         RegExp(r'/+$'),
         '',
       );
+
+  static String get keycloakUrl =>
+      (dotenv.env["KEYCLOAK_URL"] ?? "").replaceAll(RegExp(r'/+$'), '');
+
+  static String get keycloakRealm => dotenv.env["KEYCLOAK_REALM"] ?? "vigia";
+
+  static String get keycloakClientId =>
+      dotenv.env["KEYCLOAK_CLIENT_ID"] ?? "vigia-app";
 }

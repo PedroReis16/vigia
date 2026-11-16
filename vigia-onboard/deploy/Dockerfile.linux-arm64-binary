@@ -1,0 +1,65 @@
+# =============================================================================
+# Dockerfile.linux-arm64-binary
+# Gera dist/vigia (onedir, binário `vigia`) para Linux ARM64 / Raspberry Pi OS.
+# Uso: a partir da raiz de vigia-onboard — ver `make build-linux-arm64`.
+# Pré-requisito: capture/models/yolo/yolo26s-pose_ncnn_model/
+# (o Makefile chama ensure-model antes do docker build).
+# =============================================================================
+
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM --platform=linux/arm64 python:3.12-bookworm AS builder
+
+WORKDIR /build
+
+# liblgpio não está no Debian Bookworm (só Raspberry Pi OS / Debian Trixie).
+# Compila-se a partir do upstream joan2937/lg para o pip `lgpio` e o PyInstaller.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      ffmpeg \
+      libglib2.0-0 \
+      libgomp1 \
+      libgl1 \
+      libsm6 \
+      libxext6 \
+      swig \
+      wget \
+ && rm -rf /var/lib/apt/lists/*
+
+ARG LG_VERSION=0.2.2
+RUN wget -q "https://github.com/joan2937/lg/archive/refs/tags/v${LG_VERSION}.tar.gz" \
+ && tar -xzf "v${LG_VERSION}.tar.gz" \
+ && make -C "lg-${LG_VERSION}" \
+ && make -C "lg-${LG_VERSION}" install \
+ && ldconfig \
+ && rm -rf "v${LG_VERSION}.tar.gz" "lg-${LG_VERSION}"
+
+COPY requirements.txt requirements-build.txt ./
+
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple \
+      "torch>=2.6,<2.12" "torchvision>=0.21,<0.27" \
+ && pip install --no-cache-dir -r requirements.txt \
+ && pip install --no-cache-dir -r requirements-build.txt \
+ && pip uninstall -y opencv-python 2>/dev/null || true \
+ && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.12.0.88"
+
+COPY main.py vigia-onboard.spec ./
+COPY capture ./capture
+COPY core ./core
+COPY integration ./integration
+COPY interface ./interface
+COPY stream ./stream
+COPY shared ./shared
+
+# onedir: menor pico de RAM que onefile (evita OOM / exit 137 em Docker).
+RUN pyinstaller --clean --noconfirm vigia-onboard.spec
+
+# ── Stage 2: imagem mínima — apenas o artefato ───────────────────────────────
+# Não use `scratch` aqui: `docker create <imagem>` exige CMD/ENTRYPOINT definidos.
+FROM alpine:3.19 AS artifact
+COPY --from=builder /build/dist/vigia /vigia
+CMD ["/bin/true"]

@@ -1,18 +1,23 @@
-using Vigia.API.Contracts.Devices;
 using Vigia.API.Contracts;
+using Vigia.API.Contracts.Devices;
 using Vigia.API.Models.DTOs.Devices;
-using Vigia.API.Models.DTOs.Users;
+using Vigia.API.Services.Users;
 using Vigia.Database.Contracts;
+using Vigia.Models.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
 
 namespace Vigia.API.Services.Devices;
 
-public class DeviceUsersService(ILogger<DeviceUsersService> logger, IServiceScopeFactory scopeFactory) : IDeviceUsersService
+public class DeviceUsersService(
+    ILogger<DeviceUsersService> logger,
+    IServiceScopeFactory scopeFactory,
+    IPictureAccessTokenProvider pictureAccess) : IDeviceUsersService
 {
     private readonly ILogger<DeviceUsersService> _logger = logger;
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
+    private readonly IPictureAccessTokenProvider _pictureAccess = pictureAccess;
 
     public async Task<List<DeviceUserDTO>> GetDeviceUsersAsync(Guid deviceId, Guid requestingUserId)
     {
@@ -33,14 +38,16 @@ public class DeviceUsersService(ILogger<DeviceUsersService> logger, IServiceScop
             if (!await groupDao.IsUserInGroupAsync(device.Group.Id, requestingUserId))
                 throw new UnauthorizedAccessException($"Usuário sem permissão para listar os usuários do dispositivo '{deviceId}'");
 
-            IUserService usersService = scope.ServiceProvider.GetRequiredService<IUserService>();
-            List<UserDTO> users = await usersService.GetGroupUsersAsync(device.Group.Id);
+            IUserDao userDao = scope.ServiceProvider.GetRequiredService<IUserDao>();
+            List<User> users = await userDao.GetUsersByGroupAsync(device.Group.Id);
 
             return users.Select(user => new DeviceUserDTO
             {
                 Id = user.Id,
-                Name = user.Name,
-                UserPictureUrl = user.UserPictureUrl,
+                Name = UserDisplayName.Format(user.FirstName, user.LastName, user.Email),
+                UserPictureUrl = string.IsNullOrWhiteSpace(user.PictureKey)
+                    ? null
+                    : UserPictureUrls.For(user, _pictureAccess.IssueToken(requestingUserId, user.Id)),
                 IsOwner = device.Group.OwnerId == user.Id,
             }).ToList();
         }

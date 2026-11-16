@@ -306,9 +306,6 @@ sudo vigia-uninstall --purge-data   # remove também identidade e rede (será pr
 
 Configurações opcionais (`FRAME_RATE`, `CLASSIFIER`, `YOLO_MODEL`) podem ser definidas em `/opt/vigia/.env`. Detalhes em [`vigia-onboard/docs/DEPLOY.md`](vigia-onboard/docs/DEPLOY.md).
 
-### Edge — Bootstrap (`bootstrap`, legado)
-
-Usado apenas em placas que ainda não migraram para o `onboard`. O pacote `vigia-bootstrap-deploy.zip` (release **Vigia Bootstrap**) é instalado da mesma forma, com `sudo ./vigia-bootstrap-deploy/install-on-board.sh`, e ativa `vigia-bootstrap.service` em `/opt/vigia/bootstrap/`. Para remover: `sudo vigia-bootstrap-uninstall [--purge-data]`. Veja [`vigia-bootstrap/docs/DEPLOY.md`](vigia-bootstrap/docs/DEPLOY.md).
 
 ### Mobile (`mobile`)
 

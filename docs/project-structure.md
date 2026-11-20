@@ -692,6 +692,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-11-20] Listagem de devices: `TestDeviceSeed` (Câmera Teste) sempre primeiro (`DevicesDao.GetUserDevicesAsync`)
 - [2026-11-20] API DEBUG: seed de thumbnails só para o pool mock, com JPEGs de capturas reais; edge sem seed (`SeedDeviceFramesWorker`, `Seed/Frames`, `extract_seed_frames.py`)
 - [2026-10-27] Mobile release: upload do APK via script Python com `supportsAllDrives` (Shared Drive; `upload-apk-gdrive.py`)
 - [2026-10-26] Mobile release: APK assinado publicado no Google Drive ao final do pipeline (`GDRIVE_CREDENTIALS`, `GDRIVE_FOLDER_ID`)

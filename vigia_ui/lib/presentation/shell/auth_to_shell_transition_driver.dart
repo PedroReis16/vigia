@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:vigia_ui/presentation/shell/auth_to_shell_transition.dart';
 import 'package:vigia_ui/presentation/shell/auth_transition_warm_up.dart';
@@ -48,7 +50,11 @@ class _AuthToShellTransitionDriverState
 
   Future<void> _startWhenReady() async {
     if (!mounted) return;
-    await AuthTransitionWarmUp.precacheLogos(context);
+    try {
+      await AuthTransitionWarmUp.precacheLogos(
+        context,
+      ).timeout(const Duration(milliseconds: 800));
+    } catch (_) {}
     if (!mounted) return;
     // Let the t=0 veil (and flyLogo) paint once with warm caches.
     await WidgetsBinding.instance.endOfFrame;

@@ -34,12 +34,13 @@ GoRouter appRouter(Ref ref) {
   ref.listen(pendingInviteTokenProvider, (_, _) {
     refresh.value++;
   });
-  // Only refresh when an enter morph is armed. Listening to disarm() would
+  // Refresh when an enter/exit morph is armed. Listening to disarm() would
   // rebuild the shell page mid-transition (Duration.zero) and flash on device.
   ref.listen(authExitTransitionProvider, (previous, next) {
     if (next == AuthTransitionKind.login ||
         next == AuthTransitionKind.register ||
-        next == AuthTransitionKind.coldStart) {
+        next == AuthTransitionKind.coldStart ||
+        next == AuthTransitionKind.logout) {
       refresh.value++;
     }
   });

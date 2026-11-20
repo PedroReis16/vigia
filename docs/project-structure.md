@@ -375,7 +375,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 **Propósito:** Utilitários de desenvolvimento — frame de teste, clipe a partir de um vídeo e mock do edge local (sem Pi/BLE).
 
-**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make publish-clip INPUT=video.mp4` / `make convert INPUT=video.avi` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). Se existir `.venv` na pasta, os alvos usam esse Python. `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
+**Ponto de entrada (dev):** `Makefile` na pasta. `make seed` / `make publish-frame` / `make publish-clip INPUT=video.mp4` / `make convert INPUT=video.avi` / `make extract-seed-frames` / `make deps` / `make test`. Portátil Windows (`py`) e macOS/Linux (`python3`). Se existir `.venv` na pasta, os alvos usam esse Python. `.env` opcional (`VIGIA_API_BASE_URL`, `VIGIA_FIWARE_API_KEY`, `VIGIA_STREAM_INGEST_URL`).
 
 | Script | Função |
 |--------|--------|
@@ -383,6 +383,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 | `seed-codes/publish_clip.py` | Extrai PNG de um vídeo (ffmpeg) e envia a sessão anônima `POST /devices/{id}/clips` + frames numerados |
 | `seed-codes/seed_local_edge.py` | Gera `device.json` (onboard) e `identity.json` + `network.json` + `classifier.json` (bootstrap/fall) em `edge-data/`, alinhados ao device DEBUG da API |
 | `seed-codes/video_converter.py` | Converte AVI → MP4 via ffmpeg (reencode H.264/AAC ou `--copy`) |
+| `seed-codes/extract_seed_frames.py` | Extrai JPEGs dos AVI de captura para `Vigia.API/Seed/Frames/` (pool mock DEBUG) |
 
 **Edge mock local:** `edge-data/` (gitignored exceto README). Bootstrap/fall usam `DATA_DIR=../edge-data`. Device: `Vigia-a1b2c3d4` / admin group. Login app: `admin` / `admin123`.
 
@@ -457,7 +458,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 
 6. **Deploy cloud separado por camada** — API/infra em compose mínimo EC2 + Traefik (`services.…`); web estático em Cloudflare Pages (`vigiadeteccoes.com.br`). Local: SPA no Traefik `:81` via container nginx.
 
-7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock. `SeedDeviceFramesWorker` preenche thumbnails no Redis (JPEG embutidos) quando o frame ainda não existe.
+7. **Migrations automáticas no startup** — `MigrationStartupFilter` aplica EF migrations ao iniciar. Em DEBUG, seeda `TestDeviceSeed` (edge) + `MockDevicesSeed` (7 workers) no grupo do admin; `EnsureSeedDeviceAsync` provisiona ambos no FIWARE. O worker `vigia-devices` só claima o pool mock. `SeedDeviceFramesWorker` preenche thumbnails no Redis só para o pool mock (JPEG embutidos de capturas) quando o frame ainda não existe; o edge/real só mostra thumbnail quando a placa envia o frame.
 
 8. **Push notifications** — Firebase/FCM para Android e Web (`platform: web`); iOS sem push por enquanto. Inbox server-side (`GET /notifications`) sincroniza lidas entre clientes; FCM continua como entrega. Web: service worker + sino; Flutter Android: tray + sino no AppBar.
 
@@ -691,6 +692,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-11-20] API DEBUG: seed de thumbnails só para o pool mock, com JPEGs de capturas reais; edge sem seed (`SeedDeviceFramesWorker`, `Seed/Frames`, `extract_seed_frames.py`)
 - [2026-10-27] Mobile release: upload do APK via script Python com `supportsAllDrives` (Shared Drive; `upload-apk-gdrive.py`)
 - [2026-10-26] Mobile release: APK assinado publicado no Google Drive ao final do pipeline (`GDRIVE_CREDENTIALS`, `GDRIVE_FOLDER_ID`)
 - [2026-10-26] vigia-web: `apiKey`/`vapidKey` Firebase fora do tree versionado (placeholders em `environment.ts` / `firebase-config.js`; prod via `FIREBASE_WEB_CONFIG_JSON_BASE64`)

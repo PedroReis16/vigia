@@ -4,7 +4,8 @@ using Vigia.Models.Seed;
 namespace Vigia.API.Seed;
 
 /// <summary>
-/// JPEGs embutidos para thumbnails DEBUG (edge de teste + pool mock).
+/// JPEGs embutidos para thumbnails DEBUG do pool mock (offline).
+/// O edge (<see cref="TestDeviceSeed"/>) não recebe seed — só o frame que a placa envia.
 /// </summary>
 internal static class SeedDeviceFrameCatalog
 {
@@ -15,15 +16,8 @@ internal static class SeedDeviceFrameCatalog
     public static bool TryGet(Guid deviceId, out byte[] jpeg) =>
         Frames.Value.TryGetValue(deviceId, out jpeg!);
 
-    public static IEnumerable<Guid> DeviceIds
-    {
-        get
-        {
-            yield return TestDeviceSeed.Id;
-            foreach (MockDeviceDefinition device in MockDevicesSeed.All)
-                yield return device.Id;
-        }
-    }
+    public static IEnumerable<Guid> DeviceIds =>
+        MockDevicesSeed.All.Select(device => device.Id);
 
     private static IReadOnlyDictionary<Guid, byte[]> Load()
     {

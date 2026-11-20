@@ -545,7 +545,7 @@ O `vigia-bootstrap` permanece o release `bootstrap` da placa. O `interface` é o
 - **i18n:** arquivos `.arb` (pt, en, es)
 - **Enums:** espelhados da API (`error_codes.dart`, `device_rooms.dart`)
 - **HTTP:** dio provider centralizado com interceptors de auth
-- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView (user agent `VigiaApp`, sem o handoff visual da web). No iOS o redirect `vigia://auth/callback` também vale quando o WKWebView reporta erro. Refresh inválido ou logout com access token morto limpa a sessão e volta ao overlay
+- **Auth:** Authorization Code + PKCE no cliente `vigia-app`; "Entrar" abre a página do realm numa WebView (user agent `VigiaApp`, sem o handoff visual da web). No iOS o redirect `vigia://auth/callback` também vale quando o WKWebView reporta erro. Logout limpa a sessão local na hora (redirect imediato) e revoga o refresh na API em best-effort
 - **Push:** `firebase_core` / `firebase_messaging` via path overrides Android-only (`packages/firebase_*_android`); runtime guard em `firebase_bootstrap` + `PushNotificationCoordinator`
 
 ### Angular (vigia-web)
@@ -695,6 +695,7 @@ flowchart LR
 - [2026-10-26] Mobile release: APK assinado publicado no Google Drive ao final do pipeline (`GDRIVE_CREDENTIALS`, `GDRIVE_FOLDER_ID`)
 - [2026-10-26] vigia-web: `apiKey`/`vapidKey` Firebase fora do tree versionado (placeholders em `environment.ts` / `firebase-config.js`; prod via `FIREBASE_WEB_CONFIG_JSON_BASE64`)
 - [2026-11-14] Onboard: GRU 37 em `models/gru37/` (path + features 37-D / resample 10 fps; cópia de `vigia-lab/models/gru38`)
+- [2026-11-20] App: logout marca a sessão falsa na hora; limpeza de tokens, revogação Keycloak e cookies WebView são best-effort e não bloqueiam o redirect (`vigia_ui` `AuthSession.signOut`, `SettingsPage`)
 - [2026-11-07] vigia-devices: release Docker Hub `pedroreis16/vigia-devices` via `worker-release.yml` (vídeos embutidos, tag rolling `worker`)
 - [2026-11-07] MediaMTX hooks: normalizar LF + `.gitattributes` `*.sh eol=lf` (CRLF quebrava `runOnDemand` / `stream_on`)
 - [2026-11-07] API DEBUG: seed de thumbnails JPEG embutidos no Redis para edge + pool mock (`SeedDeviceFramesWorker`, `Seed/Frames/*.jpg`)

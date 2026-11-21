@@ -19,9 +19,14 @@ class AuthRepository {
   }
 
   /// Revokes the Keycloak session via the API and soft-deletes [pushToken] when accepted.
+  ///
+  /// [accessToken] is optional so the caller can clear local storage first and
+  /// still send a Bearer snapshot. [skipAuthRefresh] avoids a refresh loop after
+  /// local logout.
   Future<void> logout({
     required String refreshToken,
     String? pushToken,
+    String? accessToken,
   }) {
     return _dio.post(
       '/users/logout',
@@ -29,6 +34,15 @@ class AuthRepository {
         'refreshToken': refreshToken,
         if (pushToken != null && pushToken.isNotEmpty) 'pushToken': pushToken,
       },
+      options: Options(
+        headers: {
+          if (accessToken != null && accessToken.isNotEmpty)
+            'Authorization': 'Bearer $accessToken',
+        },
+        sendTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+        extra: const {'skipAuthRefresh': true},
+      ),
     );
   }
 }

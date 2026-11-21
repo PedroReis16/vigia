@@ -109,9 +109,25 @@ class WhepLiveSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Surfaces ICE/peer failure after WHEP succeeded (black [RTCVideoView]).
+  @visibleForTesting
+  void handlePeerConnectionState(
+    RTCPeerConnectionState state, {
+    required int generation,
+  }) {
+    if (_disposed || generation != _connectGeneration) return;
+    if (state != RTCPeerConnectionState.RTCPeerConnectionStateFailed) return;
+    // Mid-negotiate failures stay in the connect() retry loop.
+    if (status != WhepLiveStatus.playing) return;
+
+    markError('WebRTC connection failed');
+    unawaited(_teardownPeer());
+  }
+
   Future<void> _negotiate() async {
     await initialize();
 
+    final generation = _connectGeneration;
     final pc = await createPeerConnection({
       'sdpSemantics': 'unified-plan',
       'iceServers': [
@@ -126,6 +142,10 @@ class WhepLiveSession extends ChangeNotifier {
       _remoteStream = event.streams.first;
       renderer.srcObject = _remoteStream;
       notifyListeners();
+    };
+
+    pc.onConnectionState = (RTCPeerConnectionState state) {
+      handlePeerConnectionState(state, generation: generation);
     };
 
     await pc.addTransceiver(

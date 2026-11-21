@@ -11,9 +11,10 @@ export const environment = {
   apiUrl: 'https://services.vigiadeteccoes.com.br/vigia',
   streamBaseUrl: 'https://services.vigiadeteccoes.com.br',
   keycloak: {
-    url: '',
-    realm: '',
-    clientId: '',
+    // Mesma origem do site: public/_worker.js repassa /auth ao Keycloak na VM.
+    url: 'https://vigiadeteccoes.com.br/auth',
+    realm: 'vigia',
+    clientId: 'vigia-web',
   },
   firebase: {
     apiKey: "",

@@ -1,2 +1,0 @@
-# Dependências só para gerar o executável (make build / Docker).
-pyinstaller>=6.0

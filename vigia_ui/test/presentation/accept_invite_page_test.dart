@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vigia_ui/domain/enums/error_codes.dart';
 import 'package:vigia_ui/domain/exceptions/request_exception.dart';
-import 'package:vigia_ui/l10n/app_localizations.dart';
 import 'package:vigia_ui/presentation/devices/pages/accept_invite_page.dart';
 import 'package:vigia_ui/presentation/devices/providers/device_details_provider.dart';
 import 'package:vigia_ui/presentation/devices/providers/pending_invite_provider.dart';

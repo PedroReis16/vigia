@@ -19,12 +19,12 @@ Push web usa o **mesmo projeto Firebase** do app Android. Sem config real, o app
 
 1. No [Firebase Console](https://console.firebase.google.com/), registre um **Web app** no projeto Vigia.
 2. Em **Cloud Messaging → Web Push certificates**, gere o par VAPID e copie a **chave pública**.
-3. Preencha:
+3. Preencha **localmente** (não faça commit dos valores reais):
    - `src/environments/environment.ts` → bloco `firebase`
    - `public/firebase-config.js` (copie de `public/firebase-config.js.example`)
 4. Em **Authentication → Settings → Authorized domains**, inclua `localhost` e `vigiadeteccoes.com.br`.
 
-Referência de placeholders: `src/environments/firebase.config.example.ts`.
+Os arquivos versionados devem permanecer com placeholders/vazios. Produção usa o secret GitHub abaixo. Referência: `src/environments/firebase.config.example.ts`.
 
 ### CI / produção
 

@@ -6,10 +6,9 @@ namespace Vigia.API.UnitTests;
 public class SeedDeviceFrameCatalogTests
 {
     [Fact]
-    public void All_ContainsJpegForEdgeAndMockPool()
+    public void All_ContainsJpegForMockPoolOnly()
     {
-        Assert.True(SeedDeviceFrameCatalog.TryGet(TestDeviceSeed.Id, out byte[] edgeJpeg));
-        Assert.True(IsJpeg(edgeJpeg));
+        Assert.False(SeedDeviceFrameCatalog.TryGet(TestDeviceSeed.Id, out _));
 
         foreach (MockDeviceDefinition device in MockDevicesSeed.All)
         {
@@ -19,7 +18,8 @@ public class SeedDeviceFrameCatalogTests
             Assert.True(IsJpeg(jpeg));
         }
 
-        Assert.Equal(1 + MockDevicesSeed.All.Count, SeedDeviceFrameCatalog.All.Count);
+        Assert.Equal(MockDevicesSeed.All.Count, SeedDeviceFrameCatalog.All.Count);
+        Assert.Equal(MockDevicesSeed.All.Count, SeedDeviceFrameCatalog.DeviceIds.Count());
     }
 
     private static bool IsJpeg(byte[] bytes) =>

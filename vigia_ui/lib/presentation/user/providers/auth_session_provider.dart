@@ -1,4 +1,5 @@
-import 'package:dio/dio.dart';
+import 'dart:async';
+
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vigia_ui/core/providers/keycloak_auth_client_provider.dart';
 import 'package:vigia_ui/core/providers/push_notification_provider.dart';
@@ -28,43 +29,66 @@ class AuthSession extends _$AuthSession {
 
   /// Clears local tokens and marks the session as signed out.
   /// Safe to call from Dio interceptors (does not hit the network).
+  /// The in-memory flag flips even if secure storage is slow or unavailable.
   Future<void> clearSession() async {
-    await ref.read(tokenStorageProvider).clearUserTokens();
+    try {
+      await ref
+          .read(tokenStorageProvider)
+          .clearUserTokens()
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
     state = const AsyncData(false);
   }
 
-  /// Ends the Keycloak session via the API.
+  /// Ends the session locally immediately, then best-effort revokes on the API.
   ///
-  /// A dead access token (401/403) still drops the local session so the
-  /// overlay can show. Other failures leave the session in place.
+  /// Returns as soon as the local session is cleared so the router can leave the
+  /// shell even when Keycloak, secure storage, cookies, or the network stall.
+  /// Remote logout uses a snapshot Bearer after storage is wiped and is not awaited.
   Future<void> signOut() async {
     final tokenStorage = ref.read(tokenStorageProvider);
     final authRepository = ref.read(authRepositoryProvider);
-    final refreshToken = await tokenStorage.getRefreshToken();
 
-    if (refreshToken == null || refreshToken.isEmpty) {
-      await clearSession();
-      return;
-    }
+    String? accessToken;
+    String? refreshToken;
+    try {
+      accessToken = await tokenStorage
+          .getAccessToken()
+          .timeout(const Duration(seconds: 2));
+      refreshToken = await tokenStorage
+          .getRefreshToken()
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {}
 
     final pushCoordinator = ref.read(pushNotificationCoordinatorProvider);
     final pushToken = pushCoordinator.currentPushToken;
 
-    try {
-      await authRepository.logout(
-        refreshToken: refreshToken,
-        pushToken: pushToken,
-      );
-    } on DioException catch (error) {
-      final status = error.response?.statusCode;
-      if (status != 401 && status != 403) rethrow;
-    }
-
+    // Redirect depends on this — never block it on the network or WebView cookies.
     pushCoordinator.clearLocalToken();
-    await clearSession();
-
+    state = const AsyncData(false);
     try {
-      await ref.read(keycloakBrowserSessionProvider).clear();
+      await tokenStorage.clearUserTokens().timeout(const Duration(seconds: 2));
     } catch (_) {}
+
+    unawaited(() async {
+      if (refreshToken != null && refreshToken.isNotEmpty) {
+        try {
+          await authRepository
+              .logout(
+                refreshToken: refreshToken,
+                pushToken: pushToken,
+                accessToken: accessToken,
+              )
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {}
+      }
+
+      try {
+        await ref
+            .read(keycloakBrowserSessionProvider)
+            .clear()
+            .timeout(const Duration(seconds: 2));
+      } catch (_) {}
+    }());
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,12 +24,33 @@ class _LogoutStatus extends AuthRepository {
   final int statusCode;
 
   @override
-  Future<void> logout({required String refreshToken, String? pushToken}) {
+  Future<void> logout({
+    required String refreshToken,
+    String? pushToken,
+    String? accessToken,
+  }) {
     final options = RequestOptions(path: '/users/logout');
     throw DioException(
       requestOptions: options,
       response: Response(requestOptions: options, statusCode: statusCode),
     );
+  }
+}
+
+class _HangingLogout extends AuthRepository {
+  _HangingLogout()
+    : super(
+        KeycloakAuthClient(Dio(), realm: 'vigia', clientId: 'vigia-app'),
+        Dio(),
+      );
+
+  @override
+  Future<void> logout({
+    required String refreshToken,
+    String? pushToken,
+    String? accessToken,
+  }) {
+    return Completer<void>().future;
   }
 }
 
@@ -102,7 +125,31 @@ void main() {
     );
 
     test(
-      'signOut keeps the session when logout fails for another reason',
+      'signOut clears the session when Keycloak rejects the refresh',
+      () async {
+        final storage = FakeTokenStorage(
+          accessToken: 'access',
+          refreshToken: 'stale-refresh',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            tokenStorageProvider.overrideWithValue(storage),
+            authRepositoryProvider.overrideWith((ref) => _LogoutStatus(400)),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(authSessionProvider.future);
+        await container.read(authSessionProvider.notifier).signOut();
+
+        expect(storage.accessToken, isNull);
+        expect(storage.refreshToken, isNull);
+        expect(container.read(authSessionProvider).asData?.value, isFalse);
+      },
+    );
+
+    test(
+      'signOut clears the session even when remote logout fails',
       () async {
         final storage = FakeTokenStorage(
           accessToken: 'access',
@@ -117,13 +164,38 @@ void main() {
         addTearDown(container.dispose);
 
         await container.read(authSessionProvider.future);
-        await expectLater(
-          container.read(authSessionProvider.notifier).signOut(),
-          throwsA(isA<DioException>()),
-        );
+        await container.read(authSessionProvider.notifier).signOut();
 
-        expect(storage.refreshToken, 'refresh');
-        expect(container.read(authSessionProvider).asData?.value, isTrue);
+        expect(storage.accessToken, isNull);
+        expect(storage.refreshToken, isNull);
+        expect(container.read(authSessionProvider).asData?.value, isFalse);
+      },
+    );
+
+    test(
+      'signOut returns while remote logout is still hanging',
+      () async {
+        final storage = FakeTokenStorage(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            tokenStorageProvider.overrideWithValue(storage),
+            authRepositoryProvider.overrideWith((ref) => _HangingLogout()),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(authSessionProvider.future);
+        await container
+            .read(authSessionProvider.notifier)
+            .signOut()
+            .timeout(const Duration(seconds: 1));
+
+        expect(storage.accessToken, isNull);
+        expect(storage.refreshToken, isNull);
+        expect(container.read(authSessionProvider).asData?.value, isFalse);
       },
     );
 

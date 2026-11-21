@@ -13,6 +13,7 @@
 #   make publish-clip INPUT=video.mp4 # extrai PNG e envia o clipe
 #   make convert INPUT=video.avi      # AVI → MP4 (mesmo nome .mp4)
 #   make convert INPUT=v.avi OUTPUT=out.mp4
+#   make extract-seed-frames          # JPEGs mock → vigia-api/.../Seed/Frames
 #   make test                         # testes de seed_local_edge e publish_clip
 # =============================================================================
 
@@ -49,7 +50,7 @@ require_file = $(if $(wildcard $(1)),,$(error $(2)))
 require_var  = $(if $(strip $(1)),,$(error $(2)))
 unexport require_file require_var
 
-.PHONY: help deps seed publish-frame publish-clip convert test
+.PHONY: help deps seed publish-frame publish-clip convert extract-seed-frames test
 
 help:
 	@echo Uso: make alvo
@@ -66,6 +67,8 @@ help:
 	@echo   make convert INPUT=video.avi      AVI para MP4 saida mesmo nome .mp4
 	@echo   make convert INPUT=v.avi OUTPUT=o.mp4
 	@echo   make convert INPUT=v.avi COPY=1   remux sem reencodar
+	@echo   make extract-seed-frames          JPEGs dos AVI de captura para Seed/Frames
+	@echo   make extract-seed-frames CAPTURES_DIR=path
 	@echo   make test                         testes de seed_local_edge e publish_clip
 	@echo Configuracao opcional: .env nesta pasta VIGIA_API_BASE_URL etc.
 	@echo Windows: HOST_PYTHON=py ou python. macOS/Linux: python3.
@@ -91,6 +94,10 @@ convert:
 	$(call require_var,$(INPUT),Defina INPUT=caminho/video.avi)
 	$(call require_file,video_converter.py,video_converter.py nao encontrado.)
 	@$(PYTHON) video_converter.py "$(INPUT)" $(if $(OUTPUT),-o "$(OUTPUT)",) $(if $(COPY),--copy,)
+
+extract-seed-frames:
+	$(call require_file,extract_seed_frames.py,extract_seed_frames.py nao encontrado.)
+	@$(PYTHON) extract_seed_frames.py $(if $(CAPTURES_DIR),--captures-dir "$(CAPTURES_DIR)",) $(if $(OUTPUT_DIR),--output-dir "$(OUTPUT_DIR)",) $(if $(KEEP_EDGE_SEED),--keep-edge-seed,)
 
 test:
 	$(call require_file,test_seed_local_edge.py,test_seed_local_edge.py nao encontrado.)

@@ -1,9 +1,9 @@
+// Local/dev: copy from firebase-config.js.example and fill real values (do not commit secrets).
+// CI/prod: hydrated by .github/scripts/hydrate-firebase-web.sh from FIREBASE_WEB_CONFIG_JSON_BASE64.
 self.FIREBASE_CONFIG = {
-    apiKey: "AIzaSyDLv9uHA6xFbRRnwjRmzWaCxadX-v62DvI",
-    authDomain: "vigia-fall-detection.firebaseapp.com",
-    projectId: "vigia-fall-detection",
-    storageBucket: "vigia-fall-detection.firebasestorage.app",
-    messagingSenderId: "241599132191",
-    appId: "1:241599132191:web:08154d96d34f15cf18db2a",
-    measurementId: "G-7DG1Q5EQP8"
+  apiKey: 'YOUR_API_KEY',
+  authDomain: 'YOUR_PROJECT.firebaseapp.com',
+  projectId: 'YOUR_PROJECT_ID',
+  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+  appId: 'YOUR_APP_ID',
 };

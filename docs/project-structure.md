@@ -640,8 +640,9 @@ flowchart LR
 1. O player (web ou app) só conecta WHEP em `/live/{deviceId}`. Sem publisher, o MediaMTX segura o pedido e dispara `runOnDemand` (`runOnDemandStartTimeout` 30s)
 2. O hook chama `PATCH /devices/{id}/command/demand` com Basic da conta `mediamtx`. A API envia `stream_on` via FIWARE; o IoT Agent publica no MQTT e o processo de integração liga o stream
 3. O supervisor sobe o processo de streaming. A captura escreve frames na shared memory quando `stream_on` e o processo publica RTMP em `stream_ingest_url` (`rtmp://` local ou `rtmps://` produção). O MediaMTX então libera o WHEP
-4. O último leitor sair espera `runOnDemandCloseAfter` (10s). Se ninguém volta, `runOnUnDemand` chama `PATCH .../command/undemand` com Basic e a API envia `stream_off`
-5. `stream_off` (ou falhas RTMP) encerra o processo de streaming
+4. Mídia WebRTC usa `webrtcAdditionalHosts` (local: `127.0.0.1` + `10.0.2.2` para o emulador Android; aparelho físico precisa do IPv4 da LAN). Se o peer ICE falhar após o negotiate, o cliente marca erro (retry) em vez de tela preta
+5. O último leitor sair espera `runOnDemandCloseAfter` (10s). Se ninguém volta, `runOnUnDemand` chama `PATCH .../command/undemand` com Basic e a API envia `stream_off`
+6. `stream_off` (ou falhas RTMP) encerra o processo de streaming
 
 ### 4. OTA (atualização de firmware)
 
@@ -692,6 +693,7 @@ flowchart LR
 
 ## 9. Changelog Técnico
 
+- [2026-11-20] Stream local no emulador Android: MediaMTX anuncia `10.0.2.2` nos candidatos ICE; WHEP marca erro se o peer falhar após o negotiate (`mediamtx.yml`, `whep_live_session` Flutter/web)
 - [2026-11-20] Listagem de devices: `TestDeviceSeed` (Câmera Teste) sempre primeiro (`DevicesDao.GetUserDevicesAsync`)
 - [2026-11-20] API DEBUG: seed de thumbnails só para o pool mock, com JPEGs de capturas reais; edge sem seed (`SeedDeviceFramesWorker`, `Seed/Frames`, `extract_seed_frames.py`)
 - [2026-10-27] Mobile release: upload do APK via script Python com `supportsAllDrives` (Shared Drive; `upload-apk-gdrive.py`)

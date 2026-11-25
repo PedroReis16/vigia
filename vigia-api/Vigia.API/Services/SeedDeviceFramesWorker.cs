@@ -5,8 +5,8 @@ using Vigia.API.Seed;
 namespace Vigia.API.Services;
 
 /// <summary>
-/// Em DEBUG, garante thumbnail no Redis para devices seedados.
-/// Não sobrescreve frames já presentes (ex.: worker / edge a enviar JPEG).
+/// Em DEBUG, garante thumbnail no Redis para o pool mock quando offline.
+/// Não sobrescreve frames já presentes (ex.: worker a enviar JPEG).
 /// </summary>
 internal sealed class SeedDeviceFramesWorker(
     IDeviceFrameCacheService frameCache,

@@ -14,8 +14,9 @@ internal class CloudService(IAmazonS3 s3Client) : ICloudService
         ArgumentException.ThrowIfNullOrWhiteSpace(bucketName);
 
         ListBucketsResponse buckets = await _s3Client.ListBucketsAsync(cancellationToken);
-        bool exists = buckets.Buckets.Exists(b =>
-            string.Equals(b.BucketName, bucketName, StringComparison.Ordinal));
+        // MinIO pode devolver Buckets=null quando a lista está vazia.
+        bool exists = buckets.Buckets?.Exists(b =>
+            string.Equals(b.BucketName, bucketName, StringComparison.Ordinal)) == true;
 
         if (exists)
         {

@@ -1,8 +1,41 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:vigia_ui/data/services/whep_live_session.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('WhepLiveSession.handlePeerConnectionState', () {
+    test('marks error when peer fails after playing', () {
+      final session = WhepLiveSession(
+        whepUrl: 'http://example.test/live/x/whep',
+      );
+      session.status = WhepLiveStatus.playing;
+
+      session.handlePeerConnectionState(
+        RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        generation: 0,
+      );
+
+      expect(session.status, WhepLiveStatus.error);
+      expect(session.errorMessage, contains('WebRTC connection failed'));
+    });
+
+    test('ignores failure while still connecting', () {
+      final session = WhepLiveSession(
+        whepUrl: 'http://example.test/live/x/whep',
+      );
+      expect(session.status, WhepLiveStatus.connecting);
+
+      session.handlePeerConnectionState(
+        RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        generation: 0,
+      );
+
+      expect(session.status, WhepLiveStatus.connecting);
+      expect(session.errorMessage, isNull);
+    });
+  });
 
   group('WhepLiveSession.close', () {
     test('marks isClosed synchronously and is idempotent', () async {

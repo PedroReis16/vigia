@@ -145,7 +145,27 @@ export class WhepLiveSession {
     await this.delay(0);
   }
 
+  /** Surfaces ICE/peer failure after WHEP succeeded (black video element). */
+  handlePeerConnectionState(
+    state: RTCPeerConnectionState,
+    generation: number,
+  ): void {
+    if (this.isClosedFlag || generation !== this.connectGeneration) {
+      return;
+    }
+    if (state !== 'failed') {
+      return;
+    }
+    // Mid-negotiate failures stay in the connect() retry loop.
+    if (this.status !== 'playing') {
+      return;
+    }
+    this.markError(new Error('WebRTC connection failed'));
+    void this.teardownPeer();
+  }
+
   private async negotiate(): Promise<void> {
+    const generation = this.connectGeneration;
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     });
@@ -157,6 +177,10 @@ export class WhepLiveSession {
       }
       this.remoteStream = event.streams[0];
       this.notify();
+    };
+
+    pc.onconnectionstatechange = () => {
+      this.handlePeerConnectionState(pc.connectionState, generation);
     };
 
     pc.addTransceiver('video', { direction: 'recvonly' });

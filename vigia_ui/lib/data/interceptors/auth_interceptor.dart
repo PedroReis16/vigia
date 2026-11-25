@@ -40,6 +40,11 @@ class AuthInterceptor extends Interceptor {
       return handler.next(err);
     }
 
+    // Logout (and similar) already carry a snapshot Bearer after local clear.
+    if (err.requestOptions.extra['skipAuthRefresh'] == true) {
+      return handler.next(err);
+    }
+
     if (err.requestOptions.extra['retried'] == true) {
       await _onRefreshFailed();
       return handler.next(err);

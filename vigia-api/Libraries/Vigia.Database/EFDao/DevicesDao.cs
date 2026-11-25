@@ -4,6 +4,7 @@ using Vigia.Database.Contracts;
 using Vigia.Models.Entities;
 using Vigia.Models.Enums;
 using Vigia.Models.Exceptions;
+using Vigia.Models.Seed;
 
 
 
@@ -198,6 +199,11 @@ internal class DevicesDao(VigiaDbContext context, IDevicesDaoCache? cache = null
 
         if (onlyOwned)
             query = query.Where(d => d.Group!.OwnerId == userId);
+
+        // Câmera Teste (edge local) sempre no topo da listagem.
+        query = query
+            .OrderByDescending(d => d.Id == TestDeviceSeed.Id)
+            .ThenBy(d => d.Nickname ?? d.Name);
 
         if (page > 0 && pageSize > 0)
             query = query.Skip((page - 1) * pageSize).Take(pageSize);

@@ -6,12 +6,15 @@ rtmp: yes
 hls: yes
 webrtc: yes
 
-# Em Docker local (macOS), anunciar hosts explicitos evita candidatos ICE invalidos.
+# Hosts anunciados nos candidatos ICE (mídia UDP/TCP :8189).
+# localhost/127.0.0.1: browser no host. 10.0.2.2: emulador Android → host.
+# Aparelho físico / iOS Simulator: acrescente o IPv4 da LAN do host.
 webrtcIPsFromInterfaces: false
 webrtcAdditionalHosts:
   - localhost
   - 127.0.0.1
   - host.docker.internal
+  - 10.0.2.2
 
 # Porta fixa de mídia WebRTC (precisa estar publicada no host)
 webrtcLocalUDPAddress: :8189

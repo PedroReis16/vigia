@@ -60,4 +60,60 @@ void main() {
 
     expect(adapter.maxInFlight, 2);
   });
+
+  test('skipAuthRefresh does not attempt token refresh on 401', () async {
+    var refreshFailed = 0;
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'));
+    dio.httpClientAdapter = _StatusAdapter(401);
+    dio.interceptors.add(
+      AuthInterceptor(
+        dio: dio,
+        keycloak: KeycloakAuthClient(
+          Dio(),
+          realm: 'vigia',
+          clientId: 'vigia-app',
+        ),
+        tokenStorage: FakeTokenStorage(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+        ),
+        onRefreshFailed: () async {
+          refreshFailed++;
+        },
+      ),
+    );
+
+    await expectLater(
+      dio.post<Object>(
+        '/users/logout',
+        options: Options(extra: const {'skipAuthRefresh': true}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+    expect(refreshFailed, 0);
+  });
+}
+
+class _StatusAdapter implements HttpClientAdapter {
+  _StatusAdapter(this.statusCode);
+
+  final int statusCode;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      '{}',
+      statusCode,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

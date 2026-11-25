@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:vigia_ui/core/app_routes.dart';
 import 'package:vigia_ui/domain/enums/error_codes.dart';
 import 'package:vigia_ui/domain/exceptions/request_exception.dart';
 import 'package:vigia_ui/l10n/app_localizations.dart';
@@ -252,13 +256,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    await AuthTransitionWarmUp.precacheLogos(context);
+    // Warm-up must not gate logout — a stuck precache left the shell on screen.
+    unawaited(AuthTransitionWarmUp.precacheLogos(context));
     if (!context.mounted) return;
+
     ref.read(authExitTransitionProvider.notifier).armLogout();
     try {
       await ref.read(authSessionProvider.notifier).signOut();
     } catch (_) {
-      ref.read(authExitTransitionProvider.notifier).disarm();
+      await ref.read(authSessionProvider.notifier).clearSession();
     }
+    if (context.mounted) context.go(AppRoutes.authPage);
   }
 }
